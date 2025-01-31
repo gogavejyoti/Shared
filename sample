@@ -1,21 +1,2 @@
-
-
-
--- Batch delete loop
-DECLARE @BatchSize INT = 1000;
-CREATE TABLE #TempIds (SyncId UNIQUEIDENTIFIER);
-
-WHILE EXISTS (SELECT 1 FROM #TempIds)
-BEGIN
-    -- Delete in batches of 1000
-    DELETE TOP (@BatchSize)
-    FROM UserActivityIntervals
-    WHERE SyncId IN (SELECT SyncId FROM #TempIds);
-
-    -- Remove processed IDs from the temporary table
-    DELETE TOP (@BatchSize) FROM #TempIds;
-
-    -- Optional: Log progress (for debugging)
-    PRINT CONCAT('Deleted a batch of ', @BatchSize, ' records');
-END
-DROP TABLE #TempIds;
+https://freefrontend.com/css-infographics/
+https://codepen.io/MarkBoots/pen/qBpgvJR
