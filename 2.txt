@@ -1,0 +1,81 @@
+(function ($) {
+    var originalAjax = $.ajax;
+    $.ajax = function (options) {
+        var originalSuccess = options.success;
+        options.success = function (data, textStatus, jqXHR) {
+            data = sanitizeJson(data); // Clean response globally
+            if (originalSuccess) originalSuccess(data, textStatus, jqXHR);
+        };
+        return originalAjax.call(this, options);
+    };
+
+    function sanitizeJson(obj) {
+        if (obj && typeof obj === 'object') {
+            ['__proto__', 'constructor', 'prototype'].forEach(key => {
+                if (key in obj) delete obj[key];
+            });
+        }
+        return obj;
+    }
+})(jQuery);
+
+
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
+public class SanitizeJsonAttribute : ActionFilterAttribute
+{
+    public override void OnActionExecuting(ActionExecutingContext context)
+    {
+        if (context.ActionArguments != null)
+        {
+            foreach (var key in context.ActionArguments.Keys)
+            {
+                if (context.ActionArguments[key] is string jsonString)
+                {
+                    context.ActionArguments[key] = SanitizeJson(jsonString);
+                }
+            }
+        }
+        base.OnActionExecuting(context);
+    }
+
+    private string SanitizeJson(string jsonString)
+    {
+        try
+        {
+            JsonNode? jsonNode = JsonNode.Parse(jsonString);
+            RemoveUnsafeKeys(jsonNode);
+            return jsonNode.ToJsonString();
+        }
+        catch
+        {
+            return jsonString; // Return original if parsing fails
+        }
+    }
+
+    private void RemoveUnsafeKeys(JsonNode? node)
+    {
+        if (node is JsonObject obj)
+        {
+            obj.Remove("__proto__");
+            obj.Remove("constructor");
+            obj.Remove("prototype");
+            foreach (var item in obj.Values)
+            {
+                RemoveUnsafeKeys(item);
+            }
+        }
+    }
+}
+
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers(options => options.Filters.Add<SanitizeJsonAttribute>());
+var app = builder.Build();
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
