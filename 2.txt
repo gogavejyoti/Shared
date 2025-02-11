@@ -20,7 +20,6 @@
 })(jQuery);
 
 
-
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using System.Text.Json;
@@ -48,8 +47,11 @@ public class SanitizeJsonAttribute : ActionFilterAttribute
         try
         {
             JsonNode? jsonNode = JsonNode.Parse(jsonString);
-            RemoveUnsafeKeys(jsonNode);
-            return jsonNode.ToJsonString();
+            if (jsonNode is JsonObject jsonObject)
+            {
+                RemoveUnsafeKeys(jsonObject);
+            }
+            return jsonNode?.ToJsonString() ?? jsonString;
         }
         catch
         {
@@ -57,20 +59,26 @@ public class SanitizeJsonAttribute : ActionFilterAttribute
         }
     }
 
-    private void RemoveUnsafeKeys(JsonNode? node)
+    private void RemoveUnsafeKeys(JsonObject obj)
     {
-        if (node is JsonObject obj)
+        string[] unsafeKeys = { "__proto__", "constructor", "prototype" };
+        
+        foreach (var key in unsafeKeys)
         {
-            obj.Remove("__proto__");
-            obj.Remove("constructor");
-            obj.Remove("prototype");
-            foreach (var item in obj.Values)
+            obj.Remove(key);
+        }
+
+        // Recursively clean nested objects
+        foreach (var prop in obj.ToList())  // Convert to list to avoid modifying collection during iteration
+        {
+            if (prop.Value is JsonObject nestedObj)
             {
-                RemoveUnsafeKeys(item);
+                RemoveUnsafeKeys(nestedObj);
             }
         }
     }
 }
+
 
 
 var builder = WebApplication.CreateBuilder(args);
