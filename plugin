@@ -1,0 +1,26 @@
+  (function($) {
+            $.fn.typingEffect = function(text, speed = 100, callback) {
+                let index = 0;
+                let element = this;
+                element.text(""); // Clear previous text
+
+                let interval = setInterval(function() {
+                    if (index < text.length) {
+                        element.append(text[index]); // Append one letter at a time
+                        index++;
+                    } else {
+                        clearInterval(interval); // Stop when text is complete
+                        if (callback) callback(); // Execute callback if provided
+                    }
+                }, speed);
+            };
+        })(jQuery);
+
+
+          $(document).ready(function() {
+            $("#startTyping").click(function() {
+                $("#output").typingEffect("Hello, this is a typing effect in jQuery!", 100, function() {
+                    console.log("Typing effect completed!");
+                });
+            });
+        });
