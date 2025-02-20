@@ -1,21 +1,44 @@
-  (function($) {
+ (function($) {
             $.fn.typingEffect = function(text, speed = 100, callback) {
-                let index = 0;
                 let element = this;
-                element.text(""); // Clear previous text
+                element.html(""); // Clear previous text
 
-                let interval = setInterval(function() {
-                    if (index < text.length) {
-                        element.append(text[index]); // Append one letter at a time
-                        index++;
-                    } else {
-                        clearInterval(interval); // Stop when text is complete
-                        if (callback) callback(); // Execute callback if provided
+                let tempDiv = $("<div>").html(text); // Parse HTML
+                let nodes = tempDiv.contents(); // Get child nodes (text and elements)
+                let index = 0;
+
+                function typeNextNode() {
+                    if (index < nodes.length) {
+                        let node = nodes[index];
+
+                        if (node.nodeType === 3) { // Text node
+                            let textContent = node.nodeValue;
+                            let charIndex = 0;
+
+                            let textInterval = setInterval(function() {
+                                if (charIndex < textContent.length) {
+                                    element.append(textContent[charIndex]); // Append one character at a time
+                                    charIndex++;
+                                } else {
+                                    clearInterval(textInterval);
+                                    index++;
+                                    typeNextNode(); // Move to the next node
+                                }
+                            }, speed);
+                        } else { // HTML element node
+                            let newNode = $(node).clone();
+                            element.append(newNode);
+                            index++;
+                            typeNextNode(); // Continue typing the next part
+                        }
+                    } else if (callback) {
+                        callback(); // Execute callback when typing is complete
                     }
-                }, speed);
+                }
+
+                typeNextNode(); // Start typing effect
             };
         })(jQuery);
-
 
           $(document).ready(function() {
             $("#startTyping").click(function() {
