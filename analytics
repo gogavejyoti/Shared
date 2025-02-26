@@ -113,3 +113,17 @@ public class AnomalyController : ControllerBase
         return Ok(new { Summary = analysisSummary });
     }
 }
+
+
+ summary.AppendLine($@"
+                <li class='list-group-item'>
+                    <strong>{s.Account} - {s.LOB}</strong>
+                    <div class='progress' style='height: 25px;'>
+                        <div class='progress-bar {progressColor}' role='progressbar' 
+                             style='width: {s.StaffingPercentage}%; font-size:14px;' 
+                             aria-valuenow='{s.StaffingPercentage}' aria-valuemin='0' aria-valuemax='100'>
+                             {s.StaffingPercentage}%
+                        </div>
+                    </div>
+                </li>
+            ");
