@@ -127,3 +127,41 @@ public class AnomalyController : ControllerBase
                     </div>
                 </li>
             ");
+
+
+  if (staffingIssues.Any())
+    {
+        hasAnomalies = true;
+        summary.AppendLine("<h4 class='text-danger'>⚠️ Staffing Overview:</h4>");
+        summary.AppendLine("<table class='table table-bordered'>");
+        summary.AppendLine("<thead class='table-dark'><tr><th>Account</th><th>LOB</th><th>Staffing %</th></tr></thead>");
+        summary.AppendLine("<tbody>");
+
+        foreach (var s in staffingIssues)
+        {
+            string progressColor = s.StaffingPercentage switch
+            {
+                < 50 => "bg-danger", // 🔴 Critical
+                < 80 => "bg-warning", // 🟠 Needs Attention
+                _ => "bg-success" // 🟢 Healthy
+            };
+
+            summary.AppendLine($@"
+                <tr>
+                    <td>{s.Account}</td>
+                    <td>{s.LOB}</td>
+                    <td>
+                        <div class='progress' style='height: 25px; width: 100%;'>
+                            <div class='progress-bar {progressColor}' role='progressbar' 
+                                 style='width: {s.StaffingPercentage}%; font-size:14px;' 
+                                 aria-valuenow='{s.StaffingPercentage}' aria-valuemin='0' aria-valuemax='100'>
+                                 {s.StaffingPercentage}%
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            ");
+        }
+
+        summary.AppendLine("</tbody></table><br>");
+    }
