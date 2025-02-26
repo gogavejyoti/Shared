@@ -1,0 +1,115 @@
+public class AnomalyDetectionService
+{
+    private readonly AppDbContext _context;
+
+    public AnomalyDetectionService(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<string> GetDetailedAnomalyAnalysis()
+    {
+        var summary = new StringBuilder();
+        summary.AppendLine("<div class='container'>");
+        summary.AppendLine("<h2 class='text-center text-primary'>📌 Workforce & Staffing Anomaly Report 📌</h2>");
+        summary.AppendLine("<hr>");
+
+        bool hasAnomalies = false;
+
+        // 1. Staffing Issues
+        var lowStaffing = await _context.StaffingMetrics
+            .Where(s => s.StaffingPercentage < 80)
+            .Select(s => new { s.Account, s.LOB, s.StaffingPercentage })
+            .ToListAsync();
+
+        if (lowStaffing.Any())
+        {
+            hasAnomalies = true;
+            summary.AppendLine("<h4 class='text-danger'>⚠️ Staffing Issues Detected:</h4><ul class='list-group'>");
+            foreach (var s in lowStaffing)
+            {
+                summary.AppendLine($"<li class='list-group-item'> <strong>{s.Account} - {s.LOB}</strong> has low staffing at <span class='badge bg-danger'>{s.StaffingPercentage}%</span>.</li>");
+            }
+            summary.AppendLine("</ul><br>");
+        }
+
+        // 2. High Attrition
+        var highAttrition = await _context.StaffingMetrics
+            .Where(s => s.AttritionPercentage > 15)
+            .Select(s => new { s.Account, s.LOB, s.AttritionPercentage })
+            .ToListAsync();
+
+        if (highAttrition.Any())
+        {
+            hasAnomalies = true;
+            summary.AppendLine("<h4 class='text-danger'>⚠️ High Attrition Detected:</h4><ul class='list-group'>");
+            foreach (var s in highAttrition)
+            {
+                summary.AppendLine($"<li class='list-group-item'><strong>{s.Account} - {s.LOB}</strong> has an attrition rate of <span class='badge bg-warning'>{s.AttritionPercentage}%</span>.</li>");
+            }
+            summary.AppendLine("</ul><br>");
+        }
+
+        // 3. High Shrinkage
+        var highShrinkage = await _context.StaffingMetrics
+            .Where(s => s.ShrinkagePercentage > 20)
+            .Select(s => new { s.Account, s.LOB, s.ShrinkagePercentage })
+            .ToListAsync();
+
+        if (highShrinkage.Any())
+        {
+            hasAnomalies = true;
+            summary.AppendLine("<h4 class='text-danger'>⚠️ High Shrinkage Detected:</h4><ul class='list-group'>");
+            foreach (var s in highShrinkage)
+            {
+                summary.AppendLine($"<li class='list-group-item'><strong>{s.Account} - {s.LOB}</strong> has shrinkage at <span class='badge bg-warning'>{s.ShrinkagePercentage}%</span>.</li>");
+            }
+            summary.AppendLine("</ul><br>");
+        }
+
+        // 4. Forecast Accuracy Issues
+        var inaccurateForecast = await _context.StaffingMetrics
+            .Where(s => Math.Abs(s.ForecastVolume - s.HandledVolume) > (s.ForecastVolume * 0.15))
+            .Select(s => new { s.Account, s.LOB, s.ForecastVolume, s.HandledVolume })
+            .ToListAsync();
+
+        if (inaccurateForecast.Any())
+        {
+            hasAnomalies = true;
+            summary.AppendLine("<h4 class='text-danger'>⚠️ Forecast Accuracy Issues:</h4><ul class='list-group'>");
+            foreach (var s in inaccurateForecast)
+            {
+                summary.AppendLine($"<li class='list-group-item'><strong>{s.Account} - {s.LOB}</strong>: Forecasted <span class='badge bg-primary'>{s.ForecastVolume}</span>, but handled <span class='badge bg-secondary'>{s.HandledVolume}</span>.</li>");
+            }
+            summary.AppendLine("</ul><br>");
+        }
+
+        // 5. No Anomalies
+        if (!hasAnomalies)
+        {
+            summary.AppendLine("<h4 class='text-success text-center'>✅ No major anomalies detected. Workforce metrics are within normal thresholds.</h4>");
+        }
+
+        summary.AppendLine("</div>");
+        return summary.ToString();
+    }
+}
+
+[ApiController]
+[Route("api/anomaly")]
+public class AnomalyController : ControllerBase
+{
+    private readonly AnomalyDetectionService _anomalyService;
+
+    public AnomalyController(AnomalyDetectionService anomalyService)
+    {
+        _anomalyService = anomalyService;
+    }
+
+    [HttpGet("detailed-analysis")]
+    public async Task<IActionResult> GetDetailedAnalysis()
+    {
+        string analysisSummary = await _anomalyService.GetDetailedAnomalyAnalysis();
+        return Ok(new { Summary = analysisSummary });
+    }
+}
