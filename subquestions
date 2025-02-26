@@ -1,0 +1,246 @@
+public class QueryService
+{
+    private readonly MyDbContext _context;
+
+    public QueryService(MyDbContext context)
+    {
+        _context = context;
+    }
+
+    // 1. Staffing percentage trend over the last 3 months
+    public async Task<List<object>> GetStaffingPercentageTrend(int lastNMonths)
+    {
+        var startDate = DateTime.UtcNow.AddMonths(-lastNMonths);
+        var result = await _context.StaffingMetrics
+            .Where(s => s.StartWeek >= startDate)
+            .GroupBy(s => s.StartWeek)
+            .Select(g => new { Week = g.Key, AvgStaffingPercentage = g.Average(s => s.StaffingPercentage) })
+            .ToListAsync();
+
+        return result.Cast<object>().ToList();
+    }
+
+    // 2. FTE required vs. available for Account X
+    public async Task<object> GetFTEComparison(string account)
+    {
+        return await _context.StaffingMetrics
+            .Where(s => s.Account == account)
+            .GroupBy(s => s.Account)
+            .Select(g => new { Account = g.Key, TotalFTERequired = g.Sum(s => s.FTERequired), TotalFTEAvailable = g.Sum(s => s.FTEAvailable) })
+            .FirstOrDefaultAsync();
+    }
+
+    // 3. LOB with highest attrition last quarter
+    public async Task<object> GetLOBWithHighestAttrition()
+    {
+        return await _context.StaffingMetrics
+            .Where(s => s.StartWeek >= DateTime.UtcNow.AddMonths(-3))
+            .GroupBy(s => s.LOB)
+            .Select(g => new { LOB = g.Key, AvgAttrition = g.Average(s => s.AttritionPercentage) })
+            .OrderByDescending(x => x.AvgAttrition)
+            .FirstOrDefaultAsync();
+    }
+
+    // 4. Average utilization per Geo
+    public async Task<List<object>> GetAverageUtilizationPerGeo()
+    {
+        return await _context.StaffingMetrics
+            .GroupBy(s => s.Geo)
+            .Select(g => new { Geo = g.Key, AvgUtilization = g.Average(s => s.UtilizationPercentage) })
+            .ToListAsync<object>();
+    }
+
+    // 5. Staffing percentage variation across LOBs
+    public async Task<List<object>> GetStaffingVariationAcrossLOBs()
+    {
+        return await _context.StaffingMetrics
+            .GroupBy(s => s.LOB)
+            .Select(g => new { LOB = g.Key, AvgStaffingPercentage = g.Average(s => s.StaffingPercentage) })
+            .ToListAsync<object>();
+    }
+
+    // 6. Weekly/monthly Delta trend
+    public async Task<List<object>> GetDeltaTrend()
+    {
+        return await _context.StaffingMetrics
+            .GroupBy(s => s.StartWeek)
+            .Select(g => new { Week = g.Key, AvgDelta = g.Average(s => s.Delta) })
+            .ToListAsync<object>();
+    }
+
+    // 7. Attrition correlation with utilization
+    public async Task<double> GetAttritionUtilizationCorrelation()
+    {
+        var attritionValues = await _context.StaffingMetrics.Select(s => s.AttritionPercentage).ToListAsync();
+        var utilizationValues = await _context.StaffingMetrics.Select(s => s.UtilizationPercentage).ToListAsync();
+        return CorrelationCoefficient(attritionValues, utilizationValues);
+    }
+
+    private double CorrelationCoefficient(List<double> x, List<double> y)
+    {
+        int n = x.Count;
+        double sumX = x.Sum(), sumY = y.Sum();
+        double sumXY = x.Zip(y, (xi, yi) => xi * yi).Sum();
+        double sumXSquare = x.Sum(v => v * v), sumYSquare = y.Sum(v => v * v);
+
+        return (n * sumXY - sumX * sumY) / Math.Sqrt((n * sumXSquare - sumX * sumX) * (n * sumYSquare - sumY * sumY));
+    }
+
+    // 8. Shrinkage trend for last 5 weeks
+    public async Task<List<object>> GetShrinkageTrend()
+    {
+        return await _context.StaffingMetrics
+            .Where(s => s.StartWeek >= DateTime.UtcNow.AddDays(-35))
+            .GroupBy(s => s.StartWeek)
+            .Select(g => new { Week = g.Key, AvgShrinkage = g.Average(s => s.ShrinkagePercentage) })
+            .ToListAsync<object>();
+    }
+
+    // 9. Highest shrinkage LOB
+    public async Task<object> GetHighestShrinkageLOB()
+    {
+        return await _context.StaffingMetrics
+            .GroupBy(s => s.LOB)
+            .Select(g => new { LOB = g.Key, AvgShrinkage = g.Average(s => s.ShrinkagePercentage) })
+            .OrderByDescending(x => x.AvgShrinkage)
+            .FirstOrDefaultAsync();
+    }
+
+    // 10. Impact of attrition on staffing
+    public async Task<List<object>> GetAttritionImpactOnStaffing()
+    {
+        return await _context.StaffingMetrics
+            .Select(s => new { s.AttritionPercentage, s.StaffingPercentage })
+            .ToListAsync<object>();
+    }
+
+    // 11. Predict shrinkage for next month (Basic Prediction)
+    public double PredictShrinkage()
+    {
+        var pastShrinkage = _context.StaffingMetrics.OrderByDescending(s => s.StartWeek).Take(5).Select(s => s.ShrinkagePercentage).ToList();
+        return pastShrinkage.Average();
+    }
+
+    // 12. Compare shrinkage for two accounts
+    public async Task<List<object>> CompareShrinkage(string account1, string account2)
+    {
+        return await _context.StaffingMetrics
+            .Where(s => s.Account == account1 || s.Account == account2)
+            .GroupBy(s => new { s.Account, s.StartWeek })
+            .Select(g => new { g.Key.Account, g.Key.StartWeek, AvgShrinkage = g.Average(s => s.ShrinkagePercentage) })
+            .ToListAsync<object>();
+    }
+}
+// 13. Forecasted vs Handled Volume Accuracy
+public async Task<object> GetForecastAccuracy()
+{
+    return await _context.StaffingMetrics
+        .GroupBy(s => s.StartWeek)
+        .Select(g => new 
+        { 
+            Week = g.Key, 
+            ForecastedVolume = g.Sum(s => s.ForecastVolume), 
+            HandledVolume = g.Sum(s => s.HandledVolume), 
+            Accuracy = (double)g.Sum(s => s.HandledVolume) / g.Sum(s => s.ForecastVolume) * 100
+        })
+        .ToListAsync<object>();
+}
+
+// 14. Weekly trend of Offered to Forecast Percentage
+public async Task<List<object>> GetOfferedToForecastTrend()
+{
+    return await _context.StaffingMetrics
+        .GroupBy(s => s.StartWeek)
+        .Select(g => new { Week = g.Key, AvgOfferedToForecast = g.Average(s => s.OfferedToForecastPercentage) })
+        .ToListAsync<object>();
+}
+
+// 15. Geo with highest variance between forecast & actual volume
+public async Task<object> GetHighestForecastVarianceGeo()
+{
+    return await _context.StaffingMetrics
+        .GroupBy(s => s.Geo)
+        .Select(g => new 
+        { 
+            Geo = g.Key, 
+            Variance = Math.Abs(g.Sum(s => s.ForecastVolume) - g.Sum(s => s.HandledVolume))
+        })
+        .OrderByDescending(x => x.Variance)
+        .FirstOrDefaultAsync();
+}
+
+// 16. LOB with lowest handle-to-staffing percentage
+public async Task<object> GetLowestHandleToStaffingLOB()
+{
+    return await _context.StaffingMetrics
+        .GroupBy(s => s.LOB)
+        .Select(g => new { LOB = g.Key, AvgHandleToStaffing = g.Average(s => s.HandleToStaffingPercentage) })
+        .OrderBy(x => x.AvgHandleToStaffing)
+        .FirstOrDefaultAsync();
+}
+
+// 17. Correlation between utilization & offered-to-handled percentage
+public async Task<double> GetUtilizationOfferedHandledCorrelation()
+{
+    var utilizationValues = await _context.StaffingMetrics.Select(s => s.UtilizationPercentage).ToListAsync();
+    var offeredHandledValues = await _context.StaffingMetrics.Select(s => s.OfferedToHandledPercentage).ToListAsync();
+    return CorrelationCoefficient(utilizationValues, offeredHandledValues);
+}
+
+// 18. LOB with best efficiency (highest handled volume per FTE)
+public async Task<object> GetMostEfficientLOB()
+{
+    return await _context.StaffingMetrics
+        .GroupBy(s => s.LOB)
+        .Select(g => new 
+        { 
+            LOB = g.Key, 
+            Efficiency = (double)g.Sum(s => s.HandledVolume) / g.Sum(s => s.FTEAvailable) 
+        })
+        .OrderByDescending(x => x.Efficiency)
+        .FirstOrDefaultAsync();
+}
+
+// 19. Impact of staffing levels on handle-to-offered percentage
+public async Task<List<object>> GetStaffingImpactOnHandleToOffered()
+{
+    return await _context.StaffingMetrics
+        .Select(s => new { s.FTEAvailable, s.HandleToStaffingPercentage })
+        .ToListAsync<object>();
+}
+
+// 20. Forecast required FTE for next quarter (Basic Prediction)
+public double ForecastFTEForNextQuarter()
+{
+    var pastFTE = _context.StaffingMetrics
+        .OrderByDescending(s => s.StartWeek)
+        .Take(12) // Last 12 weeks
+        .Select(s => s.FTERequired)
+        .ToList();
+
+    return pastFTE.Average();
+}
+
+// 21. Predict attrition for next month
+public double PredictAttritionForNextMonth()
+{
+    var pastAttrition = _context.StaffingMetrics
+        .OrderByDescending(s => s.StartWeek)
+        .Take(5) // Last 5 weeks
+        .Select(s => s.AttritionPercentage)
+        .ToList();
+
+    return pastAttrition.Average();
+}
+
+// 22. Impact of a 2% increase in attrition on staffing percentage
+public async Task<List<object>> GetImpactOfAttritionIncrease()
+{
+    return await _context.StaffingMetrics
+        .Select(s => new 
+        { 
+            s.StaffingPercentage, 
+            NewStaffingPercentage = s.StaffingPercentage - (s.StaffingPercentage * 0.02)
+        })
+        .ToListAsync<object>();
+}
