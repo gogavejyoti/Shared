@@ -164,4 +164,17 @@ public class AnomalyController : ControllerBase
         }
 
         summary.AppendLine("</tbody></table><br>");
+
+
+summary.AppendLine($@"
+                <div class='list-group-item d-flex justify-content-between align-items-center'>
+                    <span><strong>{s.Account} - {s.LOB}</strong> has low staffing at</span>
+                    <div class='progress' style='width: 50%; height: 25px;'>
+                        <div class='progress-bar {progressColor}' role='progressbar' 
+                             style='width: {s.StaffingPercentage}%;' 
+                             aria-valuenow='{s.StaffingPercentage}' aria-valuemin='0' aria-valuemax='100'>
+                             {s.StaffingPercentage}%
+                        </div>
+                    </div>
+                </div>
     }
