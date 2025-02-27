@@ -280,3 +280,37 @@ A correlation coefficient of -0.56 between shrinkage and staffing percentages in
 
 
 A correlation coefficient of 0.56 between shrinkage and staffing percentages indicates a moderate positive linear relationship between the two variables. This suggests that, generally, as shrinkage increases, staffing percentages also tend to increase.
+	SELECT 
+	VersionName,
+	StartWeek,
+	EndWeek,
+	IsMonthlyVersion,
+	AccountType,
+	Geo,
+	Vertical,
+	Account,
+	ProjectId,
+	LOB,
+	Absenteism,
+	LockHours,
+	ExpHours,
+	DelHours,
+	Shri,
+	Utili,
+	Attr,
+	Forecast,
+	Offered,
+	Handled,
+	M1_FTEReq,
+	M1_FTEAva,
+	M1_Delta,
+	M2_FTEReq,
+	M2_FTEAva,
+	M2_Delta,
+	M3_FTEReq,
+	M3_FTEAva,
+	M3_Delta,
+	M1_Off_FTEReq,
+	M1_Off_FTEAva,
+	M1_Off_Delta
+	FROM [dbo].[uvwVerticalSnapshotData] 
