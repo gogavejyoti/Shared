@@ -1,4 +1,7 @@
- (function($) {
+  (function($) {
+            let typingInterval; // Store interval reference
+            let isTyping = false; // Track typing state
+
             $.fn.typingEffect = function(text, speed = 100, callback) {
                 let element = this;
                 element.html(""); // Clear previous text
@@ -7,7 +10,14 @@
                 let nodes = tempDiv.contents(); // Get child nodes (text and elements)
                 let index = 0;
 
+                function stopTyping() {
+                    clearInterval(typingInterval);
+                    isTyping = false;
+                }
+
                 function typeNextNode() {
+                    if (!isTyping) return; // Stop if interrupted
+
                     if (index < nodes.length) {
                         let node = nodes[index];
 
@@ -15,12 +25,17 @@
                             let textContent = node.nodeValue;
                             let charIndex = 0;
 
-                            let textInterval = setInterval(function() {
+                            typingInterval = setInterval(function() {
+                                if (!isTyping) {
+                                    clearInterval(typingInterval);
+                                    return;
+                                }
+
                                 if (charIndex < textContent.length) {
-                                    element.append(textContent[charIndex]); // Append one character at a time
+                                    element.append(textContent[charIndex]); // Append character
                                     charIndex++;
                                 } else {
-                                    clearInterval(textInterval);
+                                    clearInterval(typingInterval);
                                     index++;
                                     typeNextNode(); // Move to the next node
                                 }
@@ -29,21 +44,19 @@
                             let newNode = $(node).clone();
                             element.append(newNode);
                             index++;
-                            typeNextNode(); // Continue typing the next part
+                            typeNextNode(); // Continue typing
                         }
-                    } else if (callback) {
-                        callback(); // Execute callback when typing is complete
+                    } else {
+                        isTyping = false;
+                        if (callback) callback(); // Execute callback
                     }
                 }
 
+                isTyping = true;
                 typeNextNode(); // Start typing effect
-            };
-        })(jQuery);
 
-          $(document).ready(function() {
-            $("#startTyping").click(function() {
-                $("#output").typingEffect("Hello, this is a typing effect in jQuery!", 100, function() {
-                    console.log("Typing effect completed!");
-                });
-            });
-        });
+                // Allow stopping externally
+                return {
+                    stop: stopTyping
+                };
+            };
