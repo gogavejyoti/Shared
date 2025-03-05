@@ -1,0 +1,111 @@
+public class SqlQueryGenerator
+{
+    private static readonly HttpClient client = new HttpClient();
+    public static async Task Main(string[] args)
+    {
+        string googleApiKey = "******************";
+        if (string.IsNullOrEmpty(googleApiKey))
+        {
+            Console.WriteLine("GoogleApiKey not found in appsettings.json. Please add your API key.");
+            return;
+        }
+
+     string[] prompt = {
+    "You are an AI model designed to convert natural language queries into Microsoft SQL Server SQL queries for the table WorkforceData in SQL Server. The table has the following columns:\n\n" +
+    "Geo (VARCHAR)\n" +
+    "VersionName (VARCHAR)\n" +
+    "StartWeek (DATE)\n" +
+    "EndWeek (DATE)\n" +
+    "IsMonthUpdate (BOOLEAN)\n" +
+    "Vertical (VARCHAR)\n" +
+    "Account (VARCHAR)\n" +
+    "ProjectId (INT)\n" +
+    "LOB (VARCHAR)\n" +
+    "ShrinkagePercentage (FLOAT)\n" +
+    "AttritionPercentage (FLOAT)\n" +
+    "UtilizationPercentage (FLOAT)\n" +
+    "OfferedVolume (INT)\n" +
+    "HandledVolume (INT)\n" +
+    "ForecastVolume (INT)\n" +
+    "FTERequired (FLOAT)\n" +
+    "FTEAvailable (FLOAT)\n" +
+    "Delta (FLOAT)\n" +
+    "StaffingPercentage (FLOAT)\n" +
+    "OfferedToHandledPercentage (FLOAT)\n" +
+    "OfferedToForecastPercentage (FLOAT)\n" +
+    "HandledToStaffingPercentage (FLOAT)\n" +
+    "\\n Example Queries:\n" +
+    "\\n 1.Input: \"Give me the total offered volume for each account in the last month.\" \n" +
+    "\\n output: SELECT Account, SUM(OfferedVolume) AS TotalOfferedVolume\n" +
+    "FROM WorkforceData\n" +
+    "WHERE StartWeek >= DATEADD(MONTH, -1, GETDATE()) AND IsMonthUpdate=1\n" +
+    "GROUP BY Account;\n" +
+    "\\n2.Input: \"What is the average shrinkage percentage by Geo for the current week?\" \n" +
+    "\\nOutput: SELECT Geo, AVG(ShrinkagePercentage) AS AverageShrinkage\n" +
+    "FROM WorkforceData\n" +
+    "WHERE EndWeek = (SELECT MAX(EndWeek) FROM WorkforceData)\n" +
+    "GROUP BY Geo;\n" +
+    "\\n3.Input: \"Show me all data for the project with ID 1234.\" \n" +
+    "\\nOutput:SELECT * FROM WorkforceData\n" +
+    "WHERE ProjectId = 1234\n" +
+    "\\n also the sql code should not have ``` in beginning or end and sql word in the output."
+};
+
+        while (true)
+        {
+            Console.WriteLine("Enter your question:");
+            string question = Console.ReadLine();
+
+            if (question.ToLower() == "exit")
+            {
+                break;
+            }
+
+            string response = await GetGeminiResponse(question, prompt, googleApiKey);
+            Console.WriteLine("Generated SQL Query:");
+            Console.WriteLine(response);
+        }
+    }
+
+    public static async Task<string> GetGeminiResponse(string question, string[] prompt, string apiKey)
+    {
+        string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={apiKey}";
+
+        var requestBody = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    parts = new[]
+                    {
+                        new { text = prompt[0] },
+                        new { text = question }
+                    }
+                }
+            }
+        };
+
+        string jsonRequestBody = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(jsonRequestBody, Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await client.PostAsync(url, content);
+        response.EnsureSuccessStatusCode();
+
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(responseBody);
+            JsonElement root = doc.RootElement;
+            JsonElement textElement = root.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text");
+            return textElement.GetString();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing JSON: {ex.Message}");
+            Console.WriteLine($"Raw Response: {responseBody}");
+            return "Error retrieving response.";
+        }
+    }
+}
