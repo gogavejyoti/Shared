@@ -175,3 +175,53 @@ let chartOptions = {
         style: { fontSize: "12px" }
     }
 };
+
+
+///////////////
+{
+    "chart": {
+        "type": "pie",
+        "height": 320
+    },
+    "plotOptions": {
+        "bar": {
+            "columnWidth": "25px",
+            "distributed": true
+        }
+    },
+    "series": [
+        {
+            "name": "AvgShrinkagePercentage",
+            "data": [
+                10.625783463644536,
+                9.722003170130181,
+                9.441682780883115
+            ]
+        }
+    ],
+    "xaxis": {
+        "categories": [
+            "2024-12",
+            "2025-01",
+            "2025-02"
+        ],
+        "labels": {
+            "rotate": -45,
+            "style": {
+                "fontSize": "12px"
+            }
+        }
+    },
+    "yaxis": {
+        "labels": {}
+    },
+    "tooltip": {
+        "y": {}
+    },
+    "dataLabels": {
+        "enabled": true,
+        "style": {
+            "fontSize": "12px"
+        }
+    }
+}
