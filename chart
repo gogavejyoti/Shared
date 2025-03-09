@@ -141,3 +141,37 @@
         return this;
     };
 }(jQuery));
+
+
+
+let chartOptions = {
+    chart: { type: chartType, height: 320 },
+    series: seriesData,
+    xaxis: {
+        categories: categories,
+        labels: { rotate: -45, style: { fontSize: "12px" } }
+    },
+    yaxis: {
+        labels: {
+            formatter: function (value) {
+                return percentageFields.includes(chartType) ? value.toFixed(1) + "%" : Math.round(value);
+            }
+        }
+    },
+    tooltip: {
+        y: {
+            formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                let fieldName = w.config.series[seriesIndex].name;
+                return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+            }
+        }
+    },
+    dataLabels: {
+        enabled: true,
+        formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+            let fieldName = w.config.series[seriesIndex].name;
+            return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+        },
+        style: { fontSize: "12px" }
+    }
+};
