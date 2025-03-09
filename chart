@@ -1,7 +1,7 @@
 (function ($) {
     $.fn.generateDynamicChart = function (options) {
         let settings = $.extend({
-            botTextContainer: null, // Container where result text will be shown
+            botTextContainer: null, // Where result text will be shown
             data: []
         }, options);
 
@@ -10,7 +10,7 @@
             return this;
         }
 
-        // Identify non-numeric and numeric fields
+        // Identify numeric and non-numeric fields
         let sampleItem = settings.data[0];
         let nonNumericFields = [];
         let numericFields = [];
@@ -34,34 +34,73 @@
         let categories = settings.data.map(item => item[categoryField]);
         let seriesData = numericFields.map(key => ({
             name: key,
-            data: settings.data.map(item => item[key])
+            data: settings.data.map(item => parseFloat(item[key]))
         }));
 
         // Determine best chart type
-        let chartType = "bar"; // Default
-        if (numericFields.length === 1) {
-            chartType = "line";
-        } else if (numericFields.length > 1) {
-            chartType = "bar";
-        } else if (numericFields.length === 1 && settings.data.length <= 5) {
+        let chartType = numericFields.length > 1 ? "bar" : "line";
+        if (numericFields.length === 1 && settings.data.length <= 5) {
             chartType = "pie";
         }
 
-        // Create Dynamic Containers
+        // Create dynamic containers
         let chatBox = $("#chatBox");
-        let chartContainer = $("<div>").addClass("chart-container").css({ width: "100%", height: "350px" });
-        chatBox.append(chartContainer);
+
+        let containerWrapper = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm");
+
+        let tableContainer = $("<div>").addClass("table-responsive mb-3");
+
+        let table = $("<table>").addClass("table table-bordered table-striped table-hover text-center");
+
+        let thead = $("<thead>").append("<tr></tr>");
+        let tbody = $("<tbody></tbody>");
+
+        // Table Header
+        Object.keys(sampleItem).forEach(key => {
+            thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
+        });
+
+        // Table Body
+        settings.data.forEach(row => {
+            let tr = $("<tr></tr>");
+            Object.keys(row).forEach(key => {
+                let value = row[key];
+                if (percentageFields.includes(key)) {
+                    value = (parseFloat(value) || 0).toFixed(1) + "%"; // Round to 1 decimal
+                } else if (!isNaN(value)) {
+                    value = Math.round(value); // Round to 0 decimal
+                }
+                tr.append($("<td>").text(value));
+            });
+            tbody.append(tr);
+        });
+
+        table.append(thead).append(tbody);
+        tableContainer.append(table);
+        containerWrapper.append(tableContainer);
+
+        let chartContainer = $("<div>").addClass("chart-container").css({
+            width: "100%",
+            height: "350px",
+            marginTop: "10px"
+        });
+
+        containerWrapper.append(chartContainer);
+        chatBox.append(containerWrapper);
 
         // Create ApexCharts chart
         let chartOptions = {
             chart: { type: chartType, height: 350 },
             series: seriesData,
-            xaxis: { categories: categories },
+            xaxis: {
+                categories: categories,
+                labels: { rotate: -45, style: { fontSize: "12px" } }
+            },
             tooltip: {
                 y: {
                     formatter: function (value, { seriesIndex, dataPointIndex, w }) {
                         let fieldName = w.config.series[seriesIndex].name;
-                        return percentageFields.includes(fieldName) ? `${value}%` : value;
+                        return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
                     }
                 }
             }
@@ -79,24 +118,3 @@
         return this;
     };
 }(jQuery));
-
-
-$.ajax({
-    url: "/home/generatesqlquery",
-    type: "POST",
-    contentType: "application/json",
-    data: JSON.stringify(userInput),
-    success: function (response) {
-        if (!response.isError) {
-            $("#chatBox").generateDynamicChart({
-                botTextContainer: botText,
-                data: response.data
-            });
-        } else {
-            botText.text(response.message);
-        }
-    },
-    error: function (xhr) {
-        botText.html("<span style='color: red;'>Error: " + xhr.responseText + "</span>");
-    }
-});
