@@ -1,0 +1,102 @@
+(function ($) {
+    $.fn.generateDynamicChart = function (options) {
+        let settings = $.extend({
+            botTextContainer: null, // Container where result text will be shown
+            data: []
+        }, options);
+
+        if (!settings.data || settings.data.length === 0) {
+            console.error("No data provided for the chart.");
+            return this;
+        }
+
+        // Identify non-numeric and numeric fields
+        let sampleItem = settings.data[0];
+        let nonNumericFields = [];
+        let numericFields = [];
+        let percentageFields = [];
+
+        Object.keys(sampleItem).forEach(key => {
+            if (isNaN(sampleItem[key]) || sampleItem[key] === '') {
+                nonNumericFields.push(key);
+            } else {
+                numericFields.push(key);
+                if (key.toLowerCase().includes("percentage") || key.includes("%")) {
+                    percentageFields.push(key);
+                }
+            }
+        });
+
+        // Determine category field (last non-numeric field)
+        let categoryField = nonNumericFields.length > 0 ? nonNumericFields[nonNumericFields.length - 1] : Object.keys(sampleItem)[0];
+
+        // Prepare data for ApexCharts
+        let categories = settings.data.map(item => item[categoryField]);
+        let seriesData = numericFields.map(key => ({
+            name: key,
+            data: settings.data.map(item => item[key])
+        }));
+
+        // Determine best chart type
+        let chartType = "bar"; // Default
+        if (numericFields.length === 1) {
+            chartType = "line";
+        } else if (numericFields.length > 1) {
+            chartType = "bar";
+        } else if (numericFields.length === 1 && settings.data.length <= 5) {
+            chartType = "pie";
+        }
+
+        // Create Dynamic Containers
+        let chatBox = $("#chatBox");
+        let chartContainer = $("<div>").addClass("chart-container").css({ width: "100%", height: "350px" });
+        chatBox.append(chartContainer);
+
+        // Create ApexCharts chart
+        let chartOptions = {
+            chart: { type: chartType, height: 350 },
+            series: seriesData,
+            xaxis: { categories: categories },
+            tooltip: {
+                y: {
+                    formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                        let fieldName = w.config.series[seriesIndex].name;
+                        return percentageFields.includes(fieldName) ? `${value}%` : value;
+                    }
+                }
+            }
+        };
+
+        let chart = new ApexCharts(chartContainer[0], chartOptions);
+        chart.render();
+
+        // Bind result to botText
+        if (settings.botTextContainer) {
+            let botText = `Category: ${categoryField}, Metrics: ${numericFields.join(", ")}. Chart Type: ${chartType}`;
+            $(settings.botTextContainer).text(botText);
+        }
+
+        return this;
+    };
+}(jQuery));
+
+
+$.ajax({
+    url: "/home/generatesqlquery",
+    type: "POST",
+    contentType: "application/json",
+    data: JSON.stringify(userInput),
+    success: function (response) {
+        if (!response.isError) {
+            $("#chatBox").generateDynamicChart({
+                botTextContainer: botText,
+                data: response.data
+            });
+        } else {
+            botText.text(response.message);
+        }
+    },
+    error: function (xhr) {
+        botText.html("<span style='color: red;'>Error: " + xhr.responseText + "</span>");
+    }
+});
