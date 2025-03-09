@@ -1,0 +1,423 @@
+using Newtonsoft.Json;
+public class SqlQueryResponse
+{
+    [JsonProperty("IsError")]
+    public bool IsError { get; set; }
+
+    [JsonProperty("SQLQuery")]
+    public string SQLQuery { get; set; }
+
+    [JsonProperty("message")]
+    public string Message { get; set; }
+}
+
+
+
+using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+public class SqlQueryHelper
+{
+    private readonly HttpClient _httpClient;
+    private readonly string _apiUrl;
+
+    public SqlQueryHelper()
+    {
+        _httpClient = new HttpClient() ;
+        _apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCe_OmfKip29Vvab1yDYHKX0VoEqAGay7E";
+    }
+    public async Task<SqlQueryResponse> GetSqlQueryResponseAsync(string question)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(question))
+                throw new ArgumentException("Question cannot be null or empty.", nameof(question));
+
+            var prompt = @"You are an AI model designed to convert natural language queries into Microsoft SQL Server SQL queries. You will be provided with the table schema and a natural language question. Your task is to generate the correct SQL query that answers the question.
+
+Table Schema:
+
+CREATE TABLE WorkforceData (
+    Geo VARCHAR(255),
+    VersionName VARCHAR(255),
+    StartWeek DATE,
+    EndWeek DATE,
+    IsMonthUpdate BIT,
+    Vertical VARCHAR(255),
+    Account VARCHAR(255),
+    ProjectId INT,
+    LOB VARCHAR(255),
+    ShrinkagePercentage FLOAT,
+    AttritionPercentage FLOAT,
+    UtilizationPercentage FLOAT,
+    OfferedVolume INT,
+    HandledVolume INT,
+    ForecastVolume INT,
+    FTERequired FLOAT,
+    FTEAvailable FLOAT,
+    Delta FLOAT,
+    StaffingPercentage FLOAT,
+    OfferedToHandledPercentage FLOAT,
+    OfferedToForecastPercentage FLOAT,
+    HandledToStaffingPercentage FLOAT
+);
+
+Please always analyze the pattern below before generating output.
+
+The SQL code should not have ``` in beginning or end and the word SQL should not appear in the output.
+
+Allow only SELECT statements and only on WorkforceData table.
+
+Other values like FTERequired and FTEAvailable are summed per week.
+
+SQL Query Requirements:
+
+Weekly Aggregation:
+1. SUM for FTERequired and FTEAvailable per StartWeek.
+2. AVG for ShrinkagePercentage, AttritionPercentage, UtilizationPercentage, StaffingPercentage, OfferedToForecastPercentage (OTF), HandledToOfferedPercentage(HTO), HandledToForecastPercentage(HTF), HandledToStaffingPercentage(HTS) per StartWeek.
+
+Monthly Aggregation: SUM per week first, then take AVG for the month (for workforce metrics).
+1. Summing cumulative metrics (Offered, Handled, Forecast).
+2. AVG for ShrinkagePercentage, AttritionPercentage, UtilizationPercentage, StaffingPercentage, OfferedToForecastPercentage (OTF), HandledToOfferedPercentage(HTO), HandledToForecastPercentage(HTF), HandledToStaffingPercentage(HTS) per StartWeek.
+
+Filters & Expected Query Inputs:
+
+If no date filter is provided, use 'EndWeek = (SELECT MAX(EndWeek) FROM WorkforceData)'.
+
+If the query specifies a month, quarter or year, include month/quarter/year filter on EndWeek as well as 'IsMonthUpdate = 1'.
+
+In case of Week or Month filter it should apply on EndWeek.
+
+For Weekly Data: Example: Show me FTERequired for Week of 18th Jan 2024. SQL should sum FTERequired for that specific week.
+
+For Monthly Data: Example: Show me FTERequired for January 2024 per Account. SQL should sum per week first, then take the average for the month.
+
+For Last X Months: Example: Show me FTERequired, FTEAvailable, and Shrinkage for the last 3 months. SQL should dynamically adjust the month filter (DATEADD(MONTH, -3, GETDATE())).
+
+Output the result in JSON string format: {IsError: true or false, SQLQuery: sqlquery,  message: error message if any}.
+
+";
+
+            var requestBody = new
+            {
+                contents = new[]
+                {
+                    new
+                    {
+                        parts = new[]
+                        {
+                            new { text = prompt },
+                            new { text = question }
+                        }
+                    }
+                }
+            };
+
+            string jsonRequestBody = JsonSerializer.Serialize(requestBody);
+            var content = new StringContent(jsonRequestBody, Encoding.UTF8, "application/json");
+
+            HttpResponseMessage response = await _httpClient.PostAsync(_apiUrl, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new SqlQueryResponse { IsError = true, Message = $"API call failed: {response.StatusCode}" };
+            }
+
+            string responseBody = await response.Content.ReadAsStringAsync();
+            using JsonDocument doc = JsonDocument.Parse(responseBody);
+            JsonElement root = doc.RootElement;
+            string textContent = root
+            .GetProperty("candidates")[0]
+            .GetProperty("content")
+            .GetProperty("parts")[0]
+            .GetProperty("text")
+            .GetString()?
+            .Replace("```", "")?
+            .Replace("\n", "")
+            .Replace("json", "");
+            return JsonSerializer.Deserialize<SqlQueryResponse>(textContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                          ?? new SqlQueryResponse { IsError = true, Message = "Deserialization failed." };
+        }
+        catch (Exception ex)
+        {
+            return new SqlQueryResponse { IsError = true, Message = ex.Message };
+        }
+    }
+}
+
+
+ [HttpPost]
+ public async Task<IActionResult> GenerateSqlQuery([FromBody] string question)
+ {
+     if (question == null || string.IsNullOrWhiteSpace(question))
+     {
+         return BadRequest(new { message = "Invalid request. Question cannot be empty." });
+     }
+     SqlQueryHelper _sqlQueryHelper = new SqlQueryHelper();
+     var response = await _sqlQueryHelper.GetSqlQueryResponseAsync(question);
+
+     if (response.IsError)
+     {
+         return BadRequest(response);
+     }
+
+     return Ok(response);
+
+ }
+
+
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatGPT Replica</title>
+    <link href="~/css/styles.css" rel="stylesheet" asp-append-version="true" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<div class="chat-container">
+    <div class="chat-header">
+       
+        <div style="display:flex">
+            <img src="~/images/genie-ai.png" style="height: 80px;padding: 10px;" /><h1 style="margin-top: 30px;color: #27667B;">WFM-QueryGenie</h1>
+        </div>
+    </div>
+    <div class="chat-box" id="chatBox">
+        <div class="welcome-msg">
+            <div style="display:flex">
+                <h1 style="margin-left:10px;padding-top: 20px;">Hello! How can I assist you today?</h1>
+            </div>
+           
+            
+        </div>
+        
+
+    </div>
+    <div class="chat-input">
+         <input type="text" id="userInput" placeholder="Type a message..." autocomplete="off">
+        <button id="sendBtn">➤</button>
+    </div>
+</div>
+<script src="~/js/script.js" asp-append-version="true"></script>
+</html>
+
+
+
+
+$(document).ready(function () {
+    $("#sendBtn").click(function () {
+        sendMessage();
+    });
+
+    $("#userInput").keypress(function (event) {
+        if (event.which == 13) {
+            sendMessage();
+        }
+    });
+    function sendMessage() {
+        $('.welcome-msg').css('display', 'none');
+        let userInput = $("#userInput").val().trim();
+        if (userInput === "") return;
+
+        // Append User Message
+        let userMessage = $("<div>").addClass("message user-message").text(userInput);
+        $("#chatBox").append(userMessage);
+        $("#userInput").val("");
+
+        // Auto Scroll to Latest Message
+        scrollToBottom();
+
+        // Bot Typing Indicator
+        let botReply = $("<div>").addClass("message bot-message");
+        let botAvatar = $("<img>").addClass("avatar").attr("src", "bot-avatar.png");
+        let botText = $("<p>").text("Thinking...");
+        botReply.append(botAvatar, botText);
+        $("#chatBox").append(botReply);
+
+        scrollToBottom();
+
+        //setTimeout(() => {
+        //    botText.text(getMockResponse(userInput));
+        //    scrollToBottom(); // Scroll again after bot message updates
+        //}, 1000);
+
+        $.ajax({
+            url: "/home/generatesqlquery",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(userInput),
+            success: function (response) {
+                if (response.isError) {
+                    botText.text(response.message);
+                } else {
+                    botText.text(response.sqlQuery);
+                }
+            },
+            error: function (xhr) {
+                botText.html("<span style='color: red;'>Error: " + xhr.responseText + "</span>");
+            }
+        });
+
+    }
+
+    // Smooth Scroll to Bottom
+    function scrollToBottom() {
+        $("#chatBox").stop().animate({
+            scrollTop: $("#chatBox")[0].scrollHeight
+        }, 500);
+    }
+
+
+    function getMockResponse(userInput) {
+        const responses = {
+            "hello": "Hi there! How can I help you?",
+            "how are you": "I'm just a bot, but I'm here to assist you!",
+            "who created you": "I was created by OpenAI to assist users like you!",
+            "bye": "Goodbye! Have a great day!",
+        };
+        return responses[userInput.toLowerCase()] || "That's interesting! Tell me more.";
+    }
+});
+
+
+
+    /* Reset */
+    * {
+        margin: 0;
+        padding: 0;
+       
+    }
+
+    /* Full-screen Chat Container */
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f5f5f5;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    /* Chat Container */
+    .chat-container {
+        width: 90%;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: white;
+    }
+
+    /* Chat Box */
+    .chat-box {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #f9f9f9;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Messages */
+    .message {
+        display: flex;
+        align-items: flex-start;
+        max-width: 75%;
+        padding: 12px;
+        border-radius: 10px;
+        margin: 10px 0;
+        word-wrap: break-word;
+    }
+
+    /* User Messages */
+    .user-message {
+        align-self: flex-end;
+        background: #10a37f;
+        color: white;
+        border-radius: 10px 10px 0 10px;
+        padding: 12px;
+    }
+
+    /* Bot Messages */
+.bot-message {
+    align-self: flex-start;
+    background: #e0e0e0;
+    color: black;
+    border-radius: 10px 10px 10px 0;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 100px;
+}
+
+    /* Avatars */
+    .avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+
+    /* Chat Input */
+.chat-input {
+    display: flex;
+    padding: 15px;
+    border-top: 1px solid #ddd;
+    background: white;
+    position: fixed;
+    bottom: 0;
+    width: 87.5%;
+}
+
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            border-radius: 20px;
+            background: #f0f0f0;
+        }
+
+        .chat-input button {
+            background: #10a37f;
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 10px;
+            border-radius: 50%;
+        }
+
+            .chat-input button:hover {
+                background: #0e8a6e;
+            }
+
+    /* Scrollbar Styling */
+    .chat-box::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .chat-box::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 10px;
+    }
+
+    .chat-box::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .welcome-msg {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+    }
