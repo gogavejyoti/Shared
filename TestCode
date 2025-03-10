@@ -559,3 +559,20 @@ Output the result in JSON string format: {IsError: true or false, SQLQuery: sqlq
 
 ";
 
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dataviz/2.2.1/dataviz.min.js"></script>
+
+
+<script>
+        var jsonData = [
+            {"month": "January", "sales": 100},
+            {"month": "February", "sales": 200},
+            {"month": "March", "sales": 150}
+        ];
+
+        $("#chart").dataviz({
+            data: jsonData,  // Just pass JSON, and it figures out the chart type!
+            chartType: "auto" // Detects and renders the best chart automatically
+        });
+    </script>
+
