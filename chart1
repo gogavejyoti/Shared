@@ -1,0 +1,189 @@
+(function($) {
+    $.fn.autoChart = function(jsonData, options) {
+        // Default settings
+        const settings = $.extend({
+            height: 350,
+            colors: ['#2E93fA', '#66DA26', '#546E7A', '#E91E63', '#FF9800'],
+            containerClass: 'auto-chart-container'
+        }, options);
+
+        // Helper function to determine chart type based on data structure
+        function determineChartType(data) {
+            if (!data || typeof data !== 'object') return 'bar';
+
+            // If it's an array of objects with numeric values
+            if (Array.isArray(data) && data.length > 0) {
+                const firstItem = data[0];
+                const keys = Object.keys(firstItem);
+                
+                // If single value per item - use pie/donut
+                if (keys.length === 2 && keys.includes('name') && typeof firstItem[keys[1]] === 'number') {
+                    return 'pie';
+                }
+                // If multiple numeric values - use bar/area
+                else if (keys.some(key => typeof firstItem[key] === 'number')) {
+                    return 'bar';
+                }
+                // If timestamp data - use line
+                else if (keys.some(key => key.toLowerCase().includes('date') || key.toLowerCase().includes('time'))) {
+                    return 'line';
+                }
+            }
+            // Default to bar chart
+            return 'bar';
+        }
+
+        // Function to extract chart data
+        function extractChartData(data, chartType) {
+            let series = [];
+            let categories = [];
+            let labels = [];
+
+            if (Array.isArray(data)) {
+                if (chartType === 'pie') {
+                    series = data.map(item => item.value || item.count || Object.values(item)[1]);
+                    labels = data.map(item => item.name || item.label || Object.keys(item)[0]);
+                } else {
+                    const firstItem = data[0];
+                    const keys = Object.keys(firstItem);
+                    const xKey = keys.find(key => key.toLowerCase().includes('date') || key.toLowerCase().includes('time')) || keys[0];
+                    const numericKeys = keys.filter(key => typeof firstItem[key] === 'number' && key !== xKey);
+
+                    if (numericKeys.length === 1) {
+                        series = [{
+                            name: numericKeys[0],
+                            data: data.map(item => item[numericKeys[0]])
+                        }];
+                        categories = data.map(item => item[xKey]);
+                    } else {
+                        series = numericKeys.map(key => ({
+                            name: key,
+                            data: data.map(item => item[key])
+                        }));
+                        categories = data.map(item => item[xKey]);
+                    }
+                }
+            }
+
+            return { series, categories, labels };
+        }
+
+        // Main plugin logic
+        return this.each(function() {
+            const $element = $(this);
+            
+            // Add container class
+            $element.addClass(settings.containerClass);
+
+            // Determine chart type
+            const chartType = determineChartType(jsonData);
+            const { series, categories, labels } = extractChartData(jsonData, chartType);
+
+            // Chart options based on type
+            let chartOptions = {
+                series: series,
+                chart: {
+                    height: settings.height,
+                    type: chartType
+                },
+                colors: settings.colors,
+                dataLabels: {
+                    enabled: chartType !== 'pie'
+                },
+                stroke: {
+                    curve: 'smooth'
+                },
+                title: {
+                    text: 'Auto-Generated Chart',
+                    align: 'left'
+                }
+            };
+
+            // Customize options based on chart type
+            if (chartType === 'pie') {
+                chartOptions = {
+                    ...chartOptions,
+                    series: series,
+                    labels: labels,
+                    responsive: [{
+                        breakpoint: 480,
+                        options: {
+                            chart: {
+                                width: 200
+                            },
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }]
+                };
+            } else {
+                chartOptions = {
+                    ...chartOptions,
+                    xaxis: {
+                        categories: categories
+                    },
+                    yaxis: {
+                        title: {
+                            text: series[0]?.name || 'Value'
+                        }
+                    }
+                };
+            }
+
+            // Initialize ApexCharts
+            try {
+                const chart = new ApexCharts(this, chartOptions);
+                chart.render();
+
+                // Cleanup on element removal
+                $element.on('remove', () => chart.destroy());
+            } catch (error) {
+                console.error('Error rendering chart:', error);
+            }
+        });
+    };
+})(jQuery);
+
+
+<!-- Required libraries -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<!-- Your HTML -->
+<div id="chart"></div>
+
+<!-- Usage example -->
+<script>
+    // Example 1: Simple bar chart data
+    const barData = [
+        { date: 'Jan', sales: 30 },
+        { date: 'Feb', sales: 40 },
+        { date: 'Mar', sales: 35 }
+    ];
+
+    // Example 2: Pie chart data
+    const pieData = [
+        { name: 'Chrome', value: 45 },
+        { name: 'Firefox', value: 25 },
+        { name: 'Safari', value: 20 }
+    ];
+
+    // Example 3: Multi-series data
+    const multiData = [
+        { date: 'Jan', sales: 30, revenue: 100 },
+        { date: 'Feb', sales: 40, revenue: 150 },
+        { date: 'Mar', sales: 35, revenue: 120 }
+    ];
+
+    // Initialize charts
+    $('#chart').autoChart(barData);
+    // or $('#chart').autoChart(pieData);
+    // or $('#chart').autoChart(multiData);
+
+    // With custom options
+    $('#chart').autoChart(barData, {
+        height: 400,
+        colors: ['#FF0000', '#00FF00', '#0000FF']
+    });
+</script>
