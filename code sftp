@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Renci.SshNet;
+using Renci.SshNet.Sftp;
 
 class Program
 {
@@ -11,10 +12,8 @@ class Program
         string username = "your_username";
         string password = "your_password";  // Avoid storing passwords in code
 
-        string localFilePath = @"C:\LocalFolder\file.txt";
-        string remoteFilePath = "/remote/folder/file.txt";
-        
-        string downloadFilePath = @"C:\LocalFolder\downloaded_file.txt";
+        string remoteFolderPath = "/remote/folder"; // Change this to your remote directory
+        string localFolderPath = @"C:\LocalFolder"; // Change this to your local directory
 
         try
         {
@@ -23,19 +22,7 @@ class Program
                 sftp.Connect();
                 Console.WriteLine("Connected to SFTP server");
 
-                // Upload File
-                using (var fileStream = new FileStream(localFilePath, FileMode.Open))
-                {
-                    sftp.UploadFile(fileStream, remoteFilePath);
-                    Console.WriteLine("File uploaded successfully");
-                }
-
-                // Download File
-                using (var downloadStream = File.Create(downloadFilePath))
-                {
-                    sftp.DownloadFile(remoteFilePath, downloadStream);
-                    Console.WriteLine("File downloaded successfully");
-                }
+                DownloadDirectory(sftp, remoteFolderPath, localFolderPath);
 
                 sftp.Disconnect();
                 Console.WriteLine("Disconnected from SFTP server");
@@ -46,4 +33,38 @@ class Program
             Console.WriteLine("Error: " + ex.Message);
         }
     }
-}
+
+    static void DownloadDirectory(SftpClient sftp, string remotePath, string localPath)
+    {
+        // Ensure the local directory exists
+        if (!Directory.Exists(localPath))
+        {
+            Directory.CreateDirectory(localPath);
+        }
+
+        // List all files and directories in the remote path
+        var files = sftp.ListDirectory(remotePath);
+
+        foreach (var file in files)
+        {
+            if (file.Name == "." || file.Name == "..") continue; // Ignore special directories
+
+            string localFilePath = Path.Combine(localPath, file.Name);
+            string remoteFilePath = file.FullName;
+
+            if (file.IsDirectory)
+            {
+                // Recursively download subdirectories
+                DownloadDirectory(sftp, remoteFilePath, localFilePath);
+            }
+            else
+            {
+                // Download file
+                using (var fileStream = File.Create(localFilePath))
+                {
+                    sftp.DownloadFile(remoteFilePath, fileStream);
+                    Console.WriteLine($"Downloaded: {remoteFilePath} -> {localFilePath}");
+                }
+            }
+        }
+   
