@@ -1,0 +1,30 @@
+Assumptions:
+
+Requests: 1,000 requests per day.
+Input: 50 tokens per request (approximate conversion from 200 characters).
+Output: 100 tokens per request (estimated SQL query length).
+
+Gemini Flash Pricing:
+Input: $0.075 per 1 million tokens.
+Output: $0.30 per 1 million tokens.
+Calculations:
+
+Daily Token Usage:
+
+Total tokens per request: 50 (input) + 100 (output) = 150 tokens.
+Total daily tokens: 150 tokens/request * 1,000 requests/day = 150,000 tokens.
+Daily Input Cost:
+
+Input tokens per day: 50,000
+(50,000/1,000,000) * $0.075 = $0.00375
+Daily Output Cost:
+
+Output tokens per day: 100,000
+(100,000/1,000,000) * $0.30 = $0.03
+Total Daily Cost:
+
+$0.00375 + $0.03 = $0.03375
+Monthly Cost (Approximate):
+
+$0.03375/day * 30 days/month = $1.0125 per month.
+Therefore, based on these assumptions, your approximate monthly cost would be around $1.01.
