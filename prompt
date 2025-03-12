@@ -149,3 +149,7 @@ You are an AI-powered SQL generator that translates natural language queries int
         ```
     - If an invalid query is detected, return `""IsError"": true` with an appropriate message.
 ";
+
+Never use aggregate functions (AVG, SUM, etc.) directly in a GROUP BY clause. Instead, create a subquery (CTE or derived table) to calculate the aggregates before grouping further.
+Use a two-step aggregation process: First, aggregate at the weekly level, then at the monthly or quarterly level.
+For trend analysis, calculate the difference using LAG() in a separate step before computing the average change.
