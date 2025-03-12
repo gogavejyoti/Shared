@@ -1,134 +1,86 @@
-(function ($) {
-    $.fn.generateDynamicChart = function (options) {
-        let settings = $.extend({
-            botTextContainer: null,
-            userInput: '',
-            data: []
-        }, options);
+using Renci.SshNet;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-        if (!settings.data || settings.data.length === 0) {
-            console.error("No data provided for the chart.");
-            return this;
+
+namespace Sutherland.DataPicker.SFTP
+{
+    public class SFTPConnector
+    {
+        public bool CreateSession()
+        {
+
+            string host = "phil.na4.livevox.com";
+            int port = 22;
+            string username = "Sutherland";
+            string password = "Sgs3rv!ce";  // Avoid storing passwords in code
+            string remoteFolderPath = "/ftpOut/MF Interval Report";
+
+            string localFolderPath = @"C:\LocalFolder";
+
+            try
+            {
+                using (var sftp = new SftpClient(host, port, username, password))
+                {
+                    sftp.Connect();
+                    Console.WriteLine("Connected to SFTP server");
+
+                    DownloadDirectory(sftp, remoteFolderPath, localFolderPath);
+
+                    sftp.Disconnect();
+                    Console.WriteLine("Disconnected from SFTP server");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error: " + ex.Message);
+            }
+
+            return true;
         }
 
-        let headers = Object.keys(settings.data[0]);
 
-        // Identify the time-based column dynamically (Week/Month)
-        let timeColumn = headers.find(col => settings.data.every(row => isDateLike(row[col])));
+        static void DownloadDirectory(SftpClient sftp, string remotePath, string localPath)
+        {
+            // Ensure the local directory exists
+            if (!Directory.Exists(localPath))
+            {
+                Directory.CreateDirectory(localPath);
+            }
 
-        if (!timeColumn) {
-            console.error("No time-based column (Week/Month) found.");
-            return this;
+            // List all files and directories in the remote path
+            var files = sftp.ListDirectory(remotePath)
+                            .Where(f=>!f.IsDirectory && f.Name!="." && f.Name!="..")
+                            .OrderByDescending(f=>f.LastWriteTime)
+                            .Take(3)
+                            .ToList();
+
+            foreach (var file in files)
+            {
+                if (file.Name == "." || file.Name == "..") continue; // Ignore special directories
+
+                string localFilePath = Path.Combine(localPath, file.Name);
+                string remoteFilePath = file.FullName;
+
+                if (file.IsDirectory)
+                {
+                    // Recursively download subdirectories
+                    DownloadDirectory(sftp, remoteFilePath, localFilePath);
+                }
+                else
+                {
+                    // Download file
+                    using (var fileStream = File.Create(localFilePath))
+                    {
+                        sftp.DownloadFile(remoteFilePath, fileStream);
+                        Console.WriteLine($"Downloaded: {remoteFilePath} -> {localFilePath}");
+                    }
+                }
+            }
         }
-
-        // Identify numeric columns (metrics)
-        let metricColumns = headers.filter(col => col !== timeColumn && isNumericColumn(settings.data, col));
-
-        // Identify possible dimension columns (non-numeric, non-time)
-        let dimensionColumns = headers.filter(col => !metricColumns.includes(col) && col !== timeColumn);
-
-        if (dimensionColumns.length === 0) {
-            console.warn("No categorical columns detected. The data may already be in the correct format.");
-            return renderTable(settings.data, headers);
-        }
-
-        // Proceed with transposition
-        let transposedData = [];
-        let uniqueTimePeriods = [...new Set(settings.data.map(row => row[timeColumn]))];
-        let uniqueDimensions = [...new Set(settings.data.map(row => JSON.stringify(pick(row, dimensionColumns))))];
-
-        uniqueDimensions.forEach(dim => {
-            let parsedDim = JSON.parse(dim);
-
-            metricColumns.forEach(metric => {
-                let row = { ...parsedDim, "Metric": metric };
-
-                uniqueTimePeriods.forEach(time => {
-                    let entry = settings.data.find(row => 
-                        row[timeColumn] === time && dimensionColumns.every(dimCol => row[dimCol] === parsedDim[dimCol])
-                    );
-                    row[time] = entry ? formatValue(entry[metric], metric) : "";
-                });
-
-                transposedData.push(row);
-            });
-        });
-
-        renderTable(transposedData, [...dimensionColumns, "Metric", ...uniqueTimePeriods]);
-
-        return this;
-    };
-
-    function isDateLike(value) {
-        if (typeof value !== 'string') return false;
-        return /^(0?[1-9]|[12]\d|3[01])?[- ]?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]?\d{2,4}$/.test(value);
     }
-
-    function isNumericColumn(data, column) {
-        return data.every(row => typeof row[column] === "number");
-    }
-
-    function formatValue(value, name) {
-        if (typeof value === "number") {
-            return name.toLowerCase().includes("percentage") || name.includes("%")
-                ? value.toFixed(1)
-                : value.toFixed(0);
-        }
-        return value;
-    }
-
-    function pick(obj, keys) {
-        return keys.reduce((acc, key) => {
-            acc[key] = obj[key];
-            return acc;
-        }, {});
-    }
-
-    function renderTable(data, headers) {
-        let chatBox = $("#chatBox");
-        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
-            width: "100%",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-            padding: "15px"
-        });
-
-        let tableContainer = $("<div>").addClass("table-responsive").css({
-            width: "100%",
-            maxHeight: "250px",
-            overflowY: "auto",
-            marginBottom: "15px",
-            padding: "10px",
-            border: "1px solid #ccc",
-            borderRadius: "5px",
-            backgroundColor: "#f8f9fa"
-        });
-
-        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
-            width: "100%",
-            fontSize: "14px"
-        });
-
-        let thead = $("<thead>").append("<tr></tr>");
-        let tbody = $("<tbody></tbody>");
-
-        headers.forEach(key => {
-            thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
-        });
-
-        data.forEach(row => {
-            let tr = $("<tr></tr>");
-            headers.forEach(key => {
-                tr.append($("<td>").text(row[key] || ""));
-            });
-            tbody.append(tr);
-        });
-
-        table.append(thead).append(tbody);
-        tableContainer.append(table);
-        mainContainer.append(tableContainer);
-
-        $('.bot-message:last').remove();
-        chatBox.append(mainContainer);
-    }
-}(jQuery));
+}
