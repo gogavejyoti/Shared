@@ -30,7 +30,7 @@
         let transposedData = nameColumns.map(name => {
             let row = { "Name": name };
             settings.data.forEach(entry => {
-                row[entry[dateColumn]] = entry[name] || 0;
+                row[entry[dateColumn]] = formatValue(entry[name], name);
             });
             return row;
         });
@@ -111,13 +111,18 @@
             },
             tooltip: {
                 y: {
-                    formatter: function (value) {
-                        return Math.round(value);
+                    formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                        let name = w.config.series[seriesIndex].name;
+                        return formatValue(value, name);
                     }
                 }
             },
             dataLabels: {
                 enabled: true,
+                formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                    let name = w.config.series[seriesIndex].name;
+                    return formatValue(value, name);
+                },
                 style: { fontSize: "12px" }
             }
         };
@@ -132,6 +137,17 @@
     function isDateLike(value) {
         if (typeof value !== 'string') return false;
         return /^(0?[1-9]|[12]\d|3[01])?[- ]?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]?\d{2,4}$/.test(value);
+    }
+
+    // Format values: Fixed(1) if name contains "%" or "percentage", otherwise Fixed(0)
+    function formatValue(value, name) {
+        if (typeof value === "number") {
+            if (name.toLowerCase().includes("percentage") || name.includes("%")) {
+                return value.toFixed(1);
+            }
+            return value.toFixed(0);
+        }
+        return value;
     }
 
 }(jQuery));
