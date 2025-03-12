@@ -1,0 +1,49 @@
+using System;
+using System.IO;
+using Renci.SshNet;
+
+class Program
+{
+    static void Main()
+    {
+        string host = "sftp.example.com";
+        int port = 22;
+        string username = "your_username";
+        string password = "your_password";  // Avoid storing passwords in code
+
+        string localFilePath = @"C:\LocalFolder\file.txt";
+        string remoteFilePath = "/remote/folder/file.txt";
+        
+        string downloadFilePath = @"C:\LocalFolder\downloaded_file.txt";
+
+        try
+        {
+            using (var sftp = new SftpClient(host, port, username, password))
+            {
+                sftp.Connect();
+                Console.WriteLine("Connected to SFTP server");
+
+                // Upload File
+                using (var fileStream = new FileStream(localFilePath, FileMode.Open))
+                {
+                    sftp.UploadFile(fileStream, remoteFilePath);
+                    Console.WriteLine("File uploaded successfully");
+                }
+
+                // Download File
+                using (var downloadStream = File.Create(downloadFilePath))
+                {
+                    sftp.DownloadFile(remoteFilePath, downloadStream);
+                    Console.WriteLine("File downloaded successfully");
+                }
+
+                sftp.Disconnect();
+                Console.WriteLine("Disconnected from SFTP server");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error: " + ex.Message);
+        }
+    }
+}
