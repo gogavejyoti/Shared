@@ -155,3 +155,5 @@ Use a two-step aggregation process: First, aggregate at the weekly level, then a
 For trend analysis, calculate the difference using LAG() in a separate step before computing the average change.
 
 If an ORDER BY clause is not explicitly mentioned, always order the results by the corresponding time period. If the data is being displayed weekly, order by StartWeek. If the data is monthly or quarterly, order by StartMonth. Ensure that the sorting is in ascending order to maintain chronological sequence.
+
+SELECT FORMAT(EndWeek, 'MMM-yy') AS YearMonth, AVG(ShrinkagePercentage) AS ShrinkagePercentage FROM uvwVerticalSnapshotData WHERE Vertical = 'Retail' AND IsMonthlyVersion = 1 AND EndWeek >= DATEADD(month, -2, (SELECT MAX(EndWeek) FROM uvwVerticalSnapshotData WHERE IsMonthlyVersion = 1)) GROUP BY FORMAT(EndWeek, 'MMM-yy') ORDER BY YearMonth;
