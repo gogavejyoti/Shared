@@ -7,148 +7,62 @@
         }, options);
 
         if (!settings.data || settings.data.length === 0) {
-            console.error("No data provided for the chart.");
+            console.error("No data provided.");
             return this;
         }
 
-        let sampleItem = settings.data[0];
-        let headers = Object.keys(sampleItem);
+        let headers = Object.keys(settings.data[0]);
 
-        // Identify if there is a date-like column
-        let timeColumn = headers.find(col => settings.data.every(row => isDateLike(row[col])));
-        let categoryColumn = headers.find(col => col !== timeColumn && isCategoryColumn(col, settings.data));
+        // Identify potential date columns
+        let dateColumn = headers.find(col => settings.data.every(row => isDateLike(row[col])));
 
-        if (!timeColumn && !categoryColumn) {
-            console.error("No valid time-based or category column found.");
-            return this;
-        }
+        // Identify potential category column (e.g., Account, Name)
+        let categoryColumn = headers.find(col => col !== dateColumn && isCategoryColumn(col, settings.data));
 
-        // Determine Transposition Type
-        let transposeByTime = timeColumn && settings.data.length > 1; // If multiple time periods exist
-        let transposeByCategory = categoryColumn && !transposeByTime; // If only one period but multiple accounts exist
+        // Identify numeric columns
+        let numericColumns = headers.filter(col => col !== dateColumn && col !== categoryColumn);
 
-        let nameColumns = headers.filter(col => col !== timeColumn && col !== categoryColumn);
+        // Determine transposition method
+        let uniqueDates = dateColumn ? [...new Set(settings.data.map(row => row[dateColumn]))] : [];
+        let transposeByDate = uniqueDates.length > 1;
+        let transposeByCategory = uniqueDates.length === 1 && categoryColumn;
 
         let transposedData = [];
 
-        if (transposeByTime) {
-            // Transpose by Time Period
-            transposedData = nameColumns.map(name => {
-                let row = { "Name": name };
+        if (transposeByDate) {
+            // Transpose by Date
+            transposedData = numericColumns.map(metric => {
+                let row = { "Metric": metric };
                 settings.data.forEach(entry => {
-                    row[entry[timeColumn]] = formatValue(entry[name], name);
+                    row[entry[dateColumn]] = formatValue(entry[metric], metric);
                 });
                 return row;
             });
         } else if (transposeByCategory) {
-            // Transpose by Account or Other Categories
-            transposedData = nameColumns.map(name => {
-                let row = { "Metric": name };
+            // Transpose by Category
+            transposedData = numericColumns.map(metric => {
+                let row = { "Metric": metric };
                 settings.data.forEach(entry => {
-                    row[entry[categoryColumn]] = formatValue(entry[name], name);
+                    row[entry[categoryColumn]] = formatValue(entry[metric], metric);
                 });
                 return row;
             });
+        } else {
+            // Default case (keep original format)
+            transposedData = settings.data.map(row => {
+                let newRow = {};
+                headers.forEach(col => newRow[col] = formatValue(row[col], col));
+                return newRow;
+            });
         }
 
-        // Generate Table
-        let chatBox = $("#chatBox");
-        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
-            width: "100%",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-            padding: "15px"
-        });
-
-        let tableContainer = $("<div>").addClass("table-responsive").css({
-            width: "100%",
-            maxHeight: "250px",
-            overflowY: "auto",
-            marginBottom: "15px",
-            padding: "10px",
-            border: "1px solid #ccc",
-            borderRadius: "5px",
-            backgroundColor: "#f8f9fa"
-        });
-
-        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
-            width: "100%",
-            fontSize: "14px"
-        });
-
-        let thead = $("<thead>").append("<tr></tr>");
-        let tbody = $("<tbody></tbody>");
-
-        let transposedHeaders = transposeByTime
-            ? ["Name", ...settings.data.map(item => item[timeColumn])]
-            : ["Metric", ...settings.data.map(item => item[categoryColumn])];
-
-        transposedHeaders.forEach(key => {
-            thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
-        });
-
-        transposedData.forEach(row => {
-            let tr = $("<tr></tr>");
-            transposedHeaders.forEach(key => {
-                tr.append($("<td>").text(row[key] || ""));
-            });
-            tbody.append(tr);
-        });
-
-        table.append(thead).append(tbody);
-        tableContainer.append(table);
-        mainContainer.append(tableContainer);
-
-        // Generate Chart
-        let categories = transposedHeaders.slice(1);
-        let seriesData = transposedData.map(row => ({
-            name: row[transposeByTime ? "Name" : "Metric"],
-            data: categories.map(label => parseFloat(row[label]) || 0)
-        }));
-
-        let chartContainer = $("<div>").css({
-            width: "100%",
-            height: "350px",
-            border: "1px solid #ccc",
-            borderRadius: "5px",
-            backgroundColor: "#fff",
-            padding: "10px"
-        });
-
-        $('.bot-message:last').remove();
-        mainContainer.append(chartContainer);
-        chatBox.append(mainContainer);
-
-        let chartOptions = {
-            chart: { type: "bar", height: 320 },
-            series: seriesData,
-            xaxis: { categories: categories },
-            tooltip: {
-                y: {
-                    formatter: function (value, { seriesIndex, dataPointIndex, w }) {
-                        let name = w.config.series[seriesIndex].name;
-                        return formatValue(value, name);
-                    }
-                }
-            },
-            dataLabels: {
-                enabled: true,
-                formatter: function (value, { seriesIndex, dataPointIndex, w }) {
-                    let name = w.config.series[seriesIndex].name;
-                    return formatValue(value, name);
-                }
-            }
-        };
-
-        let chart = new ApexCharts(chartContainer[0], chartOptions);
-        chart.render();
-
+        // Render UI
+        renderTableAndChart(transposedData, transposeByDate ? uniqueDates : settings.data.map(d => d[categoryColumn]));
         return this;
     };
 
     function isDateLike(value) {
-        if (typeof value !== 'string') return false;
-        return /^(0?[1-9]|[12]\d|3[01])?[- ]?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]?\d{2,4}$/.test(value);
+        return typeof value === 'string' && /^(0?[1-9]|[12]\d|3[01])?[- ]?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]?\d{2,4}$/.test(value);
     }
 
     function isCategoryColumn(colName, data) {
@@ -162,5 +76,56 @@
                 : value.toFixed(0);
         }
         return value;
+    }
+
+    function renderTableAndChart(data, categories) {
+        let chatBox = $("#chatBox");
+        let container = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
+            width: "100%",
+            border: "1px solid #ddd",
+            borderRadius: "10px"
+        });
+
+        let tableContainer = $("<div>").addClass("table-responsive").css({
+            width: "100%",
+            maxHeight: "250px",
+            overflowY: "auto"
+        });
+
+        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({ width: "100%" });
+        let thead = $("<thead>").append("<tr></tr>");
+        let tbody = $("<tbody></tbody>");
+
+        let transposedHeaders = ["Metric", ...categories];
+        transposedHeaders.forEach(key => thead.find("tr").append($("<th>").text(key)));
+
+        data.forEach(row => {
+            let tr = $("<tr></tr>");
+            transposedHeaders.forEach(key => tr.append($("<td>").text(row[key] || "")));
+            tbody.append(tr);
+        });
+
+        table.append(thead).append(tbody);
+        tableContainer.append(table);
+        container.append(tableContainer);
+
+        let chartContainer = $("<div>").css({ width: "100%", height: "350px" });
+        container.append(chartContainer);
+        chatBox.append(container);
+
+        let chartOptions = {
+            chart: { type: "bar", height: 320 },
+            series: data.map(row => ({ name: row["Metric"], data: categories.map(c => parseFloat(row[c]) || 0) })),
+            xaxis: { categories },
+            tooltip: {
+                y: { formatter: (value, { seriesIndex, w }) => formatValue(value, w.config.series[seriesIndex].name) }
+            },
+            dataLabels: {
+                enabled: true,
+                formatter: (value, { seriesIndex, w }) => formatValue(value, w.config.series[seriesIndex].name)
+            }
+        };
+
+        new ApexCharts(chartContainer[0], chartOptions).render();
     }
 }(jQuery));
