@@ -13,43 +13,78 @@
 
         let headers = Object.keys(settings.data[0]);
 
-        // Identify Time Column (Month, Week, etc.)
+        // Identify the time-based column dynamically (Week/Month)
         let timeColumn = headers.find(col => settings.data.every(row => isDateLike(row[col])));
 
-        // Identify Account Column
-        let accountColumn = headers.find(col => col.toLowerCase().includes("account"));
-
-        // Identify Data Columns (excluding time and account)
-        let dataColumns = headers.filter(col => col !== timeColumn && col !== accountColumn);
-
-        let transposedData = [];
-
-        if (timeColumn && accountColumn) {
-            // Handle multiple accounts per time period
-            let uniqueAccounts = [...new Set(settings.data.map(row => row[accountColumn]))];
-
-            uniqueAccounts.forEach(account => {
-                let filteredData = settings.data.filter(row => row[accountColumn] === account);
-                dataColumns.forEach(metric => {
-                    let row = { "Account": account, "Metric": metric };
-                    filteredData.forEach(entry => {
-                        row[entry[timeColumn]] = formatValue(entry[metric], metric);
-                    });
-                    transposedData.push(row);
-                });
-            });
-        } else {
-            // Default transpose logic (when no account column exists)
-            dataColumns.forEach(metric => {
-                let row = { "Metric": metric };
-                settings.data.forEach(entry => {
-                    row[entry[timeColumn]] = formatValue(entry[metric], metric);
-                });
-                transposedData.push(row);
-            });
+        if (!timeColumn) {
+            console.error("No time-based column (Week/Month) found.");
+            return this;
         }
 
-        // Generate Table
+        // Identify numeric columns (metrics)
+        let metricColumns = headers.filter(col => col !== timeColumn && isNumericColumn(settings.data, col));
+
+        // Identify possible dimension columns (non-numeric, non-time)
+        let dimensionColumns = headers.filter(col => !metricColumns.includes(col) && col !== timeColumn);
+
+        if (dimensionColumns.length === 0) {
+            console.warn("No categorical columns detected. The data may already be in the correct format.");
+            return renderTable(settings.data, headers);
+        }
+
+        // Proceed with transposition
+        let transposedData = [];
+        let uniqueTimePeriods = [...new Set(settings.data.map(row => row[timeColumn]))];
+        let uniqueDimensions = [...new Set(settings.data.map(row => JSON.stringify(pick(row, dimensionColumns))))];
+
+        uniqueDimensions.forEach(dim => {
+            let parsedDim = JSON.parse(dim);
+
+            metricColumns.forEach(metric => {
+                let row = { ...parsedDim, "Metric": metric };
+
+                uniqueTimePeriods.forEach(time => {
+                    let entry = settings.data.find(row => 
+                        row[timeColumn] === time && dimensionColumns.every(dimCol => row[dimCol] === parsedDim[dimCol])
+                    );
+                    row[time] = entry ? formatValue(entry[metric], metric) : "";
+                });
+
+                transposedData.push(row);
+            });
+        });
+
+        renderTable(transposedData, [...dimensionColumns, "Metric", ...uniqueTimePeriods]);
+
+        return this;
+    };
+
+    function isDateLike(value) {
+        if (typeof value !== 'string') return false;
+        return /^(0?[1-9]|[12]\d|3[01])?[- ]?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]?\d{2,4}$/.test(value);
+    }
+
+    function isNumericColumn(data, column) {
+        return data.every(row => typeof row[column] === "number");
+    }
+
+    function formatValue(value, name) {
+        if (typeof value === "number") {
+            return name.toLowerCase().includes("percentage") || name.includes("%")
+                ? value.toFixed(1)
+                : value.toFixed(0);
+        }
+        return value;
+    }
+
+    function pick(obj, keys) {
+        return keys.reduce((acc, key) => {
+            acc[key] = obj[key];
+            return acc;
+        }, {});
+    }
+
+    function renderTable(data, headers) {
         let chatBox = $("#chatBox");
         let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
             width: "100%",
@@ -77,17 +112,13 @@
         let thead = $("<thead>").append("<tr></tr>");
         let tbody = $("<tbody></tbody>");
 
-        let transposedHeaders = timeColumn
-            ? ["Account", "Metric", ...settings.data.map(item => item[timeColumn])]
-            : headers;
-
-        transposedHeaders.forEach(key => {
+        headers.forEach(key => {
             thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
         });
 
-        transposedData.forEach(row => {
+        data.forEach(row => {
             let tr = $("<tr></tr>");
-            transposedHeaders.forEach(key => {
+            headers.forEach(key => {
                 tr.append($("<td>").text(row[key] || ""));
             });
             tbody.append(tr);
@@ -97,24 +128,7 @@
         tableContainer.append(table);
         mainContainer.append(tableContainer);
 
-        // Append to Chat
         $('.bot-message:last').remove();
         chatBox.append(mainContainer);
-
-        return this;
-    };
-
-    function isDateLike(value) {
-        if (typeof value !== 'string') return false;
-        return /^(0?[1-9]|[12]\d|3[01])?[- ]?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]?\d{2,4}$/.test(value);
-    }
-
-    function formatValue(value, name) {
-        if (typeof value === "number") {
-            return name.toLowerCase().includes("percentage") || name.includes("%")
-                ? value.toFixed(1)
-                : value.toFixed(0);
-        }
-        return value;
     }
 }(jQuery));
