@@ -13,31 +13,39 @@
 
         let headers = Object.keys(settings.data[0]);
 
-        // Identify the Time Column (e.g., Month, Week)
+        // Identify Time Column (Month, Week, etc.)
         let timeColumn = headers.find(col => settings.data.every(row => isDateLike(row[col])));
 
-        // Identify all non-time columns dynamically
-        let dataColumns = headers.filter(col => col !== timeColumn);
+        // Identify Account Column
+        let accountColumn = headers.find(col => col.toLowerCase().includes("account"));
+
+        // Identify Data Columns (excluding time and account)
+        let dataColumns = headers.filter(col => col !== timeColumn && col !== accountColumn);
 
         let transposedData = [];
 
-        if (timeColumn) {
-            // Transpose data dynamically
-            dataColumns.forEach(name => {
-                let row = { "Metric": name };
-                settings.data.forEach(entry => {
-                    row[entry[timeColumn]] = formatValue(entry[name], name);
+        if (timeColumn && accountColumn) {
+            // Handle multiple accounts per time period
+            let uniqueAccounts = [...new Set(settings.data.map(row => row[accountColumn]))];
+
+            uniqueAccounts.forEach(account => {
+                let filteredData = settings.data.filter(row => row[accountColumn] === account);
+                dataColumns.forEach(metric => {
+                    let row = { "Account": account, "Metric": metric };
+                    filteredData.forEach(entry => {
+                        row[entry[timeColumn]] = formatValue(entry[metric], metric);
+                    });
+                    transposedData.push(row);
                 });
-                transposedData.push(row);
             });
         } else {
-            // Handle case where no time column exists
-            transposedData = settings.data.map(row => {
-                let formattedRow = {};
-                headers.forEach(col => {
-                    formattedRow[col] = formatValue(row[col], col);
+            // Default transpose logic (when no account column exists)
+            dataColumns.forEach(metric => {
+                let row = { "Metric": metric };
+                settings.data.forEach(entry => {
+                    row[entry[timeColumn]] = formatValue(entry[metric], metric);
                 });
-                return formattedRow;
+                transposedData.push(row);
             });
         }
 
@@ -70,7 +78,7 @@
         let tbody = $("<tbody></tbody>");
 
         let transposedHeaders = timeColumn
-            ? ["Metric", ...settings.data.map(item => item[timeColumn])]
+            ? ["Account", "Metric", ...settings.data.map(item => item[timeColumn])]
             : headers;
 
         transposedHeaders.forEach(key => {
