@@ -13,35 +13,31 @@
 
         let headers = Object.keys(settings.data[0]);
 
-        // Identify the Time Column (e.g., Week, Month)
+        // Identify the Time Column (e.g., Month, Week)
         let timeColumn = headers.find(col => settings.data.every(row => isDateLike(row[col])));
-        
+
         // Identify all non-time columns dynamically
         let dataColumns = headers.filter(col => col !== timeColumn);
 
-        let multipleTimePeriods = timeColumn && settings.data.length > 1;
-        let singleTimePeriod = timeColumn && settings.data.length === 1;
-
         let transposedData = [];
 
-        if (multipleTimePeriods) {
-            // Transpose by time period
-            transposedData = dataColumns.map(name => {
+        if (timeColumn) {
+            // Transpose data dynamically
+            dataColumns.forEach(name => {
                 let row = { "Metric": name };
                 settings.data.forEach(entry => {
                     row[entry[timeColumn]] = formatValue(entry[name], name);
                 });
-                return row;
+                transposedData.push(row);
             });
-        } else if (singleTimePeriod) {
-            // Transpose by data fields when only one time period exists
-            let singleRow = settings.data[0];
-            transposedData = dataColumns.map(name => {
-                let row = { "Metric": name };
-                dataColumns.forEach(col => {
-                    row[col] = formatValue(singleRow[col], name);
+        } else {
+            // Handle case where no time column exists
+            transposedData = settings.data.map(row => {
+                let formattedRow = {};
+                headers.forEach(col => {
+                    formattedRow[col] = formatValue(row[col], col);
                 });
-                return row;
+                return formattedRow;
             });
         }
 
@@ -73,9 +69,9 @@
         let thead = $("<thead>").append("<tr></tr>");
         let tbody = $("<tbody></tbody>");
 
-        let transposedHeaders = multipleTimePeriods
+        let transposedHeaders = timeColumn
             ? ["Metric", ...settings.data.map(item => item[timeColumn])]
-            : ["Metric", ...dataColumns];
+            : headers;
 
         transposedHeaders.forEach(key => {
             thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
@@ -93,49 +89,9 @@
         tableContainer.append(table);
         mainContainer.append(tableContainer);
 
-        // Generate Chart
-        let categories = transposedHeaders.slice(1);
-        let seriesData = transposedData.map(row => ({
-            name: row["Metric"],
-            data: categories.map(label => parseFloat(row[label]) || 0)
-        }));
-
-        let chartContainer = $("<div>").css({
-            width: "100%",
-            height: "350px",
-            border: "1px solid #ccc",
-            borderRadius: "5px",
-            backgroundColor: "#fff",
-            padding: "10px"
-        });
-
+        // Append to Chat
         $('.bot-message:last').remove();
-        mainContainer.append(chartContainer);
         chatBox.append(mainContainer);
-
-        let chartOptions = {
-            chart: { type: "bar", height: 320 },
-            series: seriesData,
-            xaxis: { categories: categories },
-            tooltip: {
-                y: {
-                    formatter: function (value, { seriesIndex, dataPointIndex, w }) {
-                        let name = w.config.series[seriesIndex].name;
-                        return formatValue(value, name);
-                    }
-                }
-            },
-            dataLabels: {
-                enabled: true,
-                formatter: function (value, { seriesIndex, dataPointIndex, w }) {
-                    let name = w.config.series[seriesIndex].name;
-                    return formatValue(value, name);
-                }
-            }
-        };
-
-        let chart = new ApexCharts(chartContainer[0], chartOptions);
-        chart.render();
 
         return this;
     };
