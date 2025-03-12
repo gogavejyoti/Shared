@@ -14,26 +14,42 @@
         let sampleItem = settings.data[0];
         let headers = Object.keys(sampleItem);
 
-        // Identify the date-like column
-        let dateColumn = headers.find(col => 
-            settings.data.every(row => isDateLike(row[col]))
-        );
+        // Identify if there is a date-like column
+        let timeColumn = headers.find(col => settings.data.every(row => isDateLike(row[col])));
+        let categoryColumn = headers.find(col => col !== timeColumn && isCategoryColumn(col, settings.data));
 
-        if (!dateColumn) {
-            console.error("No valid date-like column found.");
+        if (!timeColumn && !categoryColumn) {
+            console.error("No valid time-based or category column found.");
             return this;
         }
 
-        let nameColumns = headers.filter(col => col !== dateColumn);
+        // Determine Transposition Type
+        let transposeByTime = timeColumn && settings.data.length > 1; // If multiple time periods exist
+        let transposeByCategory = categoryColumn && !transposeByTime; // If only one period but multiple accounts exist
 
-        // Transpose Data: Convert Names into Rows
-        let transposedData = nameColumns.map(name => {
-            let row = { "Name": name };
-            settings.data.forEach(entry => {
-                row[entry[dateColumn]] = formatValue(entry[name], name);
+        let nameColumns = headers.filter(col => col !== timeColumn && col !== categoryColumn);
+
+        let transposedData = [];
+
+        if (transposeByTime) {
+            // Transpose by Time Period
+            transposedData = nameColumns.map(name => {
+                let row = { "Name": name };
+                settings.data.forEach(entry => {
+                    row[entry[timeColumn]] = formatValue(entry[name], name);
+                });
+                return row;
             });
-            return row;
-        });
+        } else if (transposeByCategory) {
+            // Transpose by Account or Other Categories
+            transposedData = nameColumns.map(name => {
+                let row = { "Metric": name };
+                settings.data.forEach(entry => {
+                    row[entry[categoryColumn]] = formatValue(entry[name], name);
+                });
+                return row;
+            });
+        }
 
         // Generate Table
         let chatBox = $("#chatBox");
@@ -63,13 +79,14 @@
         let thead = $("<thead>").append("<tr></tr>");
         let tbody = $("<tbody></tbody>");
 
-        // Table Header
-        let transposedHeaders = ["Name", ...settings.data.map(item => item[dateColumn])];
+        let transposedHeaders = transposeByTime
+            ? ["Name", ...settings.data.map(item => item[timeColumn])]
+            : ["Metric", ...settings.data.map(item => item[categoryColumn])];
+
         transposedHeaders.forEach(key => {
             thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
         });
 
-        // Table Body
         transposedData.forEach(row => {
             let tr = $("<tr></tr>");
             transposedHeaders.forEach(key => {
@@ -83,10 +100,10 @@
         mainContainer.append(tableContainer);
 
         // Generate Chart
-        let categories = transposedHeaders.slice(1); // Skip "Name"
+        let categories = transposedHeaders.slice(1);
         let seriesData = transposedData.map(row => ({
-            name: row["Name"],
-            data: categories.map(month => parseFloat(row[month]) || 0)
+            name: row[transposeByTime ? "Name" : "Metric"],
+            data: categories.map(label => parseFloat(row[label]) || 0)
         }));
 
         let chartContainer = $("<div>").css({
@@ -105,10 +122,7 @@
         let chartOptions = {
             chart: { type: "bar", height: 320 },
             series: seriesData,
-            xaxis: {
-                categories: categories,
-                labels: { rotate: -45, style: { fontSize: "12px" } }
-            },
+            xaxis: { categories: categories },
             tooltip: {
                 y: {
                     formatter: function (value, { seriesIndex, dataPointIndex, w }) {
@@ -122,8 +136,7 @@
                 formatter: function (value, { seriesIndex, dataPointIndex, w }) {
                     let name = w.config.series[seriesIndex].name;
                     return formatValue(value, name);
-                },
-                style: { fontSize: "12px" }
+                }
             }
         };
 
@@ -133,21 +146,21 @@
         return this;
     };
 
-    // Function to check if a value looks like a date (dd-mmm-yy, mmm-yy, etc.)
     function isDateLike(value) {
         if (typeof value !== 'string') return false;
         return /^(0?[1-9]|[12]\d|3[01])?[- ]?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]?\d{2,4}$/.test(value);
     }
 
-    // Format values: Fixed(1) if name contains "%" or "percentage", otherwise Fixed(0)
+    function isCategoryColumn(colName, data) {
+        return data.every(row => typeof row[colName] === "string" && !isDateLike(row[colName]));
+    }
+
     function formatValue(value, name) {
         if (typeof value === "number") {
-            if (name.toLowerCase().includes("percentage") || name.includes("%")) {
-                return value.toFixed(1);
-            }
-            return value.toFixed(0);
+            return name.toLowerCase().includes("percentage") || name.includes("%")
+                ? value.toFixed(1)
+                : value.toFixed(0);
         }
         return value;
     }
-
 }(jQuery));
