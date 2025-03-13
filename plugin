@@ -33,10 +33,10 @@
                 /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
                 /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
                 dateFields.push(key);
-            } 
+            }
             else if (isNaN(value) || value === '') {
                 nonNumericFields.push(key);
-            } 
+            }
             else {
                 numericFields.push(key);
                 if (key.toLowerCase().includes("percentage") || key.includes("%")) {
@@ -46,11 +46,11 @@
         });
 
         let requiresTranspose = (dateFields.length === 1 && numericFields.length >= 1);
-
+        let groupingFields;
         let transformedData = [];
         if (requiresTranspose) {
             let timeColumn = dateFields[0];
-            let groupingFields = nonNumericFields.filter(field => !dateFields.includes(field)); // Dynamic grouping fields
+            groupingFields = nonNumericFields.filter(field => !dateFields.includes(field)); // Dynamic grouping fields
             let uniqueDates = [...new Set(settings.data.map(item => item[timeColumn]))];
 
             // Helper function to create a unique key for grouping
@@ -63,7 +63,7 @@
 
             uniqueGroups.forEach(group => {
                 numericFields.forEach(metric => {
-                    let transposedObject = { ...Object.fromEntries(groupingFields.map(field => [field, settings.data.find(item => getGroupKey(item) === group)[field]]) };
+                    let transposedObject = { ...Object.fromEntries(groupingFields.map(field => [field, settings.data.find(item => getGroupKey(item) === group)[field]])) };
                     transposedObject["Metric"] = metric;
                     uniqueDates.forEach(date => {
                         let matchingItem = settings.data.find(item => item[timeColumn] === date && getGroupKey(item) === group);
@@ -117,9 +117,9 @@
                 if (key === "Metric") {
                     tr.append($("<td>").text(value));
                 } else {
-                    if (percentageFields.includes(row["Metric"])) {
+                    if (!isNaN(value) && percentageFields.includes(row["Metric"])) {
                         value = (parseFloat(value) || 0).toFixed(1) + "%"; // Format as percentage with 1 decimal place
-                    } else {
+                    } else if (!isNaN(value)) {
                         value = (parseFloat(value) || 0).toFixed(0); // Format as whole number
                     }
                     tr.append($("<td>").text(value));
@@ -147,7 +147,7 @@
             mainContainer.append(chartContainer);
             chatBox.append(mainContainer);
 
-            let categories = transformedData.map(item => `${item[groupingFields[0]]} - ${item["Metric"]}`);
+            let categories = groupingFields ? transformedData.map(item => `${item[groupingFields[0]]} - ${item["Metric"]}`) : transformedData.map(x => x[Object.keys(transformedData[0])[0]]);
             let seriesData = Object.keys(transformedData[0])
                 .filter(key => !groupingFields.includes(key) && key !== "Metric")
                 .map(key => ({
