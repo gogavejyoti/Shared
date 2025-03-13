@@ -17,10 +17,9 @@
             delete item.DateYearFilter;
         });
 
-        // 🔹 Transpose data if necessary
-        let transformedData = transposeData(settings.data);
+        // 🔹 Smartly transpose data if needed
+        let transformedData = smartTransposeData(settings.data);
 
-        // Identify numeric and non-numeric fields
         let sampleItem = transformedData[0];
         let nonNumericFields = [];
         let numericFields = [];
@@ -113,68 +112,37 @@
             mainContainer.append(chartContainer);
             chatBox.append(mainContainer);
 
-            if (chartType === 'pie') {
-                var chartOptions = {
-                    series: seriesData[0].data,
-                    chart: { height: 320, type: 'radialBar' },
-                    plotOptions: {
-                        radialBar: {
-                            offsetY: 0,
-                            startAngle: 0,
-                            endAngle: 270,
-                            hollow: { margin: 5, size: '30%', background: 'transparent' },
-                            dataLabels: {
-                                name: { show: false },
-                                value: { show: false }
-                            },
-                            barLabels: {
-                                enabled: true,
-                                useSeriesColors: true,
-                                offsetX: -8,
-                                fontSize: '16px',
-                                formatter: (seriesName, opts) => `${seriesName}: ${opts.w.globals.series[opts.seriesIndex].toFixed(1)}%`
-                            }
+            let chartOptions = {
+                chart: { type: chartType, height: 320 },
+                series: seriesData,
+                xaxis: { categories: categories, labels: { rotate: -45, style: { fontSize: "12px" } } },
+                yaxis: {
+                    labels: {
+                        formatter: function (value) {
+                            return percentageFields.includes(chartType) ? value.toFixed(1) + "%" : Math.round(value);
                         }
-                    },
-                    labels: categories,
-                    responsive: [{ breakpoint: 480, options: { legend: { show: false } } }]
-                };
-
-                let chart = new ApexCharts(chartContainer[0], chartOptions);
-                chart.render();
-            } else {
-                let chartOptions = {
-                    chart: { type: chartType, height: 320 },
-                    series: seriesData,
-                    xaxis: { categories: categories, labels: { rotate: -45, style: { fontSize: "12px" } } },
-                    yaxis: {
-                        labels: {
-                            formatter: function (value) {
-                                return percentageFields.includes(chartType) ? value.toFixed(1) + "%" : Math.round(value);
-                            }
-                        }
-                    },
-                    tooltip: {
-                        y: {
-                            formatter: function (value, { seriesIndex, dataPointIndex, w }) {
-                                let fieldName = w.config.series[seriesIndex].name;
-                                return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
-                            }
-                        }
-                    },
-                    dataLabels: {
-                        enabled: true,
+                    }
+                },
+                tooltip: {
+                    y: {
                         formatter: function (value, { seriesIndex, dataPointIndex, w }) {
                             let fieldName = w.config.series[seriesIndex].name;
                             return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
-                        },
-                        style: { fontSize: "12px" }
+                        }
                     }
-                };
+                },
+                dataLabels: {
+                    enabled: true,
+                    formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                        let fieldName = w.config.series[seriesIndex].name;
+                        return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+                    },
+                    style: { fontSize: "12px" }
+                }
+            };
 
-                let chart = new ApexCharts(chartContainer[0], chartOptions);
-                chart.render();
-            }
+            let chart = new ApexCharts(chartContainer[0], chartOptions);
+            chart.render();
         } else {
             $('.bot-message:last').remove();
             chatBox.append(mainContainer);
@@ -182,42 +150,35 @@
         return this;
     };
 
-    // 🔹 Transpose detection function
-    function shouldTransposeData(data) {
-        if (!data || data.length === 0) return false;
+    // 🔹 Smart Transposition with Date Detection
+    function smartTransposeData(data) {
+        if (!data || data.length === 0) return data;
 
-        let sampleRow = data[0];
-        let nonNumericFields = [];
-        let numericFields = [];
-
-        Object.keys(sampleRow).forEach(key => {
-            if (isNaN(sampleRow[key]) || sampleRow[key] === '') {
-                nonNumericFields.push(key);
-            } else {
-                numericFields.push(key);
-            }
-        });
-
-        return numericFields.length > 3 && nonNumericFields.length <= 2;
-    }
-
-    // 🔹 Transpose data function
-    function transposeData(data) {
-        if (!shouldTransposeData(data)) return data;
-
-        let transposedData = [];
         let sampleRow = data[0];
         let keys = Object.keys(sampleRow);
-        let categoryField = keys.find(k => isNaN(sampleRow[k]));
 
-        keys.forEach(key => {
-            if (key !== categoryField) {
-                let newRow = { Metric: key };
-                data.forEach(row => {
-                    newRow[row[categoryField]] = row[key];
+        let dateRegex = /^(?:\d{1,2}-[A-Za-z]{3}-\d{2}|\d{1,2}\/[A-Za-z]{3}\/\d{2}|[A-Za-z]{3}-\d{2})$/;
+        let dateColumns = keys.filter(k => dateRegex.test(k));
+
+        if (dateColumns.length === 0) return data; // No date-like columns → No transposition
+
+        let hasMultipleEntriesForSamePeriod = data.some((row, index) => {
+            return data.findIndex(r => r[dateColumns[0]] === row[dateColumns[0]]) !== index;
+        });
+
+        if (hasMultipleEntriesForSamePeriod) return data; // Avoid transposing if multiple rows exist for the same period
+
+        let metricColumns = keys.filter(k => !dateColumns.includes(k));
+        let transposedData = [];
+
+        metricColumns.forEach(metric => {
+            let newRow = { Metric: metric };
+            data.forEach(row => {
+                dateColumns.forEach(dateCol => {
+                    newRow[dateCol] = row[dateCol];
                 });
-                transposedData.push(newRow);
-            }
+            });
+            transposedData.push(newRow);
         });
 
         return transposedData;
