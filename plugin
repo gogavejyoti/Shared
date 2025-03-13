@@ -114,12 +114,16 @@
             let tr = $("<tr></tr>");
             Object.keys(row).forEach(key => {
                 let value = row[key];
-                if (percentageFields.includes(key)) {
-                    value = (parseFloat(value) || 0).toFixed(1) + "%"; // Format as percentage with 1 decimal place
-                } else if (!isNaN(value)) {
-                    value = (parseFloat(value) || 0).toFixed(0); // Format as whole number
+                if (key === "Metric") {
+                    tr.append($("<td>").text(value));
+                } else {
+                    if (percentageFields.includes(row["Metric"])) {
+                        value = (parseFloat(value) || 0).toFixed(1) + "%"; // Format as percentage with 1 decimal place
+                    } else {
+                        value = (parseFloat(value) || 0).toFixed(0); // Format as whole number
+                    }
+                    tr.append($("<td>").text(value));
                 }
-                tr.append($("<td>").text(value));
             });
             tbody.append(tr);
         });
@@ -150,7 +154,7 @@
                     name: key,
                     data: transformedData.map(item => {
                         let value = parseFloat(item[key]);
-                        if (percentageFields.includes(key)) {
+                        if (percentageFields.includes(item["Metric"])) {
                             return value.toFixed(1); // Format as percentage with 1 decimal place
                         } else {
                             return value.toFixed(0); // Format as whole number
