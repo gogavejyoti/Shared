@@ -1,192 +1,157 @@
-(function ($) {
-    $.fn.generateDynamicChart = function (options) {
-        let settings = $.extend({
-            botTextContainer: null,
-            userInput: '',
-            data: []
-        }, options);
+class SmartApexChart {
+  constructor(containerId, data) {
+    this.containerId = containerId;
+    this.data = data;
+    this.charts = [];
+    this.renderCharts();
+  }
 
-        if (!settings.data || settings.data.length === 0) {
-            console.error("No data provided for the chart.");
-            return this;
+  // Determine the best chart type based on the data structure
+  determineChartType(data) {
+    if (typeof data === "object" && !Array.isArray(data)) {
+      const keys = Object.keys(data);
+
+      // Check if data is time-based (e.g., months, weeks)
+      if (keys.every((key) => typeof data[key] === "number")) {
+        return "line"; // Time-based data (e.g., { Jan: 5, Feb: 7 })
+      }
+
+      // Check if data is comparison-based (e.g., accounts, categories)
+      if (keys.every((key) => typeof data[key] === "object")) {
+        return "bar"; // Grouped or stacked bar chart
+      }
+    } else if (Array.isArray(data)) {
+      // Check if data is an array of numbers
+      if (data.every((item) => typeof item === "number")) {
+        return "line"; // Single series of numbers
+      }
+
+      // Check if data is an array of objects with x and y properties
+      if (data.every((item) => typeof item === "object" && "x" in item && "y" in item)) {
+        return "line"; // X-Y data points
+      }
+
+      // Check if data is an array of objects with name and value properties
+      if (data.every((item) => typeof item === "object" && "name" in item && "value" in item)) {
+        return "pie"; // Name-Value pairs (e.g., for pie charts)
+      }
+    }
+
+    return "line"; // Default to line chart
+  }
+
+  // Format the data for ApexCharts
+  formatData(data, chartType) {
+    switch (chartType) {
+      case "line":
+        if (typeof data === "object" && !Array.isArray(data)) {
+          return {
+            series: [
+              {
+                name: "Series 1",
+                data: Object.values(data),
+              },
+            ],
+            xaxis: {
+              categories: Object.keys(data),
+            },
+          };
+        } else if (Array.isArray(data) && data.every((item) => typeof item === "number")) {
+          return {
+            series: [
+              {
+                name: "Series 1",
+                data: data,
+              },
+            ],
+          };
+        } else if (Array.isArray(data) && data.every((item) => typeof item === "object" && "x" in item && "y" in item)) {
+          return {
+            series: [
+              {
+                name: "Series 1",
+                data: data,
+              },
+            ],
+          };
         }
+        break;
 
-        // Remove unnecessary filter fields
-        settings.data.forEach(item => {
-            delete item.DateWeekFilter;
-            delete item.DateMonthFilter;
-            delete item.DateYearFilter;
-        });
-
-        let sampleItem = settings.data[0];
-        let nonNumericFields = [];
-        let numericFields = [];
-        let percentageFields = [];
-        let dateFields = [];
-
-        // Identify column types
-        Object.keys(sampleItem).forEach(key => {
-            let value = sampleItem[key];
-
-            // Check if it's a date-like column
-            if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || // dd-MMM-yy
-                /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
-                /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
-                dateFields.push(key);
-            }
-            else if (isNaN(value) || value === '') {
-                nonNumericFields.push(key);
-            }
-            else {
-                numericFields.push(key);
-                if (key.toLowerCase().includes("percentage") || key.includes("%")) {
-                    percentageFields.push(key);
-                }
-            }
-        });
-
-        let requiresTranspose = (dateFields.length === 1 && numericFields.length >= 1);
-        let groupingFields;
-        let transformedData = [];
-        if (requiresTranspose) {
-            let timeColumn = dateFields[0];
-            groupingFields = nonNumericFields.filter(field => !dateFields.includes(field)); // Dynamic grouping fields
-            let uniqueDates = [...new Set(settings.data.map(item => item[timeColumn]))];
-
-            // Helper function to create a unique key for grouping
-            const getGroupKey = (item) => {
-                return groupingFields.map(field => item[field]).join(" - ");
-            };
-
-            // Get unique groups based on grouping fields
-            let uniqueGroups = [...new Set(settings.data.map(item => getGroupKey(item)))];
-
-            uniqueGroups.forEach(group => {
-                numericFields.forEach(metric => {
-                    let transposedObject = { ...Object.fromEntries(groupingFields.map(field => [field, settings.data.find(item => getGroupKey(item) === group)[field]])) };
-                    transposedObject["Metric"] = metric;
-                    uniqueDates.forEach(date => {
-                        let matchingItem = settings.data.find(item => item[timeColumn] === date && getGroupKey(item) === group);
-                        transposedObject[date] = matchingItem ? matchingItem[metric] : 0;
-                    });
-                    transformedData.push(transposedObject);
-                });
-            });
-        } else {
-            transformedData = settings.data;
+      case "bar":
+        if (typeof data === "object" && !Array.isArray(data)) {
+          return {
+            series: Object.keys(data).map((key) => ({
+              name: key,
+              data: Object.values(data[key]),
+            })),
+            xaxis: {
+              categories: Object.keys(data[Object.keys(data)[0]]),
+            },
+          };
         }
+        break;
 
-        // Create UI elements
-        let chatBox = $("#chatBox");
-        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
-            width: "100%",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-            padding: "15px"
-        });
-
-        let tableContainer = $("<div>").addClass("table-responsive").css({
-            width: "100%",
-            maxHeight: "250px",
-            overflowY: "auto",
-            marginBottom: "15px",
-            padding: "10px",
-            border: "1px solid #ccc",
-            borderRadius: "5px",
-            backgroundColor: "#f8f9fa"
-        });
-
-        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
-            width: "100%",
-            fontSize: "14px"
-        });
-
-        let thead = $("<thead>").append("<tr></tr>");
-        let tbody = $("<tbody></tbody>");
-
-        // Create table headers
-        Object.keys(transformedData[0]).forEach(key => {
-            thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
-        });
-
-        // Create table rows
-        transformedData.forEach(row => {
-            let tr = $("<tr></tr>");
-            Object.keys(row).forEach(key => {
-                let value = row[key];
-                if (key === "Metric") {
-                    tr.append($("<td>").text(value));
-                } else {
-                    if (!isNaN(value) && percentageFields.includes(row["Metric"])) {
-                        value = (parseFloat(value) || 0).toFixed(1) + "%"; // Format as percentage with 1 decimal place
-                    } else if (!isNaN(value)) {
-                        value = (parseFloat(value) || 0).toFixed(0); // Format as whole number
-                    }
-                    tr.append($("<td>").text(value));
-                }
-            });
-            tbody.append(tr);
-        });
-
-        table.append(thead).append(tbody);
-        tableContainer.append(table);
-        mainContainer.append(tableContainer);
-
-        // Generate Chart
-        if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
-            let chartContainer = $("<div>").css({
-                width: "100%",
-                height: "350px",
-                border: "1px solid #ccc",
-                borderRadius: "5px",
-                backgroundColor: "#fff",
-                padding: "10px"
-            });
-
-            $('.bot-message:last').remove();
-            mainContainer.append(chartContainer);
-            chatBox.append(mainContainer);
-
-            let categories = groupingFields ? transformedData.map(item => `${item[groupingFields[0]]} - ${item["Metric"]}`) : transformedData.map(x => x[Object.keys(transformedData[0])[0]]);
-            let seriesData = Object.keys(transformedData[0])
-                .filter(key => !groupingFields.includes(key) && key !== "Metric")
-                .map(key => ({
-                    name: key,
-                    data: transformedData.map(item => {
-                        let value = parseFloat(item[key]);
-                        if (percentageFields.includes(item["Metric"])) {
-                            return value.toFixed(1); // Format as percentage with 1 decimal place
-                        } else {
-                            return value.toFixed(0); // Format as whole number
-                        }
-                    })
-                }));
-
-            let chartOptions = {
-                chart: { type: "bar", height: 320 },
-                series: seriesData,
-                xaxis: { categories: categories },
-                yaxis: {
-                    labels: {
-                        formatter: function (value) {
-                            if (percentageFields.some(field => field.includes("percentage") || field.includes("%"))) {
-                                return value.toFixed(1) + "%"; // Format as percentage with 1 decimal place
-                            } else {
-                                return value.toFixed(0); // Format as whole number
-                            }
-                        }
-                    }
-                },
-                dataLabels: { enabled: true }
-            };
-
-            let chart = new ApexCharts(chartContainer[0], chartOptions);
-            chart.render();
-        } else {
-            $('.bot-message:last').remove();
-            chatBox.append(mainContainer);
+      case "pie":
+        if (Array.isArray(data) && data.every((item) => typeof item === "object" && "name" in item && "value" in item)) {
+          return {
+            series: data.map((item) => item.value),
+            labels: data.map((item) => item.name),
+          };
+        } else if (typeof data === "object" && !Array.isArray(data)) {
+          return {
+            series: Object.values(data),
+            labels: Object.keys(data),
+          };
         }
+        break;
 
-        return this;
+      default:
+        throw new Error("Unsupported data format");
+    }
+  }
+
+  // Render a single chart
+  renderChart(chartData, chartType, index) {
+    const chartContainer = document.createElement("div");
+    chartContainer.id = `${this.containerId}-chart-${index}`;
+    document.querySelector(`#${this.containerId}`).appendChild(chartContainer);
+
+    const options = {
+      chart: {
+        type: chartType,
+        height: 350,
+      },
+      series: chartData.series,
+      xaxis: chartData.xaxis,
+      labels: chartData.labels,
     };
-}(jQuery));
+
+    const chart = new ApexCharts(chartContainer, options);
+    chart.render();
+    this.charts.push(chart);
+  }
+
+  // Render all charts based on the data
+  renderCharts() {
+    if (typeof this.data === "object" && !Array.isArray(this.data)) {
+      Object.keys(this.data).forEach((key, index) => {
+        const dataset = this.data[key];
+        const chartType = this.determineChartType(dataset);
+        const formattedData = this.formatData(dataset, chartType);
+        this.renderChart(formattedData, chartType, index);
+      });
+    } else {
+      const chartType = this.determineChartType(this.data);
+      const formattedData = this.formatData(this.data, chartType);
+      this.renderChart(formattedData, chartType, 0);
+    }
+  }
+}
+
+// Usage Example:
+// const data = {
+//   monthWiseShrinkage: { Jan: 5, Feb: 7, Mar: 6, Apr: 8 },
+//   accountWiseAttrition: { "Account A": 10, "Account B": 20, "Account C": 30 },
+//   weekWiseStaffing: { "Week 1": 50, "Week 2": 60, "Week 3": 70 },
+// };
+// const chart = new SmartApexChart("chart-container", data);
