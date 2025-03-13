@@ -11,101 +11,99 @@
             return this;
         }
 
-        // Remove unnecessary filter fields
-        settings.data.forEach(item => {
-            delete item.DateWeekFilter;
-            delete item.DateMonthFilter;
-            delete item.DateYearFilter;
-        });
-
+        // Identify possible date column
         let sampleItem = settings.data[0];
-        let nonNumericFields = [];
+        let dateColumn = null;
         let numericFields = [];
-        let percentageFields = [];
-        let dateFields = [];
+        let nonDateNonNumericFields = [];
 
-        // Identify column types
+        let accountColumn = null;
+        let weekColumn = null;
+
         Object.keys(sampleItem).forEach(key => {
-            let value = sampleItem[key];
-
-            // Check if it's a date-like column
-            if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || // dd-MMM-yy
-                /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
-                /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
-                dateFields.push(key);
-            } 
-            else if (isNaN(value) || value === '') {
-                nonNumericFields.push(key);
-            } 
-            else {
+            if (/^\d{2}-[A-Za-z]{3}-\d{2}$/.test(sampleItem[key]) || /^[A-Za-z]{3}-\d{2}$/.test(sampleItem[key])) {
+                dateColumn = key;
+            } else if (key.toLowerCase().includes("week")) {
+                weekColumn = key;
+            } else if (key.toLowerCase().includes("account")) {
+                accountColumn = key;
+            } else if (!isNaN(sampleItem[key]) && sampleItem[key] !== '') {
                 numericFields.push(key);
-                if (key.toLowerCase().includes("percentage") || key.includes("%")) {
-                    percentageFields.push(key);
-                }
+            } else {
+                nonDateNonNumericFields.push(key);
             }
         });
 
-        let categoryField = nonNumericFields.length > 0 ? nonNumericFields[nonNumericFields.length - 1] : Object.keys(sampleItem)[0];
-        let requiresTranspose = (dateFields.length === 1 && numericFields.length === 1);
+        let transposedData = [];
+        let categories = [];
+        let seriesData = [];
 
-        let transformedData = [];
-        if (requiresTranspose) {
-            let timeColumn = dateFields[0];
-            let metricColumn = numericFields[0];
-
-            let transposedObject = { "Metric": metricColumn };
-            settings.data.forEach(item => {
-                transposedObject[item[timeColumn]] = item[metricColumn];
-            });
-            transformedData.push(transposedObject);
-        } else {
-            transformedData = settings.data;
+        // Decide whether to transpose
+        let shouldTranspose = false;
+        if (dateColumn) {
+            shouldTranspose = true; // Always transpose if date column is found
+        } else if (weekColumn && !accountColumn) {
+            shouldTranspose = true; // Transpose if week is present but no account
+        } else if (weekColumn && accountColumn) {
+            let uniqueWeeks = [...new Set(settings.data.map(row => row[weekColumn]))].length;
+            let uniqueAccounts = [...new Set(settings.data.map(row => row[accountColumn]))].length;
+            shouldTranspose = uniqueWeeks > 1 || uniqueAccounts === 1;
         }
 
-        // Create UI elements
+        if (shouldTranspose) {
+            // Transpose the data
+            let transposedMap = {};
+            settings.data.forEach(row => {
+                let timeValue = row[dateColumn] || row[weekColumn];
+                if (!transposedMap[timeValue]) transposedMap[timeValue] = {};
+
+                numericFields.forEach(field => {
+                    transposedMap[timeValue][field] = row[field];
+                });
+            });
+
+            // Convert transposed data into row format
+            numericFields.forEach(field => {
+                let rowData = { "Metric": field };
+                Object.keys(transposedMap).forEach(time => {
+                    rowData[time] = transposedMap[time][field] || 0;
+                });
+                transposedData.push(rowData);
+            });
+
+            categories = Object.keys(transposedMap);
+            seriesData = numericFields.map(field => ({
+                name: field,
+                data: categories.map(time => transposedMap[time][field] || 0)
+            }));
+        } else {
+            // Use original data if no transposition is required
+            transposedData = settings.data;
+            categories = settings.data.map(item => item[nonDateNonNumericFields[0]]);
+            seriesData = numericFields.map(field => ({
+                name: field,
+                data: settings.data.map(item => parseFloat(item[field]) || 0)
+            }));
+        }
+
+        // Render table
         let chatBox = $("#chatBox");
-        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
-            width: "100%",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-            padding: "15px"
-        });
-
-        let tableContainer = $("<div>").addClass("table-responsive").css({
-            width: "100%",
-            maxHeight: "250px",
-            overflowY: "auto",
-            marginBottom: "15px",
-            padding: "10px",
-            border: "1px solid #ccc",
-            borderRadius: "5px",
-            backgroundColor: "#f8f9fa"
-        });
-
-        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
-            width: "100%",
-            fontSize: "14px"
-        });
-
+        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm");
+        let tableContainer = $("<div>").addClass("table-responsive");
+        let table = $("<table>").addClass("table table-bordered text-center");
         let thead = $("<thead>").append("<tr></tr>");
         let tbody = $("<tbody></tbody>");
 
-        // Create table headers
-        Object.keys(transformedData[0]).forEach(key => {
+        // Table Header
+        Object.keys(transposedData[0]).forEach(key => {
             thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
         });
 
-        // Create table rows
-        transformedData.forEach(row => {
+        // Table Body
+        transposedData.forEach(row => {
             let tr = $("<tr></tr>");
             Object.keys(row).forEach(key => {
-                let value = row[key];
-                if (percentageFields.includes(key)) {
-                    value = (parseFloat(value) || 0).toFixed(1) + "%";
-                } else if (!isNaN(value)) {
-                    value = Math.round(value);
-                }
-                tr.append($("<td>").text(value));
+                tr.append($("<td>").text(row[key]));
             });
             tbody.append(tr);
         });
@@ -114,47 +112,20 @@
         tableContainer.append(table);
         mainContainer.append(tableContainer);
 
-        // Generate Chart
-        if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
-            let chartContainer = $("<div>").css({
-                width: "100%",
-                height: "350px",
-                border: "1px solid #ccc",
-                borderRadius: "5px",
-                backgroundColor: "#fff",
-                padding: "10px"
-            });
-
-            $('.bot-message:last').remove();
+        if (settings.userInput.toLowerCase().includes("show chart")) {
+            let chartContainer = $("<div>").css({ width: "100%", height: "350px" });
             mainContainer.append(chartContainer);
             chatBox.append(mainContainer);
 
-            let categories = transformedData.map(item => item["Metric"]);
-            let seriesData = Object.keys(transformedData[0])
-                .filter(key => key !== "Metric")
-                .map(key => ({
-                    name: key,
-                    data: transformedData.map(item => parseFloat(item[key]))
-                }));
-
             let chartOptions = {
-                chart: { type: "bar", height: 320 },
+                chart: { type: shouldTranspose ? "line" : "bar", height: 320 },
                 series: seriesData,
                 xaxis: { categories: categories },
-                yaxis: {
-                    labels: {
-                        formatter: function (value) {
-                            return value.toFixed(1) + "%";
-                        }
-                    }
-                },
                 dataLabels: { enabled: true }
             };
-
             let chart = new ApexCharts(chartContainer[0], chartOptions);
             chart.render();
         } else {
-            $('.bot-message:last').remove();
             chatBox.append(mainContainer);
         }
 
