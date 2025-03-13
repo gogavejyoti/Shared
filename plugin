@@ -27,13 +27,17 @@
         // Identify column types
         Object.keys(sampleItem).forEach(key => {
             let value = sampleItem[key];
+
+            // Check if it's a date-like column
             if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || // dd-MMM-yy
                 /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
                 /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
                 dateFields.push(key);
-            } else if (isNaN(value) || value === '') {
+            } 
+            else if (isNaN(value) || value === '') {
                 nonNumericFields.push(key);
-            } else {
+            } 
+            else {
                 numericFields.push(key);
                 if (key.toLowerCase().includes("percentage") || key.includes("%")) {
                     percentageFields.push(key);
@@ -41,22 +45,35 @@
             }
         });
 
+        let requiresTranspose = (dateFields.length === 1 && numericFields.length >= 1);
+
         let transformedData = [];
-        if (dateFields.length === 1 && numericFields.length > 0) {
-            // Transpose: Rows are metrics, columns are dates
+        if (requiresTranspose) {
             let timeColumn = dateFields[0];
+            let groupingFields = nonNumericFields.filter(field => !dateFields.includes(field)); // Dynamic grouping fields
             let uniqueDates = [...new Set(settings.data.map(item => item[timeColumn]))];
 
-            // Create a transformed dataset where each metric gets its own row
-            transformedData = numericFields.map(metric => {
-                let row = { "Metric": metric };
-                settings.data.forEach(item => {
-                    row[item[timeColumn]] = item[metric];
+            // Helper function to create a unique key for grouping
+            const getGroupKey = (item) => {
+                return groupingFields.map(field => item[field]).join(" - ");
+            };
+
+            // Get unique groups based on grouping fields
+            let uniqueGroups = [...new Set(settings.data.map(item => getGroupKey(item)))];
+
+            uniqueGroups.forEach(group => {
+                numericFields.forEach(metric => {
+                    let transposedObject = { ...Object.fromEntries(groupingFields.map(field => [field, settings.data.find(item => getGroupKey(item) === group)[field]]) };
+                    transposedObject["Metric"] = metric;
+                    uniqueDates.forEach(date => {
+                        let matchingItem = settings.data.find(item => item[timeColumn] === date && getGroupKey(item) === group);
+                        transposedObject[date] = matchingItem ? matchingItem[metric] : 0;
+                    });
+                    transformedData.push(transposedObject);
                 });
-                return row;
             });
         } else {
-            transformedData = settings.data; // Fallback to original data if no transposition needed
+            transformedData = settings.data;
         }
 
         // Create UI elements
@@ -111,7 +128,7 @@
         tableContainer.append(table);
         mainContainer.append(tableContainer);
 
-        // Generate Chart (if requested)
+        // Generate Chart
         if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
             let chartContainer = $("<div>").css({
                 width: "100%",
@@ -126,12 +143,12 @@
             mainContainer.append(chartContainer);
             chatBox.append(mainContainer);
 
-            let categories = transformedData.map(item => item["Metric"]);
+            let categories = transformedData.map(item => `${item[groupingFields[0]]} - ${item["Metric"]}`);
             let seriesData = Object.keys(transformedData[0])
-                .filter(key => key !== "Metric")
+                .filter(key => !groupingFields.includes(key) && key !== "Metric")
                 .map(key => ({
                     name: key,
-                    data: transformedData.map(item => parseFloat(item[key]) || 0)
+                    data: transformedData.map(item => parseFloat(item[key]))
                 }));
 
             let chartOptions = {
@@ -141,7 +158,7 @@
                 yaxis: {
                     labels: {
                         formatter: function (value) {
-                            return percentageFields.length > 0 ? value.toFixed(1) + "%" : Math.round(value);
+                            return value.toFixed(1) + "%";
                         }
                     }
                 },
