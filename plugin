@@ -28,7 +28,7 @@
         Object.keys(sampleItem).forEach(key => {
             let value = sampleItem[key];
 
-            // Detect time-based columns
+            // Identify date-like columns
             if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || // dd-MMM-yy
                 /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
                 /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
@@ -45,25 +45,24 @@
             }
         });
 
-        let requiresTranspose = (dateFields.length === 1 && numericFields.length > 0);
+        let timeColumn = dateFields.length > 0 ? dateFields[0] : null;
+        let requiresTranspose = (dateFields.length === 1 && numericFields.length > 1);
         let transformedData = [];
 
         if (requiresTranspose) {
-            let timeColumn = dateFields[0];
+            // Auto-Transpose for Monthly Data
+            let uniqueMetrics = [...new Set(numericFields)];
+            let transposedObject = {};
 
-            let transposedObject = { "Metric": "Value" };
-            numericFields.forEach(metric => {
+            uniqueMetrics.forEach(metric => {
+                let row = { "Metric": metric };
                 settings.data.forEach(item => {
-                    if (!transposedObject[item[timeColumn]]) {
-                        transposedObject[item[timeColumn]] = {};
-                    }
-                    transposedObject[item[timeColumn]][metric] = item[metric];
+                    row[item[timeColumn]] = item[metric];
                 });
+                transformedData.push(row);
             });
-
-            transformedData = Object.entries(transposedObject)
-                .map(([time, values]) => ({ Metric: time, ...values }));
         } else {
+            // No transposition needed for weeks/accounts
             transformedData = settings.data;
         }
 
@@ -100,7 +99,7 @@
             thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
         });
 
-        // Create table rows
+        // Create table rows dynamically
         transformedData.forEach(row => {
             let tr = $("<tr></tr>");
             Object.keys(row).forEach(key => {
@@ -139,11 +138,11 @@
                 .filter(key => key !== "Metric")
                 .map(key => ({
                     name: key,
-                    data: transformedData.map(item => parseFloat(item[key]) || 0)
+                    data: transformedData.map(item => parseFloat(item[key]))
                 }));
 
             let chartOptions = {
-                chart: { type: requiresTranspose ? "line" : "bar", height: 320 },
+                chart: { type: "bar", height: 320 },
                 series: seriesData,
                 xaxis: { categories: categories },
                 yaxis: {
