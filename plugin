@@ -24,20 +24,16 @@
         let percentageFields = [];
         let dateFields = [];
 
-        // Identify column types dynamically
+        // Identify column types
         Object.keys(sampleItem).forEach(key => {
             let value = sampleItem[key];
-
-            // Identify date-like columns
             if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || // dd-MMM-yy
                 /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
                 /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
                 dateFields.push(key);
-            } 
-            else if (isNaN(value) || value === '') {
+            } else if (isNaN(value) || value === '') {
                 nonNumericFields.push(key);
-            } 
-            else {
+            } else {
                 numericFields.push(key);
                 if (key.toLowerCase().includes("percentage") || key.includes("%")) {
                     percentageFields.push(key);
@@ -45,25 +41,22 @@
             }
         });
 
-        let timeColumn = dateFields.length > 0 ? dateFields[0] : null;
-        let requiresTranspose = (dateFields.length === 1 && numericFields.length > 1);
         let transformedData = [];
+        if (dateFields.length === 1 && numericFields.length > 0) {
+            // Transpose: Rows are metrics, columns are dates
+            let timeColumn = dateFields[0];
+            let uniqueDates = [...new Set(settings.data.map(item => item[timeColumn]))];
 
-        if (requiresTranspose) {
-            // Auto-Transpose for Monthly Data
-            let uniqueMetrics = [...new Set(numericFields)];
-            let transposedObject = {};
-
-            uniqueMetrics.forEach(metric => {
+            // Create a transformed dataset where each metric gets its own row
+            transformedData = numericFields.map(metric => {
                 let row = { "Metric": metric };
                 settings.data.forEach(item => {
                     row[item[timeColumn]] = item[metric];
                 });
-                transformedData.push(row);
+                return row;
             });
         } else {
-            // No transposition needed for weeks/accounts
-            transformedData = settings.data;
+            transformedData = settings.data; // Fallback to original data if no transposition needed
         }
 
         // Create UI elements
@@ -94,12 +87,12 @@
         let thead = $("<thead>").append("<tr></tr>");
         let tbody = $("<tbody></tbody>");
 
-        // Create table headers dynamically
+        // Create table headers
         Object.keys(transformedData[0]).forEach(key => {
             thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
         });
 
-        // Create table rows dynamically
+        // Create table rows
         transformedData.forEach(row => {
             let tr = $("<tr></tr>");
             Object.keys(row).forEach(key => {
@@ -118,7 +111,7 @@
         tableContainer.append(table);
         mainContainer.append(tableContainer);
 
-        // Generate Chart if requested
+        // Generate Chart (if requested)
         if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
             let chartContainer = $("<div>").css({
                 width: "100%",
@@ -138,7 +131,7 @@
                 .filter(key => key !== "Metric")
                 .map(key => ({
                     name: key,
-                    data: transformedData.map(item => parseFloat(item[key]))
+                    data: transformedData.map(item => parseFloat(item[key]) || 0)
                 }));
 
             let chartOptions = {
@@ -148,7 +141,7 @@
                 yaxis: {
                     labels: {
                         formatter: function (value) {
-                            return value.toFixed(1) + "%";
+                            return percentageFields.length > 0 ? value.toFixed(1) + "%" : Math.round(value);
                         }
                     }
                 },
