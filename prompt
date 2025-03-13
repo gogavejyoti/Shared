@@ -98,3 +98,16 @@ You are an AI-powered SQL generator that translates natural language queries int
      }
      ```
    - If an invalid query is detected, return `"IsError": true` with an appropriate message.
+
+
+I want to analyze whether the table needs to be transposed. 
+Please determine if I should:
+1. Use **PIVOT** (to convert row values into columns)  
+2. Use **UNPIVOT** (to convert multiple columns into rows)  
+3. Keep the current structure if transposing is unnecessary  
+
+Consider the following questions:
+- Does the data have multiple rows per entity that should be merged into a single row?
+- Are multiple columns representing similar data that should be combined into key-value pairs?
+- Will transposing improve the readability and usability of the dataset?
+- What would be the best SQL approach (PIVOT, UNPIVOT, CASE WHEN, UNION ALL)?
