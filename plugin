@@ -1,157 +1,99 @@
-class SmartApexChart {
-  constructor(containerId, data) {
-    this.containerId = containerId;
-    this.data = data;
-    this.charts = [];
-    this.renderCharts();
-  }
+(function ($) {
+    $.fn.dynamicApexCharts = function (options) {
+        let settings = $.extend({
+            data: [], // JSON input data
+            container: this, // Chart container
+        }, options);
 
-  // Determine the best chart type based on the data structure
-  determineChartType(data) {
-    if (typeof data === "object" && !Array.isArray(data)) {
-      const keys = Object.keys(data);
-
-      // Check if data is time-based (e.g., months, weeks)
-      if (keys.every((key) => typeof data[key] === "number")) {
-        return "line"; // Time-based data (e.g., { Jan: 5, Feb: 7 })
-      }
-
-      // Check if data is comparison-based (e.g., accounts, categories)
-      if (keys.every((key) => typeof data[key] === "object")) {
-        return "bar"; // Grouped or stacked bar chart
-      }
-    } else if (Array.isArray(data)) {
-      // Check if data is an array of numbers
-      if (data.every((item) => typeof item === "number")) {
-        return "line"; // Single series of numbers
-      }
-
-      // Check if data is an array of objects with x and y properties
-      if (data.every((item) => typeof item === "object" && "x" in item && "y" in item)) {
-        return "line"; // X-Y data points
-      }
-
-      // Check if data is an array of objects with name and value properties
-      if (data.every((item) => typeof item === "object" && "name" in item && "value" in item)) {
-        return "pie"; // Name-Value pairs (e.g., for pie charts)
-      }
-    }
-
-    return "line"; // Default to line chart
-  }
-
-  // Format the data for ApexCharts
-  formatData(data, chartType) {
-    switch (chartType) {
-      case "line":
-        if (typeof data === "object" && !Array.isArray(data)) {
-          return {
-            series: [
-              {
-                name: "Series 1",
-                data: Object.values(data),
-              },
-            ],
-            xaxis: {
-              categories: Object.keys(data),
-            },
-          };
-        } else if (Array.isArray(data) && data.every((item) => typeof item === "number")) {
-          return {
-            series: [
-              {
-                name: "Series 1",
-                data: data,
-              },
-            ],
-          };
-        } else if (Array.isArray(data) && data.every((item) => typeof item === "object" && "x" in item && "y" in item)) {
-          return {
-            series: [
-              {
-                name: "Series 1",
-                data: data,
-              },
-            ],
-          };
+        if (!Array.isArray(settings.data) || settings.data.length === 0) {
+            console.error("Invalid or empty data provided.");
+            return;
         }
-        break;
 
-      case "bar":
-        if (typeof data === "object" && !Array.isArray(data)) {
-          return {
-            series: Object.keys(data).map((key) => ({
-              name: key,
-              data: Object.values(data[key]),
-            })),
-            xaxis: {
-              categories: Object.keys(data[Object.keys(data)[0]]),
-            },
-          };
+        // Extract fields dynamically
+        let keys = Object.keys(settings.data[0]);
+        let xAxisField = null;
+        let numericFields = [];
+        let categoryFields = [];
+        let groupingField = null;
+
+        // Detect data types
+        keys.forEach(key => {
+            let sampleValue = settings.data[0][key];
+            if (!isNaN(Date.parse(sampleValue))) {
+                xAxisField = key; // Time-based field
+            } else if (!isNaN(sampleValue)) {
+                numericFields.push(key); // Numeric field
+            } else {
+                categoryFields.push(key); // Categorical field
+            }
+        });
+
+        if (!xAxisField && categoryFields.length > 0) {
+            xAxisField = categoryFields[0]; // Use first categorical field if no date detected
         }
-        break;
 
-      case "pie":
-        if (Array.isArray(data) && data.every((item) => typeof item === "object" && "name" in item && "value" in item)) {
-          return {
-            series: data.map((item) => item.value),
-            labels: data.map((item) => item.name),
-          };
-        } else if (typeof data === "object" && !Array.isArray(data)) {
-          return {
-            series: Object.values(data),
-            labels: Object.keys(data),
-          };
+        if (numericFields.length === 0) {
+            console.error("No numeric fields detected for chart.");
+            return;
         }
-        break;
 
-      default:
-        throw new Error("Unsupported data format");
-    }
-  }
+        // Determine if data should be grouped by an additional field
+        if (categoryFields.length > 1) {
+            groupingField = categoryFields.find(f => f !== xAxisField) || categoryFields[0];
+        }
 
-  // Render a single chart
-  renderChart(chartData, chartType, index) {
-    const chartContainer = document.createElement("div");
-    chartContainer.id = `${this.containerId}-chart-${index}`;
-    document.querySelector(`#${this.containerId}`).appendChild(chartContainer);
+        // Determine best chart type dynamically
+        let chartType = "bar"; // Default
+        if (xAxisField && !isNaN(Date.parse(settings.data[0][xAxisField]))) {
+            chartType = numericFields.length > 1 ? "line" : "area";
+        } else if (numericFields.length > 1) {
+            chartType = "line";
+        } else if (categoryFields.length > 0) {
+            chartType = "bar";
+        }
 
-    const options = {
-      chart: {
-        type: chartType,
-        height: 350,
-      },
-      series: chartData.series,
-      xaxis: chartData.xaxis,
-      labels: chartData.labels,
+        let categories = [...new Set(settings.data.map(d => d[xAxisField]))];
+        let series = [];
+
+        if (groupingField) {
+            let groupedData = {};
+            settings.data.forEach(d => {
+                let group = d[groupingField];
+                if (!groupedData[group]) groupedData[group] = {};
+                numericFields.forEach(field => {
+                    if (!groupedData[group][field]) groupedData[group][field] = [];
+                    groupedData[group][field].push(d[field]);
+                });
+            });
+
+            Object.keys(groupedData).forEach(group => {
+                numericFields.forEach(field => {
+                    series.push({
+                        name: `${group} - ${field}`,
+                        data: categories.map(cat => {
+                            let entry = settings.data.find(d => d[xAxisField] === cat && d[groupingField] === group);
+                            return entry ? entry[field] : null;
+                        })
+                    });
+                });
+            });
+        } else {
+            series = numericFields.map(field => ({
+                name: field,
+                data: settings.data.map(d => d[field])
+            }));
+        }
+
+        let chartOptions = {
+            chart: { type: chartType, height: 350 },
+            title: { text: "Dynamic Chart" },
+            xaxis: { categories: categories, title: { text: xAxisField } },
+            yaxis: { title: { text: "Values" } },
+            series: series
+        };
+
+        let chart = new ApexCharts(settings.container[0], chartOptions);
+        chart.render();
     };
-
-    const chart = new ApexCharts(chartContainer, options);
-    chart.render();
-    this.charts.push(chart);
-  }
-
-  // Render all charts based on the data
-  renderCharts() {
-    if (typeof this.data === "object" && !Array.isArray(this.data)) {
-      Object.keys(this.data).forEach((key, index) => {
-        const dataset = this.data[key];
-        const chartType = this.determineChartType(dataset);
-        const formattedData = this.formatData(dataset, chartType);
-        this.renderChart(formattedData, chartType, index);
-      });
-    } else {
-      const chartType = this.determineChartType(this.data);
-      const formattedData = this.formatData(this.data, chartType);
-      this.renderChart(formattedData, chartType, 0);
-    }
-  }
-}
-
-// Usage Example:
-// const data = {
-//   monthWiseShrinkage: { Jan: 5, Feb: 7, Mar: 6, Apr: 8 },
-//   accountWiseAttrition: { "Account A": 10, "Account B": 20, "Account C": 30 },
-//   weekWiseStaffing: { "Week 1": 50, "Week 2": 60, "Week 3": 70 },
-// };
-// const chart = new SmartApexChart("chart-container", data);
+}(jQuery));
