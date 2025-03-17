@@ -1,23 +1,67 @@
-📌 Guidelines for Asking Questions to the Chatbot
-
-This chatbot helps you find insights from business data. To get accurate answers, use the correct names for categories like location, department, and time period (week, month, or quarter). If you don’t mention a date, the chatbot will show the latest available data. You can ask about trends, comparisons, and key details like staffing, workload, and performance. Follow these simple guidelines to get clear and useful responses.
-
-Guidelines for Asking Questions:
-✅ Use the exact names of fields when asking questions:
-
-Categories: Geo, Vertical, Account, ProjectId, LOB
-Time Period: EndWeek, IsMonthlyVersion (1 for monthly data, 0 for weekly data)
-Key Metrics: ShrinkagePercentage, AttritionPercentage, UtilizationPercentage, OfferedVolume, HandledVolume, ForecastVolume, FTERequired, FTEAvailable, Delta, StaffingPercentage, OfferedToHandledPercentage, OfferedToForecastPercentage, HandledToOfferedPercentage, HandledToStaffingPercentage
-✅ Use standard department names when filtering data, such as:
-
-Banking, Retail, Healthcare, Telecom, Technology, Travel & Hospitality, Energy & Utilities, Insurance, Media & Entertainment, Automotive.
-✅ Specify a time period (week, month, or quarter) for better accuracy.
-
-✅ If no date is given, the chatbot will use the most recent data.
-
-✅ Ask clear and specific questions, like:
-
-"What is the StaffingPercentage for Banking in March 2024?"
-"Compare FTEAvailable for Retail and Healthcare verticals last quarter."
-"Show ShrinkagePercentage trend for Telecom over the last 6 months."
-Following these steps will help you get the best results! 😊
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Guidelines</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        .emoji {
+            font-size: 1.2em;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📌 Guidelines for Asking Questions to the Chatbot</h1>
+        <p>
+            This chatbot helps you find insights from business data. To get accurate answers, use the correct names for categories like location, department, and time period (week, month, or quarter). If you don’t mention a date, the chatbot will show the latest available data. You can ask about trends, comparisons, and key details like staffing, workload, and performance. Follow these simple guidelines to get clear and useful responses.
+        </p>
+        <h2>✅ Guidelines for Asking Questions:</h2>
+        <ul>
+            <li><span class="emoji">✅</span> <span class="highlight">Use the exact names</span> of fields when asking questions:</li>
+            <ul>
+                <li><strong>Categories:</strong> Geo, Vertical, Account, ProjectId, LOB</li>
+                <li><strong>Time Period:</strong> EndWeek, IsMonthlyVersion (1 for monthly data, 0 for weekly data)</li>
+                <li><strong>Key Metrics:</strong> ShrinkagePercentage, AttritionPercentage, UtilizationPercentage, OfferedVolume, HandledVolume, ForecastVolume, FTERequired, FTEAvailable, Delta, StaffingPercentage, OfferedToHandledPercentage, OfferedToForecastPercentage, HandledToOfferedPercentage, HandledToStaffingPercentage</li>
+            </ul>
+            <li><span class="emoji">✅</span> <span class="highlight">Use standard department names</span> when filtering data, such as:</li>
+            <ul>
+                <li>Banking, Retail, Healthcare, Telecom, Technology, Travel & Hospitality, Energy & Utilities, Insurance, Media & Entertainment, Automotive.</li>
+            </ul>
+            <li><span class="emoji">✅</span> <span class="highlight">Specify a time period</span> (week, month, or quarter) for better accuracy.</li>
+            <li><span class="emoji">✅</span> If no date is given, the chatbot will use the most recent data.</li>
+            <li><span class="emoji">✅</span> <span class="highlight">Ask clear and specific questions,</span> like:</li>
+            <ul>
+                <li>"What is the StaffingPercentage for Banking in March 2024?"</li>
+                <li>"Compare FTEAvailable for Retail and Healthcare verticals last quarter."</li>
+                <li>"Show ShrinkagePercentage trend for Telecom over the last 6 months."</li>
+            </ul>
+        </ul>
+        <p><strong>Following these steps will help you get the best results! 😊</strong></p>
+    </div>
+</body>
+</html>
