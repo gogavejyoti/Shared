@@ -225,3 +225,21 @@ $(document).ready(function(){
 
 </body>
 </html>
+
+ toastr.warning("<strong>Are you sure you want to delete?</strong> <br /><br /> <button type='button' class='btn btn-danger btn-sm' id='confirmDelete'>Yes</button> <button type='button' class='btn btn-secondary btn-sm' id='cancelDelete'>No</button>", "Confirmation", {
+                    closeButton: false,
+                    allowHtml: true,
+                    positionClass: "toast-top-center",
+                    timeOut: 0,
+                    extendedTimeOut: 0,
+                    tapToDismiss: false,
+                    onShown: function () {
+                        $("#confirmDelete").click(function () {
+                            toastr.clear();
+                            toastr.success("Item deleted successfully!");
+                            // Perform the delete action here (e.g., AJAX request)
+                        });
+
+                        $("#cancelDelete").click(function () {
+                            toastr.clear();
+                        });
