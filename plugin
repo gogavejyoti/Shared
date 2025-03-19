@@ -51,31 +51,31 @@
             let chartDiv = $('<div class="chart-container" style="width:100%;height:400px;"></div>').appendTo(container);
             let options = {
                 chart: { type: config.type, height: 350 },
-                xaxis: { categories: data.map(d => d[config.x]), labels: { rotate: -45 } },
+                xaxis: { categories: data.map(d => formatValue(d[config.x], config.x)), labels: { rotate: -45 } },
                 series: []
             };
             if (config.type === "bar" || config.type === "line") {
-                options.series = [{ name: config.y, data: data.map(d => d[config.y]) }];
+                options.series = [{ name: config.y, data: data.map(d => formatValue(d[config.y], config.y)) }];
             } else if (config.type === "pie" || config.type === "donut") {
-                options.series = data.map(d => d[config.y]);
-                options.labels = data.map(d => d[config.x]);
+                options.series = data.map(d => formatValue(d[config.y], config.y));
+                options.labels = data.map(d => formatValue(d[config.x], config.x));
             } else if (config.type === "scatter") {
-                options.series = [{ name: "Scatter", data: data.map(d => ({ x: d[config.x], y: d[config.y] })) }];
+                options.series = [{ name: "Scatter", data: data.map(d => ({ x: formatValue(d[config.x], config.x), y: formatValue(d[config.y], config.y) })) }];
             } else if (config.type === "heatmap") {
                 options.series = config.series.map(key => ({
                     name: key,
-                    data: data.map(d => d[key])
+                    data: data.map(d => formatValue(d[key], key))
                 }));
             } else if (config.type === "radar") {
                 options.series = config.series.map(key => ({
                     name: key,
-                    data: data.map(d => d[key])
+                    data: data.map(d => formatValue(d[key], key))
                 }));
             } else if (config.type === "treemap") {
                 options.series = [{
                     data: data.map(d => ({
-                        x: d[config.x[0]],
-                        y: d[config.y[0]]
+                        x: formatValue(d[config.x[0]], config.x[0]),
+                        y: formatValue(d[config.y[0]], config.y[0])
                     }))
                 }];
             }
