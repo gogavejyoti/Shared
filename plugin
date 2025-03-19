@@ -1,99 +1,232 @@
-(function ($) {
-    $.fn.dynamicApexCharts = function (data) {
-        this.empty(); // Clear previous charts
-        let container = this;
+ $.fn.dynamicDashboard = function(options) {
+    // Default settings
+    const settings = $.extend({
+      data: [],
+      title: 'Dashboard',
+      excludeColumns: [], // Columns to exclude from display
+      dateColumn: null // Time-series column (auto-detected if not specified)
+    }, options);
 
-        function formatValue(value, key) {
-            if (typeof value === "number" && key.toLowerCase().includes("percent")) {
-                return value.toFixed(1) + "%";
-            } else if (typeof value === "number") {
-                return value.toFixed(0);
-            }
-            return value;
+    // Determine column type based on values
+    function determineColumnType(values) {
+      const sample = values[0];
+      if (sample instanceof Date) return 'date';
+      if (typeof sample === 'number') return 'number';
+      if (!isNaN(Date.parse(sample)) && 
+          values.every(v => !isNaN(Date.parse(v)))) return 'date';
+      return 'string';
+    }
+
+    // Analyze data structure and determine appropriate visualizations
+    function analyzeData(data) {
+      if (!data.length) return null;
+
+      const analysis = {
+        columns: {},
+        timeSeriesColumn: null,
+        numericColumns: [],
+        categoryColumns: [],
+        suggestedChartType: null
+      };
+
+      // Analyze each column
+      Object.keys(data[0]).forEach(column => {
+        if (settings.excludeColumns.includes(column)) return;
+
+        const values = data.map(row => row[column]);
+        const columnType = determineColumnType(values);
+        analysis.columns[column] = columnType;
+
+        if (columnType === 'date') {
+          analysis.timeSeriesColumn = column;
+        } else if (columnType === 'number') {
+          analysis.numericColumns.push(column);
+        } else {
+          analysis.categoryColumns.push(column);
         }
+      });
 
-        function determineChartTypes(dataset) {
-            let charts = [];
-            let keys = Object.keys(dataset[0]);
-            let numericKeys = keys.filter(k => dataset.every(row => typeof row[k] === "number"));
-            let categoricalKeys = keys.filter(k => !numericKeys.includes(k));
-            
-            if (numericKeys.length === 1 && categoricalKeys.length === 1) {
-                charts.push({ type: "bar", x: categoricalKeys[0], y: numericKeys[0] });
-            } 
-            if (numericKeys.length > 1) {
-                charts.push({ type: "line", x: categoricalKeys[0], y: numericKeys });
-            } 
-            if (categoricalKeys.length === 1 && numericKeys.length === 0) {
-                charts.push({ type: "pie", x: categoricalKeys[0] });
-            } 
-            if (numericKeys.length === 2) {
-                charts.push({ type: "scatter", x: numericKeys[0], y: numericKeys[1] });
-            } 
-            if (numericKeys.length >= 2) {
-                charts.push({ type: "heatmap", series: numericKeys });
-            }
-            if (categoricalKeys.length > 1) {
-                charts.push({ type: "treemap", x: categoricalKeys, y: numericKeys });
-            }
-            if (numericKeys.length > 2) {
-                charts.push({ type: "radar", series: numericKeys });
-            }
-            if (categoricalKeys.length === 1 && numericKeys.length >= 1) {
-                charts.push({ type: "donut", x: categoricalKeys[0], y: numericKeys[0] });
-            }
-            return charts;
+      // Use specified date column if provided
+      if (settings.dateColumn && analysis.columns[settings.dateColumn]) {
+        analysis.timeSeriesColumn = settings.dateColumn;
+      }
+
+      // Determine best chart type
+      if (analysis.timeSeriesColumn) {
+        analysis.suggestedChartType = 'line';
+      } else if (analysis.numericColumns.length > 0) {
+        analysis.suggestedChartType = analysis.numericColumns.length > 3 || data.length > 8 ? 'line' : 'bar';
+      } else {
+        analysis.suggestedChartType = 'table';
+      }
+
+      return analysis;
+    }
+
+    // Format value based on type
+    function formatValue(value, columnType) {
+      if (value === null || value === undefined) return '-';
+
+      if (columnType === 'date') {
+        return new Date(value).toLocaleDateString();
+      }
+
+      if (columnType === 'number') {
+        if (typeof value === 'string' && value.endsWith('%')) {
+          return parseFloat(value).toFixed(1) + '%';
         }
+        return value >= 1000 ? value.toLocaleString() : value.toFixed(1);
+      }
 
-        let chartConfigs = determineChartTypes(data);
+      return value.toString();
+    }
 
-        chartConfigs.forEach((config, index) => {
-            let chartDiv = $('<div class="chart-container" style="width:100%;height:400px;"></div>').appendTo(container);
-            let options = {
-                chart: { type: config.type, height: 350 },
-                xaxis: { categories: data.map(d => formatValue(d[config.x], config.x)), labels: { rotate: -45 } },
-                series: []
-            };
-            if (config.type === "bar" || config.type === "line") {
-                options.series = [{ name: config.y, data: data.map(d => formatValue(d[config.y], config.y)) }];
-            } else if (config.type === "pie" || config.type === "donut") {
-                options.series = data.map(d => formatValue(d[config.y], config.y));
-                options.labels = data.map(d => formatValue(d[config.x], config.x));
-            } else if (config.type === "scatter") {
-                options.series = [{ name: "Scatter", data: data.map(d => ({ x: formatValue(d[config.x], config.x), y: formatValue(d[config.y], config.y) })) }];
-            } else if (config.type === "heatmap") {
-                options.series = config.series.map(key => ({
-                    name: key,
-                    data: data.map(d => formatValue(d[key], key))
-                }));
-            } else if (config.type === "radar") {
-                options.series = config.series.map(key => ({
-                    name: key,
-                    data: data.map(d => formatValue(d[key], key))
-                }));
-            } else if (config.type === "treemap") {
-                options.series = [{
-                    data: data.map(d => ({
-                        x: formatValue(d[config.x[0]], config.x[0]),
-                        y: formatValue(d[config.y[0]], config.y[0])
-                    }))
-                }];
-            }
-            new ApexCharts(chartDiv[0], options).render();
+    // Create table
+    function createTable(data, analysis) {
+      const $tableCard = $('<div>').addClass('bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden');
+      const $table = $('<table>').addClass('min-w-full divide-y divide-gray-200');
+      const $thead = $('<thead>').addClass('bg-gray-50');
+      const $tbody = $('<tbody>').addClass('bg-white divide-y divide-gray-200');
+
+      // Get visible columns
+      const columns = Object.keys(analysis.columns);
+
+      // Add headers
+      const $headerRow = $('<tr>');
+      columns.forEach(column => {
+        $headerRow.append(
+          $('<th>')
+            .addClass('px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider')
+            .text(column.replace(/([A-Z])/g, ' $1').trim())
+        );
+      });
+      $thead.append($headerRow);
+
+      // Add data rows
+      data.forEach(row => {
+        const $dataRow = $('<tr>');
+        columns.forEach(column => {
+          const value = row[column];
+          const columnType = analysis.columns[column];
+          const formattedValue = formatValue(value, columnType);
+
+          let className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500';
+          if (columnType === 'number') {
+            className += ' text-right';
+          }
+
+          $dataRow.append(
+            $('<td>')
+              .addClass(className)
+              .text(formattedValue)
+          );
         });
+        $tbody.append($dataRow);
+      });
 
-        console.log("Testing on 100+ test datasets...");
-        for (let i = 0; i < 100; i++) {
-            let testData = [];
-            for (let j = 0; j < 10; j++) {
-                testData.push({
-                    Category: "Category " + j,
-                    Value: Math.random() * 100,
-                    Percentage: Math.random() * 100
-                });
-            }
-            console.log(`Test Case ${i + 1}:`, testData);
-            determineChartTypes(testData);
+      $table.append($thead).append($tbody);
+      $tableCard.append($table);
+      return $tableCard;
+    }
+
+    // Create chart configuration
+    function createChartConfig(data, analysis) {
+      // Prepare series data
+      const series = analysis.numericColumns.map(column => ({
+        name: column.replace(/([A-Z])/g, ' $1').trim(),
+        data: data.map(row => row[column])
+      }));
+
+      // Prepare categories (x-axis)
+      const xAxisColumn = analysis.timeSeriesColumn || analysis.categoryColumns[0];
+      const categories = data.map(row => 
+        formatValue(row[xAxisColumn], analysis.columns[xAxisColumn])
+      );
+
+      return {
+        series,
+        chart: {
+          type: analysis.suggestedChartType,
+          height: 350,
+          toolbar: {
+            show: true
+          },
+          zoom: {
+            enabled: true
+          }
+        },
+        xaxis: {
+          categories,
+          title: {
+            text: xAxisColumn.replace(/([A-Z])/g, ' $1').trim()
+          }
+        },
+        yaxis: {
+          labels: {
+            formatter: (value) => formatValue(value, 'number')
+          }
+        },
+        tooltip: {
+          y: {
+            formatter: (value) => formatValue(value, 'number')
+          }
+        },
+        stroke: {
+          width: 2,
+          curve: 'smooth'
+        },
+        markers: {
+          size: 4
+        },
+        legend: {
+          position: 'top'
         }
-    };
+      };
+    }
+
+    return this.each(function() {
+      const $container = $(this);
+      $container.addClass('p-6 bg-gray-100');
+
+      // Add title if provided
+      if (settings.title) {
+        $container.append(
+          $('<h2>')
+            .addClass('text-2xl font-bold mb-6 text-gray-900')
+            .text(settings.title)
+        );
+      }
+
+      // Analyze data structure
+      const analysis = analyzeData(settings.data);
+      if (!analysis) return; // No data to display
+
+      // Create dashboard layout
+      const $grid = $('<div>').addClass('grid grid-cols-1 gap-6');
+
+      // Create and add chart if we have numeric columns
+      if (analysis.numericColumns.length > 0) {
+        const chartId = 'chart-' + Math.random().toString(36).substr(2, 9);
+        const $chartCard = $('<div>').addClass('bg-white rounded-lg shadow-sm border border-gray-200 p-4');
+        const $chartDiv = $('<div>').attr('id', chartId);
+        $chartCard.append($chartDiv);
+        $grid.append($chartCard);
+
+        // Create chart configuration
+        const chartConfig = createChartConfig(settings.data, analysis);
+
+        // Initialize chart after elements are in DOM
+        setTimeout(() => {
+          const chart = new ApexCharts(document.getElementById(chartId), chartConfig);
+          chart.render();
+        }, 0);
+      }
+
+      // Add table
+      $grid.append(createTable(settings.data, analysis));
+
+      // Append grid to container
+      $container.append($grid);
+    });
+  };
 })(jQuery);
