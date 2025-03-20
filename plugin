@@ -1,196 +1,28 @@
-(function ($) {
-    $.fn.generateDynamicChart = function (options) {
-        let settings = $.extend({
-            botTextContainer: null,
-            userInput: '',
-            data: [],
-            transposeTable: false,
-            tableHeight: '250px'
-        }, options);
+public bool IsSafeSqlQuery(string sqlQuery)
+{
+    if (string.IsNullOrWhiteSpace(sqlQuery))
+        return false;
 
-        if (!settings.data || settings.data.length === 0) {
-            console.error("No data provided for the chart.");
-            return this;
-        }
+    string normalizedQuery = sqlQuery.Trim().ToUpperInvariant();
 
-        // Remove unnecessary filter fields
-        settings.data.forEach(item => {
-            delete item.DateWeekFilter;
-            delete item.DateMonthFilter;
-            delete item.DateYearFilter;
-        });
+    // Only allow SELECT or WITH (for CTEs)
+    if (!(normalizedQuery.StartsWith("SELECT") || normalizedQuery.StartsWith("WITH")))
+        return false;
 
-        let sampleItem = settings.data[0];
-        let nonNumericFields = [];
-        let numericFields = [];
-        let percentageFields = [];
-        let dateFields = [];
+    // Allow a single semicolon at the end; no other semicolons allowed
+    int semicolonCount = normalizedQuery.Split(';').Length - 1;
+    if (semicolonCount > 1 || (semicolonCount == 1 && !normalizedQuery.EndsWith(";")))
+        return false;
 
-        // Identify column types
-        Object.keys(sampleItem).forEach(key => {
-            let value = sampleItem[key];
-            if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || 
-                /^[A-Za-z]{3}-\d{2}$/.test(value) ||         
-                /^\d{4}-\d{2}$/.test(value)) {               
-                dateFields.push(key);
-            }
-            else if (isNaN(value) || value === '') {
-                nonNumericFields.push(key);
-            }
-            else {
-                numericFields.push(key);
-                if (key.toLowerCase().includes("percentage") || key.includes("%")) {
-                    percentageFields.push(key);
-                }
-            }
-        });
+    // List of forbidden keywords
+    string[] forbiddenKeywords = { "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "EXEC", "MERGE" };
 
-        var transformedData = settings.data;
+    foreach (var keyword in forbiddenKeywords)
+    {
+        // Use regex with word boundaries
+        if (Regex.IsMatch(normalizedQuery, $@"\b{keyword}\b"))
+            return false;
+    }
 
-        // Create UI elements
-        let chatBox = $("#chatBox");
-        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
-            width: "100%",
-            border: "1px solid #ddd",
-            borderRadius: "10px",
-            padding: "15px"
-        });
-
-        // Toggle button container
-        let buttonContainer = $("<div>").css({
-            marginBottom: "10px",
-            textAlign: "right"
-        });
-        
-        let toggleButton = $("<button>").text("Transpose Table")
-            .addClass("btn btn-primary btn-sm")
-            .css({
-                padding: "5px 10px",
-                fontSize: "14px"
-            });
-
-        let tableContainer = $("<div>").addClass("table-responsive").css({
-            width: "100%",
-            maxHeight: settings.tableHeight,
-            overflowY: "auto",
-            marginBottom: "15px",
-            padding: "10px",
-            border: "1px solid #ccc",
-            borderRadius: "5px",
-            backgroundColor: "#f8f9fa",
-            position: "relative"
-        });
-
-        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
-            width: "100%",
-            fontSize: "14px"
-        });
-
-        // Function to render table
-        function renderTable(isTransposed) {
-            table.empty(); // Clear existing table content
-            let thead = $("<thead>").css({
-                position: "sticky",
-                top: 0,
-                backgroundColor: "#fff",
-                zIndex: 1
-            });
-            let tbody = $("<tbody></tbody>");
-
-            if (isTransposed) {
-                // Transposed table
-                let headers = Object.keys(transformedData[0]);
-                let headerRow = $("<tr>");
-                headerRow.append($("<th>").text("").addClass("bg-primary text-white"));
-                transformedData.forEach((_, index) => {
-                    headerRow.append($("<th>").text(`Row ${index + 1}`).addClass("bg-primary text-white"));
-                });
-                thead.append(headerRow);
-
-                headers.forEach(header => {
-                    let tr = $("<tr>");
-                    tr.append($("<td>").text(header).addClass("font-weight-bold"));
-                    transformedData.forEach(row => {
-                        let value = row[header];
-                        if (!isNaN(value) && percentageFields.includes(header)) {
-                            value = (parseFloat(value) || 0).toFixed(1) + "%";
-                        } else if (!isNaN(value)) {
-                            value = (parseFloat(value) || 0).toFixed(0);
-                        }
-                        tr.append($("<td>").text(value));
-                    });
-                    tbody.append(tr);
-                });
-            } else {
-                // Normal table
-                let headerRow = $("<tr>");
-                Object.keys(transformedData[0]).forEach(key => {
-                    headerRow.append($("<th>").text(key).addClass("bg-primary text-white"));
-                });
-                thead.append(headerRow);
-
-                transformedData.forEach(row => {
-                    let tr = $("<tr>");
-                    Object.keys(row).forEach(key => {
-                        let value = row[key];
-                        if (key === "Metric") {
-                            tr.append($("<td>").text(value));
-                        } else {
-                            if (!isNaN(value) && percentageFields.includes(row["Metric"])) {
-                                value = (parseFloat(value) || 0).toFixed(1) + "%";
-                            } else if (!isNaN(value)) {
-                                value = (parseFloat(value) || 0).toFixed(0);
-                            }
-                            tr.append($("<td>").text(value));
-                        }
-                    });
-                    tbody.append(tr);
-                });
-            }
-
-            table.append(thead).append(tbody);
-        }
-
-        // Initial table render
-        renderTable(settings.transposeTable);
-
-        // Toggle button click handler
-        let isTransposed = settings.transposeTable;
-        toggleButton.on("click", function() {
-            isTransposed = !isTransposed;
-            renderTable(isTransposed);
-            $(this).text(isTransposed ? "Normal View" : "Transpose Table");
-        });
-
-        // Assemble UI
-        buttonContainer.append(toggleButton);
-        tableContainer.append(table);
-        mainContainer.append(buttonContainer).append(tableContainer);
-
-        // Generate Chart (unchanged)
-        if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
-            let chartContainer = $("<div>").css({
-                width: "100%",
-                height: "350px",
-                border: "1px solid #ccc",
-                borderRadius: "5px",
-                backgroundColor: "#fff",
-                padding: "10px"
-            });
-
-            $('.bot-message:last').remove();
-            mainContainer.append(chartContainer);
-            chatBox.append(mainContainer);
-
-            function buildChart(data, chartContainer) {
-                // ... (your existing chart building code remains unchanged)
-            }
-            buildChart(settings.data, chartContainer);
-        } else {
-            $('.bot-message:last').remove();
-            chatBox.append(mainContainer);
-        }
-
-        return this;
-    };
-}(jQuery));
+    return true;
+}
