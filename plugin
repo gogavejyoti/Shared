@@ -1,35 +1,4 @@
-.custom-table {
-    border-collapse: collapse;
-    width: 100%;
-    table-layout: fixed;
-}
-
-.table-responsive {
-    max-height: 250px;
-    overflow-y: auto;
-    overflow-x: auto;
-}
-
-.custom-table thead {
-    position: sticky;
-    top: 0;
-    background-color: #007bff;
-    color: white;
-    z-index: 10;
-}
-
-.custom-table th, .custom-table td {
-    white-space: nowrap;
-    padding: 8px;
-    text-align: center;
-}
-
-.custom-table th {
-    background-color: #007bff;
-    color: white;
-}
-
-(function ($) {
+(function ($) { 
     $.fn.generateDynamicChart = function (options) {
         let settings = $.extend({
             botTextContainer: null,
@@ -49,9 +18,37 @@
             delete item.DateYearFilter;
         });
 
-        let transformedData = settings.data;
-        let chatBox = $("#chatBox");
+        let sampleItem = settings.data[0];
+        let nonNumericFields = [];
+        let numericFields = [];
+        let percentageFields = [];
+        let dateFields = [];
 
+        // Identify column types
+        Object.keys(sampleItem).forEach(key => {
+            let value = sampleItem[key];
+
+            // Check if it's a date-like column
+            if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || // dd-MMM-yy
+                /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
+                /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
+                dateFields.push(key);
+            }
+            else if (isNaN(value) || value === '') {
+                nonNumericFields.push(key);
+            }
+            else {
+                numericFields.push(key);
+                if (key.toLowerCase().includes("percentage") || key.includes("%")) {
+                    percentageFields.push(key);
+                }
+            }
+        });
+
+        var transformedData = settings.data;
+        
+        // Create UI elements
+        let chatBox = $("#chatBox");
         let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
             width: "100%",
             border: "1px solid #ddd",
@@ -59,27 +56,18 @@
             padding: "15px"
         });
 
-        // Button container
-        let buttonContainer = $("<div>").addClass("d-flex justify-content-end mb-2");
-
-        let transposeButton = $("<button>").addClass("btn btn-sm btn-primary me-2").html('<i class="fas fa-exchange-alt"></i> Transpose');
-        let resetButton = $("<button>").addClass("btn btn-sm btn-danger").html('<i class="fas fa-undo"></i> Reset');
-
-        buttonContainer.append(transposeButton, resetButton);
-        mainContainer.append(buttonContainer);
-
         let tableContainer = $("<div>").addClass("table-responsive").css({
             width: "100%",
             maxHeight: "250px",
             overflowY: "auto",
-            overflowX: "auto",
+            marginBottom: "15px",
+            padding: "10px",
             border: "1px solid #ccc",
             borderRadius: "5px",
-            backgroundColor: "#f8f9fa",
-            position: "relative"
+            backgroundColor: "#f8f9fa"
         });
 
-        let table = $("<table>").addClass("table table-bordered table-striped text-center custom-table").css({
+        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
             width: "100%",
             fontSize: "14px"
         });
@@ -96,7 +84,17 @@
         transformedData.forEach(row => {
             let tr = $("<tr></tr>");
             Object.keys(row).forEach(key => {
-                tr.append($("<td>").text(row[key]));
+                let value = row[key];
+                if (key === "Metric") {
+                    tr.append($("<td>").text(value));
+                } else {
+                    if (!isNaN(value) && percentageFields.includes(row["Metric"])) {
+                        value = (parseFloat(value) || 0).toFixed(1) + "%"; // Format as percentage with 1 decimal place
+                    } else if (!isNaN(value)) {
+                        value = (parseFloat(value) || 0).toFixed(0); // Format as whole number
+                    }
+                    tr.append($("<td>").text(value));
+                }
             });
             tbody.append(tr);
         });
@@ -104,38 +102,79 @@
         table.append(thead).append(tbody);
         tableContainer.append(table);
         mainContainer.append(tableContainer);
-        chatBox.append(mainContainer);
 
-        // Transpose table
-        transposeButton.click(function () {
-            let newTable = $("<table>").addClass("table table-bordered table-striped text-center custom-table");
-            let newThead = $("<thead>").append("<tr></tr>");
-            let newTbody = $("<tbody></tbody>");
+        // Create Toggle and Reset Buttons
+        let buttonContainer = $("<div>").addClass("d-flex justify-content-end mb-2");
 
-            let rows = table.find("tr");
-            let numCols = rows.first().find("th, td").length;
+        let toggleButton = $("<button>").text("Toggle Transpose")
+            .addClass("btn btn-sm btn-secondary me-2")
+            .click(function () {
+                transposeTable();
+            });
 
-            for (let col = 0; col < numCols; col++) {
-                let newRow = $("<tr></tr>");
-                rows.each(function () {
-                    let cell = $(this).find("th, td").eq(col).clone();
-                    newRow.append(cell);
+        let resetButton = $("<button>").text("Reset")
+            .addClass("btn btn-sm btn-danger")
+            .click(function () {
+                resetTable();
+            });
+
+        buttonContainer.append(toggleButton, resetButton);
+        mainContainer.prepend(buttonContainer);
+
+        // Append buttons above table
+        tableContainer.prepend(buttonContainer);
+
+        // Store original table for reset
+        let originalTable = table.clone();
+
+        function transposeTable() {
+            let transposedTable = $("<table>").addClass("table table-bordered table-striped text-center");
+            let transposedTbody = $("<tbody>");
+            let headers = [];
+            let rows = [];
+
+            // Extract headers and rows
+            table.find("thead tr th").each(function () {
+                headers.push($(this).text());
+            });
+
+            table.find("tbody tr").each(function () {
+                let rowData = [];
+                $(this).find("td").each(function () {
+                    rowData.push($(this).text());
                 });
-                newTbody.append(newRow);
+                rows.push(rowData);
+            });
+
+            // Transpose data
+            let transposedThead = $("<thead>").append("<tr></tr>");
+            for (let i = 0; i < headers.length; i++) {
+                transposedThead.find("tr").append($("<th>").text(`Column ${i + 1}`));
             }
 
-            newTable.append(newThead).append(newTbody);
-            table.replaceWith(newTable);
-            table = newTable;
-        });
+            for (let j = 0; j < rows[0].length; j++) {
+                let tr = $("<tr>");
+                tr.append($("<td>").text(headers[j])); // First column as header
+                for (let i = 0; i < rows.length; i++) {
+                    tr.append($("<td>").text(rows[i][j]));
+                }
+                transposedTbody.append(tr);
+            }
 
-        // Reset table
-        resetButton.click(function () {
-            table.replaceWith(table.clone());
-            table = $(".custom-table");
-        });
+            transposedTable.append(transposedThead).append(transposedTbody);
+            table.replaceWith(transposedTable);
+            table = transposedTable;
+        }
+
+        function resetTable() {
+            table.replaceWith(originalTable);
+            table = originalTable;
+        }
+
+        // Append the final UI elements
+        $('.bot-message:last').remove();
+        chatBox.append(mainContainer);
 
         return this;
     };
 }(jQuery));
-
