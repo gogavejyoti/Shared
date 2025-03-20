@@ -28,3 +28,114 @@
     background-color: #007bff;
     color: white;
 }
+
+(function ($) {
+    $.fn.generateDynamicChart = function (options) {
+        let settings = $.extend({
+            botTextContainer: null,
+            userInput: '',
+            data: []
+        }, options);
+
+        if (!settings.data || settings.data.length === 0) {
+            console.error("No data provided for the chart.");
+            return this;
+        }
+
+        // Remove unnecessary filter fields
+        settings.data.forEach(item => {
+            delete item.DateWeekFilter;
+            delete item.DateMonthFilter;
+            delete item.DateYearFilter;
+        });
+
+        let transformedData = settings.data;
+        let chatBox = $("#chatBox");
+
+        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
+            width: "100%",
+            border: "1px solid #ddd",
+            borderRadius: "10px",
+            padding: "15px"
+        });
+
+        // Button container
+        let buttonContainer = $("<div>").addClass("d-flex justify-content-end mb-2");
+
+        let transposeButton = $("<button>").addClass("btn btn-sm btn-primary me-2").html('<i class="fas fa-exchange-alt"></i> Transpose');
+        let resetButton = $("<button>").addClass("btn btn-sm btn-danger").html('<i class="fas fa-undo"></i> Reset');
+
+        buttonContainer.append(transposeButton, resetButton);
+        mainContainer.append(buttonContainer);
+
+        let tableContainer = $("<div>").addClass("table-responsive").css({
+            width: "100%",
+            maxHeight: "250px",
+            overflowY: "auto",
+            overflowX: "auto",
+            border: "1px solid #ccc",
+            borderRadius: "5px",
+            backgroundColor: "#f8f9fa",
+            position: "relative"
+        });
+
+        let table = $("<table>").addClass("table table-bordered table-striped text-center custom-table").css({
+            width: "100%",
+            fontSize: "14px"
+        });
+
+        let thead = $("<thead>").append("<tr></tr>");
+        let tbody = $("<tbody></tbody>");
+
+        // Create table headers
+        Object.keys(transformedData[0]).forEach(key => {
+            thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
+        });
+
+        // Create table rows
+        transformedData.forEach(row => {
+            let tr = $("<tr></tr>");
+            Object.keys(row).forEach(key => {
+                tr.append($("<td>").text(row[key]));
+            });
+            tbody.append(tr);
+        });
+
+        table.append(thead).append(tbody);
+        tableContainer.append(table);
+        mainContainer.append(tableContainer);
+        chatBox.append(mainContainer);
+
+        // Transpose table
+        transposeButton.click(function () {
+            let newTable = $("<table>").addClass("table table-bordered table-striped text-center custom-table");
+            let newThead = $("<thead>").append("<tr></tr>");
+            let newTbody = $("<tbody></tbody>");
+
+            let rows = table.find("tr");
+            let numCols = rows.first().find("th, td").length;
+
+            for (let col = 0; col < numCols; col++) {
+                let newRow = $("<tr></tr>");
+                rows.each(function () {
+                    let cell = $(this).find("th, td").eq(col).clone();
+                    newRow.append(cell);
+                });
+                newTbody.append(newRow);
+            }
+
+            newTable.append(newThead).append(newTbody);
+            table.replaceWith(newTable);
+            table = newTable;
+        });
+
+        // Reset table
+        resetButton.click(function () {
+            table.replaceWith(table.clone());
+            table = $(".custom-table");
+        });
+
+        return this;
+    };
+}(jQuery));
+
