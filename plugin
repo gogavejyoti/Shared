@@ -1,232 +1,324 @@
- $.fn.dynamicDashboard = function(options) {
-    // Default settings
-    const settings = $.extend({
-      data: [],
-      title: 'Dashboard',
-      excludeColumns: [], // Columns to exclude from display
-      dateColumn: null // Time-series column (auto-detected if not specified)
-    }, options);
+(function ($) {
+    $.fn.generateDynamicChart = function (options) {
+        let settings = $.extend({
+            botTextContainer: null,
+            userInput: '',
+            data: []
+        }, options);
 
-    // Determine column type based on values
-    function determineColumnType(values) {
-      const sample = values[0];
-      if (sample instanceof Date) return 'date';
-      if (typeof sample === 'number') return 'number';
-      if (!isNaN(Date.parse(sample)) && 
-          values.every(v => !isNaN(Date.parse(v)))) return 'date';
-      return 'string';
-    }
-
-    // Analyze data structure and determine appropriate visualizations
-    function analyzeData(data) {
-      if (!data.length) return null;
-
-      const analysis = {
-        columns: {},
-        timeSeriesColumn: null,
-        numericColumns: [],
-        categoryColumns: [],
-        suggestedChartType: null
-      };
-
-      // Analyze each column
-      Object.keys(data[0]).forEach(column => {
-        if (settings.excludeColumns.includes(column)) return;
-
-        const values = data.map(row => row[column]);
-        const columnType = determineColumnType(values);
-        analysis.columns[column] = columnType;
-
-        if (columnType === 'date') {
-          analysis.timeSeriesColumn = column;
-        } else if (columnType === 'number') {
-          analysis.numericColumns.push(column);
-        } else {
-          analysis.categoryColumns.push(column);
+        if (!settings.data || settings.data.length === 0) {
+            console.error("No data provided for the chart.");
+            return this;
         }
-      });
 
-      // Use specified date column if provided
-      if (settings.dateColumn && analysis.columns[settings.dateColumn]) {
-        analysis.timeSeriesColumn = settings.dateColumn;
-      }
-
-      // Determine best chart type
-      if (analysis.timeSeriesColumn) {
-        analysis.suggestedChartType = 'line';
-      } else if (analysis.numericColumns.length > 0) {
-        analysis.suggestedChartType = analysis.numericColumns.length > 3 || data.length > 8 ? 'line' : 'bar';
-      } else {
-        analysis.suggestedChartType = 'table';
-      }
-
-      return analysis;
-    }
-
-    // Format value based on type
-    function formatValue(value, columnType) {
-      if (value === null || value === undefined) return '-';
-
-      if (columnType === 'date') {
-        return new Date(value).toLocaleDateString();
-      }
-
-      if (columnType === 'number') {
-        if (typeof value === 'string' && value.endsWith('%')) {
-          return parseFloat(value).toFixed(1) + '%';
-        }
-        return value >= 1000 ? value.toLocaleString() : value.toFixed(1);
-      }
-
-      return value.toString();
-    }
-
-    // Create table
-    function createTable(data, analysis) {
-      const $tableCard = $('<div>').addClass('bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden');
-      const $table = $('<table>').addClass('min-w-full divide-y divide-gray-200');
-      const $thead = $('<thead>').addClass('bg-gray-50');
-      const $tbody = $('<tbody>').addClass('bg-white divide-y divide-gray-200');
-
-      // Get visible columns
-      const columns = Object.keys(analysis.columns);
-
-      // Add headers
-      const $headerRow = $('<tr>');
-      columns.forEach(column => {
-        $headerRow.append(
-          $('<th>')
-            .addClass('px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider')
-            .text(column.replace(/([A-Z])/g, ' $1').trim())
-        );
-      });
-      $thead.append($headerRow);
-
-      // Add data rows
-      data.forEach(row => {
-        const $dataRow = $('<tr>');
-        columns.forEach(column => {
-          const value = row[column];
-          const columnType = analysis.columns[column];
-          const formattedValue = formatValue(value, columnType);
-
-          let className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500';
-          if (columnType === 'number') {
-            className += ' text-right';
-          }
-
-          $dataRow.append(
-            $('<td>')
-              .addClass(className)
-              .text(formattedValue)
-          );
+        // Remove unnecessary filter fields
+        settings.data.forEach(item => {
+            delete item.DateWeekFilter;
+            delete item.DateMonthFilter;
+            delete item.DateYearFilter;
         });
-        $tbody.append($dataRow);
-      });
 
-      $table.append($thead).append($tbody);
-      $tableCard.append($table);
-      return $tableCard;
-    }
+        let sampleItem = settings.data[0];
+        let nonNumericFields = [];
+        let numericFields = [];
+        let percentageFields = [];
+        let dateFields = [];
 
-    // Create chart configuration
-    function createChartConfig(data, analysis) {
-      // Prepare series data
-      const series = analysis.numericColumns.map(column => ({
-        name: column.replace(/([A-Z])/g, ' $1').trim(),
-        data: data.map(row => row[column])
-      }));
+        // Identify column types
+        Object.keys(sampleItem).forEach(key => {
+            let value = sampleItem[key];
 
-      // Prepare categories (x-axis)
-      const xAxisColumn = analysis.timeSeriesColumn || analysis.categoryColumns[0];
-      const categories = data.map(row => 
-        formatValue(row[xAxisColumn], analysis.columns[xAxisColumn])
-      );
+            // Check if it's a date-like column
+            if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) || // dd-MMM-yy
+                /^[A-Za-z]{3}-\d{2}$/.test(value) ||         // MMM-yy
+                /^\d{4}-\d{2}$/.test(value)) {               // yyyy-MM
+                dateFields.push(key);
+            }
+            else if (isNaN(value) || value === '') {
+                nonNumericFields.push(key);
+            }
+            else {
+                numericFields.push(key);
+                if (key.toLowerCase().includes("percentage") || key.includes("%")) {
+                    percentageFields.push(key);
+                }
+            }
+        });
 
-      return {
-        series,
-        chart: {
-          type: analysis.suggestedChartType,
-          height: 350,
-          toolbar: {
-            show: true
-          },
-          zoom: {
-            enabled: true
-          }
-        },
-        xaxis: {
-          categories,
-          title: {
-            text: xAxisColumn.replace(/([A-Z])/g, ' $1').trim()
-          }
-        },
-        yaxis: {
-          labels: {
-            formatter: (value) => formatValue(value, 'number')
-          }
-        },
-        tooltip: {
-          y: {
-            formatter: (value) => formatValue(value, 'number')
-          }
-        },
-        stroke: {
-          width: 2,
-          curve: 'smooth'
-        },
-        markers: {
-          size: 4
-        },
-        legend: {
-          position: 'top'
+        let requiresTranspose = (dateFields.length === 1 && numericFields.length >= 1);
+        let groupingFields;
+        let transformedData = [];
+        if (requiresTranspose) {
+            let timeColumn = dateFields[0];
+            groupingFields = nonNumericFields.filter(field => !dateFields.includes(field)); // Dynamic grouping fields
+            let uniqueDates = [...new Set(settings.data.map(item => item[timeColumn]))];
+
+            // Helper function to create a unique key for grouping
+            const getGroupKey = (item) => {
+                return groupingFields.map(field => item[field]).join(" - ");
+            };
+
+            // Get unique groups based on grouping fields
+            let uniqueGroups = [...new Set(settings.data.map(item => getGroupKey(item)))];
+
+            uniqueGroups.forEach(group => {
+                numericFields.forEach(metric => {
+                    let transposedObject = { ...Object.fromEntries(groupingFields.map(field => [field, settings.data.find(item => getGroupKey(item) === group)[field]])) };
+                    transposedObject["Metric"] = metric;
+                    uniqueDates.forEach(date => {
+                        let matchingItem = settings.data.find(item => item[timeColumn] === date && getGroupKey(item) === group);
+                        transposedObject[date] = matchingItem ? matchingItem[metric] : 0;
+                    });
+                    transformedData.push(transposedObject);
+                });
+            });
+        } else {
+            transformedData = settings.data;
         }
-      };
-    }
 
-    return this.each(function() {
-      const $container = $(this);
-      $container.addClass('p-6 bg-gray-100');
+        // Create UI elements
+        let chatBox = $("#chatBox");
+        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
+            width: "100%",
+            border: "1px solid #ddd",
+            borderRadius: "10px",
+            padding: "15px"
+        });
 
-      // Add title if provided
-      if (settings.title) {
-        $container.append(
-          $('<h2>')
-            .addClass('text-2xl font-bold mb-6 text-gray-900')
-            .text(settings.title)
-        );
-      }
+        let tableContainer = $("<div>").addClass("table-responsive").css({
+            width: "100%",
+            maxHeight: "250px",
+            overflowY: "auto",
+            marginBottom: "15px",
+            padding: "10px",
+            border: "1px solid #ccc",
+            borderRadius: "5px",
+            backgroundColor: "#f8f9fa"
+        });
 
-      // Analyze data structure
-      const analysis = analyzeData(settings.data);
-      if (!analysis) return; // No data to display
+        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
+            width: "100%",
+            fontSize: "14px"
+        });
 
-      // Create dashboard layout
-      const $grid = $('<div>').addClass('grid grid-cols-1 gap-6');
+        let thead = $("<thead>").append("<tr></tr>");
+        let tbody = $("<tbody></tbody>");
 
-      // Create and add chart if we have numeric columns
-      if (analysis.numericColumns.length > 0) {
-        const chartId = 'chart-' + Math.random().toString(36).substr(2, 9);
-        const $chartCard = $('<div>').addClass('bg-white rounded-lg shadow-sm border border-gray-200 p-4');
-        const $chartDiv = $('<div>').attr('id', chartId);
-        $chartCard.append($chartDiv);
-        $grid.append($chartCard);
+        // Create table headers
+        Object.keys(transformedData[0]).forEach(key => {
+            thead.find("tr").append($("<th>").text(key).addClass("bg-primary text-white"));
+        });
 
-        // Create chart configuration
-        const chartConfig = createChartConfig(settings.data, analysis);
+        // Create table rows
+        transformedData.forEach(row => {
+            let tr = $("<tr></tr>");
+            Object.keys(row).forEach(key => {
+                let value = row[key];
+                if (key === "Metric") {
+                    tr.append($("<td>").text(value));
+                } else {
+                    if (!isNaN(value) && percentageFields.includes(row["Metric"])) {
+                        value = (parseFloat(value) || 0).toFixed(1) + "%"; // Format as percentage with 1 decimal place
+                    } else if (!isNaN(value)) {
+                        value = (parseFloat(value) || 0).toFixed(0); // Format as whole number
+                    }
+                    tr.append($("<td>").text(value));
+                }
+            });
+            tbody.append(tr);
+        });
 
-        // Initialize chart after elements are in DOM
-        setTimeout(() => {
-          const chart = new ApexCharts(document.getElementById(chartId), chartConfig);
-          chart.render();
-        }, 0);
-      }
+        table.append(thead).append(tbody);
+        tableContainer.append(table);
+        mainContainer.append(tableContainer);
 
-      // Add table
-      $grid.append(createTable(settings.data, analysis));
+        // Generate Chart
+        if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
+            let chartContainer = $("<div>").css({
+                width: "100%",
+                height: "350px",
+                border: "1px solid #ccc",
+                borderRadius: "5px",
+                backgroundColor: "#fff",
+                padding: "10px"
+            });
 
-      // Append grid to container
-      $container.append($grid);
-    });
-  };
-})(jQuery);
+            $('.bot-message:last').remove();
+            mainContainer.append(chartContainer);
+            chatBox.append(mainContainer);
+
+            function buildChart(data, chartContainer) {
+                let sampleItem = data[0];
+                let nonNumericFields = [];
+                let numericFields = [];
+                let percentageFields = [];
+                Object.keys(sampleItem).forEach(key => {
+                    if (isNaN(sampleItem[key]) || sampleItem[key] === '') {
+                        nonNumericFields.push(key);
+                    } else {
+                        numericFields.push(key);
+                        if (key.toLowerCase().includes("percentage") || key.includes("%")) {
+                            percentageFields.push(key);
+                        }
+                    }
+                });
+                let categoryField = nonNumericFields.length > 0 ? nonNumericFields[nonNumericFields.length - 1] : Object.keys(sampleItem)[0];
+
+
+                // Prepare data for ApexCharts
+                let categories = data.map(item => item[categoryField]);
+                let seriesData = numericFields.map(key => ({
+                    name: key,
+                    data: data.map(item => parseFloat(item[key]))
+                }));
+                // Determine best chart type
+                let chartType = numericFields.length > 1 ? "bar" : "line";
+                if (numericFields.length === 1 && data.length <= 5) {
+                    chartType = "pie";
+                }
+
+
+                if (chartType === 'pie') {
+
+                    var chartOptions = {
+                        series: seriesData[0].data,
+                        chart: {
+                            height: 320,
+                            type: 'radialBar',
+                        },
+                        plotOptions: {
+                            radialBar: {
+                                offsetY: 0,
+                                startAngle: 0,
+                                endAngle: 270,
+                                hollow: {
+                                    margin: 5,
+                                    size: '30%',
+                                    background: 'transparent',
+                                    image: undefined,
+                                },
+                                dataLabels: {
+                                    name: {
+                                        show: false,
+                                    },
+                                    value: {
+                                        show: false,
+                                    }
+                                },
+                                barLabels: {
+                                    enabled: true,
+                                    useSeriesColors: true,
+                                    offsetX: -8,
+                                    fontSize: '16px',
+                                    formatter: function (seriesName, opts) {
+                                        return seriesName + ":  " + opts.w.globals.series[opts.seriesIndex].toFixed(1) + '%'
+                                    },
+                                },
+                            }
+                        },
+                        labels: categories,
+                        responsive: [{
+                            breakpoint: 480,
+                            options: {
+                                legend: {
+                                    show: false
+                                }
+                            }
+                        }]
+                    };
+
+
+                    let chart = new ApexCharts(chartContainer[0], chartOptions);
+                    chart.render();
+                }
+                else {
+                    let chartOptions = {
+                        chart: { type: chartType, height: 320 },
+
+                        series: seriesData,
+                        xaxis: {
+                            categories: categories,
+                            labels: { rotate: -45, style: { fontSize: "12px" } }
+                        },
+                        yaxis: {
+                            labels: {
+                                formatter: function (value) {
+                                    return percentageFields.includes(chartType) ? value.toFixed(1) + "%" : Math.round(value);
+                                }
+                            }
+                        },
+                        tooltip: {
+                            y: {
+                                formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                                    let fieldName = w.config.series[seriesIndex].name;
+                                    return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+                                }
+                            }
+                        },
+                        dataLabels: {
+                            enabled: true,
+                            formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                                let fieldName = w.config.series[seriesIndex].name;
+                                return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+                            },
+                            style: { fontSize: "12px" }
+                        }
+                    };
+                    let chart = new ApexCharts(chartContainer[0], chartOptions);
+                    chart.render();
+                }
+
+
+
+            }
+            buildChart(settings.data, chartContainer);
+
+
+            //let categories = groupingFields ? transformedData.map(item => `${item[groupingFields[0]]} - ${item["Metric"]}`) : transformedData.map(x => x[Object.keys(transformedData[0])[0]]);
+            //let seriesData = Object.keys(transformedData[0])
+            //    .filter(key => !groupingFields.includes(key) && key !== "Metric")
+            //    .map(key => ({
+            //        name: key,
+            //        data: transformedData.map(item => {
+            //            let value = parseFloat(item[key]);
+            //            if (percentageFields.includes(item["Metric"])) {
+            //                return value.toFixed(1); // Format as percentage with 1 decimal place
+            //            } else {
+            //                return value.toFixed(0); // Format as whole number
+            //            }
+            //        })
+            //    }));
+
+            //let chartOptions = {
+            //    chart: { type: "bar", height: 320 },
+            //    series: seriesData,
+            //    xaxis: { categories: categories },
+            //    yaxis: {
+            //        labels: {
+            //            formatter: function (value) {
+            //                if (percentageFields.some(field => field.includes("percentage") || field.includes("%"))) {
+            //                    return value.toFixed(1) + "%"; // Format as percentage with 1 decimal place
+            //                } else {
+            //                    return value.toFixed(0); // Format as whole number
+            //                }
+            //            }
+            //        }
+            //    },
+            //    dataLabels: { enabled: true }
+            //};
+
+            //let chart = new ApexCharts(chartContainer[0], chartOptions);
+            //chart.render();
+      
+       
+
+
+
+        } else {
+            $('.bot-message:last').remove();
+            chatBox.append(mainContainer);
+        }
+
+        return this;
+    };
+}(jQuery));
