@@ -71,7 +71,6 @@
                 color:"#fff"
             });
 
-
         let tableContainer = $("<div>").addClass("table-responsive").css({
             width: "100%",
             maxHeight: settings.tableHeight,
@@ -145,7 +144,6 @@
                     });
                     tbody.append(tr);
                 });
-             
             }
 
             table.append(thead).append(tbody);
@@ -167,9 +165,9 @@
         tableContainer.append(table);
         mainContainer.append(buttonContainer).append(tableContainer);
 
-        // Generate Chart (unchanged)
+        // Generate Chart with D3.js
         if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
-            let chartContainer = $("<div>").css({
+            let chartContainer = $("<div>").attr("id", "d3-chart-container").css({
                 width: "100%",
                 height: "350px",
                 border: "1px solid #ccc",
@@ -182,130 +180,169 @@
             mainContainer.append(chartContainer);
             chatBox.append(mainContainer);
 
-            function buildChart(data, chartContainer) {
+            function buildChart(data, container) {
+                // Clear previous chart if any
+                d3.select(container[0]).selectAll("*").remove();
+                
                 let sampleItem = data[0];
                 let nonNumericFields = [];
                 let numericFields = [];
-                let percentageFields = [];
                 Object.keys(sampleItem).forEach(key => {
                     if (isNaN(sampleItem[key]) || sampleItem[key] === '') {
                         nonNumericFields.push(key);
                     } else {
                         numericFields.push(key);
-                        if (key.toLowerCase().includes("percentage") || key.includes("%")) {
-                            percentageFields.push(key);
-                        }
                     }
                 });
+                
                 let categoryField = nonNumericFields.length > 0 ? nonNumericFields[nonNumericFields.length - 1] : Object.keys(sampleItem)[0];
-
-
-                // Prepare data for ApexCharts
-                let categories = data.map(item => item[categoryField]);
-                let seriesData = numericFields.map(key => ({
-                    name: key,
-                    data: data.map(item => parseFloat(item[key]))
-                }));
-                // Determine best chart type
+                
+                // Determine chart type
                 let chartType = numericFields.length > 1 ? "bar" : "line";
                 if (numericFields.length === 1 && data.length <= 5) {
                     chartType = "pie";
                 }
-
-
-                if (chartType === 'pie') {
-
-                    var chartOptions = {
-                        series: seriesData[0].data,
-                        chart: {
-                            height: 320,
-                            type: 'radialBar',
-                        },
-                        plotOptions: {
-                            radialBar: {
-                                offsetY: 0,
-                                startAngle: 0,
-                                endAngle: 270,
-                                hollow: {
-                                    margin: 5,
-                                    size: '30%',
-                                    background: 'transparent',
-                                    image: undefined,
-                                },
-                                dataLabels: {
-                                    name: {
-                                        show: false,
-                                    },
-                                    value: {
-                                        show: false,
-                                    }
-                                },
-                                barLabels: {
-                                    enabled: true,
-                                    useSeriesColors: true,
-                                    offsetX: -8,
-                                    fontSize: '16px',
-                                    formatter: function (seriesName, opts) {
-                                        return seriesName + ":  " + opts.w.globals.series[opts.seriesIndex].toFixed(1) + '%'
-                                    },
-                                },
-                            }
-                        },
-                        labels: categories,
-                        responsive: [{
-                            breakpoint: 480,
-                            options: {
-                                legend: {
-                                    show: false
-                                }
-                            }
-                        }]
-                    };
-
-
-                    let chart = new ApexCharts(chartContainer[0], chartOptions);
-                    chart.render();
+                
+                // Set up dimensions
+                const margin = {top: 20, right: 30, bottom: 40, left: 40};
+                const width = container.width() - margin.left - margin.right;
+                const height = 300 - margin.top - margin.bottom;
+                
+                // Create SVG
+                const svg = d3.select(container[0])
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+                
+                // Prepare data
+                const categories = data.map(d => d[categoryField]);
+                const series = numericFields.map(key => ({
+                    name: key,
+                    values: data.map(d => +d[key])
+                }));
+                
+                // Set up scales
+                const x = d3.scaleBand()
+                    .domain(categories)
+                    .range([0, width])
+                    .padding(0.1);
+                
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(series, s => d3.max(s.values)) * 1.1])
+                    .range([height, 0]);
+                
+                // Add axes
+                svg.append("g")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x))
+                    .selectAll("text")
+                    .attr("transform", "rotate(-45)")
+                    .style("text-anchor", "end");
+                
+                svg.append("g")
+                    .call(d3.axisLeft(y));
+                
+                if (chartType === "bar") {
+                    // Create color scale
+                    const color = d3.scaleOrdinal()
+                        .domain(numericFields)
+                        .range(d3.schemeCategory10);
+                    
+                    // Add bars
+                    series.forEach((s, i) => {
+                        svg.selectAll(`.bar-${i}`)
+                            .data(s.values)
+                            .enter()
+                            .append("rect")
+                            .attr("class", `bar-${i}`)
+                            .attr("x", (d, j) => x(categories[j]) + (i * (x.bandwidth() / series.length)))
+                            .attr("y", d => y(d))
+                            .attr("width", x.bandwidth() / series.length)
+                            .attr("height", d => height - y(d))
+                            .attr("fill", color(s.name));
+                    });
+                    
+                    // Add legend
+                    const legend = svg.append("g")
+                        .attr("transform", `translate(${width - 100}, 0)`);
+                    
+                    numericFields.forEach((field, i) => {
+                        legend.append("rect")
+                            .attr("x", 0)
+                            .attr("y", i * 20)
+                            .attr("width", 15)
+                            .attr("height", 15)
+                            .attr("fill", color(field));
+                        
+                        legend.append("text")
+                            .attr("x", 20)
+                            .attr("y", i * 20 + 12)
+                            .text(field)
+                            .style("font-size", "12px");
+                    });
+                } else if (chartType === "line") {
+                    // Create line generator
+                    const line = d3.line()
+                        .x((d, i) => x(categories[i]) + x.bandwidth() / 2)
+                        .y(d => y(d))
+                        .curve(d3.curveMonotoneX);
+                    
+                    // Add line
+                    svg.append("path")
+                        .datum(series[0].values)
+                        .attr("fill", "none")
+                        .attr("stroke", "steelblue")
+                        .attr("stroke-width", 2)
+                        .attr("d", line);
+                    
+                    // Add dots
+                    svg.selectAll(".dot")
+                        .data(series[0].values)
+                        .enter()
+                        .append("circle")
+                        .attr("class", "dot")
+                        .attr("cx", (d, i) => x(categories[i]) + x.bandwidth() / 2)
+                        .attr("cy", d => y(d))
+                        .attr("r", 5)
+                        .attr("fill", "steelblue");
+                } else if (chartType === "pie") {
+                    // Pie chart implementation
+                    const radius = Math.min(width, height) / 2;
+                    
+                    svg.attr("transform", `translate(${width / 2 + margin.left},${height / 2 + margin.top})`);
+                    
+                    const pie = d3.pie()
+                        .value(d => d);
+                    
+                    const arc = d3.arc()
+                        .innerRadius(0)
+                        .outerRadius(radius);
+                    
+                    const color = d3.scaleOrdinal()
+                        .domain(categories)
+                        .range(d3.schemeCategory10);
+                    
+                    const arcs = svg.selectAll("arc")
+                        .data(pie(series[0].values))
+                        .enter()
+                        .append("g")
+                        .attr("class", "arc");
+                    
+                    arcs.append("path")
+                        .attr("d", arc)
+                        .attr("fill", (d, i) => color(categories[i]));
+                    
+                    // Add labels
+                    arcs.append("text")
+                        .attr("transform", d => `translate(${arc.centroid(d)})`)
+                        .attr("text-anchor", "middle")
+                        .text(d => `${categories[d.index]}: ${d.data.toFixed(1)}%`)
+                        .style("font-size", "12px");
                 }
-                else {
-                    let chartOptions = {
-                        chart: { type: chartType, height: 320 },
-
-                        series: seriesData,
-                        xaxis: {
-                            categories: categories,
-                            labels: { rotate: -45, style: { fontSize: "12px" } }
-                        },
-                        yaxis: {
-                            labels: {
-                                formatter: function (value) {
-                                    return percentageFields.includes(chartType) ? value.toFixed(1) + "%" : Math.round(value);
-                                }
-                            }
-                        },
-                        tooltip: {
-                            y: {
-                                formatter: function (value, { seriesIndex, dataPointIndex, w }) {
-                                    let fieldName = w.config.series[seriesIndex].name;
-                                    return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
-                                }
-                            }
-                        },
-                        dataLabels: {
-                            enabled: true,
-                            formatter: function (value, { seriesIndex, dataPointIndex, w }) {
-                                let fieldName = w.config.series[seriesIndex].name;
-                                return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
-                            },
-                            style: { fontSize: "12px" }
-                        }
-                    };
-                    let chart = new ApexCharts(chartContainer[0], chartOptions);
-                    chart.render();
-                }
-
-
-
             }
+            
             buildChart(settings.data, chartContainer);
         } else {
             $('.bot-message:last').remove();
