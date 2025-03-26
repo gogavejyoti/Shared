@@ -13,36 +13,34 @@
             return this;
         }
 
-        // Remove unnecessary filter fields
-        settings.data.forEach(item => {
-            delete item.DateWeekFilter;
-            delete item.DateMonthFilter;
-            delete item.DateYearFilter;
-        });
-
+        // Data Analysis and Type Detection
         let sampleItem = settings.data[0];
         let nonNumericFields = [];
         let numericFields = [];
         let percentageFields = [];
         let dateFields = [];
 
-        // Identify column types dynamically and robustly
-        Object.keys(sampleItem).forEach(key => {
+        for (const key in sampleItem) {
+            if (!sampleItem.hasOwnProperty(key)) continue; // Skip inherited properties
             let value = sampleItem[key];
-            if (typeof value === 'string' && (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) ||
-                /^[A-Za-z]{3}-\d{2}$/.test(value) ||
-                /^\d{4}-\d{2}$/.test(value))) {
-                dateFields.push(key);
-            } else if (typeof value === 'string' && isNaN(value) && value !== '') {
-                nonNumericFields.push(key);
+
+            if (typeof value === 'string') {
+                if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) ||
+                    /^[A-Za-z]{3}-\d{2}$/.test(value) ||
+                    /^\d{4}-\d{2}$/.test(value)) {
+                    dateFields.push(key);
+                } else if (isNaN(value) && value !== '') {
+                    nonNumericFields.push(key);
+                }
             } else if (typeof value === 'number' || (!isNaN(parseFloat(value)) && isFinite(value))) {
                 numericFields.push(key);
                 if (typeof value === 'string' && (key.toLowerCase().includes("percentage") || key.includes("%"))) {
                     percentageFields.push(key);
                 }
             }
-        });
+        }
 
+        // Main Container
         let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
             width: "100%",
             border: "1px solid #ddd",
@@ -50,7 +48,7 @@
             padding: "15px"
         });
 
-        // Table Rendering and Toggle
+        // Table Rendering
         let tableContainer = $("<div>").addClass("table-responsive").css({
             width: "100%",
             maxWidth: "1050px",
@@ -140,7 +138,13 @@
             $('.bot-message:last').remove();
             mainContainer.append(chartContainer);
 
+            // Moved buildChart function INSIDE the 'if' block
             function buildChart(data, chartContainer) {
+                if (!data || data.length === 0) {
+                    console.error("No data provided to buildChart function");
+                    return;
+                }
+                let sampleItem = data[0];
                 let categoryField = dateFields.length > 0 ? dateFields[0] : nonNumericFields.length > 0 ? nonNumericFields[nonNumericFields.length - 1] : Object.keys(sampleItem)[0];
                 let chartType = numericFields.length > 1 ? "line" : "bar";
                 if (numericFields.length === 1 && data.length <= 5) {
@@ -148,9 +152,39 @@
                 }
 
                 let chartOptions = {
-                    chart: { type: chartType, height: 320, animations: { enabled: true, easing: 'easeInOutQuad', duration: 800 } },
+                    chart: {
+                        type: chartType,
+                        height: 320,
+                        animations: {
+                            enabled: true,
+                            easing: 'easeInOutQuad',
+                            duration: 800
+                        },
+                        toolbar: {
+                            show: true,
+                            exportToSVG: true,
+                            exportToPNG: true,
+                            csv: {
+                                filename: undefined,
+                                columnDelimiter: ',',
+                                header: true,
+                            },
+                            print: {
+                                show: true,
+                                printContainerClass: 'printable',
+                            },
+                        }
+                    },
                     series: [],
-                    xaxis: { categories: [], labels: { rotate: -45, style: { fontSize: "12px" } } },
+                    xaxis: {
+                        categories: [],
+                        labels: {
+                            rotate: -45,
+                            style: {
+                                fontSize: "12px"
+                            }
+                        }
+                    },
                     yaxis: {
                         labels: {
                             formatter: (value) => {
@@ -161,7 +195,10 @@
                     },
                     tooltip: {
                         y: {
-                            formatter: (value, { seriesIndex, w }) => {
+                            formatter: (value, {
+                                seriesIndex,
+                                w
+                            }) => {
                                 const fieldName = w.config.series[seriesIndex].name;
                                 return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
                             }
@@ -169,18 +206,30 @@
                     },
                     dataLabels: {
                         enabled: true,
-                        formatter: (value, { seriesIndex, w }) => {
+                        formatter: (value, {
+                            seriesIndex,
+                            w
+                        }) => {
                             const fieldName = w.config.series[seriesIndex].name;
                             return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
                         },
-                        style: { fontSize: "12px" }
+                        style: {
+                            fontSize: "12px"
+                        }
                     },
                     legend: {
                         position: 'bottom',
                         horizontalAlign: 'center',
                         fontSize: '12px',
-                        markers: { width: 10, height: 10, radius: 2 },
-                        itemMargin: { horizontal: 8, vertical: 0 },
+                        markers: {
+                            width: 10,
+                            height: 10,
+                            radius: 2
+                        },
+                        itemMargin: {
+                            horizontal: 8,
+                            vertical: 0
+                        },
                         onItemClick: {
                             toggleDataSeries: true
                         },
@@ -336,7 +385,10 @@
                 let chart = new ApexCharts(chartContainer[0], chartOptions);
                 chart.render();
             }
+
+            // Call buildChart function here, AFTER chartContainer is added to the DOM
             buildChart(settings.data, chartContainer);
+
         } else {
             $('.bot-message:last').remove();
             mainContainer.append(tableContainer);
