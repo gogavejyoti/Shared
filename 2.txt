@@ -1,4 +1,4 @@
-(function ($) {
+ (function ($) {
             $.fn.generateDynamicChart = function (options) {
                 let settings = $.extend({
                     botTextContainer: null,
@@ -131,7 +131,7 @@
                             cleanedData.forEach(row => {
                                 let value = row[header];
                                 if (typeof value === 'number') {
-                                    value = percentageFields.includes(header) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
+                                     value = percentageFields.includes(header) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
                                 } else if (typeof value === 'string' && !isNaN(Number(value))) {
                                     value = percentageFields.includes(header) ? (Number(value) || 0).toFixed(1) + "%" : (Number(value) || 0).toFixed(0);
                                 }
@@ -150,10 +150,10 @@
                             let tr = $("<tr></tr>");
                             Object.keys(row).forEach(key => {
                                 let value = row[key];
-                                if (typeof value === 'number') {
-                                    value = percentageFields.includes(key) ? (value || 0).toFixed(1) + "%" : Math.round(value);
+                                 if (typeof value === 'number') {
+                                     value = percentageFields.includes(key) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
                                 } else if (typeof value === 'string' && !isNaN(Number(value))) {
-                                    value = percentageFields.includes(key) ? (Number(value) || 0).toFixed(1) + "%" : Math.round(value);
+                                    value = percentageFields.includes(key) ? (Number(value) || 0).toFixed(1) + "%" : (Number(value) || 0).toFixed(0);
                                 }
                                 tr.append($("<td>").text(value));
                             });
@@ -201,7 +201,7 @@
                         let categoryField = dateFields.length > 0 ? dateFields[0] : nonNumericFields.length > 0 ? nonNumericFields[0] : Object.keys(sampleItem)[0];
                         let chartType = numericFields.length > 1 ? "line" : "bar";
                         if (numericFields.length === 1 && data.length <= 5) {
-                            chartType = "pie";
+                            chartType = "bar"; // Changed default chart type to bar
                         }
 
                         let chartOptions = {
@@ -248,7 +248,7 @@
                                 labels: {
                                     formatter: (value) => {
                                         const firstNumericField = numericFields[0];
-                                        return percentageFields.includes(firstNumericField) ? value.toFixed(1) + "%" : Math.round(value);
+                                        return percentageFields.includes(firstNumericField) ? value.toFixed(1) + "%" : value.toFixed(0);
                                     }
                                 }
                             },
@@ -262,7 +262,7 @@
                                 y: {
                                     formatter: (value, { seriesIndex, dataPointIndex, w }) => {
                                         const seriesName = w.config.series[seriesIndex].name;
-                                        return percentageFields.includes(seriesName) ? `${value.toFixed(1)}%` : Math.round(value);
+                                        return percentageFields.includes(seriesName) ? `${value.toFixed(1)}%` : value.toFixed(0);
                                     }
                                 }
                             },
@@ -413,33 +413,18 @@
                         } else {
                             let categories = [...new Set(data.map(item => item[categoryField]))].sort();
                             chartOptions.xaxis.categories = categories;
+                            chartOptions.series = [];
 
-                            // Use accountFields for the series
-                            if (accountFields.length > 0) {
-                                chartOptions.series = []; // Reset series
-                                accountFields.forEach(accountField => {
-                                    const uniqueValues = [...new Set(data.map(item => item[accountField]))];  // Get unique values for the account field.
-                                    uniqueValues.forEach(accountValue => {
-                                        const seriesData = [];
-                                        categories.forEach(category => {
-                                            const item = data.find(d => d[categoryField] === category && d[accountField] === accountValue);
-                                            const value = item ? (typeof item[numericFields[0]] === 'string' ? parseFloat(item[numericFields[0]]) : item[numericFields[0]]) : 0;
-                                            seriesData.push(value);
-                                        });
-                                        chartOptions.series.push({
-                                            name: `${accountField}: ${accountValue}`,
-                                            data: seriesData
-                                        });
-                                    });
+                            numericFields.forEach(field => {
+                                chartOptions.series.push({
+                                    name: field,
+                                    data: data.map(item => {
+                                        const val = parseFloat(item[field]);
+                                        return percentageFields.includes(field) ? val.toFixed(1) : val.toFixed(0);
+                                    })
                                 });
-                                chartOptions.chart.type = 'line'; // Force line chart
-                            } else {
-                                chartOptions.series = [{
-                                    name: numericFields[0],
-                                    data: data.map(item => (typeof item[numericFields[0]] === 'string' ? parseFloat(item[numericFields[0]]) : item[numericFields[0]]))
-                                }];
-                                chartOptions.chart.type = 'bar';
-                            }
+                            });
+                            chartOptions.chart.type = numericFields.length > 1 ? 'line' : 'bar';
                         }
 
                         let chart = new ApexCharts(chartContainer[0], chartOptions);
