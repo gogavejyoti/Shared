@@ -1,1 +1,2 @@
-Show me top 3 Accounts having higher Attrition%. This query requires to display top 3 accounts having higher attrition which is not supported.
+- **Crucial Ranking Rule (Apply ALWAYS):**
+     - **Rule 10: Use TOP N for Ranking:** When a query requests the "top N" results based on a metric, you MUST ALWAYS use the `TOP N` keyword in the SQL query, along with an `ORDER BY` clause to sort the results.
