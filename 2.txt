@@ -31,6 +31,7 @@
                 let numericFields = [];
                 let percentageFields = [];
                 let dateFields = [];
+                let accountFields = []; // To store fields like 'Account', 'Product', etc.
 
                 Object.keys(sampleItem).forEach(key => {
                     let value = sampleItem[key];
@@ -46,8 +47,12 @@
                             if (key.toLowerCase().includes("percentage") || key.includes("%")) {
                                 percentageFields.push(key);
                             }
-                        } else {
+                        } else if (typeof value === 'string' && cleanedData.every(item => item[key] === value)) {
+                            //If all values in a column are same, it is not an account field.
                             nonNumericFields.push(key);
+                        }
+                        else {
+                            accountFields.push(key);
                         }
                     } else if (typeof value === 'number') {
                         numericFields.push(key);
@@ -148,7 +153,7 @@
                                 if (typeof value === 'number') {
                                     value = percentageFields.includes(key) ? (value || 0).toFixed(1) + "%" : Math.round(value);
                                 } else if (typeof value === 'string' && !isNaN(Number(value))) {
-                                    value = percentageFields.includes(key) ? (Number(value) || 0).toFixed(1) + "%" : Math.round(Number(value));
+                                    value = percentageFields.includes(key) ? (Number(value) || 0).toFixed(1) + "%" : Math.round(value);
                                 }
                                 tr.append($("<td>").text(value));
                             });
@@ -193,7 +198,7 @@
                         }
 
                         let sampleItem = data[0];
-                        let categoryField = dateFields.length > 0 ? dateFields[0] : nonNumericFields.length > 0 ? nonNumericFields[nonNumericFields.length - 1] : Object.keys(sampleItem)[0];
+                        let categoryField = dateFields.length > 0 ? dateFields[0] : nonNumericFields.length > 0 ? nonNumericFields[0] : Object.keys(sampleItem)[0];
                         let chartType = numericFields.length > 1 ? "line" : "bar";
                         if (numericFields.length === 1 && data.length <= 5) {
                             chartType = "pie";
@@ -226,6 +231,9 @@
                             series: [],
                             xaxis: {
                                 categories: [],
+                                title: {
+                                    text: categoryField
+                                },
                                 labels: {
                                     rotate: -45,
                                     style: {
@@ -234,6 +242,9 @@
                                 }
                             },
                             yaxis: {
+                                title: {
+                                    text: numericFields[0],
+                                },
                                 labels: {
                                     formatter: (value) => {
                                         const firstNumericField = numericFields[0];
@@ -242,22 +253,21 @@
                                 }
                             },
                             tooltip: {
+                                x: {
+                                    titleFormat: undefined,
+                                    formatter: function (val) {
+                                        return val;
+                                    },
+                                },
                                 y: {
-                                    formatter: (value, { seriesIndex, w }) => {
-                                        const fieldName = w.config.series[seriesIndex].name;
-                                        return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+                                    formatter: (value, { seriesIndex, dataPointIndex, w }) => {
+                                        const seriesName = w.config.series[seriesIndex].name;
+                                        return percentageFields.includes(seriesName) ? `${value.toFixed(1)}%` : Math.round(value);
                                     }
                                 }
                             },
                             dataLabels: {
-                                enabled: true,
-                                formatter: (value, { seriesIndex, w }) => {
-                                    const fieldName = w.config.series[seriesIndex].name;
-                                    return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
-                                },
-                                style: {
-                                    fontSize: "12px"
-                                }
+                                enabled: false,
                             },
                             legend: {
                                 position: 'bottom',
@@ -404,25 +414,29 @@
                             let categories = [...new Set(data.map(item => item[categoryField]))].sort();
                             chartOptions.xaxis.categories = categories;
 
-                            if (numericFields.length > 1) {
-                                chartOptions.series = numericFields.map(field => {
-                                    return {
-                                        name: field,
-                                        data: categories.map(category => {
-                                            let item = data.find(item => item[categoryField] === category);
-                                            let val = item ? item[field] : 0;
-                                            return typeof val === 'string' ? parseFloat(val) : val;
-                                        })
-                                    };
+                            // Use accountFields for the series
+                            if (accountFields.length > 0) {
+                                chartOptions.series = []; // Reset series
+                                accountFields.forEach(accountField => {
+                                    const uniqueValues = [...new Set(data.map(item => item[accountField]))];  // Get unique values for the account field.
+                                    uniqueValues.forEach(accountValue => {
+                                        const seriesData = [];
+                                        categories.forEach(category => {
+                                            const item = data.find(d => d[categoryField] === category && d[accountField] === accountValue);
+                                            const value = item ? (typeof item[numericFields[0]] === 'string' ? parseFloat(item[numericFields[0]]) : item[numericFields[0]]) : 0;
+                                            seriesData.push(value);
+                                        });
+                                        chartOptions.series.push({
+                                            name: `${accountField}: ${accountValue}`,
+                                            data: seriesData
+                                        });
+                                    });
                                 });
-                                chartOptions.chart.type = 'line'; // Force line chart when multiple numeric fields
+                                chartOptions.chart.type = 'line'; // Force line chart
                             } else {
                                 chartOptions.series = [{
                                     name: numericFields[0],
-                                    data: data.map(item => {
-                                        let val = item[numericFields[0]];
-                                        return typeof val === 'string' ? parseFloat(val) : val;
-                                    })
+                                    data: data.map(item => (typeof item[numericFields[0]] === 'string' ? parseFloat(item[numericFields[0]]) : item[numericFields[0]]))
                                 }];
                                 chartOptions.chart.type = 'bar';
                             }
