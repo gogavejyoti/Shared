@@ -1,4 +1,4 @@
- (function ($) {
+      (function ($) {
             $.fn.generateDynamicChart = function (options) {
                 let settings = $.extend({
                     botTextContainer: null,
@@ -131,9 +131,9 @@
                             cleanedData.forEach(row => {
                                 let value = row[header];
                                 if (typeof value === 'number') {
-                                     value = percentageFields.includes(header) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
+                                    value = percentageFields.includes(header) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
                                 } else if (typeof value === 'string' && !isNaN(Number(value))) {
-                                    value = percentageFields.includes(header) ? (Number(value) || 0).toFixed(1) + "%" : (Number(value) || 0).toFixed(0);
+                                     value = percentageFields.includes(header) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
                                 }
                                 tr.append($("<td>").text(value));
                             });
@@ -151,9 +151,9 @@
                             Object.keys(row).forEach(key => {
                                 let value = row[key];
                                  if (typeof value === 'number') {
-                                     value = percentageFields.includes(key) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
+                                    value = percentageFields.includes(key) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
                                 } else if (typeof value === 'string' && !isNaN(Number(value))) {
-                                    value = percentageFields.includes(key) ? (Number(value) || 0).toFixed(1) + "%" : (Number(value) || 0).toFixed(0);
+                                     value = percentageFields.includes(key) ? (value || 0).toFixed(1) + "%" : (value || 0).toFixed(0);
                                 }
                                 tr.append($("<td>").text(value));
                             });
@@ -415,13 +415,17 @@
                             chartOptions.xaxis.categories = categories;
                             chartOptions.series = [];
 
-                            numericFields.forEach(field => {
+                             numericFields.forEach(field => {
+                                let seriesData = [];
+                                categories.forEach(category => {
+                                    const item = data.find(d => d[categoryField] === category);
+                                    const value = item ? (typeof item[field] === 'string' ? parseFloat(item[field]) : item[field]) : 0;
+                                    const formattedValue = percentageFields.includes(field) ? value.toFixed(1) : value.toFixed(0);
+                                    seriesData.push(formattedValue);
+                                });
                                 chartOptions.series.push({
                                     name: field,
-                                    data: data.map(item => {
-                                        const val = parseFloat(item[field]);
-                                        return percentageFields.includes(field) ? val.toFixed(1) : val.toFixed(0);
-                                    })
+                                    data: seriesData
                                 });
                             });
                             chartOptions.chart.type = numericFields.length > 1 ? 'line' : 'bar';
