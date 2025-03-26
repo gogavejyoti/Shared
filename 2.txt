@@ -1,11 +1,1 @@
-SELECT MIN (EndWeek) FROM (
-SELECT DISTINCT TOP 4 EndWeek FROM uvwVerticalSnapshotData WHERE EndWeek <=(
-SELECT MAX(EndWeek) FROM uvwVerticalSnapshotData WHERE Vertical = 'Technology')
-AND  Vertical = 'Technology'  ORDER BY EndWeek DESC
-) as t
-
-
- SELECT MIN(EndWeek) FROM (  
-        SELECT DISTINCT EndWeek, ROW_NUMBER() OVER (ORDER BY EndWeek DESC) AS rn  
-        FROM uvwVerticalSnapshotData WHERE Vertical = 'Technology'  
-    ) t WHERE rn <= 4 
+The End Week field contains the date of the end of the week (Sunday), and if IsMonthVersion = 1, it will contain the end-of-month date.
