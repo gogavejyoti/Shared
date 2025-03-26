@@ -1,2 +1,321 @@
-- **Crucial Ranking Rule (Apply ALWAYS):**
-     - **Rule 10: Use TOP N for Ranking:** When a query requests the "top N" results based on a metric, you MUST ALWAYS use the `TOP N` keyword in the SQL query, along with an `ORDER BY` clause to sort the results.
+Show me account wise Shrinkage% for last 3 months with chart
+
+
+(function ($) {
+    $.fn.generateDynamicChart = function (options) {
+        let settings = $.extend({
+            botTextContainer: null,
+            userInput: '',
+            data: [],
+            transposeTable: false,
+            tableHeight: '250px'
+        }, options);
+
+        if (!settings.data || settings.data.length === 0) {
+            console.error("No data provided for the chart.");
+            return this;
+        }
+
+        // Remove unnecessary filter fields
+        settings.data.forEach(item => {
+            delete item.DateWeekFilter;
+            delete item.DateMonthFilter;
+            delete item.DateYearFilter;
+        });
+
+        let sampleItem = settings.data[0];
+        let nonNumericFields = [];
+        let numericFields = [];
+        let percentageFields = [];
+        let dateFields = [];
+
+        // Identify column types
+        Object.keys(sampleItem).forEach(key => {
+            let value = sampleItem[key];
+            if (/^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(value) ||
+                /^[A-Za-z]{3}-\d{2}$/.test(value) ||
+                /^\d{4}-\d{2}$/.test(value)) {
+                dateFields.push(key);
+            }
+            else if (isNaN(value) || value === '') {
+                nonNumericFields.push(key);
+            }
+            else {
+                numericFields.push(key);
+                if (key.toLowerCase().includes("percentage") || key.includes("%")) {
+                    percentageFields.push(key);
+                }
+            }
+        });
+
+        var transformedData = settings.data;
+
+        // Create UI elements
+        let chatBox = $("#chatBox");
+        let mainContainer = $("<div>").addClass("chat-result card p-3 mb-3 shadow-sm").css({
+            width: "100%",
+            border: "1px solid #ddd",
+            borderRadius: "10px",
+            padding: "15px"
+        });
+
+        // Toggle button container
+        let buttonContainer = $("<div>").css({
+            marginBottom: "10px",
+            textAlign: "right"
+        });
+
+        let toggleButton = $("<button><i class='fa fa-table'></i>").text("Transpose Table")
+            .addClass("btn btn-sm")
+            .css({
+                padding: "5px 10px",
+                fontSize: "14px",
+                background: '#AA336A',
+                color:"#fff"
+            });
+
+
+        let tableContainer = $("<div>").addClass("table-responsive").css({
+            width: "100%",
+            maxWidth:"1050px",
+            maxHeight: settings.tableHeight,
+            overflowY: "auto",
+            marginBottom: "15px",
+            padding: "10px",
+            border: "1px solid #ccc",
+            borderRadius: "5px",
+            backgroundColor: "#f8f9fa",
+            position: "relative"
+        });
+
+        let table = $("<table>").addClass("table table-bordered table-striped text-center").css({
+            width: "100%",
+            fontSize: "14px"
+        });
+
+        // Function to render table
+        function renderTable(isTransposed) {
+            table.empty(); // Clear existing table content
+            let thead = $("<thead>").css({
+                position: "sticky",
+                top: 0,
+                backgroundColor: "#fff",
+                zIndex: 1
+            });
+            let tbody = $("<tbody></tbody>");
+
+            if (isTransposed) {
+                // Transposed table
+                let headers = Object.keys(transformedData[0]);
+                let headerRow = $("<tr>");
+                headerRow.append($("<th>").text("").addClass("bg-primary text-white"));
+                transformedData.forEach((_, index) => {
+                    headerRow.append($("<th>").text(`Column  ${index + 1}`).addClass("bg-primary text-white"));
+                });
+                thead.append(headerRow);
+
+                headers.forEach(header => {
+                    let tr = $("<tr>");
+                    tr.append($("<td>").text(header).addClass("font-weight-bold"));
+                    transformedData.forEach(row => {
+                        let value = row[header];
+                        if (!isNaN(value) && percentageFields.includes(header)) {
+                            value = (parseFloat(value) || 0).toFixed(1) + "%";
+                        } else if (!isNaN(value)) {
+                            value = (parseFloat(value) || 0).toFixed(0);
+                        }
+                        tr.append($("<td>").text(value));
+                    });
+                    tbody.append(tr);
+                });
+            } else {
+                // Normal table
+                let headerRow = $("<tr>");
+                Object.keys(settings.data[0]).forEach(key => {
+                    headerRow.append($("<th>").text(key).addClass("bg-primary text-white"));
+                });
+                thead.append(headerRow);
+                // Table Body
+                settings.data.forEach(row => {
+                    let tr = $("<tr></tr>");
+                    Object.keys(row).forEach(key => {
+                        let value = row[key];
+                        if (percentageFields.includes(key)) {
+                            value = (parseFloat(value) || 0).toFixed(1) + "%"; // Round to 1 decimal
+                        } else if (!isNaN(value)) {
+                            value = Math.round(value); // Round to 0 decimal
+                        }
+                        tr.append($("<td>").text(value));
+                    });
+                    tbody.append(tr);
+                });
+             
+            }
+
+            table.append(thead).append(tbody);
+        }
+
+        // Initial table render
+        renderTable(settings.transposeTable);
+
+        // Toggle button click handler
+        let isTransposed = settings.transposeTable;
+        toggleButton.on("click", function () {
+            isTransposed = !isTransposed;
+            renderTable(isTransposed);
+            $(this).text(isTransposed ? "Normal View" : "Transpose Table");
+        });
+
+        // Assemble UI
+        buttonContainer.append(toggleButton);
+        tableContainer.append(table);
+        mainContainer.append(buttonContainer).append(tableContainer);
+
+        // Generate Chart (unchanged)
+        if (settings.userInput.toLowerCase().includes("show chart") || settings.userInput.toLowerCase().includes("with chart")) {
+            let chartContainer = $("<div>").css({
+                width: "100%",
+                height: "350px",
+                border: "1px solid #ccc",
+                borderRadius: "5px",
+                backgroundColor: "#fff",
+                padding: "10px"
+            });
+
+            $('.bot-message:last').remove();
+            mainContainer.append(chartContainer);
+            chatBox.append(mainContainer);
+
+            function buildChart(data, chartContainer) {
+                let sampleItem = data[0];
+                let nonNumericFields = [];
+                let numericFields = [];
+                let percentageFields = [];
+                Object.keys(sampleItem).forEach(key => {
+                    if (isNaN(sampleItem[key]) || sampleItem[key] === '') {
+                        nonNumericFields.push(key);
+                    } else {
+                        numericFields.push(key);
+                        if (key.toLowerCase().includes("percentage") || key.includes("%")) {
+                            percentageFields.push(key);
+                        }
+                    }
+                });
+                let categoryField = nonNumericFields.length > 0 ? nonNumericFields[nonNumericFields.length - 1] : Object.keys(sampleItem)[0];
+
+
+                // Prepare data for ApexCharts
+                let categories = data.map(item => item[categoryField]);
+                let seriesData = numericFields.map(key => ({
+                    name: key,
+                    data: data.map(item => parseFloat(item[key]))
+                }));
+                // Determine best chart type
+                let chartType = numericFields.length > 1 ? "bar" : "line";
+                if (numericFields.length === 1 && data.length <= 5) {
+                    chartType = "pie";
+                }
+
+
+                if (chartType === 'pie') {
+
+                    var chartOptions = {
+                        series: seriesData[0].data,
+                        chart: {
+                            height: 320,
+                            type: 'radialBar',
+                        },
+                        plotOptions: {
+                            radialBar: {
+                                offsetY: 0,
+                                startAngle: 0,
+                                endAngle: 270,
+                                hollow: {
+                                    margin: 5,
+                                    size: '30%',
+                                    background: 'transparent',
+                                    image: undefined,
+                                },
+                                dataLabels: {
+                                    name: {
+                                        show: false,
+                                    },
+                                    value: {
+                                        show: false,
+                                    }
+                                },
+                                barLabels: {
+                                    enabled: true,
+                                    useSeriesColors: true,
+                                    offsetX: -8,
+                                    fontSize: '16px',
+                                    formatter: function (seriesName, opts) {
+                                        return seriesName + ":  " + opts.w.globals.series[opts.seriesIndex].toFixed(1) + '%'
+                                    },
+                                },
+                            }
+                        },
+                        labels: categories,
+                        responsive: [{
+                            breakpoint: 480,
+                            options: {
+                                legend: {
+                                    show: false
+                                }
+                            }
+                        }]
+                    };
+
+
+                    let chart = new ApexCharts(chartContainer[0], chartOptions);
+                    chart.render();
+                }
+                else {
+                    let chartOptions = {
+                        chart: { type: chartType, height: 320 },
+
+                        series: seriesData,
+                        xaxis: {
+                            categories: categories,
+                            labels: { rotate: -45, style: { fontSize: "12px" } }
+                        },
+                        yaxis: {
+                            labels: {
+                                formatter: function (value) {
+                                    return percentageFields.includes(chartType) ? value.toFixed(1) + "%" : Math.round(value);
+                                }
+                            }
+                        },
+                        tooltip: {
+                            y: {
+                                formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                                    let fieldName = w.config.series[seriesIndex].name;
+                                    return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+                                }
+                            }
+                        },
+                        dataLabels: {
+                            enabled: true,
+                            formatter: function (value, { seriesIndex, dataPointIndex, w }) {
+                                let fieldName = w.config.series[seriesIndex].name;
+                                return percentageFields.includes(fieldName) ? `${value.toFixed(1)}%` : Math.round(value);
+                            },
+                            style: { fontSize: "12px" }
+                        }
+                    };
+                    let chart = new ApexCharts(chartContainer[0], chartOptions);
+                    chart.render();
+                }
+
+
+
+            }
+            buildChart(settings.data, chartContainer);
+        } else {
+            $('.bot-message:last').remove();
+            chatBox.append(mainContainer);
+        }
+
+        return this;
+    };
+}(jQuery));
