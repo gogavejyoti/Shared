@@ -1,21 +1,14 @@
- chartOptions.xaxis.categories = [];
-                                chartOptions.series = []; // Reset series
-                                chartOptions.series = numericFields.map(key => ({
-                                    name: key,
-                                    data: data.map(item => parseFloat(item[key]))
-                                }));
-                                accountFields.forEach(accountField => {
-                                    const uniqueValues = [...new Set(data.map(item => item[accountField]))];  // Get unique values for the account field.
-                                    uniqueValues.forEach(accountValue => {
-                                        const seriesData = [];
-                                        categories.forEach(category => {
-                                            const item = data.find(d => d[categoryField] === category && d[accountField] === accountValue);
-                                            const value = item ? (typeof item[numericFields[0]] === 'string' ? parseFloat(item[numericFields[0]]) : item[numericFields[0]]) : 0;
-                                            seriesData.push(value);
-                                        });
-                                        chartOptions.series.push({
-                                            name: `${accountField}: ${accountValue}`,
-                                            data: seriesData
-                                        });
-                                    });
-                                });
+chartOptions.xaxis.categories = [...new Set(data.map(item => item[accountFields[0]]))]; // Unique account values for X-axis
+chartOptions.series = []; // Reset series
+
+numericFields.forEach(numericField => {
+    const seriesData = chartOptions.xaxis.categories.map(account => {
+        const item = data.find(d => d[accountFields[0]] === account);
+        return item ? parseFloat(item[numericField]) || 0 : 0; // Handle missing values
+    });
+
+    chartOptions.series.push({
+        name: numericField, 
+        data: seriesData
+    });
+});
