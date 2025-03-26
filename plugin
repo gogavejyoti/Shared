@@ -1,28 +1,21 @@
-public bool IsSafeSqlQuery(string sqlQuery)
-{
-    if (string.IsNullOrWhiteSpace(sqlQuery))
-        return false;
-
-    string normalizedQuery = sqlQuery.Trim().ToUpperInvariant();
-
-    // Only allow SELECT or WITH (for CTEs)
-    if (!(normalizedQuery.StartsWith("SELECT") || normalizedQuery.StartsWith("WITH")))
-        return false;
-
-    // Allow a single semicolon at the end; no other semicolons allowed
-    int semicolonCount = normalizedQuery.Split(';').Length - 1;
-    if (semicolonCount > 1 || (semicolonCount == 1 && !normalizedQuery.EndsWith(";")))
-        return false;
-
-    // List of forbidden keywords
-    string[] forbiddenKeywords = { "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "EXEC", "MERGE" };
-
-    foreach (var keyword in forbiddenKeywords)
-    {
-        // Use regex with word boundaries
-        if (Regex.IsMatch(normalizedQuery, $@"\b{keyword}\b"))
-            return false;
-    }
-
-    return true;
-}
+ chartOptions.xaxis.categories = [];
+                                chartOptions.series = []; // Reset series
+                                chartOptions.series = numericFields.map(key => ({
+                                    name: key,
+                                    data: data.map(item => parseFloat(item[key]))
+                                }));
+                                accountFields.forEach(accountField => {
+                                    const uniqueValues = [...new Set(data.map(item => item[accountField]))];  // Get unique values for the account field.
+                                    uniqueValues.forEach(accountValue => {
+                                        const seriesData = [];
+                                        categories.forEach(category => {
+                                            const item = data.find(d => d[categoryField] === category && d[accountField] === accountValue);
+                                            const value = item ? (typeof item[numericFields[0]] === 'string' ? parseFloat(item[numericFields[0]]) : item[numericFields[0]]) : 0;
+                                            seriesData.push(value);
+                                        });
+                                        chartOptions.series.push({
+                                            name: `${accountField}: ${accountValue}`,
+                                            data: seriesData
+                                        });
+                                    });
+                                });
