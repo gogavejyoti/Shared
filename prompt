@@ -1,114 +1,30 @@
-string sqlGeneratorPrompt = @"
-1. **Only Allow SELECT Queries**
-   - Do not generate INSERT, UPDATE, DELETE, or any other non-SELECT statements.
-   - Consider only the `#TABLE#` table.
-   - Always apply aggregation.
-   - Strictly check syntax error and correct it.
-   - Strictly apply `[Week Begin]` filter as per requirement in all cases except month filter.
-   - Strictly generate error-free queries.
+string tableDescription = @"
+The #TABLE# table contains the following fields:
 
-2. **Use Table Schema Exactly as Given**
-   - The `#TABLE#` table contains the following fields:
-     - `[Month]` (VARCHAR)
-     - `[Week Begin]` (DATETIME)
-     - `[Date]`  (DATETIME)
-     - `[empId]` (VARCHAR)
-     - `[TV_ID]` (VARCHAR)
-     - `[Name]` (VARCHAR)
-     - `[Supervisor]` (VARCHAR)
-     - `[Trainer]` (VARCHAR)
-     - `[Role]` (VARCHAR)
-     - `[Production Status]` (VARCHAR)
-     - `[Roster Status]` (VARCHAR)
-     - `[Location]` (VARCHAR)
-     - `[Site]` (VARCHAR)
-     - `[LOB]` (VARCHAR)
-     - `[Scheduled_From]`  (DATETIME)
-     - `[Scheduled_To]`  (DATETIME)
-     - `[Schedule_Activity]` (VARCHAR)
-     - `[Scheduled_Duration]`  (DECIMAL)
-     - `[Actual_Duration]`  (DECIMAL)
-     - `[Wave]` (VARCHAR)
-     - `[Start Date]`  (DATETIME)
-     - `[Nesting Date]`  (DATETIME)
-     - `[GoLive Date]`  (DATETIME)
-     - `[CreatedOn]`  (DATETIME)
-     - `[ReportMonth]` INT
-     - `[ReportYear]` INT
-
-   - **Please note:** The formula to calculate schedule adherence percentage is `[Actual_Duration] / [Scheduled_Duration] * 100`.
-   - **Please note:** Use context-based synonyms like ""under"", ""low"", ""at risk"", ""deficit means negative delta"".
-   - **Please note:** Over and Under Targets condition should apply only on aggregation using the `HAVING` clause.
-   - **Please note:** The table contains day-wise data that needs to be aggregated to months and years.
-
-   - Over Targets for all verticals
-     - FOR `ScheduleAdherencePercentage` > 100%
-
-   - Under Targets for all verticals
-     - FOR `ScheduleAdherencePercentage` < 85%
-
-3. **Query Rules**
-   - Handle Ambiguous column issues by using aliases.
-   - **Crucial Grouping Rules (Apply ALWAYS):**
-     - **Rule 1: ALWAYS INCLUDE non-aggregated columns in SELECT:** When a query requests aggregated data and mentions or implies specific non-aggregated columns.
-     - **Rule 2: ALWAYS INCLUDE non-aggregated columns in GROUP BY:** In the same scenario as Rule 1, you MUST ALWAYS include these columns in the `GROUP BY` clause.
-     - **Rule 3: ALWAYS APPLY WHERE clause for filtering:** If a query uses a `WHERE` clause to filter by these non-aggregated columns, you MUST ALWAYS apply the `WHERE` clause correctly.
-     - **Rule 4: ALWAYS APPLY rules for implied grouping:** These rules MUST ALWAYS be applied whether grouping/filtering is explicitly stated or implied.
-     - **Rule 5: NEVER OMIT non-aggregated columns:** You MUST NEVER omit non-aggregated columns from the `SELECT` and `GROUP BY` clauses when they are mentioned or implied alongside aggregated data.
-     - **Rule 6: Treat Column Variations Equally:** When a query refers to a specific column using different but semantically equivalent phrases (e.g., ""Location wise,"" ""by Locations,"" ""all locations"" for the ""Location"" column), treat these phrases as identical and apply the necessary grouping or filtering based on the underlying column.
-     - **Rule 7: If any date ranges or period are not specified for filtering the data, then show data from the latest month. You MUST ALWAYS apply the Max Date's month as the latest month with all other applied filters.**
-     - **Rule 8: Every query MUST include a Period identifier in the SELECT clause for the data. This should be derived from one of the date/time columns (`[Date]`, `[Week Begin]`, `[Month]`). The format should be contextually relevant (e.g., `YearMonth`, `YYYY-MM-DD`, `WeekOfYear`). If no specific time period is requested, default to showing the `YearMonth`.**
-   - **Crucial Ranking Rule (Apply ALWAYS):**
-     - **Rule 9: Use TOP N for Ranking:** When a query requests the ""top N"" results based on a metric, you MUST ALWAYS use the `TOP N` keyword in the SQL query, along with an `ORDER BY` clause to sort the results.
-
-4. **Query Examples with Updated MAX(Date) Filtering:**
-   - **Example 1:** ""Show me ScheduleAdherence%""
-     ```sql
-     SELECT
-       YEAR([Date]) AS DateYear,
-       MONTH([Date]) AS DateMonth,
-       FORMAT(DATEFROMPARTS(YEAR([Date]),MONTH([Date]),1),'MMM-yy') AS YearMonth,
-       SUM(Actual_Duration) / SUM(Scheduled_Duration) * 100 AS ScheduleAdherencePercentage
-     FROM [dbo].#TABLE#
-     WHERE
-       MONTH([Date]) = (SELECT MONTH(MAX([Date])) FROM [dbo].#TABLE#) AND
-       YEAR([Date]) = (SELECT YEAR(MAX([Date])) FROM [dbo].#TABLE#)
-     GROUP BY YEAR([Date]), MONTH([Date]), FORMAT(DATEFROMPARTS(YEAR([Date]),MONTH([Date]),1),'MMM-yy')
-     ORDER BY YEAR([Date]), MONTH([Date]);
-     ```
-   - **Example 2:** ""Show me last 6 months ScheduleAdherence%""
-     ```sql
-     SELECT
-       FORMAT([Date], 'MMM-yy') AS YearMonth,
-       SUM(Actual_Duration) / SUM(Scheduled_Duration) * 100 AS ScheduleAdherencePercentage
-     FROM [dbo].#TABLE#
-     WHERE [Date] >= DATEADD(month, -6, (SELECT MAX([Date]) FROM [dbo].#TABLE#))
-     GROUP BY FORMAT([Date], 'MMM-yy')
-     ORDER BY CAST('01-'+FORMAT([Date], 'MMM-yy') AS DATE);
-     ```
-   - **Example 3:** ""Show me last week ScheduleAdherence%""
-     ```sql
-     SELECT
-       FORMAT([Week Begin],'dd-MMM-yy') AS Week,
-       SUM(Actual_Duration) / SUM(Scheduled_Duration) * 100 AS ScheduleAdherencePercentage
-     FROM [dbo].#TABLE#
-     WHERE [Week Begin] > DATEADD(week, -1, (SELECT MAX([Date]) FROM [dbo].#TABLE#))
-     GROUP BY FORMAT([Week Begin],'dd-MMM-yy')
-     ORDER BY CAST(FORMAT([Week Begin],'dd-MMM-yy') AS DATE);
-     ```
-
-5. **Output Format (JSON)**
-   - Return the result as a JSON string in the following format:
-     ```json
-     {
-       ""IsError"": true or false,
-       ""SQLQuery"": ""Generated SQL Query"",
-       ""message"": ""Error message if any""
-     }
-     ```
-   - If an invalid query is detected, return `IsError: true` with an appropriate message.
+[Month] (VARCHAR) - The month of the reporting period (e.g., ""January"", ""February"").
+[Week Begin] (DATETIME) - The date representing the beginning of the week for the recorded data.
+[Date]  (DATETIME) - The specific date on which the activity or record occurred.
+[empId] (VARCHAR) - A unique identifier assigned to each employee.
+[TV_ID] (VARCHAR) - An identifier for a specific TV or potentially a workstation/equipment ID associated with the employee or activity.
+[Name] (VARCHAR) - The full name of the employee.
+[Supervisor] (VARCHAR) - The name or identifier of the employee's direct supervisor.
+[Trainer] (VARCHAR) - The name or identifier of the employee's trainer, if applicable (likely relevant during onboarding or training periods).
+[Role] (VARCHAR) - The job role or designation of the employee.
+[Production Status] (VARCHAR) - The current production status of the employee (e.g., ""Active"", ""On Leave"", ""Training"").
+[Roster Status] (VARCHAR) - The employee's status according to the work roster or schedule (e.g., ""Scheduled"", ""Present"", ""Absent"").
+[Location] (VARCHAR) - The geographical location where the employee is based or where the activity took place.
+[Site] (VARCHAR) - A more specific designation within a location, potentially referring to a particular building or campus.
+[LOB] (VARCHAR) - The Line of Business or department to which the employee belongs.
+[Scheduled_From]  (DATETIME) - The scheduled start time for a particular activity or shift.
+[Scheduled_To]  (DATETIME) - The scheduled end time for a particular activity or shift.
+[Schedule_Activity] (VARCHAR) - A description of the activity that was scheduled (e.g., ""Production"", ""Meeting"", ""Training"").
+[Scheduled_Duration]  (DECIMAL) - The planned duration of the scheduled activity, likely in hours or minutes.
+[Actual_Duration]  (DECIMAL) - The actual duration of the activity as it occurred, likely in hours or minutes.
+[Wave] (VARCHAR) - A grouping or identifier for a specific cohort or batch of employees, often used during onboarding or project phases.
+[Start Date]  (DATETIME) - The date when the employee started in their current role or with the company.
+[Nesting Date]  (DATETIME) - A date often associated with a transition period after initial training, where employees may receive more support before full independence.
+[GoLive Date]  (DATETIME) - The date when an employee or a particular project/phase became fully operational or was officially launched.
+[CreatedOn]  (DATETIME) - The timestamp indicating when the record was created in the table.
+[ReportMonth] INT - The numerical representation of the month for reporting purposes (e.g., 1 for January, 2 for February). This is likely derived from the [Date] or [Month] field.
+[ReportYear] INT - The numerical representation of the year for reporting purposes. This is likely derived from the [Date] or [Week Begin] field.
 ";
-
-string yourCSharpVariable = sqlGeneratorPrompt;
-
-Console.WriteLine(yourCSharpVariable);
