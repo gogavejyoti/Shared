@@ -1,3 +1,234 @@
-     const $currentOptions = $(this).siblings('.multi-select-options');
+.multi-select-options li.highlighted {
+    background-color: #f0f0f0;
+}
+
+
+(function ($) {
+    $.fn.multiSelectDropdown = function (options) {
+        const settings = $.extend({
+            placeholder: 'Select options',
+            data: [],
+            tooltip: false,
+            sortLabel: false,
+            disabled: false,
+            onHide: function () { },
+        }, options);
+
+        this.each(function () {
+            const $select = $(this);
+            $select.hide();
+
+            const $container = $('<div>', { class: 'multi-select-container' });
+            const $dropdown = $('<div>', { class: 'multi-select-dropdown' });
+            const $input = $('<input>', {
+                type: 'text',
+                readonly: true,
+                placeholder: settings.placeholder,
+                class: 'multi-select-input',
+                title: settings.tooltip ? settings.placeholder : '',
+                disabled: settings.disabled,
+            });
+            const $optionsList = $('<ul>', { class: 'multi-select-options' });
+
+            $dropdown.append($input, $optionsList);
+            $container.append($dropdown);
+            $select.after($container);
+
+            const updateInput = () => {
+                const totalOptions = $optionsList.find('input.option-checkbox').length;
+                const checkedOptions = $optionsList.find('input.option-checkbox:checked').length;
+                let tooltipText = settings.tooltip ? settings.placeholder : '';
+
+                if ($optionsList.find('input.select-all-checkbox').is(':checked')) {
+                    $input.val('All');
+                    if (settings.tooltip) tooltipText = 'All';
+                } else if (checkedOptions > 0) {
+                    const selected = $optionsList
+                        .find('input.option-checkbox:checked')
+                        .map((_, checkbox) => $(checkbox).next('span').text())
+                        .get()
+                        .join(', ');
+
+                    $input.val(selected);
+                    if (settings.tooltip) tooltipText = selected;
+                } else {
+                    $input.val(settings.placeholder);
+                    if (settings.tooltip) tooltipText = settings.placeholder;
+                }
+
+                if (settings.tooltip) {
+                    $input.attr('title', tooltipText);
+                }
+            };
+
+            const sortData = (data) => {
+                if (settings.sortLabel) {
+                    return data.sort((a, b) => a.label.localeCompare(b.label));
+                }
+                return data;
+            };
+
+            const renderOptions = (data) => {
+                $optionsList.empty();
+                if (!settings.disabled) {
+                    const $selectAllLi = $('<li>', { class: 'select-all-li' });
+                    const $selectAllCheckbox = $('<input>', {
+                        type: 'checkbox',
+                        class: 'select-all-checkbox',
+                    }).on('change', function () {
+                        const isChecked = $(this).is(':checked');
+                        $optionsList.find('input.option-checkbox').prop('checked', isChecked);
+                        updateInput();
+                    });
+                    const $selectAllLabel = $('<span>').text('Select All');
+                    $selectAllLi.append($selectAllCheckbox, $selectAllLabel).on('click', function (e) {
+                        if (!$(e.target).is('input')) $selectAllCheckbox.trigger('click');
+                    });
+                    $optionsList.append($selectAllLi);
+
+                    const sortedData = sortData(data);
+
+                    sortedData.forEach(item => {
+                        const $li = $('<li>');
+                        const $checkbox = $('<input>', {
+                            type: 'checkbox',
+                            value: item.value,
+                            class: 'option-checkbox',
+                        }).on('change', function () {
+                            const totalOptions = $optionsList.find('input.option-checkbox').length;
+                            const checkedOptions = $optionsList.find('input.option-checkbox:checked').length;
+                            $selectAllCheckbox.prop('checked', totalOptions === checkedOptions);
+                            updateInput();
+                        });
+
+                        const $label = $('<span>').text(item.label);
+                        $li.append($checkbox, $label).on('click', function (e) {
+                            if (!$(e.target).is('input')) $checkbox.trigger('click');
+                        });
+                        $optionsList.append($li);
+                    });
+                }
+            };
+
+            renderOptions(settings.data);
+
+            $input.on('click', function (e) {
+                if (settings.disabled) return;
+                e.stopPropagation();
+                const $currentOptions = $(this).siblings('.multi-select-options');
                 $('.multi-select-options:visible').not($currentOptions).hide();
                 settings.onHide();
+                $optionsList.toggle();
+            });
+
+            // ✅ NEW: Keyboard typing-to-focus feature
+            let typeBuffer = '';
+            let typeTimeout;
+
+            $input.on('keydown', function (e) {
+                if (settings.disabled) return;
+
+                clearTimeout(typeTimeout);
+
+                if (e.key.length === 1) {
+                    typeBuffer += e.key.toLowerCase();
+
+                    const $matchingItem = $optionsList.find('li').filter(function () {
+                        const text = $(this).find('span').text().toLowerCase();
+                        return text.startsWith(typeBuffer);
+                    }).first();
+
+                    $optionsList.find('li').removeClass('highlighted');
+
+                    if ($matchingItem.length) {
+                        $matchingItem.addClass('highlighted');
+                        $optionsList.scrollTop(
+                            $optionsList.scrollTop() + $matchingItem.position().top
+                        );
+                    }
+
+                    typeTimeout = setTimeout(() => {
+                        typeBuffer = '';
+                        $optionsList.find('.highlighted').removeClass('highlighted');
+                    }, 1000);
+                }
+            });
+
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('.multi-select-dropdown').length) {
+                    if ($optionsList.is(':visible')) {
+                        $optionsList.hide();
+                        settings.onHide();
+                    }
+                }
+            });
+
+            $optionsList.on('click', function (e) {
+                e.stopPropagation();
+            });
+
+            $select[0].refreshData = function (newData) {
+                settings.data = newData;
+                renderOptions(newData);
+            };
+
+            $select[0].getSelectedValues = function () {
+                if ($optionsList.find('input.select-all-checkbox').is(':checked')) {
+                    return ['0'];
+                }
+                return $optionsList
+                    .find('input.option-checkbox:checked')
+                    .map((_, checkbox) => $(checkbox).val())
+                    .get();
+            };
+
+            $select[0].clearSelectedValues = function () {
+                $optionsList.find('input.option-checkbox').prop('checked', false);
+                $optionsList.find('input.select-all-checkbox').prop('checked', false);
+                $input.val(settings.placeholder);
+                if (settings.tooltip) {
+                    $input.attr('title', settings.placeholder);
+                }
+            };
+
+            $select.data('previousSelectedIds', []);
+            $select[0].hasSelectionChanged = function () {
+                const currentSelectedIds = $select[0].getSelectedValues();
+                const previousSelectedIds = $select.data('previousSelectedIds');
+
+                const selectionChanged = currentSelectedIds.length !== previousSelectedIds.length ||
+                    currentSelectedIds.some(function (id) {
+                        return previousSelectedIds.indexOf(id) === -1;
+                    });
+
+                $select.data('previousSelectedIds', currentSelectedIds);
+                return selectionChanged;
+            };
+
+            $select[0].setDisabled = function (isDisabled) {
+                settings.disabled = isDisabled;
+                $input.prop('disabled', isDisabled);
+                renderOptions(settings.data);
+            };
+
+            $select[0].selectValues = function (values) {
+                if (values.includes('0')) {
+                    $optionsList.find('input.option-checkbox').prop('checked', true);
+                    $optionsList.find('input.select-all-checkbox').prop('checked', true);
+                } else {
+                    $optionsList.find('input.option-checkbox').each(function () {
+                        const isChecked = values.includes($(this).val());
+                        $(this).prop('checked', isChecked);
+                    });
+                    const totalOptions = $optionsList.find('input.option-checkbox').length;
+                    const checkedOptions = $optionsList.find('input.option-checkbox:checked').length;
+                    $optionsList.find('input.select-all-checkbox').prop('checked', totalOptions === checkedOptions);
+                }
+                updateInput();
+            };
+
+        });
+
+        return this;
+    };
+})(jQuery);
