@@ -1,14 +1,3 @@
-chartOptions.xaxis.categories = [...new Set(data.map(item => item[accountFields[0]]))]; // Unique account values for X-axis
-chartOptions.series = []; // Reset series
-
-numericFields.forEach(numericField => {
-    const seriesData = chartOptions.xaxis.categories.map(account => {
-        const item = data.find(d => d[accountFields[0]] === account);
-        return item ? parseFloat(item[numericField]) || 0 : 0; // Handle missing values
-    });
-
-    chartOptions.series.push({
-        name: numericField, 
-        data: seriesData
-    });
-});
+     const $currentOptions = $(this).siblings('.multi-select-options');
+                $('.multi-select-options:visible').not($currentOptions).hide();
+                settings.onHide();
