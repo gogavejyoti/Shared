@@ -196,3 +196,7 @@ You are an AI-powered SQL generator that translates natural language queries int
      }
      ```
    - If an invalid query is detected, return `IsError: true` with an appropriate message.
+
+
+Show those accounts that had having high shrinkage consistently across all 3 months.
+  "SQLQuery": "WITH MonthlyShrinkage AS (\n    SELECT Account, FORMAT(EndWeek, 'MMM-yy') AS YearMonth, Year(EndWeek) AS DateYearFilter, Month(EndWeek) AS DateMonthFilter,\n           AVG(CASE WHEN FTEAvailable = 0 THEN NULL ELSE ShrinkagePercentage * FTEAvailable / FTEAvailable END) AS ShrinkagePercentage\n    FROM uvwVerticalSnapshotData\n    WHERE IsMonthlyVersion = 1\n      AND EndWeek >= DATEADD(month, -2, (SELECT MAX(EndWeek) FROM uvwVerticalSnapshotData WHERE IsMonthlyVersion = 1))\n      AND EndWeek <= (SELECT MAX(EndWeek) FROM uvwVerticalSnapshotData WHERE IsMonthlyVersion = 1)\n    GROUP BY Account, FORMAT(EndWeek, 'MMM-yy'), Year(EndWeek), Month(EndWeek)\n),\nFilteredAccounts AS (\n    SELECT Account\n    FROM MonthlyShrinkage\n    WHERE ShrinkagePercentage > 10\n    GROUP BY Account\n    HAVING COUNT(*) = 3\n)\nSELECT m.*\nFROM MonthlyShrinkage m\nJOIN FilteredAccounts f ON m.Account = f.Account\nORDER BY m.Account, m.DateYearFilter, m.DateMonthFilter",
