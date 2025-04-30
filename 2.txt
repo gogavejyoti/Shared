@@ -1,52 +1,17 @@
 getSelectedCellsData: function () {
+    var selectedCells = this.host.find(".cellStyleSelected");
     var data = [];
 
-    // Check if pivotCells and selectedCells are defined
-    if (this._pivotCells && this._pivotCells.selectedCells && this._pivotCells.selectedCells.length > 0) {
-        // Group cells by row
-        var grouped = {};
-        this._pivotCells.selectedCells.forEach(cell => {
-            var rowKey = cell.pivotRow.id;
-            if (!grouped[rowKey]) grouped[rowKey] = [];
-            var value = this.source.getCellValue(cell.pivotRow.adapterItem, cell.pivotColumn.adapterItem);
-            grouped[rowKey].push(value ? value.formattedValue : '');
-        });
-
-        // Convert grouped rows to array of arrays
-        for (var row in grouped) {
-            data.push(grouped[row]);
+    selectedCells.each((i, cellDiv) => {
+        var cell = a(cellDiv).data("pivot-cell"); // Assuming you can access the cell info via data attr
+        if (cell && cell.pivotRow && cell.pivotColumn) {
+            var valueObj = this.source.getCellValue(cell.pivotRow.adapterItem, cell.pivotColumn.adapterItem);
+            var rowText = cell.pivotRow.adapterItem.text;
+            var colText = cell.pivotColumn.adapterItem.text;
+            var value = valueObj ? valueObj.formattedValue : '';
+            data.push([rowText, colText, value]);
         }
-    }
+    });
 
     return data;
 }
-
-
-  // Add the keydown event handler here to handle copy-paste logic
-    b.addHandler(a(document), "keydown", function (c) {
-        if (b._isContextMenuOpen) return;
-        if (b._pivotDesigner && b._pivotDesigner._isWindowOpen()) return;
-
-        // Detect CTRL+C or CMD+C
-        if ((c.ctrlKey || c.metaKey) && c.keyCode === 67) {
-            var selectedData = b.getSelectedCellsData();
-            if (selectedData && selectedData.length > 0) {
-                var textToCopy = selectedData.map(row => row.join('\t')).join('\n');
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    console.log("Copied to clipboard");
-                }).catch(err => {
-                    console.error("Clipboard copy failed:", err);
-                });
-            }
-            c.preventDefault();
-            return;
-        }
-
-        if (c.keyCode === 17) {
-            b._isCTRLPressed = true;
-        } else if (c.keyCode === 16) {
-            b._isSHIFTPressed = true;
-        } else if (b._handleKeyboardNavigation) {
-            b._handleKeyboardNavigation(c);
-        }
-    });
