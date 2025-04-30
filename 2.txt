@@ -1,40 +1,40 @@
 getSelectedCellsData: function () {
-  const sel = this._pivotCells?._selectedCells || {};
-  const rows = {};
+    const selDict = this._pivotCells?._selectedCells || {};
+    const cellMap = {};
 
-  Object.keys(sel).forEach(rawKey => {
-    // rawKey looks like "7_0:" or "7_1:" etc.
-    // Step-1: strip trailing colon, split on underscore
-    const key = rawKey.endsWith(':') ? rawKey.slice(0, -1) : rawKey;
-    const parts = key.split('_');
-    if (parts.length !== 2) return;              // guard
-    const rowIdx = parseInt(parts[0], 10);
-    const colIdx = parseInt(parts[1], 10);
+    // Parse each selection key: "row_col:"
+    Object.keys(selDict).forEach(key => {
+        const cleanedKey = key.replace(':', '');
+        const [rowStr, colStr] = cleanedKey.split('_');
+        const rowIdx = parseInt(rowStr, 10);
+        const colIdx = parseInt(colStr, 10);
+        const cell = selDict[key];
 
-    // Fetch the cell entry and its formatted value
-    const entry = sel[rawKey];
-    const valObj = this.source.getCellValue(
-      entry.pivotRow.adapterItem,
-      entry.pivotColumn.adapterItem
-    );
-    const value = valObj?.formattedValue ?? '';
+        const valObj = this.source.getCellValue(
+            cell.pivotRow.adapterItem,
+            cell.pivotColumn.adapterItem
+        );
+        const value = valObj?.formattedValue ?? '';
 
-    // Accumulate into rows[rowIdx]
-    if (!rows[rowIdx]) rows[rowIdx] = [];
-    rows[rowIdx].push({ colIdx, value });
-  });
-
-  // Now build the 2D array
-  const result = [];
-  Object.keys(rows)
-    .map(n => parseInt(n, 10))
-    .sort((a, b) => a - b)           // row order
-    .forEach(rowIdx => {
-      const cells = rows[rowIdx]
-        .sort((a, b) => a.colIdx - b.colIdx)  // column order
-        .map(c => c.value);                   // extract just the values
-      result.push(cells);
+        if (!cellMap[rowIdx]) cellMap[rowIdx] = {};
+        cellMap[rowIdx][colIdx] = value;
     });
 
-  return result;
+    // Build a clean 2D array based on sorted row and col indices
+    const sortedRowIndices = Object.keys(cellMap).map(Number).sort((a, b) => a - b);
+    const allColIndices = new Set();
+
+    sortedRowIndices.forEach(rowIdx => {
+        Object.keys(cellMap[rowIdx]).forEach(c => allColIndices.add(parseInt(c)));
+    });
+
+    const sortedColIndices = [...allColIndices].sort((a, b) => a - b);
+
+    const result = sortedRowIndices.map(rowIdx => {
+        return sortedColIndices.map(colIdx => {
+            return cellMap[rowIdx][colIdx] ?? ""; // fill empty cells with blanks
+        });
+    });
+
+    return result;
 }
