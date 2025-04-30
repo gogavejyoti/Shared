@@ -1,32 +1,38 @@
 getSelectedCellsData: function () {
     const cellList = [];
-
-    // Helper: round pixel value to avoid float precision issues
     const px = s => Math.round(parseFloat(s) || 0);
 
-    // Collect all selected cells, regardless of class order in DOM
-    this.host.find(".cellStyleSelected, .rowStyleSelected").each(function () {
+    // Collect all selected cells
+    this.host.find(".rowStyleSelected, .cellStyleSelected").each(function (idx) {
         const $cell = a(this);
-        const top = px($cell.css("top"));
-        const left = px($cell.css("left"));
-        const value = $cell.find("#innerDiv").text().trim();
+        const top    = px($cell.css("top"));
+        const left   = px($cell.css("left"));
+        const value  = $cell.find("#innerDiv").text().trim();
 
-        cellList.push({ top, left, value });
+        // Determine class priority: rowStyleSelected = 0, cellStyleSelected = 1
+        const priority = $cell.hasClass("rowStyleSelected") ? 0 : 1;
+
+        cellList.push({ top, left, value, priority, domIdx: idx });
     });
 
-    // Group cells into rows by 'top' position
-    const rowMap = {};
-    cellList.forEach(cell => {
-        if (!rowMap[cell.top]) rowMap[cell.top] = [];
-        rowMap[cell.top].push(cell);
+    // Group into rows by `top`
+    const rows = {};
+    cellList.forEach(c => {
+        if (!rows[c.top]) rows[c.top] = [];
+        rows[c.top].push(c);
     });
 
-    // Sort rows top-to-bottom, and cells left-to-right
-    const sortedTops = Object.keys(rowMap).map(Number).sort((a, b) => a - b);
+    // Sort row keys (top)
+    const sortedTops = Object.keys(rows).map(Number).sort((a, b) => a - b);
     const result = [];
 
     sortedTops.forEach(top => {
-        const row = rowMap[top].sort((a, b) => a.left - b.left);
+        // sort each row by: left, then class priority, then DOM idx
+        const row = rows[top].sort((a, b) => {
+            if (a.left !== b.left)      return a.left  - b.left;
+            if (a.priority !== b.priority) return a.priority - b.priority;
+            return a.domIdx - b.domIdx;
+        });
         result.push(row.map(c => c.value));
     });
 
