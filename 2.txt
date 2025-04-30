@@ -1,30 +1,33 @@
 getSelectedCellsData: function () {
-    const rows = {};
+    const cellList = [];
 
-    // Define a rounding helper (to nearest pixel row/column line)
-    function roundPx(px) {
-        return Math.round(parseFloat(px || 0));
-    }
+    // Helper: round pixel value to avoid float precision issues
+    const px = s => Math.round(parseFloat(s) || 0);
 
-    // Find all selected cells by either class
+    // Collect all selected cells, regardless of class order in DOM
     this.host.find(".cellStyleSelected, .rowStyleSelected").each(function () {
         const $cell = a(this);
-        const top = roundPx($cell.css("top"));     // Y => row group
-        const left = roundPx($cell.css("left"));   // X => sort within row
+        const top = px($cell.css("top"));
+        const left = px($cell.css("left"));
         const value = $cell.find("#innerDiv").text().trim();
 
-        if (!rows[top]) rows[top] = [];
-        rows[top].push({ left, value });
+        cellList.push({ top, left, value });
     });
 
-    // Sort row keys top to bottom
-    const sortedTops = Object.keys(rows).map(Number).sort((a, b) => a - b);
+    // Group cells into rows by 'top' position
+    const rowMap = {};
+    cellList.forEach(cell => {
+        if (!rowMap[cell.top]) rowMap[cell.top] = [];
+        rowMap[cell.top].push(cell);
+    });
+
+    // Sort rows top-to-bottom, and cells left-to-right
+    const sortedTops = Object.keys(rowMap).map(Number).sort((a, b) => a - b);
     const result = [];
 
     sortedTops.forEach(top => {
-        const row = rows[top];
-        row.sort((a, b) => a.left - b.left); // left to right
-        result.push(row.map(cell => cell.value));
+        const row = rowMap[top].sort((a, b) => a.left - b.left);
+        result.push(row.map(c => c.value));
     });
 
     return result;
