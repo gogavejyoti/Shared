@@ -1,10 +1,29 @@
 getSelectedCellsData: function () {
-    var data = [];
+    var $cells = this.host.find(".cellStyleSelected");
+    var rows = {};
 
-    this.host.find(".cellStyleSelected").each((i, cellDiv) => {
-        var text = a(cellDiv).find("#innerDiv").text().trim();
-        data.push([text]); // Single value per row
+    $cells.each(function () {
+        var $cell = a(this);
+        var top = parseInt($cell.css("top"));    // vertical position
+        var left = parseInt($cell.css("left"));  // horizontal position
+        var value = $cell.find("#innerDiv").text().trim();
+
+        if (!rows[top]) {
+            rows[top] = [];
+        }
+
+        rows[top].push({ left: left, value: value });
     });
 
-    return data;
+    // Sort rows by 'top', and cells in row by 'left'
+    var sortedRowKeys = Object.keys(rows).map(n => parseInt(n)).sort((a, b) => a - b);
+    var result = [];
+
+    sortedRowKeys.forEach(rowKey => {
+        var row = rows[rowKey];
+        row.sort((a, b) => a.left - b.left);
+        result.push(row.map(cell => cell.value));
+    });
+
+    return result;
 }
