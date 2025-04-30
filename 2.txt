@@ -1,38 +1,40 @@
-/**
- * Returns a 2D array of the currently selected cells' formatted values,
- * preserving their row/column layout.
- */
 getSelectedCellsData: function () {
-    const selDict = this._pivotCells?._selectedCells || {};
-    const rowMap = {};
+  const sel = this._pivotCells?._selectedCells || {};
+  const rows = {};
 
-    // 1) Iterate over each selected‐cell entry
-    Object.keys(selDict).forEach(rawKey => {
-        // rawKey is like "7_0:" → strip trailing colon, split on "_"
-        const [rowStr, colStr] = rawKey.replace(/:$/, '').split('_');
-        const rowIdx = parseInt(rowStr, 10);
-        const colIdx = parseInt(colStr, 10);
-        const cellEntry = selDict[rawKey];
+  Object.keys(sel).forEach(rawKey => {
+    // rawKey looks like "7_0:" or "7_1:" etc.
+    // Step-1: strip trailing colon, split on underscore
+    const key = rawKey.endsWith(':') ? rawKey.slice(0, -1) : rawKey;
+    const parts = key.split('_');
+    if (parts.length !== 2) return;              // guard
+    const rowIdx = parseInt(parts[0], 10);
+    const colIdx = parseInt(parts[1], 10);
 
-        // 2) Fetch the formatted value
-        const valObj = this.source.getCellValue(
-            cellEntry.pivotRow.adapterItem,
-            cellEntry.pivotColumn.adapterItem
-        );
-        const value = valObj?.formattedValue ?? '';
+    // Fetch the cell entry and its formatted value
+    const entry = sel[rawKey];
+    const valObj = this.source.getCellValue(
+      entry.pivotRow.adapterItem,
+      entry.pivotColumn.adapterItem
+    );
+    const value = valObj?.formattedValue ?? '';
 
-        // 3) Group into rowMap[rowIdx] = [ { colIdx, value }, … ]
-        if (!rowMap[rowIdx]) rowMap[rowIdx] = [];
-        rowMap[rowIdx].push({ colIdx, value });
+    // Accumulate into rows[rowIdx]
+    if (!rows[rowIdx]) rows[rowIdx] = [];
+    rows[rowIdx].push({ colIdx, value });
+  });
+
+  // Now build the 2D array
+  const result = [];
+  Object.keys(rows)
+    .map(n => parseInt(n, 10))
+    .sort((a, b) => a - b)           // row order
+    .forEach(rowIdx => {
+      const cells = rows[rowIdx]
+        .sort((a, b) => a.colIdx - b.colIdx)  // column order
+        .map(c => c.value);                   // extract just the values
+      result.push(cells);
     });
 
-    // 4) Sort rows and columns, then produce final 2D array
-    return Object.keys(rowMap)
-      .map(Number)
-      .sort((a, b) => a - b)                 // sort row indices
-      .map(rIdx => {
-        return rowMap[rIdx]
-          .sort((a, b) => a.colIdx - b.colIdx) // sort columns
-          .map(cell => cell.value);            // extract just the value
-      });
-},
+  return result;
+}
