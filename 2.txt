@@ -1,2 +1,10 @@
-<div id="" class="jqx-grid-cell-selected jqx-fill-state-hover jqx-widget-content cellStyleSelected jqx-pivotgrid-content-wrapper" style="height: 25px; width: 150px; display: block; position: absolute; left: 0px; top: 27px;"><div id="innerDiv" style="height: 17px; width: 142px; padding: 4px; text-align: center;">1876:00:00</div></div>
-<div id="" class="jqx-grid-cell-selected jqx-fill-state-hover jqx-widget-content cellStyleSelected jqx-pivotgrid-content-wrapper" style="height: 26px; width: 150px; display: block; position: absolute; left: 0px; top: 0px;"><div id="innerDiv" style="height: 18px; width: 142px; padding: 4px; text-align: center;">2151:00:00</div></div>
+getSelectedCellsData: function () {
+    var data = [];
+
+    this.host.find(".cellStyleSelected").each((i, cellDiv) => {
+        var text = a(cellDiv).find("#innerDiv").text().trim();
+        data.push([text]); // Single value per row
+    });
+
+    return data;
+}
