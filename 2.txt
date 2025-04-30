@@ -1,27 +1,29 @@
 getSelectedCellsData: function () {
-    var $cells = this.host.find(".cellStyleSelected");
-    var rows = {};
+    const rows = {};
 
-    $cells.each(function () {
-        var $cell = a(this);
-        var top = parseInt($cell.css("top"));    // vertical position
-        var left = parseInt($cell.css("left"));  // horizontal position
-        var value = $cell.find("#innerDiv").text().trim();
+    // Define a rounding helper (to nearest pixel row/column line)
+    function roundPx(px) {
+        return Math.round(parseFloat(px || 0));
+    }
 
-        if (!rows[top]) {
-            rows[top] = [];
-        }
+    // Find all selected cells by either class
+    this.host.find(".cellStyleSelected, .rowStyleSelected").each(function () {
+        const $cell = a(this);
+        const top = roundPx($cell.css("top"));     // Y => row group
+        const left = roundPx($cell.css("left"));   // X => sort within row
+        const value = $cell.find("#innerDiv").text().trim();
 
-        rows[top].push({ left: left, value: value });
+        if (!rows[top]) rows[top] = [];
+        rows[top].push({ left, value });
     });
 
-    // Sort rows by 'top', and cells in row by 'left'
-    var sortedRowKeys = Object.keys(rows).map(n => parseInt(n)).sort((a, b) => a - b);
-    var result = [];
+    // Sort row keys top to bottom
+    const sortedTops = Object.keys(rows).map(Number).sort((a, b) => a - b);
+    const result = [];
 
-    sortedRowKeys.forEach(rowKey => {
-        var row = rows[rowKey];
-        row.sort((a, b) => a.left - b.left);
+    sortedTops.forEach(top => {
+        const row = rows[top];
+        row.sort((a, b) => a.left - b.left); // left to right
         result.push(row.map(cell => cell.value));
     });
 
