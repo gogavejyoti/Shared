@@ -1,40 +1,38 @@
+/**
+ * Returns a 2D array of the currently selected cells' formatted values,
+ * preserving their row/column layout.
+ */
 getSelectedCellsData: function () {
-    const cellList = [];
-    const px = s => Math.round(parseFloat(s) || 0);
+    const selDict = this._pivotCells?._selectedCells || {};
+    const rowMap = {};
 
-    // Collect all selected cells
-    this.host.find(".rowStyleSelected, .cellStyleSelected").each(function (idx) {
-        const $cell = a(this);
-        const top    = px($cell.css("top"));
-        const left   = px($cell.css("left"));
-        const value  = $cell.find("#innerDiv").text().trim();
+    // 1) Iterate over each selected‐cell entry
+    Object.keys(selDict).forEach(rawKey => {
+        // rawKey is like "7_0:" → strip trailing colon, split on "_"
+        const [rowStr, colStr] = rawKey.replace(/:$/, '').split('_');
+        const rowIdx = parseInt(rowStr, 10);
+        const colIdx = parseInt(colStr, 10);
+        const cellEntry = selDict[rawKey];
 
-        // Determine class priority: rowStyleSelected = 0, cellStyleSelected = 1
-        const priority = $cell.hasClass("rowStyleSelected") ? 0 : 1;
+        // 2) Fetch the formatted value
+        const valObj = this.source.getCellValue(
+            cellEntry.pivotRow.adapterItem,
+            cellEntry.pivotColumn.adapterItem
+        );
+        const value = valObj?.formattedValue ?? '';
 
-        cellList.push({ top, left, value, priority, domIdx: idx });
+        // 3) Group into rowMap[rowIdx] = [ { colIdx, value }, … ]
+        if (!rowMap[rowIdx]) rowMap[rowIdx] = [];
+        rowMap[rowIdx].push({ colIdx, value });
     });
 
-    // Group into rows by `top`
-    const rows = {};
-    cellList.forEach(c => {
-        if (!rows[c.top]) rows[c.top] = [];
-        rows[c.top].push(c);
-    });
-
-    // Sort row keys (top)
-    const sortedTops = Object.keys(rows).map(Number).sort((a, b) => a - b);
-    const result = [];
-
-    sortedTops.forEach(top => {
-        // sort each row by: left, then class priority, then DOM idx
-        const row = rows[top].sort((a, b) => {
-            if (a.left !== b.left)      return a.left  - b.left;
-            if (a.priority !== b.priority) return a.priority - b.priority;
-            return a.domIdx - b.domIdx;
-        });
-        result.push(row.map(c => c.value));
-    });
-
-    return result;
-}
+    // 4) Sort rows and columns, then produce final 2D array
+    return Object.keys(rowMap)
+      .map(Number)
+      .sort((a, b) => a - b)                 // sort row indices
+      .map(rIdx => {
+        return rowMap[rIdx]
+          .sort((a, b) => a.colIdx - b.colIdx) // sort columns
+          .map(cell => cell.value);            // extract just the value
+      });
+},
