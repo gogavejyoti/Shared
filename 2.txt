@@ -1,5 +1,52 @@
-After exploring multiple use cases, we have identified one summarization approach that can be applied across several reports. As a starting point, we would like to implement this in our Vertical Snapshot report, which contains standard information such as Geo, Vertical, Account, LOB, FTE Required, FTE Available, Shrinkage, Attrition %, and Utilization.
+getSelectedCellsData: function () {
+    var data = [];
 
-Our goal is to enable AI-based summarization of user queries based on this SQL table. Once this module is in place, we plan to replicate the same approach for other reports in later phases.
+    // Check if pivotCells and selectedCells are defined
+    if (this._pivotCells && this._pivotCells.selectedCells && this._pivotCells.selectedCells.length > 0) {
+        // Group cells by row
+        var grouped = {};
+        this._pivotCells.selectedCells.forEach(cell => {
+            var rowKey = cell.pivotRow.id;
+            if (!grouped[rowKey]) grouped[rowKey] = [];
+            var value = this.source.getCellValue(cell.pivotRow.adapterItem, cell.pivotColumn.adapterItem);
+            grouped[rowKey].push(value ? value.formattedValue : '');
+        });
 
-Could you please guide us on how to proceed with the summarization part for this module? Any recommendations on architecture, tools, or implementation strategy would be highly valuable.
+        // Convert grouped rows to array of arrays
+        for (var row in grouped) {
+            data.push(grouped[row]);
+        }
+    }
+
+    return data;
+}
+
+
+  // Add the keydown event handler here to handle copy-paste logic
+    b.addHandler(a(document), "keydown", function (c) {
+        if (b._isContextMenuOpen) return;
+        if (b._pivotDesigner && b._pivotDesigner._isWindowOpen()) return;
+
+        // Detect CTRL+C or CMD+C
+        if ((c.ctrlKey || c.metaKey) && c.keyCode === 67) {
+            var selectedData = b.getSelectedCellsData();
+            if (selectedData && selectedData.length > 0) {
+                var textToCopy = selectedData.map(row => row.join('\t')).join('\n');
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    console.log("Copied to clipboard");
+                }).catch(err => {
+                    console.error("Clipboard copy failed:", err);
+                });
+            }
+            c.preventDefault();
+            return;
+        }
+
+        if (c.keyCode === 17) {
+            b._isCTRLPressed = true;
+        } else if (c.keyCode === 16) {
+            b._isSHIFTPressed = true;
+        } else if (b._handleKeyboardNavigation) {
+            b._handleKeyboardNavigation(c);
+        }
+    });
