@@ -1,17 +1,2 @@
-getSelectedCellsData: function () {
-    var selectedCells = this.host.find(".cellStyleSelected");
-    var data = [];
-
-    selectedCells.each((i, cellDiv) => {
-        var cell = a(cellDiv).data("pivot-cell"); // Assuming you can access the cell info via data attr
-        if (cell && cell.pivotRow && cell.pivotColumn) {
-            var valueObj = this.source.getCellValue(cell.pivotRow.adapterItem, cell.pivotColumn.adapterItem);
-            var rowText = cell.pivotRow.adapterItem.text;
-            var colText = cell.pivotColumn.adapterItem.text;
-            var value = valueObj ? valueObj.formattedValue : '';
-            data.push([rowText, colText, value]);
-        }
-    });
-
-    return data;
-}
+<div id="" class="jqx-grid-cell-selected jqx-fill-state-hover jqx-widget-content cellStyleSelected jqx-pivotgrid-content-wrapper" style="height: 25px; width: 150px; display: block; position: absolute; left: 0px; top: 27px;"><div id="innerDiv" style="height: 17px; width: 142px; padding: 4px; text-align: center;">1876:00:00</div></div>
+<div id="" class="jqx-grid-cell-selected jqx-fill-state-hover jqx-widget-content cellStyleSelected jqx-pivotgrid-content-wrapper" style="height: 26px; width: 150px; display: block; position: absolute; left: 0px; top: 0px;"><div id="innerDiv" style="height: 18px; width: 142px; padding: 4px; text-align: center;">2151:00:00</div></div>
