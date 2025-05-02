@@ -3,11 +3,10 @@ getSelectedCellsData: function () {
     const rowSelections = this._pivotRows?._selectedItems;
     const data = [];
 
-    // Priority: Cell-level selection
+    // --- CASE 1: CELL SELECTION ---
     if (cellSelections && Object.keys(cellSelections).length > 0) {
         const cellMap = {};
 
-        // Keys are in "col_row:" format
         Object.keys(cellSelections).forEach(key => {
             const cleanedKey = key.replace(':', '');
             const [colStr, rowStr] = cleanedKey.split('_');
@@ -41,11 +40,12 @@ getSelectedCellsData: function () {
         });
     }
 
-    // Fallback: Row-level selection
-    if (rowSelections && rowSelections.length > 0) {
+    // --- CASE 2: ROW SELECTION ---
+    if (rowSelections && Object.keys(rowSelections).length > 0) {
         const allPivotColumns = this._pivotColumns.items || [];
 
-        rowSelections.forEach(row => {
+        Object.keys(rowSelections).forEach(key => {
+            const row = rowSelections[key];
             const rowData = allPivotColumns.map(col => {
                 const valObj = this.source.getCellValue(
                     row.adapterItem,
