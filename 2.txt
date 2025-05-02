@@ -1,41 +1,62 @@
 getSelectedCellsData: function () {
-    const selDict = this._pivotCells?._selectedCells || {};
-    const cellMap = {};
+    const cellSelections = this._pivotCells?._selectedCells;
+    const rowSelections = this._pivotRows?._selectedItems;
+    const data = [];
 
-    // Parse keys as "col_row:"
-    Object.keys(selDict).forEach(key => {
-        const cleanedKey = key.replace(':', '');
-        const [colStr, rowStr] = cleanedKey.split('_');
-        const rowIdx = parseInt(rowStr, 10);  // second part = row
-        const colIdx = parseInt(colStr, 10);  // first part = column
-        const cell = selDict[key];
+    // Priority: Cell-level selection
+    if (cellSelections && Object.keys(cellSelections).length > 0) {
+        const cellMap = {};
 
-        const valObj = this.source.getCellValue(
-            cell.pivotRow.adapterItem,
-            cell.pivotColumn.adapterItem
-        );
-        const value = valObj?.formattedValue ?? '';
+        // Keys are in "col_row:" format
+        Object.keys(cellSelections).forEach(key => {
+            const cleanedKey = key.replace(':', '');
+            const [colStr, rowStr] = cleanedKey.split('_');
+            const rowIdx = parseInt(rowStr, 10);
+            const colIdx = parseInt(colStr, 10);
+            const cell = cellSelections[key];
 
-        if (!cellMap[rowIdx]) cellMap[rowIdx] = {};
-        cellMap[rowIdx][colIdx] = value;
-    });
+            const valObj = this.source.getCellValue(
+                cell.pivotRow.adapterItem,
+                cell.pivotColumn.adapterItem
+            );
+            const value = valObj?.formattedValue ?? '';
 
-    // Sort rows and columns
-    const sortedRowIndices = Object.keys(cellMap).map(Number).sort((a, b) => a - b);
-    const allColIndices = new Set();
-
-    sortedRowIndices.forEach(rowIdx => {
-        Object.keys(cellMap[rowIdx]).forEach(c => allColIndices.add(parseInt(c)));
-    });
-
-    const sortedColIndices = [...allColIndices].sort((a, b) => a - b);
-
-    // Create final 2D array
-    const result = sortedRowIndices.map(rowIdx => {
-        return sortedColIndices.map(colIdx => {
-            return cellMap[rowIdx][colIdx] ?? ""; // fill missing with blank
+            if (!cellMap[rowIdx]) cellMap[rowIdx] = {};
+            cellMap[rowIdx][colIdx] = value;
         });
-    });
 
-    return result;
+        const sortedRowIndices = Object.keys(cellMap).map(Number).sort((a, b) => a - b);
+        const allColIndices = new Set();
+
+        sortedRowIndices.forEach(rowIdx => {
+            Object.keys(cellMap[rowIdx]).forEach(c => allColIndices.add(parseInt(c)));
+        });
+
+        const sortedColIndices = [...allColIndices].sort((a, b) => a - b);
+
+        return sortedRowIndices.map(rowIdx => {
+            return sortedColIndices.map(colIdx => {
+                return cellMap[rowIdx][colIdx] ?? "";
+            });
+        });
+    }
+
+    // Fallback: Row-level selection
+    if (rowSelections && rowSelections.length > 0) {
+        const allPivotColumns = this._pivotColumns.items || [];
+
+        rowSelections.forEach(row => {
+            const rowData = allPivotColumns.map(col => {
+                const valObj = this.source.getCellValue(
+                    row.adapterItem,
+                    col.adapterItem
+                );
+                return valObj?.formattedValue ?? '';
+            });
+            data.push(rowData);
+        });
+        return data;
+    }
+
+    return []; // No selection
 }
