@@ -32,7 +32,13 @@ function fallbackCopy(text) {
     document.body.removeChild(textarea);
 }
 
-
+const indexedRowIds = Object.keys(rowSelections)
+    .map(rowId => parseInt(rowId, 10))       // Convert keys to numbers
+    .sort((a, b) => a - b)                   // Sort numerically
+    .reduce((acc, rowId, index) => {
+        acc[index] = rowId.toString();       // Store original rowId string as value
+        return acc;
+    }, {});
 
 document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
