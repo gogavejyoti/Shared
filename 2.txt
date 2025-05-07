@@ -1,65 +1,47 @@
-datatable = {
-    "headers": [
-        "date",
-        "Scheduled",
-        "Present",
-        "Planned",
-        "Absent",
-        "AbsentPer",
-        "Break",
-        "LCV/VTO",
-        "Lost",
-        "Train (AOP)",
-        "Vacation Per",
-        "Unexcused Per",
-        "Out Office Shrinkage",
-        "In Office Shrinkage",
-        "Total Shrinkage"
-    ],
-    "values": [
-        {
-            "cellValue": [
-                "03 May 2025",
-                "627",
-                "509",
-                "32",
-                "86",
-                "0.00%",
-                "7.38%",
-                "0.00%",
-                "0.18%",
-                "0.89%",
-                "5.32%",
-                "8.23%",
-                "13.55%",
-                "1.06%",
-                "14.61%"
-            ]
-        },
-        {
-            "cellValue": [
-                "Total",
-                "627",
-                "509",
-                "32",
-                "86",
-                "0.00%",
-                "7.38%",
-                "0.00%",
-                "0.18%",
-                "0.89%",
-                "5.32%",
-                "8.23%",
-                "13.55%",
-                "1.06%",
-                "14.61%"
-            ]
-        }
-    ]
+getSelectedCellsData: function () {
+    const cellSelections = this._pivotCells?._selectedCells;
+    const rowSelections = this._pivotRows?._selectedItems;
+    const datatable = this.getDataTable(); // your structured data
+    const data = [];
+
+    // --- CASE 1: CELL SELECTION ---
+    if (cellSelections && Object.keys(cellSelections).length > 0) {
+        const cellMap = {};
+
+        Object.keys(cellSelections).forEach(key => {
+            const cleanedKey = key.replace(':', '');
+            const [colStr, rowStr] = cleanedKey.split('_');
+            const rowIdx = parseInt(rowStr, 10);
+            const colIdx = parseInt(colStr, 10);
+            const value = datatable.values?.[rowIdx]?.cellValue?.[colIdx] ?? '';
+
+            if (!cellMap[rowIdx]) cellMap[rowIdx] = {};
+            cellMap[rowIdx][colIdx] = value;
+        });
+
+        const sortedRowIndices = Object.keys(cellMap).map(Number).sort((a, b) => a - b);
+        const allColIndices = new Set();
+        sortedRowIndices.forEach(rowIdx => {
+            Object.keys(cellMap[rowIdx]).forEach(c => allColIndices.add(parseInt(c)));
+        });
+        const sortedColIndices = [...allColIndices].sort((a, b) => a - b);
+
+        return sortedRowIndices.map(rowIdx => {
+            return sortedColIndices.map(colIdx => {
+                return cellMap[rowIdx][colIdx] ?? '';
+            });
+        });
+    }
+
+    // --- CASE 2: ROW SELECTION ---
+    if (rowSelections && Object.keys(rowSelections).length > 0) {
+        const selectedRowIndices = Object.keys(rowSelections).map(key => parseInt(key));
+        selectedRowIndices.sort((a, b) => a - b);
+
+        return selectedRowIndices.map(rowIdx => {
+            return datatable.values?.[rowIdx]?.cellValue ?? [];
+        });
+    }
+
+    return [];
 }
-
-  const cellSelections = this._pivotCells?._selectedCells;
-  const rowSelections = this._pivotRows?._selectedItems;
-
-
-
