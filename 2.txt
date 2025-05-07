@@ -91,3 +91,8 @@ document.addEventListener('keydown', function (e) {
             });
         });
     }
+
+
+return selectedRowIndices.map(rowIdx => {
+                    return datatable.values?.[rowKeyId[rowIdx]]?.cellValue ?? [];
+                });
