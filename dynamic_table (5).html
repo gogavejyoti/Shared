@@ -1,0 +1,256 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic Table with Frozen Column and Expandable Groups</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .table-container {
+            max-width: 100%;
+            overflow-x: auto;
+            border: 1px solid #ccc;
+        }
+        table {
+            border-collapse: collapse;
+            width: max-content;
+            min-width: 100%;
+            table-layout: fixed;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            white-space: nowrap;
+            text-align: center;
+        }
+        th.frozen, td.frozen {
+            position: sticky;
+            left: 0;
+            background: #f9f9f9;
+            z-index: 2;
+        }
+        thead th.frozen {
+            z-index: 3;
+        }
+        .hidden {
+            display: none;
+        }
+        .toggle-icon {
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        .child-row {
+            display: none;
+        }
+        .visible {
+            display: table-row;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Dynamic Table with Frozen Column and Expandable Groups</h2>
+<div>
+    <button onclick="expandAllColumns()">Expand All Columns</button>
+    <button onclick="collapseAllColumns()">Collapse All Columns</button>
+    <button onclick="expandAllRows()">Expand All Rows</button>
+    <button onclick="collapseAllRows()">Collapse All Rows</button>
+</div>
+<br>
+<div class="table-container">
+    <table id="dynamicTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+    const columnGroups = [];
+    for (let i = 0; i < 10; i++) {
+        columnGroups.push({
+            title: "Group " + (i + 1),
+            columns: ["Col " + (i*3+1), "Col " + (i*3+2), "Col " + (i*3+3)],
+            expanded: true
+        });
+    }
+
+    const data = {
+        "Project A": {
+            data: generateRowData(),
+            children: {
+                "Frontend": {
+                    data: generateRowData(),
+                    children: {
+                        "UI Components": { data: generateRowData() },
+                        "Responsive Design": { data: generateRowData() }
+                    }
+                },
+                "Backend": {
+                    data: generateRowData(),
+                    children: {
+                        "API Development": { data: generateRowData() },
+                        "Database": { data: generateRowData() }
+                    }
+                }
+            }
+        },
+        "Project B": {
+            data: generateRowData(),
+            children: {
+                "Design": {
+                    data: generateRowData(),
+                    children: {
+                        "UX Research": { data: generateRowData() },
+                        "UI Design": { data: generateRowData() }
+                    }
+                },
+                "Development": { data: generateRowData() }
+            }
+        }
+    };
+
+    function generateRowData() {
+        const row = {};
+        columnGroups.forEach(group => {
+            group.columns.forEach(col => {
+                row[col] = Math.floor(Math.random() * 1000);
+            });
+        });
+        return row;
+    }
+
+    function buildTable() {
+        const thead = document.getElementById("tableHead");
+        const tbody = document.getElementById("tableBody");
+        thead.innerHTML = "";
+        tbody.innerHTML = "";
+
+        const groupRow = document.createElement("tr");
+        const headerRow = document.createElement("tr");
+
+        const cornerTh = document.createElement("th");
+        cornerTh.classList.add("frozen");
+        cornerTh.rowSpan = 2;
+        cornerTh.textContent = "Project";
+        groupRow.appendChild(cornerTh);
+
+        columnGroups.forEach((group, groupIndex) => {
+            const th = document.createElement("th");
+            th.colSpan = group.expanded ? group.columns.length : 1;
+            th.innerHTML = `<span class="toggle-icon" onclick="toggleColumnGroup(${groupIndex})">[${group.expanded ? "-" : "+"}]</span>${group.title}`;
+            groupRow.appendChild(th);
+        });
+
+        columnGroups.forEach((group, groupIndex) => {
+            group.columns.forEach((col, colIndex) => {
+                const th = document.createElement("th");
+                th.textContent = col;
+                th.classList.add("col-header");
+                th.dataset.group = groupIndex;
+                th.dataset.index = colIndex;
+                if (!group.expanded && colIndex !== 0) {
+                    th.classList.add("hidden");
+                }
+                headerRow.appendChild(th);
+            });
+        });
+
+        thead.appendChild(groupRow);
+        thead.appendChild(headerRow);
+
+        function createRow(name, rowData, level, path) {
+            const tr = document.createElement("tr");
+            tr.classList.add("level-" + level);
+            tr.dataset.path = path;
+            if (level > 0) {
+                tr.classList.add("child-row");
+            }
+
+            const td = document.createElement("td");
+            td.classList.add("frozen");
+            td.style.paddingLeft = (level * 20) + "px";
+            if (rowData.children) {
+                td.innerHTML = `<span class="toggle-icon" onclick="toggleRow('${path}', this)">▶</span> ${name}`;
+            } else {
+                td.textContent = name;
+            }
+            tr.appendChild(td);
+
+            columnGroups.forEach((group, groupIndex) => {
+                group.columns.forEach((col, colIndex) => {
+                    const cell = document.createElement("td");
+                    cell.textContent = rowData.data[col] || "";
+                    cell.dataset.group = groupIndex;
+                    cell.dataset.index = colIndex;
+                    if (!group.expanded && colIndex !== 0) {
+                        cell.classList.add("hidden");
+                    }
+                    tr.appendChild(cell);
+                });
+            });
+
+            tbody.appendChild(tr);
+
+            if (rowData.children) {
+                for (const child in rowData.children) {
+                    createRow(child, rowData.children[child], level + 1, path + "-" + child);
+                }
+            }
+        }
+
+        for (const key in data) {
+            createRow(key, data[key], 0, key);
+        }
+    }
+
+    function toggleRow(path, icon) {
+        const rows = document.querySelectorAll(`tr[data-path^="${path}-"]`);
+        const isVisible = icon.textContent.includes("▼");
+        icon.textContent = isVisible ? "▶" : "▼";
+        rows.forEach(row => {
+            if (isVisible) {
+                row.classList.remove("visible");
+            } else {
+                row.classList.add("visible");
+            }
+        });
+    }
+
+    function toggleColumnGroup(index) {
+        columnGroups[index].expanded = !columnGroups[index].expanded;
+        buildTable();
+    }
+
+    function expandAllColumns() {
+        columnGroups.forEach(g => g.expanded = true);
+        buildTable();
+    }
+
+    function collapseAllColumns() {
+        columnGroups.forEach(g => g.expanded = false);
+        buildTable();
+    }
+
+    function expandAllRows() {
+        document.querySelectorAll(".child-row").forEach(row => row.classList.add("visible"));
+        document.querySelectorAll(".toggle-icon").forEach(icon => {
+            if (icon.textContent.includes("▶")) icon.textContent = "▼";
+        });
+    }
+
+    function collapseAllRows() {
+        document.querySelectorAll(".child-row").forEach(row => row.classList.remove("visible"));
+        document.querySelectorAll(".toggle-icon").forEach(icon => {
+            if (icon.textContent.includes("▼")) icon.textContent = "▶";
+        });
+    }
+
+    buildTable();
+</script>
+
+</body>
+</html>
