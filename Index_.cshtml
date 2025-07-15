@@ -1,0 +1,815 @@
+﻿@{
+    Layout = null;
+
+}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Level Interactive Data Grid</title>
+    <link rel="stylesheet" href="./style.css">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Multi-Level Interactive Data Grid</h1>
+        <p>Features: Multi-level expandable/collapsible rows, expandable/collapsible columns with frozen first column</p>
+
+        <div class="grid-controls">
+            <button id="expandAllRows" class="control-btn">Expand All Rows</button>
+            <button id="collapseAllRows" class="control-btn">Collapse All Rows</button>
+            <button id="expandAllColumns" class="control-btn">Expand All Columns</button>
+            <button id="collapseAllColumns" class="control-btn">Collapse All Columns</button>
+        </div>
+
+        <div class="grid-container">
+            <div id="dataGrid">
+                <!-- Grid will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    <script src="./script.js"></script>
+</body>
+
+</html>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        color: #333;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    h1 {
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+
+    .grid-controls {
+        margin: 20px 0;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .control-btn {
+        padding: 8px 15px;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.3s;
+    }
+
+        .control-btn:hover {
+            background-color: #2980b9;
+        }
+
+    .grid-container {
+        overflow-x: auto;
+        position: relative;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .data-grid {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+        table-layout: fixed;
+    }
+
+        /* Table headers */
+        .data-grid th {
+            background-color: #f2f2f2;
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            position: relative;
+        }
+
+    /* Corner cell */
+    .corner-cell {
+        z-index: 15;
+    }
+
+    /* Column header with expand/collapse */
+    .column-header {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        padding: 5px;
+        transition: background-color 0.2s;
+    }
+
+        .column-header:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+    .column-title {
+        font-weight: bold;
+        white-space: nowrap;
+    }
+
+    /* Column groups */
+    .column-group {
+        background-color: #e6f2ff;
+    }
+
+    /* Data columns */
+    .data-column {
+        text-align: center;
+        font-weight: normal;
+        width: 100px;
+    }
+
+    /* Table cells */
+    .data-grid td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .data-cell {
+        text-align: right;
+        width: 100px;
+    }
+
+    /* First column (frozen) */
+    .data-grid .frozen-column {
+        position: sticky;
+        left: 0;
+        background-color: #f9f9f9;
+        z-index: 10;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        min-width: 200px; /* Give a reasonable width to frozen column */
+    }
+
+    /* Row header with expand/collapse */
+    .row-header {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        padding: 5px;
+        transition: background-color 0.2s;
+    }
+
+        .row-header:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+    .row-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Expandable/collapsible icon */
+    .toggle-icon {
+        margin-right: 8px;
+        transition: transform 0.3s;
+        color: #3498db;
+        width: 15px;
+        display: inline-block;
+        text-align: center;
+    }
+
+    .expanded .toggle-icon i.fa-caret-right {
+        transform: rotate(90deg);
+    }
+
+    /* Child row styling */
+    .child-row {
+        display: none;
+    }
+
+        .child-row.visible {
+            display: table-row;
+        }
+
+    /* Multi-level hierarchy styling */
+    .level-1-row {
+        background-color: rgba(240, 240, 240, 0.5);
+    }
+
+    .level-2-row {
+        background-color: rgba(230, 230, 230, 0.5);
+    }
+
+    .level-3-row {
+        background-color: rgba(220, 220, 220, 0.5);
+    }
+
+    /* Hidden elements */
+    .hidden {
+        display: none !important;
+    }
+
+    .collapsed {
+        width: 0;
+        padding: 0;
+        margin: 0;
+        border: none;
+    }
+
+    /* Position maintenance - important for preventing column shift */
+    [data-position="0"] {
+        order: 0;
+    }
+
+    [data-position="1"] {
+        order: 1;
+    }
+
+    [data-position="2"] {
+        order: 2;
+    }
+
+    /* Hover effects */
+    .data-grid tr:hover {
+        background-color: rgba(52, 152, 219, 0.1);
+    }
+</style>
+
+<script>
+    $(document).ready(function () {
+        // Sample data with multi-level hierarchy
+        const data = {
+            // Parent rows
+            "Project A": {
+                data: {
+                    "Q1": 10000,
+                    "Q2": 15000,
+                    "Q3": 20000,
+                    "Q4": 18000,
+                },
+                // Child rows for Project A
+                children: {
+                    "Frontend": {
+                        data: {
+                            "Q1": 5000,
+                            "Q2": 7000,
+                            "Q3": 9000,
+                            "Q4": 7500,
+                        },
+                        // Third level
+                        children: {
+                            "UI Components": {
+                                data: {
+                                    "Q1": 2500,
+                                    "Q2": 3500,
+                                    "Q3": 4500,
+                                    "Q4": 3800,
+                                }
+                            },
+                            "Responsive Design": {
+                                data: {
+                                    "Q1": 2500,
+                                    "Q2": 3500,
+                                    "Q3": 4500,
+                                    "Q4": 3700,
+                                }
+                            }
+                        }
+                    },
+                    "Backend": {
+                        data: {
+                            "Q1": 3000,
+                            "Q2": 5000,
+                            "Q3": 8000,
+                            "Q4": 7000,
+                        },
+                        // Third level
+                        children: {
+                            "API Development": {
+                                data: {
+                                    "Q1": 2000,
+                                    "Q2": 3000,
+                                    "Q3": 5000,
+                                    "Q4": 4000,
+                                }
+                            },
+                            "Database": {
+                                data: {
+                                    "Q1": 1000,
+                                    "Q2": 2000,
+                                    "Q3": 3000,
+                                    "Q4": 3000,
+                                }
+                            }
+                        }
+                    },
+                    "QA": {
+                        data: {
+                            "Q1": 2000,
+                            "Q2": 3000,
+                            "Q3": 3000,
+                            "Q4": 3500,
+                        }
+                    }
+                }
+            },
+            "Project B": {
+                data: {
+                    "Q1": 8000,
+                    "Q2": 12000,
+                    "Q3": 16000,
+                    "Q4": 20000,
+                },
+                // Child rows for Project B
+                children: {
+                    "Design": {
+                        data: {
+                            "Q1": 3000,
+                            "Q2": 4000,
+                            "Q3": 5000,
+                            "Q4": 6000,
+                        },
+                        // Third level
+                        children: {
+                            "UX Research": {
+                                data: {
+                                    "Q1": 1500,
+                                    "Q2": 2000,
+                                    "Q3": 2500,
+                                    "Q4": 3000,
+                                }
+                            },
+                            "UI Design": {
+                                data: {
+                                    "Q1": 1500,
+                                    "Q2": 2000,
+                                    "Q3": 2500,
+                                    "Q4": 3000,
+                                }
+                            }
+                        }
+                    },
+                    "Development": {
+                        data: {
+                            "Q1": 4000,
+                            "Q2": 6000,
+                            "Q3": 8000,
+                            "Q4": 10000,
+                        }
+                    },
+                    "Testing": {
+                        data: {
+                            "Q1": 1000,
+                            "Q2": 2000,
+                            "Q3": 3000,
+                            "Q4": 4000,
+                        }
+                    }
+                }
+            },
+            "Project C": {
+                data: {
+                    "Q1": 12000,
+                    "Q2": 10000,
+                    "Q3": 15000,
+                    "Q4": 22000,
+                },
+                // Child rows for Project C
+                children: {
+                    "Planning": {
+                        data: {
+                            "Q1": 4000,
+                            "Q2": 3000,
+                            "Q3": 5000,
+                            "Q4": 6000,
+                        }
+                    },
+                    "Implementation": {
+                        data: {
+                            "Q1": 6000,
+                            "Q2": 5000,
+                            "Q3": 7000,
+                            "Q4": 12000,
+                        }
+                    },
+                    "Review": {
+                        data: {
+                            "Q1": 2000,
+                            "Q2": 2000,
+                            "Q3": 3000,
+                            "Q4": 4000,
+                        }
+                    }
+                }
+            }
+        };
+
+        // Define columns structure with fixed positions
+        const columns = [
+            {
+                title: "Budget",
+                columns: ["Q1", "Q2"],
+                expanded: true,
+                position: 0, // Fixed position in the table
+                keepFirstVisible: true // Flag to keep first column visible when collapsed
+            },
+            {
+                title: "Actual",
+                columns: ["Q3", "Q4"],
+                expanded: true,
+                position: 1, // Fixed position in the table
+                keepFirstVisible: true // Flag to keep first column visible when collapsed
+            }
+        ];
+
+        // Initialize grid
+        initGrid(data, columns);
+
+        // Event handlers for global controls
+        $("#expandAllRows").on("click", function () {
+            expandAllRows();
+        });
+
+        $("#collapseAllRows").on("click", function () {
+            collapseAllRows();
+        });
+
+        $("#expandAllColumns").on("click", function () {
+            expandAllColumns();
+        });
+
+        $("#collapseAllColumns").on("click", function () {
+            collapseAllColumns();
+        });
+
+        // Initialize grid with data and columns
+        function initGrid(data, columns) {
+            const $grid = $("#dataGrid");
+            $grid.empty();
+            $grid.append(createTable(data, columns));
+
+            // Add event listeners after table is created
+            setupRowToggle();
+            setupColumnToggle();
+        }
+
+        // Create the HTML table
+        function createTable(data, columns) {
+            const $table = $("<table></table>").addClass("data-grid");
+
+            // Create header row with column groups
+            const $thead = $("<thead></thead>");
+
+            // First header row with column group headers
+            const $headerRow = $("<tr></tr>").addClass("column-groups-row");
+
+            // Add corner cell (empty)
+            $headerRow.append($("<th></th>").addClass("frozen-column corner-cell"));
+
+            // Create a placeholder array for headers to ensure they're placed in the correct position
+            const headerPlaceholders = [];
+
+            // Initialize placeholders for each possible position
+            columns.forEach(columnGroup => {
+                headerPlaceholders[columnGroup.position] = null;
+            });
+
+            // Add parent column headers
+            columns.forEach((columnGroup, index) => {
+                const $colGroupHeader = $("<th></th>")
+                    .addClass("column-group")
+                    .attr("colspan", columnGroup.expanded ? columnGroup.columns.length : 1)
+                    .attr("data-group-index", index)
+                    .attr("data-position", columnGroup.position);
+
+                const $colContent = $("<div></div>").addClass("column-header");
+                const $toggleIcon = $("<span></span>").addClass("toggle-icon");
+
+                if (columnGroup.expanded) {
+                    $toggleIcon.html('<i class="fas fa-caret-down"></i>');
+                    $colContent.addClass("expanded");
+                } else {
+                    $toggleIcon.html('<i class="fas fa-caret-right"></i>');
+                }
+
+                $colContent.append($toggleIcon);
+                $colContent.append($("<span></span>").addClass("column-title").text(columnGroup.title));
+
+                $colGroupHeader.append($colContent);
+
+                // Store in the placeholder array based on position
+                headerPlaceholders[columnGroup.position] = $colGroupHeader;
+            });
+
+            // Append headers in the correct order
+            headerPlaceholders.forEach(header => {
+                if (header) {
+                    $headerRow.append(header);
+                }
+            });
+
+            $thead.append($headerRow);
+
+            // Second header row with individual column headers
+            const $subHeaderRow = $("<tr></tr>").addClass("column-headers-row");
+
+            // Add first column header (frozen)
+            $subHeaderRow.append($("<th></th>").addClass("frozen-column").text("Project"));
+
+            // Create placeholders for column headers to maintain position
+            const columnPlaceholders = [];
+
+            // Initialize with empty arrays for each position
+            columns.forEach(columnGroup => {
+                columnPlaceholders[columnGroup.position] = [];
+            });
+
+            // Add child column headers to their appropriate position array
+            columns.forEach((columnGroup, groupIndex) => {
+                columnGroup.columns.forEach((col, colIndex) => {
+                    const $colHeader = $("<th></th>")
+                        .addClass("data-column")
+                        .attr("data-group-index", groupIndex)
+                        .attr("data-position", columnGroup.position)
+                        .attr("data-column-index", colIndex)
+                        .text(col);
+
+                    if (!columnGroup.expanded) {
+                        // If keepFirstVisible is true and this is the first column, don't add hidden class
+                        if (!(columnGroup.keepFirstVisible && colIndex === 0)) {
+                            $colHeader.addClass("hidden collapsed");
+                        }
+                    }
+
+                    columnPlaceholders[columnGroup.position].push($colHeader);
+                });
+            });
+
+            // Append column headers in correct position order
+            columnPlaceholders.forEach(colHeaders => {
+                colHeaders.forEach(header => {
+                    $subHeaderRow.append(header);
+                });
+            });
+
+            $thead.append($subHeaderRow);
+            $table.append($thead);
+
+            // Create table body
+            const $tbody = $("<tbody></tbody>");
+
+            // Create rows recursively for all levels
+            createRowsRecursive($tbody, data, columns, 0, null);
+
+            $table.append($tbody);
+            return $table;
+        }
+
+        // Recursively create rows for multi-level hierarchy
+        function createRowsRecursive($tbody, data, columns, level, parentPath) {
+            for (const rowKey in data) {
+                const rowData = data[rowKey];
+                const rowPath = parentPath ? `${parentPath}-${rowKey}` : rowKey;
+
+                // Create row
+                const $row = $("<tr></tr>").addClass(`level-${level}-row`);
+                if (level > 0) {
+                    $row.addClass("child-row");
+                    if (parentPath) {
+                        $row.attr("data-parent", parentPath);
+                    }
+                } else {
+                    $row.addClass("parent-row");
+                }
+
+                $row.attr("data-row-path", rowPath);
+
+                // Add row header (frozen column)
+                const $rowHeader = $("<td></td>").addClass("frozen-column");
+
+                // Add padding based on level for better hierarchy visualization
+                const $rowContent = $("<div></div>").addClass("row-header").css("padding-left", `${level * 20}px`);
+
+                // Only add toggle icon if has children
+                if (rowData.children) {
+                    $rowContent.append($("<span></span>").addClass("toggle-icon").html('<i class="fas fa-caret-right"></i>'));
+                } else {
+                    $rowContent.append($("<span></span>").css("width", "15px").css("display", "inline-block"));
+                }
+
+                $rowContent.append($("<span></span>").addClass("row-title").text(rowKey));
+
+                $rowHeader.append($rowContent);
+                $row.append($rowHeader);
+
+                // Create placeholders for data cells
+                const cellPlaceholders = [];
+
+                // Initialize with empty arrays for each position
+                columns.forEach(columnGroup => {
+                    cellPlaceholders[columnGroup.position] = [];
+                });
+
+                // Add data cells for each column in correct position arrays
+                columns.forEach((columnGroup, groupIndex) => {
+                    columnGroup.columns.forEach((col, colIndex) => {
+                        const value = rowData.data && rowData.data[col] ? rowData.data[col] : 0;
+                        const $cell = $("<td></td>")
+                            .addClass("data-cell")
+                            .attr("data-group-index", groupIndex)
+                            .attr("data-position", columnGroup.position)
+                            .attr("data-column-index", colIndex)
+                            .text(value);
+
+                        if (!columnGroup.expanded) {
+                            // If keepFirstVisible is true and this is the first column, don't add hidden class
+                            if (!(columnGroup.keepFirstVisible && colIndex === 0)) {
+                                $cell.addClass("hidden collapsed");
+                            }
+                        }
+
+                        cellPlaceholders[columnGroup.position].push($cell);
+                    });
+                });
+
+                // Append cells in correct position order
+                cellPlaceholders.forEach(cells => {
+                    cells.forEach(cell => {
+                        $row.append(cell);
+                    });
+                });
+
+                $tbody.append($row);
+
+                // Recursively add children if any
+                if (rowData.children) {
+                    createRowsRecursive($tbody, rowData.children, columns, level + 1, rowPath);
+                }
+            }
+        }
+
+        // Setup row expand/collapse functionality
+        function setupRowToggle() {
+            $(".row-header").on("click", function () {
+                const $row = $(this).closest("tr");
+                const rowPath = $row.attr("data-row-path");
+
+                // Toggle expanded class
+                $(this).toggleClass("expanded");
+
+                // Find direct children only
+                const $childRows = $(`.child-row[data-parent="${rowPath}"]`);
+                $childRows.toggleClass("visible");
+
+                // If we're collapsing a parent, also hide all deeper descendants
+                if (!$(this).hasClass("expanded")) {
+                    collapseDescendants(rowPath);
+                }
+            });
+        }
+
+        // Recursively collapse all descendants
+        function collapseDescendants(parentPath) {
+            // Get immediate children
+            const $childRows = $(`.child-row[data-parent="${parentPath}"]`);
+
+            $childRows.each(function () {
+                // For each child row, collapse its row-header and hide it
+                $(this).find(".row-header").removeClass("expanded");
+                $(this).removeClass("visible");
+
+                // Recursively collapse its descendants
+                const childPath = $(this).attr("data-row-path");
+                if (childPath) {
+                    collapseDescendants(childPath);
+                }
+            });
+        }
+
+        // Setup column expand/collapse functionality
+        function setupColumnToggle() {
+            $(".column-header").on("click", function () {
+                const $columnGroup = $(this).closest(".column-group");
+                const groupIndex = parseInt($columnGroup.attr("data-group-index"));
+                const position = parseInt($columnGroup.attr("data-position"));
+                const columnGroup = columns[groupIndex];
+
+                // Toggle the expanded state
+                $(this).toggleClass("expanded");
+
+                if ($(this).hasClass("expanded")) {
+                    // Show columns
+                    $(this).find(".toggle-icon").html('<i class="fas fa-caret-down"></i>');
+
+                    // Find all columns and cells with this group index
+                    $(`th.data-column[data-group-index="${groupIndex}"]`).removeClass("hidden collapsed");
+                    $(`td.data-cell[data-group-index="${groupIndex}"]`).removeClass("hidden collapsed");
+
+                    // Update the columns data
+                    columns[groupIndex].expanded = true;
+
+                    // Update colspan
+                    $columnGroup.attr("colspan", columns[groupIndex].columns.length);
+                } else {
+                    // Hide columns except the first one if keepFirstVisible is true
+                    $(this).find(".toggle-icon").html('<i class="fas fa-caret-right"></i>');
+
+                    if (columnGroup.keepFirstVisible) {
+                        // Hide all columns except the first one
+                        $(`th.data-column[data-group-index="${groupIndex}"]:not([data-column-index="0"])`).addClass("hidden collapsed");
+                        $(`td.data-cell[data-group-index="${groupIndex}"]:not([data-column-index="0"])`).addClass("hidden collapsed");
+
+                        // Update colspan to show one column
+                        $columnGroup.attr("colspan", "1");
+                    } else {
+                        // Hide all columns
+                        $(`th.data-column[data-group-index="${groupIndex}"]`).addClass("hidden collapsed");
+                        $(`td.data-cell[data-group-index="${groupIndex}"]`).addClass("hidden collapsed");
+
+                        // Update colspan
+                        $columnGroup.attr("colspan", "1");
+                    }
+
+                    // Update the columns data
+                    columns[groupIndex].expanded = false;
+                }
+            });
+        }
+
+        // Expand all rows
+        function expandAllRows() {
+            $(".row-header").addClass("expanded");
+            $(".child-row").addClass("visible");
+        }
+
+        // Collapse all rows
+        function collapseAllRows() {
+            $(".row-header").removeClass("expanded");
+            $(".child-row").removeClass("visible");
+        }
+
+        // Expand all columns
+        function expandAllColumns() {
+            columns.forEach((columnGroup, groupIndex) => {
+                columnGroup.expanded = true;
+
+                // Update the UI
+                $(`.column-group[data-group-index="${groupIndex}"] .column-header`).addClass("expanded");
+                $(`.column-group[data-group-index="${groupIndex}"] .toggle-icon`).html('<i class="fas fa-caret-down"></i>');
+                $(`.column-group[data-group-index="${groupIndex}"]`).attr("colspan", columnGroup.columns.length);
+
+                // Show all columns and cells in this group
+                $(`th.data-column[data-group-index="${groupIndex}"]`).removeClass("hidden collapsed");
+                $(`td.data-cell[data-group-index="${groupIndex}"]`).removeClass("hidden collapsed");
+            });
+        }
+
+        // Collapse all columns
+        function collapseAllColumns() {
+            columns.forEach((columnGroup, groupIndex) => {
+                columnGroup.expanded = false;
+
+                // Update the UI
+                $(`.column-group[data-group-index="${groupIndex}"] .column-header`).removeClass("expanded");
+                $(`.column-group[data-group-index="${groupIndex}"] .toggle-icon`).html('<i class="fas fa-caret-right"></i>');
+
+                if (columnGroup.keepFirstVisible) {
+                    // Hide all columns except the first one
+                    $(`th.data-column[data-group-index="${groupIndex}"]:not([data-column-index="0"])`).addClass("hidden collapsed");
+                    $(`td.data-cell[data-group-index="${groupIndex}"]:not([data-column-index="0"])`).addClass("hidden collapsed");
+
+                    // Keep the first column visible
+                    $(`th.data-column[data-group-index="${groupIndex}"][data-column-index="0"]`).removeClass("hidden collapsed");
+                    $(`td.data-cell[data-group-index="${groupIndex}"][data-column-index="0"]`).removeClass("hidden collapsed");
+
+                    // Update colspan to show one column
+                    $(`.column-group[data-group-index="${groupIndex}"]`).attr("colspan", "1");
+                } else {
+                    // Hide all columns
+                    $(`th.data-column[data-group-index="${groupIndex}"]`).addClass("hidden collapsed");
+                    $(`td.data-cell[data-group-index="${groupIndex}"]`).addClass("hidden collapsed");
+
+                    // Update colspan
+                    $(`.column-group[data-group-index="${groupIndex}"]`).attr("colspan", "1");
+                }
+            });
+        }
+    });
+</script>
+
+
+
+
+
+
