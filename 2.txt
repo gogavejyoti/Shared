@@ -1,23 +1,24 @@
-Request for ChatGPT Enterprise License for Web App AI Integration and Analysis
+group.columns.forEach((col, colIndex) => {
+    const cell = document.createElement("td");
+    const value = rowData.data?.[col] ?? "";
+    const target = rowData.target?.[col];
 
-I hope this message finds you well.
+    cell.textContent = value;
 
-I would like to formally request the purchase of a ChatGPT license (preferably ChatGPT Enterprise or Team plan) to support ongoing and future development work related to AI integration in our web applications. My primary objective is to leverage ChatGPT’s capabilities for:
+    if (!group.expanded && colIndex !== 0) {
+        cell.classList.add("hidden");
+    }
 
-Web Application Integration:
-Embedding intelligent features such as natural language summarization, automated insights, and conversational assistants within our existing or upcoming platforms.
+    // Apply per-row color coding based on its own target
+    if (typeof value === "number" && typeof target === "number") {
+        if (value >= target) {
+            cell.style.backgroundColor = "#d4edda"; // green for met target
+            cell.style.color = "#155724";
+        } else {
+            cell.style.backgroundColor = "#f8d7da"; // red for below target
+            cell.style.color = "#721c24";
+        }
+    }
 
-API Access:
-Required for programmatic access to the GPT models for use in backend automation, smart form processing, and report generation workflows.
-
-User Access:
-To explore and interactively test AI capabilities, conduct prompt engineering, and use ChatGPT directly for business queries and knowledge work.
-
-Ad-Hoc Report Analysis and Summarization:
-To support analysis of random or unstructured datasets and provide business insights, summarizations, and predictions where applicable.
-
-I believe this tool will greatly enhance our ability to build AI-enabled solutions, improve productivity, and uncover deeper insights from our data and application logic. The license I am proposing includes both the web-based ChatGPT user interface and API access, which will allow us to experiment and deploy AI solutions flexibly across various use cases.
-
-Please let me know if you need a detailed justification, pricing options, or vendor information. I can also assist in coordinating with OpenAI’s sales team if needed.
-
-Looking forward to your approval.
+    tr.appendChild(cell);
+});
