@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Resource Dashboard</title>
+
+    <!-- Bootstrap for a clean UI -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+
+    <!-- LuckySheet styles -->
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet/dist/plugins/css/pluginsCss.css' />
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet/dist/plugins/plugins.css' />
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet/dist/css/luckysheet.css' />
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet/dist/assets/iconfont/iconfont.css' />
+    <link href="~/expendplugins/chart/chartmix.css" rel="stylesheet" />
+    <style>
+        html, body {
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7fa;
+        }
+
+        #main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .split {
+            overflow: hidden;
+        }
+
+        #dashboard-container {
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .gutter {
+            background-color: #e9ecef;
+            background-repeat: no-repeat;
+            background-position: 50%;
+        }
+
+            .gutter.gutter-vertical {
+                background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
+                cursor: row-resize;
+            }
+
+        .chart-card, .kpi-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            height: 100%;
+        }
+
+        .kpi-title {
+            font-size: 0.9em;
+            color: #6c757d;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .kpi-value {
+            font-size: 2.5em;
+            font-weight: 300;
+            color: #212529;
+        }
+
+        .chart-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .kpi-delta-negative {
+            color: #d9534f;
+        }
+
+        .kpi-delta-positive {
+            color: #28a745;
+        }
+
+        .chart-container {
+            height: 220px;
+        }
+        .luckysheet-share-logo{
+            display:none;
+        }
+
+        .luckysheet_info_detail_update {
+            display:none;
+        }
+
+        .luckysheet_info_detail_save {
+            display: none;
+        }
+        .luckysheet_info_detail_back{
+            display: none;
+        }
+
+        .luckysheet_info_detail {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <div id="dashboard-container" class="split">
+            <div class="container-fluid">
+                <!-- KPI Card Titles updated to show Averages -->
+                <div class="row gy-4 mb-4">
+                    <div class="col-xl-3 col-md-6"><div class="kpi-card text-center"><div class="kpi-title">Avg Weekly FTE Required</div><div class="kpi-value" id="kpi-required">0</div></div></div>
+                    <div class="col-xl-3 col-md-6"><div class="kpi-card text-center"><div class="kpi-title">Avg Weekly FTE Available</div><div class="kpi-value" id="kpi-available">0</div></div></div>
+                    <div class="col-xl-3 col-md-6"><div class="kpi-card text-center"><div class="kpi-title">Avg Weekly FTE Delta</div><div class="kpi-value" id="kpi-delta">0</div></div></div>
+                    <div class="col-xl-3 col-md-6"><div class="kpi-card text-center"><div class="kpi-title">Overall Staffing %</div><div class="kpi-value" id="kpi-staffing">0%</div></div></div>
+                </div>
+                <div class="row gy-4">
+                    <div class="col-lg-7"><div class="chart-card"><div class="chart-title">Weekly Headcount Breakdown (All Programs)</div><div class="chart-container"><canvas id="weekly-breakdown-chart"></canvas></div></div></div>
+                    <div class="col-lg-5"><div class="chart-card"><div class="chart-title">Delta & Staffing % by Program</div><div class="chart-container"><canvas id="program-comparison-chart"></canvas></div></div></div>
+                </div>
+            </div>
+        </div>
+        <div id="luckysheet-container" class="split"></div>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luckysheet/dist/plugins/js/plugin.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luckysheet/dist/luckysheet.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="~/expendplugins/chart/chartmix.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
+@*     <script src="~/expendplugins/exportxlsx/plugin.js"></script> *@
+    <script>
+        $(function () {
+            let weeklyChart, programChart;
+            const COLORS = { required: 'rgba(255, 99, 132, 0.7)', production: '#36A2EB', training: '#FFCE56', nesting: '#4BC0C0', transition: '#9966FF', delta: 'rgba(75, 192, 192, 0.6)', staffing: 'rgba(255, 159, 64, 1)' };
+
+            function debounce(func, delay) {
+                let timeout;
+                return function (...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), delay); };
+            }
+
+            function initializeCharts() {
+                const weeklyCtx = document.getElementById("weekly-breakdown-chart").getContext("2d");
+                weeklyChart = new Chart(weeklyCtx, { type: "bar", data: { labels: [], datasets: [{ label: "Production", data: [], backgroundColor: COLORS.production }, { label: "Training", data: [], backgroundColor: COLORS.training }, { label: "Nesting", data: [], backgroundColor: COLORS.nesting }, { label: "Transition", data: [], backgroundColor: COLORS.transition }, { type: "line", label: "Required", data: [], borderColor: COLORS.required, fill: false, tension: .2 }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }, plugins: { legend: { position: "bottom" } } } });
+                const programCtx = document.getElementById("program-comparison-chart").getContext("2d");
+                programChart = new Chart(programCtx, { type: "bar", data: { labels: [], datasets: [{ label: "FTE Delta", data: [], backgroundColor: COLORS.delta, yAxisID: "y" }, { type: "line", label: "Staffing %", data: [], borderColor: COLORS.staffing, yAxisID: "y1", fill: false }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, scales: { y: { type: "linear", position: "left", title: { display: true, text: "FTE Delta" } }, y1: { type: "linear", position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Staffing %" }, ticks: { callback: value => value + "%" } } }, plugins: { legend: { position: "bottom" } } } });
+            }
+
+            function getCellValueFromSheet(row, col, sheet) {
+                const cell = sheet.data?.[row]?.[col];
+                return cell?.v ?? (cell?.m ?? null);
+            }
+
+            function updateDashboard() {
+                const allSheetsData = luckysheet.getLuckysheetfile();
+                if (!allSheetsData) return;
+                const dataSheets = allSheetsData.filter(sheet => sheet.name.startsWith("R1 "));
+                if (dataSheets.length === 0) return;
+
+                let totalRequired = 0, totalAvailable = 0;
+                let weeklyData = { production: [], training: [], nesting: [], transition: [], required: [] };
+                let programData = {};
+                dataSheets.forEach(sheet => { programData[sheet.name] = { required: 0, available: 0 }; });
+
+                // *** MODIFIED ***: Increased length from 5 to 9 to match new data. Reads from row 1 for "WK ST".
+                const numWeeks = 9;
+                const weekLabels = Array.from({ length: numWeeks }, (_, i) => getCellValueFromSheet(1, i + 2, dataSheets[0]));
+
+                for (let weekIndex = 0; weekIndex < numWeeks; weekIndex++) {
+                    const col = 2 + weekIndex;
+                    let weeklyRequired = 0, weeklyProd = 0, weeklyTrain = 0, weeklyNest = 0, weeklyTrans = 0, weeklyAL = 0;
+
+                    dataSheets.forEach((sheet) => {
+                        // *** MODIFIED ***: Row indices updated to match the new, more detailed sheet layout.
+                        const fteRequired = parseFloat(getCellValueFromSheet(5, col, sheet)) || 0;  // Was 6
+                        const prodHc = parseFloat(getCellValueFromSheet(12, col, sheet)) || 0; // Was 13
+                        const trainHc = parseFloat(getCellValueFromSheet(13, col, sheet)) || 0; // Was 14
+                        const alHc = parseFloat(getCellValueFromSheet(14, col, sheet)) || 0; // Was 15
+                        const nestHc = parseFloat(getCellValueFromSheet(15, col, sheet)) || 0; // Was 16
+                        const transHc = parseFloat(getCellValueFromSheet(16, col, sheet)) || 0; // Was 17
+
+                        const fteAvailable = prodHc + trainHc + nestHc + transHc - alHc;
+
+                        weeklyRequired += fteRequired;
+                        weeklyProd += prodHc;
+                        weeklyTrain += trainHc;
+                        weeklyNest += nestHc;
+                        weeklyTrans += transHc;
+                        weeklyAL += alHc;
+
+                        programData[sheet.name].required += fteRequired;
+                        programData[sheet.name].available += fteAvailable;
+                    });
+
+                    weeklyData.required.push(weeklyRequired);
+                    weeklyData.production.push(weeklyProd);
+                    weeklyData.training.push(weeklyTrain);
+                    weeklyData.nesting.push(weeklyNest);
+                    weeklyData.transition.push(weeklyTrans);
+
+                    totalRequired += weeklyRequired;
+                    totalAvailable += (weeklyProd + weeklyTrain + weeklyNest + weeklyTrans - weeklyAL);
+                }
+
+                const activeWeeks = weekLabels.filter(l => l).length || 1;
+                const avgRequired = totalRequired / activeWeeks;
+                const avgAvailable = totalAvailable / activeWeeks;
+                const avgDelta = avgAvailable - avgRequired;
+                const overallStaffing = totalRequired > 0 ? (totalAvailable / totalRequired) * 100 : 0;
+
+                $("#kpi-required").text(Math.round(avgRequired).toLocaleString());
+                $("#kpi-available").text(Math.round(avgAvailable).toLocaleString());
+                $("#kpi-delta").text(Math.round(avgDelta).toLocaleString()).removeClass("kpi-delta-negative kpi-delta-positive").addClass(avgDelta < 0 ? "kpi-delta-negative" : "kpi-delta-positive");
+                $("#kpi-staffing").text(overallStaffing.toFixed(1) + "%");
+
+                weeklyChart.data.labels = weekLabels;
+                weeklyChart.data.datasets[0].data = weeklyData.production;
+                weeklyChart.data.datasets[1].data = weeklyData.training;
+                weeklyChart.data.datasets[2].data = weeklyData.nesting;
+                weeklyChart.data.datasets[3].data = weeklyData.transition;
+                weeklyChart.data.datasets[4].data = weeklyData.required;
+                weeklyChart.update();
+
+                programChart.data.labels = Object.keys(programData);
+                programChart.data.datasets[0].data = Object.values(programData).map(p => p.available - p.required);
+                programChart.data.datasets[1].data = Object.values(programData).map(p => p.required > 0 ? (p.available / p.required) * 100 : 0);
+                programChart.update();
+            }
+
+            // *** REBUILT ***: This function is completely rebuilt to generate the new detailed sheet format.
+            function getWorkbookData() {
+                const a = (r, c, v, style = {}) => ({ r, c, v: { ...style, v, m: String(v) } });
+                const b = (r, c, f, v, style = {}) => ({ r, c, v: { ...style, f, v, m: String(v) } });
+                const styles = { header: { bl: 1, fc: "#ffffff", ht: "1", bg: "#4a4a4a" }, sectionHeader: { bl: 1, fc: "#000", bg: "#dcedc8", ht: "1" }, rowHeader: { bl: 1, fc: "#000", bg: "#e0f7fa", ht: "1" }, bold: { bl: 1 }, percent: { ct: { fa: "0.0%", t: "p" } }, num_pct: { ct: { fa: "0.00%", t: "p" } }, num_dec: { ct: { fa: "0.00", t: "n" } }, negParen: { ct: { fa: "#,##0;(#,##0)", t: "n" } } };
+                const staticRowDefs = [
+                    { r: 3, v: "FTE LOCK" }, { r: 4, v: "HOURS LOCK" }, { r: 5, v: "FTE Required wth Shrinkage (Lock Hours)" }, { r: 6, v: "FTE Available" }, { r: 7, v: "FTE (Delta Client Required)" }, { r: 9, v: "Staffing % Client Req" }, { r: 11, v: "Overall HC available" }, { r: 12, v: "Production HC Available" }, { r: 13, v: "Training HC" }, { r: 14, v: "AL HC" }, { r: 15, v: "Nesting HC" }, { r: 16, v: "Transition HC" }, { r: 18, v: "Tenured HC Available 30+ Day %" },
+                    { r: 20, v: "Shrinkage & Attrition", style: styles.sectionHeader }, { r: 21, v: "Shrinkage Out of Office" }, { r: 22, v: "Shrinkage In-Office" }, { r: 23, v: "Working Hrs / Day" }, { r: 24, v: "Working Days / WK" }, { r: 25, v: "Attrition - Production" }, { r: 26, v: "Attrition - Training" },
+                    { r: 28, v: "Movement", style: styles.sectionHeader }, { r: 29, v: "Movement Out - Attrition" }, { r: 30, v: "Movement In - From Other LOB" },
+                    { r: 32, v: "Required Staff", style: styles.sectionHeader }, { r: 33, v: "Team Manager - Production" }, { r: 34, v: "Team Coordinator" }, { r: 35, v: "Trainer" }, { r: 36, v: "Quality" }
+                ];
+
+                const r1_lotus_data = [{ wk: "29-Jun-25", fl: 118, hl: 4219, fr: 115, ph: 127, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.20%", at: "3.00%", moa: 1, mil: 17, r_tm: 15, r_tc: 15, r_tr: 40, r_q: 30 }, { wk: "06-Jul-25", fl: 118, hl: 4219, fr: 115, ph: 129, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.20%", at: "3.00%", moa: 2, mil: 3, r_tm: 8, r_tc: 8, r_tr: 3, r_q: 4 }, { wk: "13-Jul-25", fl: 118, hl: 4219, fr: 115, ph: 127, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.20%", at: "3.00%", moa: 0, mil: 0, r_tm: 9, r_tc: 9, r_tr: 3, r_q: 4 }, { wk: "20-Jul-25", fl: 118, hl: 4215, fr: 115, ph: 126, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.20%", at: "3.00%", moa: 0, mil: 0, r_tm: 8, r_tc: 8, r_tr: 3, r_q: 4 }, { wk: "27-Jul-25", fl: 118, hl: 4215, fr: 115, ph: 124, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.20%", at: "3.00%", moa: 0, mil: 0, r_tm: 8, r_tc: 8, r_tr: 3, r_q: 4 }, { wk: "03-Aug-25", fl: 136, hl: 4882, fr: 134, ph: 148, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.50%", at: "3.00%", moa: 0, mil: 25, r_tm: 10, r_tc: 10, r_tr: 4, r_q: 5 }, { wk: "10-Aug-25", fl: 136, hl: 4882, fr: 134, ph: 146, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.50%", at: "3.00%", moa: 0, mil: 0, r_tm: 10, r_tc: 10, r_tr: 4, r_q: 5 }, { wk: "17-Aug-25", fl: 136, hl: 4882, fr: 134, ph: 144, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.50%", at: "3.00%", moa: 0, mil: 0, r_tm: 10, r_tc: 10, r_tr: 4, r_q: 5 }, { wk: "24-Aug-25", fl: 136, hl: 4882, fr: 134, ph: 141, th: 0, ah: 0, nh: 0, trh: 0, tp: "100%", so: "14%", si: "8%", wh: 8.5, wd: 5, ap: "1.50%", at: "3.00%", moa: 0, mil: 0, r_tm: 9, r_tc: 9, r_tr: 4, r_q: 5 }];
+                const r1_english_data = JSON.parse(JSON.stringify(r1_lotus_data)).map(d => { d.fl = Math.round(d.fl * 1.5); d.hl = Math.round(d.hl * 1.5); d.fr = Math.round(d.fr * 1.5); d.ph = Math.round(d.ph * 1.5); d.mil = Math.round(d.mil * 1.5); return d; });
+                const r1_spanish_data = JSON.parse(JSON.stringify(r1_lotus_data)).map(d => { d.fl = Math.round(d.fl * 0.4); d.hl = Math.round(d.hl * 0.4); d.fr = Math.round(d.fr * 0.4); d.ph = Math.round(d.ph * 0.4); d.mil = Math.round(d.mil * 0.4); return d; });
+                const lobSheetNames = ["R1 English", "R1 Lotus", "R1 Spanish"];
+
+                const makeLOBSheet = (name, color, data) => {
+                    const celldata = [], merge = { "0_0": { r: 0, c: 0, rs: 1, cs: 12 }, "20_1": { r: 20, c: 1, rs: 1, cs: 11 }, "28_1": { r: 28, c: 1, rs: 1, cs: 11 }, "32_1": { r: 32, c: 1, rs: 1, cs: 11 } };
+                    staticRowDefs.forEach(row => celldata.push(a(row.r, 1, row.v, row.style ? row.style : styles.rowHeader)));
+                    celldata.push(a(0, 0, name));
+                    celldata.push(a(1, 1, "WK ST", styles.header));
+                    celldata.push(a(2, 1, "WK ED", styles.header));
+                    data.forEach((e, i) => {
+                        const col = i + 2, cL = String.fromCharCode(65 + col);
+                        celldata.push(a(1, col, e.wk, styles.header), a(2, col, e.wk, styles.header),
+                            a(3, col, e.fl), a(4, col, e.hl), a(5, col, e.fr),
+                            b(6, col, `=${cL}12-${cL}15`, e.ph - e.ah), b(7, col, `=${cL}7-${cL}6`, (e.ph - e.ah) - e.fr),
+                            b(9, col, `IFERROR(${cL}7/${cL}6,0)`, ((e.ph - e.ah) / e.fr), styles.percent),
+                            b(11, col, `=SUM(${cL}13:${cL}17)`, e.ph + e.th + e.nh + e.trh), a(12, col, e.ph), a(13, col, e.th), a(14, col, e.ah), a(15, col, e.nh), a(16, col, e.trh),
+                            a(18, col, e.tp, styles.percent),
+                            a(21, col, e.so, styles.num_pct), a(22, col, e.si, styles.num_pct), a(23, col, e.wh, styles.num_dec), a(24, col, e.wd), a(25, col, e.ap, styles.num_pct), a(26, col, e.at, styles.num_pct),
+                            a(29, col, e.moa), a(30, col, e.mil),
+                            a(33, col, e.r_tm), a(34, col, e.r_tc), a(35, col, e.r_tr), a(36, col, e.r_q));
+                    });
+                    return { name, color, status: 0, celldata, frozen: { type: "rowscols", value: { row_focus: 3, col_focus: 2 } }, config: { merge, columnlen: { 0: 30, 1: 250 } } };
+                };
+
+                const lobSheets = [
+                    makeLOBSheet("R1 English", "#4CAF50", r1_english_data),
+                    makeLOBSheet("R1 Lotus", "#2196F3", r1_lotus_data),
+                    makeLOBSheet("R1 Spanish", "#FFC107", r1_spanish_data)
+                ];
+
+                // This function remains largely the same but would need updating if its calculations were more complex.
+                // For now, it correctly sums the base numbers from the more detailed sheets.
+                const makeSummarySheet = (name, color, active = false, isMonthly = false) => {
+                    const celldata = [], merge = { "0_0": { r: 0, c: 0, rs: 1, cs: 12 }, "20_1": { r: 20, c: 1, rs: 1, cs: 11 }, "28_1": { r: 28, c: 1, rs: 1, cs: 11 }, "32_1": { r: 32, c: 1, rs: 1, cs: 11 } };
+                    staticRowDefs.forEach(row => celldata.push(a(row.r, 1, row.v, row.style ? row.style : styles.rowHeader)));
+                    celldata.push(a(0, 0, name));
+                    celldata.push(a(1, 1, "WK ST", styles.header));
+                    celldata.push(a(2, 1, "WK ED", styles.header));
+
+                    const rowsToSum = [3, 4, 5, 12, 13, 14, 15, 16, 29, 30, 33, 34, 35, 36]; // Key input rows to aggregate
+                    const numCols = isMonthly ? 3 : r1_lotus_data.length;
+                    const monthHeaders = ["June", "July", "August"];
+
+                    for (let i = 0; i < numCols; i++) {
+                        const col = i + 2, cL = String.fromCharCode(65 + col);
+                        const wk = r1_lotus_data[i]?.wk;
+                        if (!isMonthly) {
+                            celldata.push(a(1, col, wk, styles.header), a(2, col, wk, styles.header));
+                        } else {
+                            celldata.push(a(2, col, monthHeaders[i], styles.header));
+                        }
+
+                        // Calculated Rows
+                        const fteAvailFormula = isMonthly ? "" : `=SUM(${cL}13:${cL}17)-${cL}15`; // Can't easily sum months for this
+                        celldata.push(b(6, col, fteAvailFormula, null));
+                        celldata.push(b(9, col, `IFERROR(${cL}7/${cL}6,0)`, null, styles.percent));
+                        celldata.push(b(11, col, `=SUM(${cL}13:${cL}17)`, null));
+
+                        // Summed Rows
+                        rowsToSum.forEach(r => {
+                            const sumFormula = lobSheetNames.map(s => `'${s}'!${cL}${r + 1}`).join('+');
+                            celldata.push(b(r, col, `=${sumFormula}`, null));
+                        });
+                    }
+                    return { name, color, status: active ? 1 : 0, celldata, frozen: { type: "rowscols", value: { row_focus: 3, col_focus: 2 } }, config: { merge, columnlen: { 0: 30, 1: 250 } } };
+                };
+
+                return [
+                    makeSummarySheet("Monthly Summary", "#795548", false, true), // Monthly summary is complex, simplified for now.
+                    makeSummarySheet("Weekly Summary", "#9c27b0", true, false),
+                    ...lobSheets
+                ];
+            }
+
+            // --- Final Initialization ---
+            Split(['#dashboard-container', '#luckysheet-container'], {
+                direction: 'vertical',
+                sizes: [55, 45],
+                minSize: [200, 150],
+                gutterSize: 10,
+                cursor: 'row-resize',
+                onDragEnd: function () { luckysheet.resize(); if (weeklyChart) { weeklyChart.resize(); programChart.resize(); } }
+            });
+
+            initializeCharts();
+            const debouncedDashboardUpdate = debounce(updateDashboard, 250);
+
+            luckysheet.create({
+                container: 'luckysheet-container',
+                title: 'Resource Planner Details',
+                lang: 'en',
+                plugins: ['chart'],
+                allowExport: true, // Enable export functionality
+                toolbar: {
+                    items: [
+                        'undo', 'redo', 'format', 'exportXlsx', // Add exportXlsx to toolbar
+                        // Other toolbar items
+                    ]
+                },
+                data: getWorkbookData(),
+                showtoolbar: true, showinfobar: true, showsheetbar: true,
+                hook: {
+                    updated: function (operate) {
+                        debouncedDashboardUpdate();
+                    },
+                    workbookCreateAfter: function () {
+                        setTimeout(() => {
+            
+                             const sheets = luckysheet.getAllSheets();
+                            sheets.forEach((sheet,index) => {
+                            luckysheet.setSheetActive(index);
+                            const formulaCells = sheet.celldata?.filter(cell => cell.v?.f);
+                            formulaCells?.forEach(cell => {
+                                const { r, c, v } = cell;
+                                luckysheet.setCellValue(r, c, {
+                                    f: v.f
+                                }, index);
+                            });
+                        });
+                            luckysheet.refreshFormula();
+                            updateDashboard();
+                        }, 100);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
