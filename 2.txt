@@ -1,4 +1,13 @@
 https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
+case 'export-excel': this.exportToExcel(); break;
+
+<div class="table-controls">
+  <button data-action="expand-cols">Expand All Columns</button>
+  <button data-action="collapse-cols">Collapse All Columns</button>
+  <button data-action="expand-rows">Expand All Rows</button>
+  <button data-action="collapse-rows">Collapse All Rows</button>
+  <button data-action="export-excel">Export to Excel</button> <!-- ✅ New -->
+</div>
 
 exportToExcel() {
     const table = this.container.find("table")[0];
