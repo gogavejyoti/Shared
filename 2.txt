@@ -1,24 +1,46 @@
-group.columns.forEach((col, colIndex) => {
-    const cell = document.createElement("td");
-    const value = rowData.data?.[col] ?? "";
-    const target = rowData.target?.[col];
+exportToExcel() {
+    const table = this.container.find("table")[0];
 
-    cell.textContent = value;
+    // Use SheetJS to convert HTML table to worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.table_to_sheet(table, {
+        raw: true
+    });
 
-    if (!group.expanded && colIndex !== 0) {
-        cell.classList.add("hidden");
-    }
+    // Apply formatting (background color from cell styles)
+    const tableRows = table.rows;
+    for (let r = 0; r < tableRows.length; r++) {
+        const row = tableRows[r];
+        for (let c = 0; c < row.cells.length; c++) {
+            const td = row.cells[c];
+            const cellAddress = XLSX.utils.encode_cell({ r, c });
 
-    // Apply per-row color coding based on its own target
-    if (typeof value === "number" && typeof target === "number") {
-        if (value >= target) {
-            cell.style.backgroundColor = "#d4edda"; // green for met target
-            cell.style.color = "#155724";
-        } else {
-            cell.style.backgroundColor = "#f8d7da"; // red for below target
-            cell.style.color = "#721c24";
+            // Initialize cell object
+            if (!ws[cellAddress]) continue;
+
+            const bgColor = window.getComputedStyle(td).backgroundColor;
+            const fontColor = window.getComputedStyle(td).color;
+
+            const rgbToHex = (rgb) => {
+                const match = rgb.match(/\d+/g);
+                if (!match) return null;
+                return match.slice(0, 3).map(x => {
+                    const hex = parseInt(x).toString(16);
+                    return hex.length === 1 ? '0' + hex : hex;
+                }).join('').toUpperCase();
+            };
+
+            const bgHex = rgbToHex(bgColor);
+            const fontHex = rgbToHex(fontColor);
+
+            // Assign style to the worksheet cell
+            ws[cellAddress].s = {
+                fill: bgHex ? { fgColor: { rgb: bgHex } } : undefined,
+                font: fontHex ? { color: { rgb: fontHex } } : undefined
+            };
         }
     }
 
-    tr.appendChild(cell);
-});
+    // Enable styles support
+    XLSX.writeFile(wb, "DynamicTableExport.xlsx", { cellStyles: true });
+}
