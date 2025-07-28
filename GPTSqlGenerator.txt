@@ -4,59 +4,93 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 
-public class GPTSqlGenerator
+public class GptSqlGenerator
 {
-    private static readonly string apiKey = "YOUR_OPENAI_API_KEY"; // or Azure key
+    private static readonly string apiKey = "YOUR_OPENAI_API_KEY"; // or Azure API key
     private static readonly string endpoint = "https://api.openai.com/v1/chat/completions"; // or Azure endpoint
-    private static readonly string model = "gpt-4"; // or "gpt-35-turbo" for Azure
+    private static readonly string model = "gpt-4"; // Or Azure deployment name like "gpt-4"
 
     public static async Task<string> GenerateSqlAsync(string userPrompt)
     {
         using var client = new HttpClient();
-
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-        var requestBody = new
+        var systemPrompt = @"You are an AI-powered SQL generator that translates natural language queries into valid Microsoft SQL Server SELECT queries.
+
+You must follow these strict instructions:
+- Only generate SELECT queries. Never write INSERT, UPDATE, DELETE, or DDL statements.
+- Use only the table: uvwVerticalSnapshotData.
+- Always include EndWeek filtering unless the query is for month-level data.
+- Always apply aggregation.
+- Use correct GROUP BY for all non-aggregated fields.
+- Always include `FORMAT(EndWeek, 'dd-MMM-yy') AS EndWeek` in output.
+- For monthly aggregation, include `FORMAT(EndWeek, 'MMM-yy') AS YearMonth`, and add `YEAR(EndWeek) AS DateYearFilter`, `MONTH(EndWeek) AS DateMonthFilter` in subqueries for sorting.
+- If no date is mentioned, apply `EndWeek = (SELECT MAX(EndWeek) FROM uvwVerticalSnapshotData WHERE <filters>)`.
+- If IsMonthlyVersion = 1 is required, include it when month/quarter/year is mentioned.
+- Use AVG for % metrics, SUM for FTE values in weekly; SUM(inner) + AVG(outer) for monthly.
+- Use CASE WHEN to avoid divide-by-zero for derived fields.
+- Use AccountType = 0 when calculating OTF, OTH, HTF, HTS, HTO.
+- Use HAVING clause for outlier checks (over/under targets).
+- Handle all synonyms like: 'deficit' = negative delta, 'under target' = value < target.
+- Return a JSON output like:
+  {
+    ""IsError"": false,
+    ""SQLQuery"": ""..."",
+    ""message"": """"
+  }";
+
+        var fewShotExamples = new[]
+        {
+            new {
+                role = "user",
+                content = "Show me Shrinkage for all accounts"
+            },
+            new {
+                role = "assistant",
+                content = @"{
+  ""IsError"": false,
+  ""SQLQuery"": ""SELECT EndWeek AS DateWeekFilter, FORMAT(EndWeek, 'dd-MMM-yy') AS EndWeek, Account, AVG(CASE WHEN FTEAvailable = 0 THEN NULL ELSE ShrinkagePercentage * FTEAvailable / FTEAvailable END) AS ShrinkagePercentage FROM uvwVerticalSnapshotData WHERE EndWeek = (SELECT MAX(EndWeek) FROM uvwVerticalSnapshotData) GROUP BY EndWeek, Account ORDER BY DateWeekFilter"",
+  ""message"": """"
+}"
+            },
+            new {
+                role = "user",
+                content = "Show me Attrition by Geo 'US'"
+            },
+            new {
+                role = "assistant",
+                content = @"{
+  ""IsError"": false,
+  ""SQLQuery"": ""SELECT EndWeek AS DateWeekFilter, FORMAT(EndWeek, 'dd-MMM-yy') AS EndWeek, Geo, AVG(CASE WHEN FTEAvailable = 0 THEN NULL ELSE AttritionPercentage * FTEAvailable / FTEAvailable END) AS AttritionPercentage FROM uvwVerticalSnapshotData WHERE Geo = 'US' AND EndWeek = (SELECT MAX(EndWeek) FROM uvwVerticalSnapshotData WHERE Geo = 'US') GROUP BY EndWeek, Geo ORDER BY DateWeekFilter"",
+  ""message"": """"
+}"
+            },
+            new {
+                role = "user",
+                content = userPrompt
+            }
+        };
+
+        var request = new
         {
             model = model,
-            messages = new[]
+            messages = new object[]
             {
-                new { role = "system", content = "You are an AI-powered SQL generator that translates natural language queries into valid Microsoft SQL Server SELECT queries. Follow all rules strictly." },
-                new { role = "user", content = "Please generate a SELECT query based on the following natural language prompt:" },
-                new { role = "user", content = userPrompt },
-                new { role = "user", content = @"The table to use is 'uvwVerticalSnapshotData'.
-
-Important Rules:
-1. Only generate SELECT queries.
-2. Always apply aggregation.
-3. Always include EndWeek filter unless Month filter is explicitly provided.
-4. Always use MAX(EndWeek) subquery with propagated filters when no date range is specified.
-5. Use correct GROUP BY and aggregate logic for SELECT.
-6. Always include FORMAT(EndWeek, 'dd-MMM-yy') AS EndWeek in output.
-7. For monthly aggregation, use FORMAT(EndWeek, 'MMM-yy') AS YearMonth and include YEAR(EndWeek) and MONTH(EndWeek) in subquery for sorting.
-8. Shrinkage and Attrition calculations: (Field * FTEAvailable) / FTEAvailable.
-9. OTF, OTH, HTF, HTS, HTO use CASE WHEN to avoid divide-by-zero errors.
-10. Use short forms: OTH, OTF, HTO, HTS, HTF when applicable.
-11. Use AccountType=0 when generating query for OTF/OTH/HTF/HTS/HTO.
-12. Use HAVING clause for under/over target logic.
-13. Ensure query returns JSON like:
-{
-  ""IsError"": false,
-  ""SQLQuery"": ""..."",
-  ""message"": """"
-}
-If error occurs, set IsError=true and include an error message." }
+                new { role = "system", content = systemPrompt },
+                fewShotExamples[0],
+                fewShotExamples[1],
+                fewShotExamples[2],
+                fewShotExamples[3],
+                fewShotExamples[4]
             },
-            temperature = 0,
+            temperature = 0.0,
             max_tokens = 1500
         };
 
-        var json = System.Text.Json.JsonSerializer.Serialize(requestBody);
+        var json = System.Text.Json.JsonSerializer.Serialize(request);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         var response = await client.PostAsync(endpoint, content);
-        var responseString = await response.Content.ReadAsStringAsync();
-
-        return responseString;
+        return await response.Content.ReadAsStringAsync();
     }
 }
