@@ -1,0 +1,62 @@
+using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading.Tasks;
+
+public class GPTSqlGenerator
+{
+    private static readonly string apiKey = "YOUR_OPENAI_API_KEY"; // or Azure key
+    private static readonly string endpoint = "https://api.openai.com/v1/chat/completions"; // or Azure endpoint
+    private static readonly string model = "gpt-4"; // or "gpt-35-turbo" for Azure
+
+    public static async Task<string> GenerateSqlAsync(string userPrompt)
+    {
+        using var client = new HttpClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        var requestBody = new
+        {
+            model = model,
+            messages = new[]
+            {
+                new { role = "system", content = "You are an AI-powered SQL generator that translates natural language queries into valid Microsoft SQL Server SELECT queries. Follow all rules strictly." },
+                new { role = "user", content = "Please generate a SELECT query based on the following natural language prompt:" },
+                new { role = "user", content = userPrompt },
+                new { role = "user", content = @"The table to use is 'uvwVerticalSnapshotData'.
+
+Important Rules:
+1. Only generate SELECT queries.
+2. Always apply aggregation.
+3. Always include EndWeek filter unless Month filter is explicitly provided.
+4. Always use MAX(EndWeek) subquery with propagated filters when no date range is specified.
+5. Use correct GROUP BY and aggregate logic for SELECT.
+6. Always include FORMAT(EndWeek, 'dd-MMM-yy') AS EndWeek in output.
+7. For monthly aggregation, use FORMAT(EndWeek, 'MMM-yy') AS YearMonth and include YEAR(EndWeek) and MONTH(EndWeek) in subquery for sorting.
+8. Shrinkage and Attrition calculations: (Field * FTEAvailable) / FTEAvailable.
+9. OTF, OTH, HTF, HTS, HTO use CASE WHEN to avoid divide-by-zero errors.
+10. Use short forms: OTH, OTF, HTO, HTS, HTF when applicable.
+11. Use AccountType=0 when generating query for OTF/OTH/HTF/HTS/HTO.
+12. Use HAVING clause for under/over target logic.
+13. Ensure query returns JSON like:
+{
+  ""IsError"": false,
+  ""SQLQuery"": ""..."",
+  ""message"": """"
+}
+If error occurs, set IsError=true and include an error message." }
+            },
+            temperature = 0,
+            max_tokens = 1500
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync(endpoint, content);
+        var responseString = await response.Content.ReadAsStringAsync();
+
+        return responseString;
+    }
+}
