@@ -41,10 +41,21 @@ class Program
             return;
         }
 
+        Console.WriteLine("\n🤔 Thinking...");
         string finalAnswer = await SummarizeAnswerWithChatGPT(userQuestion, topMatches);
 
         Console.WriteLine("\n🤖 AI Answer:");
-        Console.WriteLine(finalAnswer);
+        SimulateTyping(finalAnswer);
+    }
+
+    static void SimulateTyping(string text, int delay = 20)
+    {
+        foreach (char c in text)
+        {
+            Console.Write(c);
+            System.Threading.Thread.Sleep(delay);
+        }
+        Console.WriteLine();
     }
 
     static async Task<List<float>> GetAzureEmbedding(string input)
