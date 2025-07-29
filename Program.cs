@@ -1,151 +1,95 @@
-using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Data.SqlClient;
-using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
+$(function () {
+    $('#sendButton').on('click', function () {
+        sendMessage();
+    });
 
-class Program
-{
-    static readonly string azureEndpoint = "https://<your-resource>.openai.azure.com/";
-    static readonly string azureApiKey = "<your-api-key>";
-    static readonly string embeddingDeployment = "text-embedding-deployment-name";
-    static readonly string chatDeployment = "chatgpt-deployment-name";
-    static readonly string apiVersion = "2024-02-15-preview";
-
-    static async Task Main()
-    {
-        Console.WriteLine("🧠 Ask your question:");
-        var userQuestion = Console.ReadLine();
-
-        var userEmbedding = await GetAzureEmbedding(userQuestion);
-        var storedQAs = await LoadQnAFromDatabase();
-
-        var topMatches = storedQAs
-            .Select(q => new
-            {
-                qa = q,
-                similarity = CosineSimilarity(userEmbedding, q.Embedding)
-            })
-            .OrderByDescending(x => x.similarity)
-            .Take(3)
-            .Select(x => x.qa)
-            .ToList();
-
-        if (topMatches.Count == 0)
-        {
-            Console.WriteLine("❌ No relevant answer found.");
-            return;
+    $('#userInput').keypress(function (e) {
+        if (e.which === 13 && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
         }
+    });
 
-        Console.WriteLine("\n🤔 Thinking...");
-        string finalAnswer = await SummarizeAnswerWithChatGPT(userQuestion, topMatches);
 
-        Console.WriteLine("\n🤖 AI Answer:");
-        SimulateTyping(finalAnswer);
+
+    function scrollToBottom() {
+        const chatContainer = document.getElementById("chatbotcontainer");
+        chatContainer.scrollTop = chatContainer.scrollHeight
     }
 
-    static void SimulateTyping(string text, int delay = 20)
-    {
-        foreach (char c in text)
-        {
-            Console.Write(c);
-            System.Threading.Thread.Sleep(delay);
-        }
-        Console.WriteLine();
+
+    function simulateTypingEffect(text, elementId, speed = 30) {
+        let index = 0;
+        const container = document.getElementById(elementId);
+        const interval = setInterval(() => {
+            if (index < text.length) {
+                container.innerHTML += text.charAt(index);
+                index++;
+                scrollToBottom();
+            } else {
+                clearInterval(interval);
+            }
+        }, speed);
     }
 
-    static async Task<List<float>> GetAzureEmbedding(string input)
-    {
-        using var http = new HttpClient();
-        http.DefaultRequestHeaders.Add("api-key", azureApiKey);
 
-        var url = $"{azureEndpoint}openai/deployments/{embeddingDeployment}/embeddings?api-version={apiVersion}";
-        var body = new { input = input };
-        var json = JsonConvert.SerializeObject(body);
+    function sendMessage() {
+        const userMessage = $('#userInput').val().trim();
+        if (userMessage === '') return;
 
-        var res = await http.PostAsync(url, new StringContent(json, Encoding.UTF8, "application/json"));
-        var resJson = await res.Content.ReadAsStringAsync();
+        $('#aiChatIntro').hide(); // Hide intro
 
-        if (!res.IsSuccessStatusCode)
-            throw new Exception("Azure OpenAI embedding error: " + resJson);
+        // Append user message to chat
+        $('#aiChatPrev').append(`
+    <div class="d-flex justify-content-end align-items-end mb-3">
+        <div class="px-3 py-6px text-body bg-white bg-opacity-15 mw-75">${userMessage}</div>
+        <div>
+            <div class="w-30px h-30px mx-2 text-white rounded-circle bg-white bg-opacity-15 fs-16px d-flex align-items-center justify-content-center">S</div>
+        </div>
+    </div>
+    `);
 
-        dynamic result = JsonConvert.DeserializeObject(resJson);
-        return ((IEnumerable<dynamic>)result.data[0].embedding).Select(e => (float)e).ToList();
-    }
+        $('#userInput').val('');
+         //AJAX call to backend
+        $.ajax({
+            url: '/ChatBot/Chat', // Change this to your backend endpoint
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(userMessage),
+            success: function (response) {
 
-    static async Task<string> SummarizeAnswerWithChatGPT(string userQuestion, List<QuestionAnswerModel> matches)
-    {
-        var systemPrompt = "You are a helpful assistant. Use the below Q&A context to answer the user's question clearly and concisely.";
-        var context = string.Join("\n\n", matches.Select(m => $"Q: {m.QuestionText}\nA: {m.AnswerText}"));
+                const botMessageId = 'botMsg_' + Date.now();
 
-        var chatRequest = new
-        {
-            messages = new[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = $"Context:\n{context}\n\nUser Question:\n{userQuestion}" }
+                $('#aiChatPrev').append(`
+  <div class="mb-3">
+    <div class="d-flex justify-content-start align-items-end">
+      <div>
+        <div class="w-30px h-30px mx-2 fs-16px rounded-circle bg-theme bg-opacity-15 text-theme d-flex align-items-center justify-content-center">
+          <i class="fa fa-shekel-sign"></i>
+        </div>
+      </div>
+      <div id="${botMessageId}" class="px-3 py-6px text-body bg-white bg-opacity-15 mw-75"></div>
+    </div>
+    <div class="d-flex">
+      <div class="w-30px h-30px mx-3"></div>
+      <div class="d-flex flex-wrap w-100 p-2 opacity-75">
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="far fa-fw fa-copy"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="far fa-fw fa-thumbs-up"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="far fa-fw fa-thumbs-down"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="fa fa-fw fa-microphone"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration"><i class="fa fa-fw fa-arrow-rotate-right"></i></a>
+      </div>
+    </div>
+  </div>
+`);
+
+                simulateTypingEffect(response.message, botMessageId);
+
+
             },
-            temperature = 0.2,
-            max_tokens = 300
-        };
-
-        using var http = new HttpClient();
-        http.DefaultRequestHeaders.Add("api-key", azureApiKey);
-
-        var url = $"{azureEndpoint}openai/deployments/{chatDeployment}/chat/completions?api-version={apiVersion}";
-        var content = new StringContent(JsonConvert.SerializeObject(chatRequest), Encoding.UTF8, "application/json");
-
-        var response = await http.PostAsync(url, content);
-        var responseJson = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-            throw new Exception("ChatGPT error: " + responseJson);
-
-        dynamic result = JsonConvert.DeserializeObject(responseJson);
-        return result.choices[0].message.content.ToString();
+            error: function () {
+                alert('Error communicating with the chatbot.');
+            }
+        });
     }
-
-    static async Task<List<QuestionAnswerModel>> LoadQnAFromDatabase()
-    {
-        var list = new List<QuestionAnswerModel>();
-        using var conn = new SqlConnection(ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString);
-        await conn.OpenAsync();
-
-        var cmd = new SqlCommand("SELECT QuestionText, AnswerText, EmbeddingJson FROM QuestionAnswer", conn);
-        var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            list.Add(new QuestionAnswerModel
-            {
-                QuestionText = reader.GetString(0),
-                AnswerText = reader.GetString(1),
-                Embedding = JsonConvert.DeserializeObject<List<float>>(reader.GetString(2))
-            });
-        }
-
-        return list;
-    }
-
-    static float CosineSimilarity(List<float> a, List<float> b)
-    {
-        float dot = 0, magA = 0, magB = 0;
-        for (int i = 0; i < a.Count; i++)
-        {
-            dot += a[i] * b[i];
-            magA += a[i] * a[i];
-            magB += b[i] * b[i];
-        }
-        return dot / ((float)(Math.Sqrt(magA) * Math.Sqrt(magB)) + 1e-8f);
-    }
-}
-
-class QuestionAnswerModel
-{
-    public string QuestionText { get; set; }
-    public string AnswerText { get; set; }
-    public List<float> Embedding { get; set; }
-}
+});
