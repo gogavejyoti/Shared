@@ -1,3 +1,29 @@
+<style>
+#chatbotcontainer {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    background: #1a1a1a;
+    color: white;
+}
+
+.typing-dots::after {
+    content: '';
+    display: inline-block;
+    animation: dots 1s steps(4, end) infinite;
+    vertical-align: bottom;
+}
+
+@keyframes dots {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+    100% { content: ''; }
+}
+</style>
+
 <script>
 $(function () {
     $('#sendButton').on('click', sendMessage);
