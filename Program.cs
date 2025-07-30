@@ -1,176 +1,123 @@
-<style>
-#chatbotcontainer {
-    max-height: 500px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 10px;
-    background: #1a1a1a;
-    color: white;
-}
-
-.typing-dots::after {
-    content: '';
-    display: inline-block;
-    animation: dots 1s steps(4, end) infinite;
-    vertical-align: bottom;
-}
-
-@keyframes dots {
-    0% { content: ''; }
-    25% { content: '.'; }
-    50% { content: '..'; }
-    75% { content: '...'; }
-    100% { content: ''; }
-}
-</style>
-
-<script>
-$(function () {
-    $('#sendButton').on('click', sendMessage);
-    $('#userInput').keypress(function (e) {
-        if (e.which === 13 && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    function scrollToBottom() {
-        const chatContainer = document.getElementById("chatbotcontainer");
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    function simulateTypingEffect(html, elementId, speed = 10) {
-        const container = document.getElementById(elementId);
-        container.innerHTML = ''; // Clear target
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-
-        function typeNode(node, parent, done) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent;
-                let i = 0;
-                const interval = setInterval(() => {
-                    if (i < text.length) {
-                        parent.append(text[i]);
-                        scrollToBottom();
-                        i++;
-                    } else {
-                        clearInterval(interval);
-                        done();
-                    }
-                }, speed);
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
-                const el = document.createElement(node.tagName);
-                for (let attr of node.attributes) {
-                    el.setAttribute(attr.name, attr.value);
-                }
-                parent.appendChild(el);
-
-                const children = Array.from(node.childNodes);
-                let index = 0;
-
-                function nextChild() {
-                    if (index < children.length) {
-                        typeNode(children[index], el, () => {
-                            index++;
-                            nextChild();
-                        });
-                    } else {
-                        done();
-                    }
-                }
-
-                nextChild();
-            } else {
-                done();
-            }
-        }
-
-        const nodes = Array.from(tempDiv.childNodes);
-        let index = 0;
-
-        function next() {
-            if (index < nodes.length) {
-                typeNode(nodes[index], container, () => {
-                    index++;
-                    next();
-                });
-            }
-        }
-
-        next();
-    }
-
-    function sendMessage() {
-        const userMessage = $('#userInput').val().trim();
-        if (userMessage === '') return;
-
-        $('#aiChatPrev').append(`
-            <div class="d-flex justify-content-end align-items-end mb-3">
-                <div class="px-3 py-2 text-body bg-white bg-opacity-15 mw-75">${userMessage}</div>
-                <div>
-                    <div class="w-30px h-30px mx-2 text-white rounded-circle bg-white bg-opacity-15 fs-16px d-flex align-items-center justify-content-center">S</div>
-                </div>
-            </div>
-        `);
-
-        $('#userInput').val('');
-
-        const botMessageId = 'botMsg_' + Date.now();
-        const thinkingId = 'thinking_' + botMessageId;
-
-        // Show blinking "Analyzing..." message
-        $('#aiChatPrev').append(`
-            <div id="${thinkingId}" class="mb-3">
-                <div class="d-flex justify-content-start align-items-end">
-                    <div>
-                        <div class="w-30px h-30px mx-2 fs-16px rounded-circle bg-theme bg-opacity-15 text-theme d-flex align-items-center justify-content-center">
-                            <i class="fa fa-robot"></i>
-                        </div>
-                    </div>
-                    <div class="px-3 py-2 text-body bg-white bg-opacity-15 mw-75">
-                        <span class="typing-dots">Analyzing</span>
-                    </div>
-                </div>
-            </div>
-        `);
-
-        scrollToBottom();
-
-        // AJAX call to backend
-        $.ajax({
-            url: '/ChatBot/Chat', // Your C# endpoint
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ message: userMessage }),
-            success: function (response) {
-                const htmlFormatted = marked.parse(response.message);
-
-                // Remove "Analyzing..." message
-                $('#' + thinkingId).remove();
-
-                // Add final bot message container
-                $('#aiChatPrev').append(`
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-start align-items-end">
-                            <div>
-                                <div class="w-30px h-30px mx-2 fs-16px rounded-circle bg-theme bg-opacity-15 text-theme d-flex align-items-center justify-content-center">
-                                    <i class="fa fa-robot"></i>
-                                </div>
-                            </div>
-                            <div id="${botMessageId}" class="px-3 py-2 text-body bg-white bg-opacity-15 mw-75"></div>
-                        </div>
-                    </div>
-                `);
-
-                simulateTypingEffect(htmlFormatted, botMessageId);
-            },
-            error: function () {
-                $('#' + thinkingId).remove();
-                $('#aiChatPrev').append(`<div class="text-danger">Error communicating with the bot.</div>`);
-            }
-        });
-    }
-});
-</script>
+USE [ResourcePlanner]
+GO
+ALTER TABLE [dbo].[PlanSheets] DROP CONSTRAINT [FK_PlanSheets_Plans]
+GO
+ALTER TABLE [dbo].[PlanSheets] DROP CONSTRAINT [FK_PlanSheets_Lobs]
+GO
+ALTER TABLE [dbo].[LOBs] DROP CONSTRAINT [FK__LOBs__PlanId__49C3F6B7]
+GO
+ALTER TABLE [dbo].[PlanSheets] DROP CONSTRAINT [DF__PlanSheet__Creat__6C190EBB]
+GO
+ALTER TABLE [dbo].[Plans] DROP CONSTRAINT [DF__Plans__CreatedAt__46E78A0C]
+GO
+/****** Object:  Table [dbo].[QuestionAnswer]    Script Date: 30-07-2025 16:40:13 ******/
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[QuestionAnswer]') AND type in (N'U'))
+DROP TABLE [dbo].[QuestionAnswer]
+GO
+/****** Object:  Table [dbo].[PlanSheets]    Script Date: 30-07-2025 16:40:13 ******/
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[PlanSheets]') AND type in (N'U'))
+DROP TABLE [dbo].[PlanSheets]
+GO
+/****** Object:  Table [dbo].[Plans]    Script Date: 30-07-2025 16:40:13 ******/
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Plans]') AND type in (N'U'))
+DROP TABLE [dbo].[Plans]
+GO
+/****** Object:  Table [dbo].[LOBs]    Script Date: 30-07-2025 16:40:13 ******/
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LOBs]') AND type in (N'U'))
+DROP TABLE [dbo].[LOBs]
+GO
+/****** Object:  Table [dbo].[LOBs]    Script Date: 30-07-2025 16:40:13 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[LOBs](
+	[LOBId] [int] IDENTITY(1,1) NOT NULL,
+	[PlanId] [int] NULL,
+	[Name] [nvarchar](100) NULL,
+	[BillingModel] [nvarchar](50) NULL,
+	[ProjectId] [nvarchar](100) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[LOBId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Plans]    Script Date: 30-07-2025 16:40:13 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Plans](
+	[PlanId] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](200) NULL,
+	[Vertical] [nvarchar](100) NULL,
+	[Account] [nvarchar](100) NULL,
+	[Geo] [nvarchar](100) NULL,
+	[Site] [nvarchar](100) NULL,
+	[BusinessUnit] [nvarchar](100) NULL,
+	[WeekStart] [nvarchar](10) NULL,
+	[PlanFrom] [date] NULL,
+	[PlanTo] [date] NULL,
+	[SOTracker] [bit] NULL,
+	[AssumptionSheet] [bit] NULL,
+	[CreatedAt] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[PlanId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[PlanSheets]    Script Date: 30-07-2025 16:40:13 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[PlanSheets](
+	[PlanSheetId] [int] IDENTITY(1,1) NOT NULL,
+	[PlanId] [int] NOT NULL,
+	[LobId] [int] NULL,
+	[Name] [nvarchar](100) NOT NULL,
+	[Type] [nvarchar](50) NOT NULL,
+	[JsonData] [nvarchar](max) NOT NULL,
+	[CreatedAt] [datetime] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[PlanSheetId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[QuestionAnswer]    Script Date: 30-07-2025 16:40:13 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[QuestionAnswer](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[QuestionText] [nvarchar](max) NULL,
+	[AnswerText] [nvarchar](max) NULL,
+	[EmbeddingJson] [nvarchar](max) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+ALTER TABLE [dbo].[Plans] ADD  DEFAULT (getdate()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[PlanSheets] ADD  DEFAULT (getdate()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[LOBs]  WITH CHECK ADD FOREIGN KEY([PlanId])
+REFERENCES [dbo].[Plans] ([PlanId])
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[PlanSheets]  WITH CHECK ADD  CONSTRAINT [FK_PlanSheets_Lobs] FOREIGN KEY([LobId])
+REFERENCES [dbo].[LOBs] ([LOBId])
+GO
+ALTER TABLE [dbo].[PlanSheets] CHECK CONSTRAINT [FK_PlanSheets_Lobs]
+GO
+ALTER TABLE [dbo].[PlanSheets]  WITH CHECK ADD  CONSTRAINT [FK_PlanSheets_Plans] FOREIGN KEY([PlanId])
+REFERENCES [dbo].[Plans] ([PlanId])
+GO
+ALTER TABLE [dbo].[PlanSheets] CHECK CONSTRAINT [FK_PlanSheets_Plans]
+GO
