@@ -1,86 +1,126 @@
-string GenerateAiPrompt(
-    List<WfmMetricException> lobExceptions,
-    List<WfmAggregateException> aggregateExceptions,
-    string vertical,
-    string planPeriod,
-    string userSummary,
-    Dictionary<string, string> monthMapping)
+public class WfmAggregateException
 {
-    var sb = new StringBuilder();
+    public string Level { get; set; } // "Account" or "Geo"
+    public string Entity { get; set; }
+    public string Parent { get; set; }
+    public string Metric { get; set; }
+    public double Actual { get; set; }
+    public double Target { get; set; }
+}
 
-    sb.AppendLine($"Vertical: {vertical}");
-    sb.AppendLine($"Plan Period: {planPeriod}");
-    sb.AppendLine();
+public List<WfmAggregateException> GetAggregateExceptions(Dictionary<string, DrilldownNode> report)
+{
+    var result = new List<WfmAggregateException>();
+    var lowerIsBetterMetrics = new HashSet<string> { "Shri%", "Attr%" };
+    var fteDeltaMetrics = new[] { "M1_Delta", "M2_Delta", "M3_Delta", "M4_Delta", "MO_Delta" };
 
-    sb.AppendLine("User Summary:");
-    sb.AppendLine(userSummary);
-    sb.AppendLine();
-
-    sb.AppendLine("Aggregated Exceptions:");
-    if (aggregateExceptions.Count == 0)
+    foreach (var (account, accNode) in report)
     {
-        sb.AppendLine("No significant account- or geo-level exceptions found.");
-    }
-    else
-    {
-        foreach (var agg in aggregateExceptions.OrderBy(x => x.Level).ThenBy(x => x.Entity))
+        var accTotals = new Dictionary<string, List<double>>();
+
+        foreach (var (geo, geoNode) in accNode.Children)
         {
-            var context = agg.Level == "Geo" ? $"Geo {agg.Entity} under Account {agg.Parent}" : $"Account {agg.Entity}";
-            sb.AppendLine($"- {context} has high {agg.Metric} at {agg.Actual}% (Target: {agg.Target}%)");
-        }
-    }
+            var geoTotals = new Dictionary<string, List<double>>();
 
-    sb.AppendLine();
-    sb.AppendLine("LOB-Level Exceptions:");
-    if (lobExceptions.Count == 0)
-    {
-        sb.AppendLine("No LOB-level metric exceptions found.");
-    }
-    else
-    {
-        var grouped = lobExceptions
-            .GroupBy(e => e.Account)
-            .OrderBy(g => g.Key);
-
-        foreach (var accGroup in grouped)
-        {
-            sb.AppendLine($"Account: {accGroup.Key}");
-
-            var geoGroups = accGroup
-                .GroupBy(e => e.Geo)
-                .OrderBy(g => g.Key);
-
-            foreach (var geoGroup in geoGroups)
+            foreach (var (lob, lobNode) in geoNode.Children)
             {
-                sb.AppendLine($"\tGeo: {geoGroup.Key}");
-
-                var lobGroups = geoGroup
-                    .GroupBy(e => e.LOB)
-                    .OrderBy(g => g.Key);
-
-                foreach (var lobGroup in lobGroups)
+                foreach (var kv in lobNode.Data)
                 {
-                    sb.AppendLine($"\t\tLOB: {lobGroup.Key}");
+                    string metric = kv.Key;
+                    string valStr = kv.Value;
 
-                    foreach (var ex in lobGroup.OrderBy(e => e.Metric))
+                    if (string.IsNullOrWhiteSpace(valStr) || valStr.ToLower() == "undefined" || valStr == "0")
+                        continue;
+
+                    if (!double.TryParse(valStr, out double val))
+                        continue;
+
+                    if (lowerIsBetterMetrics.Contains(metric) || fteDeltaMetrics.Contains(metric))
                     {
-                        string metric = ex.Metric;
+                        geoTotals.TryAdd(metric, new());
+                        geoTotals[metric].Add(val);
 
-                        // Replace M1, M2, etc. with month name if possible
-                        foreach (var kvp in monthMapping)
-                        {
-                            if (metric.StartsWith(kvp.Key + "_"))
-                            {
-                                metric = metric.Replace(kvp.Key + "_", kvp.Value + " ");
-                            }
-                        }
-
-                        sb.AppendLine($"\t\t\t- {metric} = {ex.Actual}% (Target: {ex.Target}%)");
+                        accTotals.TryAdd(metric, new());
+                        accTotals[metric].Add(val);
                     }
+                }
+            }
+
+            // Add Geo-level exceptions
+            foreach (var (metric, values) in geoTotals)
+            {
+                if (fteDeltaMetrics.Contains(metric))
+                {
+                    double maxAbs = values.Max(v => Math.Abs(v));
+                    if (maxAbs > 20)
+                    {
+                        result.Add(new WfmAggregateException
+                        {
+                            Level = "Geo",
+                            Entity = geo,
+                            Parent = account,
+                            Metric = metric,
+                            Actual = Math.Round(maxAbs, 2),
+                            Target = 20
+                        });
+                    }
+                }
+                else if (lowerIsBetterMetrics.Contains(metric))
+                {
+                    double avg = values.Average();
+                    if (avg > 5)
+                    {
+                        result.Add(new WfmAggregateException
+                        {
+                            Level = "Geo",
+                            Entity = geo,
+                            Parent = account,
+                            Metric = metric,
+                            Actual = Math.Round(avg, 2),
+                            Target = 5
+                        });
+                    }
+                }
+            }
+        }
+
+        // Add Account-level exceptions
+        foreach (var (metric, values) in accTotals)
+        {
+            if (fteDeltaMetrics.Contains(metric))
+            {
+                double maxAbs = values.Max(v => Math.Abs(v));
+                if (maxAbs > 20)
+                {
+                    result.Add(new WfmAggregateException
+                    {
+                        Level = "Account",
+                        Entity = account,
+                        Parent = null,
+                        Metric = metric,
+                        Actual = Math.Round(maxAbs, 2),
+                        Target = 20
+                    });
+                }
+            }
+            else if (lowerIsBetterMetrics.Contains(metric))
+            {
+                double avg = values.Average();
+                if (avg > 5)
+                {
+                    result.Add(new WfmAggregateException
+                    {
+                        Level = "Account",
+                        Entity = account,
+                        Parent = null,
+                        Metric = metric,
+                        Actual = Math.Round(avg, 2),
+                        Target = 5
+                    });
                 }
             }
         }
     }
 
-    return sb.ToString();
+    return result;
 }
