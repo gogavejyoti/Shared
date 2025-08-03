@@ -1,70 +1,72 @@
-public List<WfmAggregateException> GetAggregateExceptions(Dictionary<string, DrilldownNode> report)
-{
-    var result = new List<WfmAggregateException>();
-
-    foreach (var (account, accNode) in report)
-    {
-        // Check Account-level exceptions (precomputed)
-        foreach (var metric in accNode.Data.Keys)
-        {
-            if (!IsMetricExceedingThreshold(accNode.Data, metric, out var actual, out var target)) continue;
-
-            result.Add(new WfmAggregateException
-            {
-                Level = "Account",
-                Entity = account,
-                Parent = null,
-                Metric = metric,
-                Actual = actual,
-                Target = target
-            });
-        }
-
-        foreach (var (geo, geoNode) in accNode.Children)
-        {
-            // Check Geo-level exceptions (precomputed)
-            foreach (var metric in geoNode.Data.Keys)
-            {
-                if (!IsMetricExceedingThreshold(geoNode.Data, metric, out var actual, out var target)) continue;
-
-                result.Add(new WfmAggregateException
-                {
-                    Level = "Geo",
-                    Entity = geo,
-                    Parent = account,
-                    Metric = metric,
-                    Actual = actual,
-                    Target = target
-                });
-            }
-        }
-    }
-
-    return result;
-}
-
-
-private bool IsMetricExceedingThreshold(Dictionary<string, string> data, string metric, out double actual, out double target)
+private bool IsMetricExceedingThreshold(
+    Dictionary<string, string> data,
+    Dictionary<string, string> targetMap,
+    string metric,
+    out double actual,
+    out double target)
 {
     actual = 0;
     target = 0;
 
-    if (!data.TryGetValue(metric, out var valStr) || 
+    if (!data.TryGetValue(metric, out var valStr) ||
         string.IsNullOrWhiteSpace(valStr) ||
         valStr == "null" || valStr == "undefined" ||
-        !double.TryParse(valStr, out actual))
+        !double.TryParse(valStr, out actual) ||
+        actual == 0)
         return false;
 
-    // Define default targets
-    if (metric == "FTE Delta") target = 20;
-    else if (metric == "Shr%" || metric == "Attr%") target = 5;
-    else return false;
+    // Try to get target from row target dictionary
+    if (targetMap.TryGetValue(metric, out var targetStr) && double.TryParse(targetStr, out target))
+    {
+        // Apply direction based on metric
+        if (metric == "FTE Delta")
+            return Math.Abs(actual) > target;
 
-    // If Shrinkage or Attrition, higher is worse
-    if ((metric == "Shr%" || metric == "Attr%") && actual > target) return true;
+        if (metric.EndsWith("_O/U"))
+            return Math.Abs(actual) > target;
 
-    // For FTE Delta, absolute difference > target
-    if (metric == "FTE Delta" && Math.Abs(actual) > target) return true;
+        if (metric.EndsWith("_Staff%"))
+            return actual < target;
 
+        // Default for % metrics: actual < target (i.e., % achievement)
+        if (metric.EndsWith("%"))
+            return actual < target;
+
+        // Default: actual > target
+        return actual > target;
+    }
+
+    // No target provided, fallback to hardcoded thresholds
+    if (metric == "FTE Delta")
+    {
+        target = 20;
+        return Math.Abs(actual) > target;
+    }
+
+    if (metric == "Shr%" || metric == "Attr%")
+    {
+        target = 5;
+        return actual > target;
+    }
+
+    if (metric.EndsWith("_O/U"))
+    {
+        target = 0;
+        return Math.Abs(actual) > target;
+    }
+
+    if (metric.EndsWith("_Staff%"))
+    {
+        target = 95;
+        return actual < target;
+    }
+
+    if (metric.EndsWith("%"))
+    {
+        target = 100;
+        return actual < target;
+    }
+
+    // Unknown metric, no check
     return false;
 }
