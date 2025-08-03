@@ -1,72 +1,8 @@
-string GenerateAiPrompt(List<WfmMetricException> exceptions, string vertical, string planPeriod, string userSummary)
-{
-    var sb = new StringBuilder();
-
-    sb.AppendLine($"Vertical: {vertical}");
-    sb.AppendLine($"Plan Period: {planPeriod}");
-    sb.AppendLine();
-    sb.AppendLine("User Summary:");
-    sb.AppendLine(userSummary);
-    sb.AppendLine();
-
-    // Account-level
-    var accountGroup = exceptions
-        .GroupBy(e => e.Account)
-        .Select(g => new
-        {
-            Account = g.Key,
-            Metrics = g.Where(x => x.LOB == null).ToList()
-        })
-        .Where(x => x.Metrics.Any());
-
-    if (accountGroup.Any())
-    {
-        sb.AppendLine("Account-level Exceptions:");
-        foreach (var acct in accountGroup)
-        {
-            foreach (var ex in acct.Metrics)
-            {
-                sb.AppendLine($"- {ex.Account}: {ex.Metric} {ex.Actual}% (Target: {ex.Target}%, Severity: {ex.Severity})");
-            }
-        }
-        sb.AppendLine();
-    }
-
-    // Geo-level
-    var geoGroup = exceptions
-        .Where(e => e.LOB == null && e.Geo != null)
-        .GroupBy(e => new { e.Account, e.Geo });
-
-    if (geoGroup.Any())
-    {
-        sb.AppendLine("Geo-level Exceptions:");
-        foreach (var g in geoGroup)
-        {
-            foreach (var ex in g)
-            {
-                sb.AppendLine($"- {g.Key.Geo} (Account: {g.Key.Account}): {ex.Metric} {ex.Actual}% (Target: {ex.Target}%, Severity: {ex.Severity})");
-            }
-        }
-        sb.AppendLine();
-    }
-
-    // LOB-level
-    sb.AppendLine("LOB-level Exceptions:");
-    var lobGroup = exceptions
-        .Where(e => e.LOB != null)
-        .GroupBy(e => new { e.Account, e.Geo, e.LOB });
-
-    foreach (var g in lobGroup)
-    {
-        sb.AppendLine($"Account: {g.Key.Account}");
-        sb.AppendLine($"  Geo: {g.Key.Geo}");
-        sb.AppendLine($"    LOB: {g.Key.LOB}");
-        foreach (var ex in g)
-        {
-            var monthInfo = string.IsNullOrEmpty(ex.Month) ? "" : $" [{ex.Month}]";
-            sb.AppendLine($"      - {ex.Metric}{monthInfo}: {ex.Actual} (Target: {ex.Target}, Severity: {ex.Severity})");
-        }
-    }
-
-    return sb.ToString();
-}
+var result = records.GroupBy(x => new { x.Week, x.Header })
+						.Select(y => new ExecutiveWeekNarration()
+						{
+							Week = y.Key.Week.ToString("dddd, dd MMMM yyyy"),
+							Header = y.Key.Header,
+							Points = y.ToList()
+						}
+		   );
