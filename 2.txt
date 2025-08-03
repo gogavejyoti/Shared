@@ -1,11 +1,78 @@
- private string GetSeverity()
+List<WfmMetricException> GetWfmExceptions(Dictionary<string, DrilldownNode> report)
+{
+    var exceptions = new List<WfmMetricException>();
+    var monthMap = new Dictionary<string, string>
     {
-        if (Metric == "FTE Delta")
-            return Math.Abs(Actual) > 40 ? "High" :
-                   Math.Abs(Actual) > 20 ? "Medium" : "Low";
+        { "M1", "Jul 2025" },
+        { "M2", "Aug 2025" },
+        { "M3", "Sep 2025" },
+        { "M4", "Oct 2025" },
+        { "MO", "Overall" }
+    };
 
-        double delta = Math.Abs(Actual - Target);
-        if (delta >= 10) return "High";
-        if (delta >= 5) return "Medium";
-        return "Low";
+    foreach (var (accountName, accountNode) in report)
+    {
+        foreach (var (geoName, geoNode) in accountNode.Children)
+        {
+            foreach (var (lobName, lobNode) in geoNode.Children)
+            {
+                var data = lobNode.Data;
+                var target = lobNode.Target;
+
+                // --- Handle standard metric exceptions ---
+                foreach (var (key, valStr) in data)
+                {
+                    if (string.IsNullOrWhiteSpace(valStr) || valStr == "undefined" || valStr == "null" || valStr == "0")
+                        continue;
+
+                    if (!double.TryParse(valStr, out var val)) continue;
+
+                    string targetValStr = null;
+                    if (target.TryGetValue(key, out targetValStr) || TargetMap.TryGetValue(key, out targetValStr))
+                    {
+                        if (string.IsNullOrWhiteSpace(targetValStr) || !double.TryParse(targetValStr, out var targetVal))
+                            continue;
+
+                        if (Math.Abs(val - targetVal) > 5)
+                        {
+                            string month = monthMap.FirstOrDefault(m => key.StartsWith(m.Key)).Value;
+                            exceptions.Add(new WfmMetricException
+                            {
+                                Account = accountName,
+                                Geo = geoName,
+                                LOB = lobName,
+                                Metric = key,
+                                Actual = val,
+                                Target = targetVal,
+                                Month = month
+                            });
+                        }
+                    }
+                }
+
+                // --- FTE Delta ---
+                if (data.TryGetValue("FTE Available", out var fteAvaStr) &&
+                    data.TryGetValue("FTE Required", out var fteReqStr) &&
+                    double.TryParse(fteAvaStr, out var fteAva) &&
+                    double.TryParse(fteReqStr, out var fteReq))
+                {
+                    var delta = fteAva - fteReq;
+                    if (Math.Abs(delta) > 20)
+                    {
+                        exceptions.Add(new WfmMetricException
+                        {
+                            Account = accountName,
+                            Geo = geoName,
+                            LOB = lobName,
+                            Metric = "FTE Delta",
+                            Actual = delta,
+                            Target = 0
+                        });
+                    }
+                }
+            }
+        }
     }
+
+    return exceptions;
+}
