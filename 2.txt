@@ -1,57 +1,31 @@
-https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
-case 'export-excel': this.exportToExcel(); break;
-
-<div class="table-controls">
-  <button data-action="expand-cols">Expand All Columns</button>
-  <button data-action="collapse-cols">Collapse All Columns</button>
-  <button data-action="expand-rows">Expand All Rows</button>
-  <button data-action="collapse-rows">Collapse All Rows</button>
-  <button data-action="export-excel">Export to Excel</button> <!-- ✅ New -->
-</div>
-
-exportToExcel() {
-    const table = this.container.find("table")[0];
-
-    // Use SheetJS to convert HTML table to worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.table_to_sheet(table, {
-        raw: true
-    });
-
-    // Apply formatting (background color from cell styles)
-    const tableRows = table.rows;
-    for (let r = 0; r < tableRows.length; r++) {
-        const row = tableRows[r];
-        for (let c = 0; c < row.cells.length; c++) {
-            const td = row.cells[c];
-            const cellAddress = XLSX.utils.encode_cell({ r, c });
-
-            // Initialize cell object
-            if (!ws[cellAddress]) continue;
-
-            const bgColor = window.getComputedStyle(td).backgroundColor;
-            const fontColor = window.getComputedStyle(td).color;
-
-            const rgbToHex = (rgb) => {
-                const match = rgb.match(/\d+/g);
-                if (!match) return null;
-                return match.slice(0, 3).map(x => {
-                    const hex = parseInt(x).toString(16);
-                    return hex.length === 1 ? '0' + hex : hex;
-                }).join('').toUpperCase();
-            };
-
-            const bgHex = rgbToHex(bgColor);
-            const fontHex = rgbToHex(fontColor);
-
-            // Assign style to the worksheet cell
-            ws[cellAddress].s = {
-                fill: bgHex ? { fgColor: { rgb: bgHex } } : undefined,
-                font: fontHex ? { color: { rgb: fontHex } } : undefined
-            };
-        }
+ public class DrilldownNode
+    {
+        public Dictionary<string, string> Data { get; set; } = new();
+        public Dictionary<string, string> Target { get; set; } = new();
+        public Dictionary<string, DrilldownNode> Children { get; set; } = new();
+        public Dictionary<string, string> Format { get; set; } = new();
     }
 
-    // Enable styles support
-    XLSX.writeFile(wb, "DynamicTableExport.xlsx", { cellStyles: true });
-}
+
+
+return new Dictionary<string, string>
+            {
+                ["OTF%"] = "100",
+                ["HTF%"] = "100",
+                ["HTO%"] = "100",
+                ["HTS%"] = "100",
+                ["Hours Delivered vs Lock%"] = "100",
+                ["Delivered vs Exp. Delivery (HTS)%"] = "100",
+                ["Shri%"] = GetCustomShrinkageTarget(newRow),
+                ["Attr%"] = GetCustomAttritionTarget(newRow),
+                ["M1_O/U"] = "0",
+                ["M1_Staff%"] = "95",
+                ["M2_O/U"] = "0",
+                ["M2_Staff%"] = "95",
+                ["M3_O/U"] = "0",
+                ["M3_Staff%"] = "95",
+                ["M4_O/U"] = "0",
+                ["M4_Staff%"] = "95",
+                ["MO_O/U"] = "0",
+                ["MO_Staff%"] = "95",
+            };
