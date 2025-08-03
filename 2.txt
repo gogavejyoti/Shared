@@ -1,31 +1,109 @@
- public class DrilldownNode
+public class WfmMetricException
+{
+    public string Account { get; set; }
+    public string Geo { get; set; }
+    public string LOB { get; set; }
+    public string Metric { get; set; }
+    public double Actual { get; set; }
+    public double Target { get; set; }
+    public string Month { get; set; } // << Add this
+    public string Severity => GetSeverity();
+
+    private string GetSeverity()
     {
-        public Dictionary<string, string> Data { get; set; } = new();
-        public Dictionary<string, string> Target { get; set; } = new();
-        public Dictionary<string, DrilldownNode> Children { get; set; } = new();
-        public Dictionary<string, string> Format { get; set; } = new();
+        double delta = Math.Abs(Actual - Target);
+        if (delta >= 10) return "High";
+        if (delta >= 5) return "Medium";
+        return "Low";
+    }
+}
+
+public static Dictionary<string, string> GetMonthCodeToNameMap(DateTime planStartDate)
+{
+    return new Dictionary<string, string>
+    {
+        ["M1"] = planStartDate.ToString("MMM yyyy"),
+        ["M2"] = planStartDate.AddMonths(1).ToString("MMM yyyy"),
+        ["M3"] = planStartDate.AddMonths(2).ToString("MMM yyyy"),
+        ["M4"] = planStartDate.AddMonths(3).ToString("MMM yyyy"),
+        ["MO"] = "Overall"  // Or average of all months
+    };
+} 
+public static List<WfmMetricException> GetWfmExceptions(Dictionary<string, DrilldownNode> report, DateTime planStartDate)
+{
+    var exceptions = new List<WfmMetricException>();
+    var monthMap = GetMonthCodeToNameMap(planStartDate);
+
+    foreach (var (accountName, accountNode) in report)
+    {
+        foreach (var (geoName, geoNode) in accountNode.Children)
+        {
+            foreach (var (lobName, lobNode) in geoNode.Children)
+            {
+                foreach (var (metric, actualStr) in lobNode.Data)
+                {
+                    if (!lobNode.Target.TryGetValue(metric, out var targetStr))
+                        continue;
+
+                    if (!double.TryParse(actualStr, out double actual) || !double.TryParse(targetStr, out double target))
+                        continue;
+
+                    bool isException = metric switch
+                    {
+                        "Shri%" or "Attr%" => actual > target,
+                        _ => actual < target,
+                    };
+
+                    if (isException)
+                    {
+                        string month = null;
+                        if (metric.StartsWith("M") && metric.Contains("Staff%"))
+                        {
+                            var prefix = metric.Split('_')[0];  // e.g., "M1", "MO"
+                            monthMap.TryGetValue(prefix, out month);
+                        }
+
+                        exceptions.Add(new WfmMetricException
+                        {
+                            Account = accountName,
+                            Geo = geoName,
+                            LOB = lobName,
+                            Metric = metric,
+                            Actual = Math.Round(actual, 2),
+                            Target = Math.Round(target, 2),
+                            Month = month
+                        });
+                    }
+                }
+            }
+        }
     }
 
+    return exceptions;
+}
 
+public class WfmAiInput
+{
+    public string Vertical { get; set; }
+    public string OverallSummaryText { get; set; } // User input
+    public DateTime PlanStartDate { get; set; }
+    public DateTime PlanEndDate { get; set; }
+    public List<WfmMetricException> Exceptions { get; set; } = new();
+}
 
-return new Dictionary<string, string>
-            {
-                ["OTF%"] = "100",
-                ["HTF%"] = "100",
-                ["HTO%"] = "100",
-                ["HTS%"] = "100",
-                ["Hours Delivered vs Lock%"] = "100",
-                ["Delivered vs Exp. Delivery (HTS)%"] = "100",
-                ["Shri%"] = GetCustomShrinkageTarget(newRow),
-                ["Attr%"] = GetCustomAttritionTarget(newRow),
-                ["M1_O/U"] = "0",
-                ["M1_Staff%"] = "95",
-                ["M2_O/U"] = "0",
-                ["M2_Staff%"] = "95",
-                ["M3_O/U"] = "0",
-                ["M3_Staff%"] = "95",
-                ["M4_O/U"] = "0",
-                ["M4_Staff%"] = "95",
-                ["MO_O/U"] = "0",
-                ["MO_Staff%"] = "95",
-            };
+public static WfmAiInput PrepareWfmAiInput(
+    Dictionary<string, DrilldownNode> report,
+    DateTime planStartDate,
+    DateTime planEndDate,
+    string verticalName,
+    string userOverallSummary)
+{
+    return new WfmAiInput
+    {
+        Vertical = verticalName,
+        OverallSummaryText = userOverallSummary?.Trim(),
+        PlanStartDate = planStartDate,
+        PlanEndDate = planEndDate,
+        Exceptions = GetWfmExceptions(report, planStartDate)
+    };
+}
