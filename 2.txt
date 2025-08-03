@@ -1,126 +1,86 @@
-public class WfmAggregateException
+public string GenerateAiPrompt(
+    Dictionary<string, DrilldownNode> report,
+    List<WfmAggregateException> aggregateExceptions,
+    string overallSummary,
+    string currentMonth)
 {
-    public string Level { get; set; } // "Account" or "Geo"
-    public string Entity { get; set; }
-    public string Parent { get; set; }
-    public string Metric { get; set; }
-    public double Actual { get; set; }
-    public double Target { get; set; }
-}
+    var sb = new StringBuilder();
 
-public List<WfmAggregateException> GetAggregateExceptions(Dictionary<string, DrilldownNode> report)
-{
-    var result = new List<WfmAggregateException>();
-    var lowerIsBetterMetrics = new HashSet<string> { "Shri%", "Attr%" };
-    var fteDeltaMetrics = new[] { "M1_Delta", "M2_Delta", "M3_Delta", "M4_Delta", "MO_Delta" };
+    sb.AppendLine($"Overall Summary for the month of {currentMonth}:");
+    sb.AppendLine(overallSummary.Trim());
+    sb.AppendLine();
+    sb.AppendLine("Below are the detailed performance exceptions observed:");
 
-    foreach (var (account, accNode) in report)
+    foreach (var acc in report)
     {
-        var accTotals = new Dictionary<string, List<double>>();
+        string account = acc.Key;
+        var accNode = acc.Value;
 
-        foreach (var (geo, geoNode) in accNode.Children)
+        sb.AppendLine($"\n🔹 **Account: {account}**");
+
+        // Account-level aggregated exceptions
+        foreach (var accEx in aggregateExceptions.Where(x => x.Level == "Account" && x.Entity == account))
         {
-            var geoTotals = new Dictionary<string, List<double>>();
-
-            foreach (var (lob, lobNode) in geoNode.Children)
-            {
-                foreach (var kv in lobNode.Data)
-                {
-                    string metric = kv.Key;
-                    string valStr = kv.Value;
-
-                    if (string.IsNullOrWhiteSpace(valStr) || valStr.ToLower() == "undefined" || valStr == "0")
-                        continue;
-
-                    if (!double.TryParse(valStr, out double val))
-                        continue;
-
-                    if (lowerIsBetterMetrics.Contains(metric) || fteDeltaMetrics.Contains(metric))
-                    {
-                        geoTotals.TryAdd(metric, new());
-                        geoTotals[metric].Add(val);
-
-                        accTotals.TryAdd(metric, new());
-                        accTotals[metric].Add(val);
-                    }
-                }
-            }
-
-            // Add Geo-level exceptions
-            foreach (var (metric, values) in geoTotals)
-            {
-                if (fteDeltaMetrics.Contains(metric))
-                {
-                    double maxAbs = values.Max(v => Math.Abs(v));
-                    if (maxAbs > 20)
-                    {
-                        result.Add(new WfmAggregateException
-                        {
-                            Level = "Geo",
-                            Entity = geo,
-                            Parent = account,
-                            Metric = metric,
-                            Actual = Math.Round(maxAbs, 2),
-                            Target = 20
-                        });
-                    }
-                }
-                else if (lowerIsBetterMetrics.Contains(metric))
-                {
-                    double avg = values.Average();
-                    if (avg > 5)
-                    {
-                        result.Add(new WfmAggregateException
-                        {
-                            Level = "Geo",
-                            Entity = geo,
-                            Parent = account,
-                            Metric = metric,
-                            Actual = Math.Round(avg, 2),
-                            Target = 5
-                        });
-                    }
-                }
-            }
+            sb.AppendLine($"- High {accEx.Metric} observed at account level: {accEx.Actual}% vs target {accEx.Target}%.");
         }
 
-        // Add Account-level exceptions
-        foreach (var (metric, values) in accTotals)
+        foreach (var geo in accNode.Children)
         {
-            if (fteDeltaMetrics.Contains(metric))
+            string geoName = geo.Key;
+            var geoNode = geo.Value;
+
+            sb.AppendLine($"\n  📍 **Geo: {geoName}**");
+
+            // Geo-level aggregated exceptions
+            foreach (var geoEx in aggregateExceptions.Where(x => x.Level == "Geo" && x.Entity == geoName && x.Parent == account))
             {
-                double maxAbs = values.Max(v => Math.Abs(v));
-                if (maxAbs > 20)
-                {
-                    result.Add(new WfmAggregateException
-                    {
-                        Level = "Account",
-                        Entity = account,
-                        Parent = null,
-                        Metric = metric,
-                        Actual = Math.Round(maxAbs, 2),
-                        Target = 20
-                    });
-                }
+                sb.AppendLine($"  - Elevated {geoEx.Metric} at Geo level: {geoEx.Actual}% vs target {geoEx.Target}%.");
             }
-            else if (lowerIsBetterMetrics.Contains(metric))
+
+            foreach (var lob in geoNode.Children)
             {
-                double avg = values.Average();
-                if (avg > 5)
+                string lobName = lob.Key;
+                var lobNode = lob.Value;
+
+                var lobExceptions = new List<string>();
+
+                foreach (var metric in lobNode.Data)
                 {
-                    result.Add(new WfmAggregateException
+                    string key = metric.Key;
+                    string valueStr = metric.Value;
+
+                    if (string.IsNullOrWhiteSpace(valueStr) || valueStr == "undefined" || valueStr == "0")
+                        continue;
+
+                    if (!double.TryParse(valueStr, out double value))
+                        continue;
+
+                    // FTE Delta check (absolute value > 20)
+                    if (key.EndsWith("_Delta") && Math.Abs(value) > 20)
                     {
-                        Level = "Account",
-                        Entity = account,
-                        Parent = null,
-                        Metric = metric,
-                        Actual = Math.Round(avg, 2),
-                        Target = 5
-                    });
+                        lobExceptions.Add($"Significant FTE Delta ({key}): {value}");
+                        continue;
+                    }
+
+                    // Lower-is-better metric
+                    if ((key == "Attr%" || key == "Shri%") && value > 5)
+                    {
+                        lobExceptions.Add($"{key} is high: {value}% (target ≤ 5%)");
+                    }
+                }
+
+                if (lobExceptions.Any())
+                {
+                    sb.AppendLine($"\n    📌 **LOB: {lobName}**");
+                    foreach (var ex in lobExceptions)
+                    {
+                        sb.AppendLine($"    - {ex}");
+                    }
                 }
             }
         }
     }
 
-    return result;
+    sb.AppendLine("\n🧠 Please provide a concise performance analysis considering the above exceptions.");
+    return sb.ToString();
 }
