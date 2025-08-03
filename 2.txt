@@ -1,82 +1,10 @@
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-
-public class AzureOpenAiClient
-{
-    private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
-    private readonly string _endpoint;
-    private readonly string _deployment;
-
-    public AzureOpenAiClient(string endpoint, string apiKey, string deployment)
+ public async Task SaveAccountSummaryAsync(WfmAccountSummary summary)
     {
-        _httpClient = new HttpClient();
-        _endpoint = endpoint; // e.g., https://your-resource.openai.azure.com/
-        _apiKey = apiKey;
-        _deployment = deployment; // e.g., "gpt-4" or "gpt-35-turbo"
+        const string sql = @"
+            INSERT INTO WfmAccountSummaries (AccountName, SummaryText)
+            VALUES (@AccountName, @SummaryText);
+        ";
+
+        using var connection = new SqlConnection(_connectionString);
+        await connection.ExecuteAsync(sql, summary);
     }
-
-    public async Task<string> GetWfmSummaryFromAIAsync(string userSummary, string exceptionSummary)
-    {
-        var prompt = BuildPrompt(userSummary, exceptionSummary);
-
-        var requestBody = new
-        {
-            messages = new[]
-            {
-                new { role = "system", content = "You are a Workforce Management domain expert." },
-                new { role = "user", content = prompt }
-            },
-            temperature = 0.4,
-            max_tokens = 700,
-            top_p = 1,
-            frequency_penalty = 0,
-            presence_penalty = 0
-        };
-
-        var requestJson = JsonSerializer.Serialize(requestBody);
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{_endpoint}openai/deployments/{_deployment}/chat/completions?api-version=2024-02-15");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-        request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-
-        using var contentStream = await response.Content.ReadAsStreamAsync();
-        using var jsonDoc = await JsonDocument.ParseAsync(contentStream);
-
-        return jsonDoc.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString();
-    }
-
-    private string BuildPrompt(string userSummary, string exceptionSummary)
-    {
-        return $@"
-Review the following Workforce Management (WFM) exception summary and generate short, expert-level summaries for each account.
-
-Instructions:
-- Start with an overall assessment per account.
-- Focus on issues like Shrinkage, Attrition, Staffing %, and FTE Delta.
-- Mention specific geographies or LOBs with challenges.
-- Suggest 2–3 corrective actions.
-- Do not repeat raw numbers; interpret the issues.
-- Use concise, professional language (≤ 200 words per account).
-
----
-
-User Summary:
-{userSummary}
-
----
-
-Account Exception Summary:
-{exceptionSummary}
-";
-    }
-}
