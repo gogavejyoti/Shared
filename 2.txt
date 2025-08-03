@@ -1,63 +1,70 @@
-public string GenerateAiPrompt(
-    List<WfmMetricException> exceptions,
-    List<WfmAggregateException> aggregatedExceptions,
-    string vertical,
-    string planPeriod,
-    string userSummary)
+public List<WfmAggregateException> GetAggregateExceptions(Dictionary<string, DrilldownNode> report)
 {
-    var sb = new StringBuilder();
+    var result = new List<WfmAggregateException>();
 
-    sb.AppendLine($"Vertical: {vertical}");
-    sb.AppendLine($"Plan Period: {planPeriod}");
-    sb.AppendLine();
-    sb.AppendLine("User Summary:");
-    sb.AppendLine(userSummary);
-    sb.AppendLine();
-
-    // --- Aggregated Exceptions ---
-    if (aggregatedExceptions.Any())
+    foreach (var (account, accNode) in report)
     {
-        sb.AppendLine("Aggregated Exceptions:");
-
-        var accAgg = aggregatedExceptions.Where(e => e.Level == "Account");
-        var geoAgg = aggregatedExceptions.Where(e => e.Level == "Geo");
-
-        foreach (var ex in accAgg)
+        // Check Account-level exceptions (precomputed)
+        foreach (var metric in accNode.Data.Keys)
         {
-            sb.AppendLine($"- Account {ex.Entity}: {ex.Metric} average is {ex.Actual}% (Target: {ex.Target}%)");
-        }
+            if (!IsMetricExceedingThreshold(accNode.Data, metric, out var actual, out var target)) continue;
 
-        foreach (var ex in geoAgg)
-        {
-            sb.AppendLine($"- Geo {ex.Entity} (Account: {ex.Parent}): {ex.Metric} average is {ex.Actual}% (Target: {ex.Target}%)");
-        }
-
-        sb.AppendLine();
-    }
-
-    // --- LOB-level Exceptions ---
-    if (exceptions.Any(e => !string.IsNullOrEmpty(e.LOB)))
-    {
-        sb.AppendLine("LOB-level Exceptions:");
-
-        var lobGroup = exceptions
-            .Where(e => e.LOB != null)
-            .GroupBy(e => new { e.Account, e.Geo, e.LOB });
-
-        foreach (var g in lobGroup)
-        {
-            sb.AppendLine($"Account: {g.Key.Account}");
-            sb.AppendLine($"  Geo: {g.Key.Geo}");
-            sb.AppendLine($"    LOB: {g.Key.LOB}");
-            foreach (var ex in g)
+            result.Add(new WfmAggregateException
             {
-                var monthInfo = string.IsNullOrEmpty(ex.Month) ? "" : $" [{ex.Month}]";
-                sb.AppendLine($"      - {ex.Metric}{monthInfo}: {ex.Actual} (Target: {(ex.Target < 0 ? ex.Target * -1 : ex.Target)}, Severity: {ex.Severity})");
+                Level = "Account",
+                Entity = account,
+                Parent = null,
+                Metric = metric,
+                Actual = actual,
+                Target = target
+            });
+        }
+
+        foreach (var (geo, geoNode) in accNode.Children)
+        {
+            // Check Geo-level exceptions (precomputed)
+            foreach (var metric in geoNode.Data.Keys)
+            {
+                if (!IsMetricExceedingThreshold(geoNode.Data, metric, out var actual, out var target)) continue;
+
+                result.Add(new WfmAggregateException
+                {
+                    Level = "Geo",
+                    Entity = geo,
+                    Parent = account,
+                    Metric = metric,
+                    Actual = actual,
+                    Target = target
+                });
             }
         }
-
-        sb.AppendLine();
     }
 
-    return sb.ToString();
+    return result;
+}
+
+
+private bool IsMetricExceedingThreshold(Dictionary<string, string> data, string metric, out double actual, out double target)
+{
+    actual = 0;
+    target = 0;
+
+    if (!data.TryGetValue(metric, out var valStr) || 
+        string.IsNullOrWhiteSpace(valStr) ||
+        valStr == "null" || valStr == "undefined" ||
+        !double.TryParse(valStr, out actual))
+        return false;
+
+    // Define default targets
+    if (metric == "FTE Delta") target = 20;
+    else if (metric == "Shr%" || metric == "Attr%") target = 5;
+    else return false;
+
+    // If Shrinkage or Attrition, higher is worse
+    if ((metric == "Shr%" || metric == "Attr%") && actual > target) return true;
+
+    // For FTE Delta, absolute difference > target
+    if (metric == "FTE Delta" && Math.Abs(actual) > target) return true;
+
+    return false;
 }
