@@ -1,26 +1,67 @@
-public string GenerateUserSummary(List<ExecutiveWeekNarration> weekNarrations)
-{
-    var sb = new StringBuilder();
-
-    foreach (var narration in weekNarrations)
-    {
-        sb.AppendLine($"Week: {narration.Week}");
-        sb.AppendLine($"Summary: {narration.Header}");
-
-        foreach (var point in narration.Points)
+        public List<WfmAggregateException> GetAggregateExceptions(Dictionary<string, DrilldownNode> report)
         {
-            string lob = string.IsNullOrEmpty(point.LOB) ? "LOB" : point.LOB;
-            string commentary = point.Commentary?.Trim();
-            string valueStr = point.Value.HasValue ? $" (Value: {point.Value.Value:F1})" : "";
+            var result = new List<WfmAggregateException>();
 
-            if (!string.IsNullOrWhiteSpace(commentary))
+            foreach (var (account, accNode) in report)
             {
-                sb.AppendLine($"- {lob}: {commentary}{valueStr}");
+                var accTotals = new Dictionary<string, List<double>>();
+
+                foreach (var (geo, geoNode) in accNode.Children)
+                {
+                    var geoTotals = new Dictionary<string, List<double>>();
+
+                    foreach (var (lob, lobNode) in geoNode.Children)
+                    {
+                        foreach (var metric in LowerIsBetterMetrics)
+                        {
+                            if (lobNode.Data.TryGetValue(metric, out var valStr) && double.TryParse(valStr, out var val))
+                            {
+                                geoTotals.TryAdd(metric, new());
+                                geoTotals[metric].Add(val);
+
+                                accTotals.TryAdd(metric, new());
+                                accTotals[metric].Add(val);
+                            }
+                        }
+                    }
+
+                    foreach (var (metric, values) in geoTotals)
+                    {
+                        double avg = values.Average();
+                        double target = 5;
+                        if (avg > target)
+                        {
+                            result.Add(new WfmAggregateException
+                            {
+                                Level = "Geo",
+                                Entity = geo,
+                                Parent = account,
+                                Metric = metric,
+                                Actual = Math.Round(avg, 2),
+                                Target = target
+                            });
+                        }
+                    }
+                }
+
+                foreach (var (metric, values) in accTotals)
+                {
+                    double avg = values.Average();
+                    double target = 5;
+                    if (avg > target)
+                    {
+                        result.Add(new WfmAggregateException
+                        {
+                            Level = "Account",
+                            Entity = account,
+                            Parent = null,
+                            Metric = metric,
+                            Actual = Math.Round(avg, 2),
+                            Target = target
+                        });
+                    }
+                }
             }
+
+            return result;
         }
-
-        sb.AppendLine();
-    }
-
-    return sb.ToString();
-}
