@@ -1,55 +1,49 @@
-static void Main()
+static string BuildAiPrompt(List<AIForecastEntry> forecastEntries)
 {
-    var connectionString = "YourConnectionStringHere";
-    var forecastHorizon = 3;
+    var grouped = forecastEntries
+        .GroupBy(f => f.Program)
+        .Select(g => new
+        {
+            Program = g.Key,
+            Metrics = g.ToList()
+        });
 
-    using var connection = new SqlConnection(connectionString);
-    var metrics = connection.Query<WfmMetric>("SELECT * FROM WfmMetrics").ToList();
-    var cleaned = CleanData(metrics);
-    var grouped = cleaned.GroupBy(m => m.Program);
+    var promptBuilder = new System.Text.StringBuilder();
 
-    var allForecastEntries = new List<AIForecastEntry>();
+    promptBuilder.AppendLine("You are a Workforce Forecasting Expert AI Assistant.");
+    promptBuilder.AppendLine("Given below is a set of forecast data for multiple programs. Each program includes metrics like Shrinkage, Attrition, Staffing, etc.");
+    promptBuilder.AppendLine();
+    promptBuilder.AppendLine("🔍 **Your task**:");
+    promptBuilder.AppendLine("1. Analyze each program’s forecast trends.");
+    promptBuilder.AppendLine("2. Highlight any increase or decrease with appropriate emojis/icons and explain their impact.");
+    promptBuilder.AppendLine("3. Present the output in a professional, visually engaging format using:");
+    promptBuilder.AppendLine("   - ✅ Good trends (e.g., declining attrition)");
+    promptBuilder.AppendLine("   - 🔴 Bad trends (e.g., rising shrinkage)");
+    promptBuilder.AppendLine("   - 📉 Downward trends | 📈 Upward trends");
+    promptBuilder.AppendLine("   - Bold headings, bullet points per metric, and consistent format.");
+    promptBuilder.AppendLine();
+    promptBuilder.AppendLine("Please use Markdown formatting for output clarity.");
+    promptBuilder.AppendLine();
+    promptBuilder.AppendLine("📦 **Forecast Data:**");
 
     foreach (var group in grouped)
     {
-        var programMetrics = group.OrderBy(m => m.Month).ToList();
+        promptBuilder.AppendLine($"\n### 📊 Program: **{group.Program}**");
 
-        if (programMetrics.Count < 6)
-            continue;
-
-        var latestMonth = programMetrics.Max(m => m.Month);
-
-        // Always include these metrics
-        var shrinkageEntry = GetForecastForPrompt(programMetrics, "Shrinkage", x => x.Shrinkage, latestMonth, forecastHorizon);
-        var attritionEntry = GetForecastForPrompt(programMetrics, "Attrition", x => x.Attrition, latestMonth, forecastHorizon);
-        var staffingEntry = GetForecastForPrompt(programMetrics, "Staffing", x => x.Staffing, latestMonth, forecastHorizon);
-
-        if (shrinkageEntry != null) allForecastEntries.Add(shrinkageEntry);
-        if (attritionEntry != null) allForecastEntries.Add(attritionEntry);
-        if (staffingEntry != null) allForecastEntries.Add(staffingEntry);
-
-        // Include additional metrics for AccountType 0
-        if (programMetrics.First().AccountType == 0)
+        foreach (var metric in group.Metrics)
         {
-            var offeredEntry = GetForecastForPrompt(programMetrics, "OfferedToForecast", x => x.OfferedToForecast, latestMonth, forecastHorizon);
-            var handledEntry = GetForecastForPrompt(programMetrics, "HandledToForecast", x => x.HandledToForecast, latestMonth, forecastHorizon);
-            var offeredHandledEntry = GetForecastForPrompt(programMetrics, "HandledToOffered", x => x.HandledToOffered, latestMonth, forecastHorizon);
-            var handledStaffingEntry = GetForecastForPrompt(programMetrics, "HandledToStaffing", x => x.HandledToStaffing, latestMonth, forecastHorizon);
-
-            if (offeredEntry != null) allForecastEntries.Add(offeredEntry);
-            if (handledEntry != null) allForecastEntries.Add(handledEntry);
-            if (offeredHandledEntry != null) allForecastEntries.Add(offeredHandledEntry);
-            if (handledStaffingEntry != null) allForecastEntries.Add(handledStaffingEntry);
+            promptBuilder.AppendLine($"- **{metric.Metric}**:");
+            foreach (var f in metric.Forecasts)
+            {
+                promptBuilder.AppendLine($"  - {f}");
+            }
         }
     }
 
-    // Build AI-ready prompt
-    var aiPrompt = BuildAiPrompt(allForecastEntries);
+    promptBuilder.AppendLine("\nPlease analyze each program and provide:");
+    promptBuilder.AppendLine("- A short summary of the trend (improving 📈, declining 📉, or stable ➖)");
+    promptBuilder.AppendLine("- Highlight risks or anomalies (e.g., consistent rise in attrition 🔴)");
+    promptBuilder.AppendLine("- Recommended actions or monitoring suggestions");
 
-    // Output for review or further processing
-    Console.WriteLine("\n🧠 AI-Ready Prompt:\n");
-    Console.WriteLine(aiPrompt);
-
-    // TODO: Pass `aiPrompt` to Azure OpenAI API if needed
-    // var summary = CallOpenAi(aiPrompt);
+    return promptBuilder.ToString();
 }
