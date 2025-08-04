@@ -1,65 +1,21 @@
-static string BuildAiPrompt(List<AIForecastEntry> forecastEntries)
-{
-    var grouped = forecastEntries
-        .GroupBy(f => f.Program)
-        .Select(g => new
-        {
-            Program = g.Key,
-            Metrics = g.ToList()
-        });
+📋 Please follow this exact format for each program:
 
-    var promptBuilder = new System.Text.StringBuilder();
+---
 
-    promptBuilder.AppendLine("You are a Workforce Forecasting Expert AI Assistant.");
-    promptBuilder.AppendLine("Given below is a forecast summary for multiple workforce programs and metrics.");
-    promptBuilder.AppendLine();
-    promptBuilder.AppendLine("🎯 **Instructions:**");
-    promptBuilder.AppendLine("1. For each program, analyze the forecast trend for every metric.");
-    promptBuilder.AppendLine("2. Include month names (e.g., _September 2025_) and their predicted values.");
-    promptBuilder.AppendLine("3. Use icons for trends:");
-    promptBuilder.AppendLine("   - 📈 increasing");
-    promptBuilder.AppendLine("   - 📉 decreasing");
-    promptBuilder.AppendLine("   - ➖ stable");
-    promptBuilder.AppendLine("4. Highlight negative patterns (like rising Attrition 🔴) and positive improvements (like reduced Shrinkage ✅).");
-    promptBuilder.AppendLine("5. Provide brief, actionable insights per program.");
-    promptBuilder.AppendLine("6. Format the response in **Markdown** using emojis, bold titles, and bullet points.");
-    promptBuilder.AppendLine();
-    promptBuilder.AppendLine("📦 **Forecast Data:**");
+### 📊 Program: **<Program Name>**
 
-    foreach (var group in grouped)
-    {
-        promptBuilder.AppendLine($"\n### 📊 Program: **{group.Program}**");
+#### 🔢 Forecast Breakdown:
+- **<Metric Name>**
+  - <Month 1>: <Value>
+  - <Month 2>: <Value>
+  - <Month 3>: <Value>
+  - 📈/📉/➖ Trend: <Short Interpretation>
 
-        foreach (var metric in group.Metrics)
-        {
-            promptBuilder.AppendLine($"- **{metric.Metric}**:");
+Repeat for each metric.
 
-            foreach (var forecastLine in metric.Forecasts)
-            {
-                // Extract month name if forecastLine contains a date
-                // e.g., "Month +1 (2025-09): 5.50"
-                var match = System.Text.RegularExpressions.Regex.Match(forecastLine, @"\((\d{4})-(\d{2})\): ([\d.]+)");
-                if (match.Success)
-                {
-                    var year = int.Parse(match.Groups[1].Value);
-                    var month = int.Parse(match.Groups[2].Value);
-                    var value = match.Groups[3].Value;
+#### 📌 Summary:
+- 🔴 Key Risk(s): <e.g., Increasing attrition and falling staffing>
+- ✅ Positive Trends: <e.g., Stable shrinkage>
+- 💡 Recommendation: <e.g., Increase focus on retention and optimize hiring ramp>
 
-                    var monthName = new DateTime(year, month, 1).ToString("MMMM yyyy");
-                    promptBuilder.AppendLine($"  - {monthName}: {value}");
-                }
-                else
-                {
-                    promptBuilder.AppendLine($"  - {forecastLine}"); // fallback
-                }
-            }
-        }
-    }
-
-    promptBuilder.AppendLine("\n📌 Please summarize each program with:");
-    promptBuilder.AppendLine("- Trend per metric (📈/📉/➖)");
-    promptBuilder.AppendLine("- High-risk issues (🔴), improvements (✅)");
-    promptBuilder.AppendLine("- Suggested actions (if needed)");
-
-    return promptBuilder.ToString();
-}
+---
