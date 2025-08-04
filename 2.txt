@@ -1,1 +1,39 @@
-Please generate a concise, readable prediction summary covering all months. If output exceeds token limits, summarize lower-priority programs or metrics. Ensure at least Month+1 to Month+3 values per metric are shown.
+ foreach (var group in grouped)
+            {
+                var programMetrics = group.OrderBy(m => m.Month).ToList();
+
+                if (programMetrics.Count < 6)
+                    continue;
+
+                var latestMonth = programMetrics.Max(m => m.Month);
+
+                // Always include these metrics
+                var shrinkageEntry = GetForecastForPrompt(programMetrics, "Shrinkage", x => x.Shrinkage, latestMonth, forecastHorizon);
+                var attritionEntry = GetForecastForPrompt(programMetrics, "Attrition", x => x.Attrition, latestMonth, forecastHorizon);
+                var staffingEntry = GetForecastForPrompt(programMetrics, "Staffing", x => x.Staffing, latestMonth, forecastHorizon);
+
+                if (shrinkageEntry != null) allForecastEntries.Add(shrinkageEntry);
+                if (attritionEntry != null) allForecastEntries.Add(attritionEntry);
+                if (staffingEntry != null) allForecastEntries.Add(staffingEntry);
+
+                // Include additional metrics for AccountType 0
+                if (programMetrics.First().AccountType == 0)
+                {
+                    var offeredEntry = GetForecastForPrompt(programMetrics, "OfferedToForecast", x => x.OfferedToForecast, latestMonth, forecastHorizon);
+                    var handledEntry = GetForecastForPrompt(programMetrics, "HandledToForecast", x => x.HandledToForecast, latestMonth, forecastHorizon);
+                    var offeredHandledEntry = GetForecastForPrompt(programMetrics, "HandledToOffered", x => x.HandledToOffered, latestMonth, forecastHorizon);
+                    var handledStaffingEntry = GetForecastForPrompt(programMetrics, "HandledToStaffing", x => x.HandledToStaffing, latestMonth, forecastHorizon);
+
+                    if (offeredEntry != null) allForecastEntries.Add(offeredEntry);
+                    if (handledEntry != null) allForecastEntries.Add(handledEntry);
+                    if (offeredHandledEntry != null) allForecastEntries.Add(offeredHandledEntry);
+                    if (handledStaffingEntry != null) allForecastEntries.Add(handledStaffingEntry);
+                }
+            }
+
+            // Build AI-ready prompt
+            var prompt = BuildAiPrompt(allForecastEntries);
+            var summary = await OpenAiService.CallAzureOpenAIAsync(prompt, apiKey, endpoint, deploymentName, apiVersionName);
+            Console.WriteLine("\n📝 AI Summary Output:\n");
+            Console.WriteLine(summary);
+            Console.ReadKey();
