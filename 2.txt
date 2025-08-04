@@ -1,103 +1,55 @@
-public class AIForecastEntry
+static void Main()
 {
-    public string Program { get; set; }
-    public string Metric { get; set; }
-    public List<string> Forecasts { get; set; }
-}
+    var connectionString = "YourConnectionStringHere";
+    var forecastHorizon = 3;
 
+    using var connection = new SqlConnection(connectionString);
+    var metrics = connection.Query<WfmMetric>("SELECT * FROM WfmMetrics").ToList();
+    var cleaned = CleanData(metrics);
+    var grouped = cleaned.GroupBy(m => m.Program);
 
-
-static AIForecastEntry GetForecastForPrompt(List<WfmMetric> data, string metricName, Func<WfmMetric, float?> selector, DateTime lastMonth, int horizon)
-{
-    var values = data.OrderBy(m => m.Month)
-                     .Select(selector)
-                     .Where(v => v.HasValue && v.Value != 0)
-                     .Select(v => v.Value.Value)
-                     .ToList();
-
-    if (values.Count < 6)
-        return null;
-
-    var forecast = Forecast(values, horizon);
-
-    var result = new AIForecastEntry
-    {
-        Program = data.First().Program,
-        Metric = metricName,
-        Forecasts = forecast.Select((v, i) =>
-        {
-            var month = lastMonth.AddMonths(i + 1).ToString("yyyy-MM");
-            return $"Month +{i + 1} ({month}): {v:F2}";
-        }).ToList()
-    };
-
-    return result;
-}
-
-
-
-static string BuildAiPrompt(List<AIForecastEntry> forecastEntries)
-{
-    var grouped = forecastEntries
-        .GroupBy(f => f.Program)
-        .Select(g => new
-        {
-            Program = g.Key,
-            Metrics = g.ToList()
-        });
-
-    var promptBuilder = new System.Text.StringBuilder();
-    promptBuilder.AppendLine("You are a workforce planning assistant. Below is a 3-month forecast for different metrics across programs.");
-    promptBuilder.AppendLine("Summarize the trends, highlight risks (like increasing attrition or decreasing staffing), and recommend actions if needed.");
-    promptBuilder.AppendLine();
-    promptBuilder.AppendLine("Forecast Data:");
+    var allForecastEntries = new List<AIForecastEntry>();
 
     foreach (var group in grouped)
     {
-        promptBuilder.AppendLine($"\n📊 Program: {group.Program}");
+        var programMetrics = group.OrderBy(m => m.Month).ToList();
 
-        foreach (var metric in group.Metrics)
+        if (programMetrics.Count < 6)
+            continue;
+
+        var latestMonth = programMetrics.Max(m => m.Month);
+
+        // Always include these metrics
+        var shrinkageEntry = GetForecastForPrompt(programMetrics, "Shrinkage", x => x.Shrinkage, latestMonth, forecastHorizon);
+        var attritionEntry = GetForecastForPrompt(programMetrics, "Attrition", x => x.Attrition, latestMonth, forecastHorizon);
+        var staffingEntry = GetForecastForPrompt(programMetrics, "Staffing", x => x.Staffing, latestMonth, forecastHorizon);
+
+        if (shrinkageEntry != null) allForecastEntries.Add(shrinkageEntry);
+        if (attritionEntry != null) allForecastEntries.Add(attritionEntry);
+        if (staffingEntry != null) allForecastEntries.Add(staffingEntry);
+
+        // Include additional metrics for AccountType 0
+        if (programMetrics.First().AccountType == 0)
         {
-            promptBuilder.AppendLine($"- {metric.Metric}:");
-            foreach (var f in metric.Forecasts)
-                promptBuilder.AppendLine($"  • {f}");
+            var offeredEntry = GetForecastForPrompt(programMetrics, "OfferedToForecast", x => x.OfferedToForecast, latestMonth, forecastHorizon);
+            var handledEntry = GetForecastForPrompt(programMetrics, "HandledToForecast", x => x.HandledToForecast, latestMonth, forecastHorizon);
+            var offeredHandledEntry = GetForecastForPrompt(programMetrics, "HandledToOffered", x => x.HandledToOffered, latestMonth, forecastHorizon);
+            var handledStaffingEntry = GetForecastForPrompt(programMetrics, "HandledToStaffing", x => x.HandledToStaffing, latestMonth, forecastHorizon);
+
+            if (offeredEntry != null) allForecastEntries.Add(offeredEntry);
+            if (handledEntry != null) allForecastEntries.Add(handledEntry);
+            if (offeredHandledEntry != null) allForecastEntries.Add(offeredHandledEntry);
+            if (handledStaffingEntry != null) allForecastEntries.Add(handledStaffingEntry);
         }
     }
 
-    promptBuilder.AppendLine("\nPlease provide insights per program.");
+    // Build AI-ready prompt
+    var aiPrompt = BuildAiPrompt(allForecastEntries);
 
-    return promptBuilder.ToString();
+    // Output for review or further processing
+    Console.WriteLine("\n🧠 AI-Ready Prompt:\n");
+    Console.WriteLine(aiPrompt);
+
+    // TODO: Pass `aiPrompt` to Azure OpenAI API if needed
+    // var summary = CallOpenAi(aiPrompt);
 }
-
-
-
-var forecastEntries = new List<AIForecastEntry>();
-
-if (programMetrics.First().AccountType == 0)
-{
-    var entry = GetForecastForPrompt(programMetrics, "OfferedToForecast", x => x.OfferedToForecast, latestMonth, forecastHorizon);
-    if (entry != null) forecastEntries.Add(entry);
-
-    entry = GetForecastForPrompt(programMetrics, "HandledToForecast", x => x.HandledToForecast, latestMonth, forecastHorizon);
-    if (entry != null) forecastEntries.Add(entry);
-
-    entry = GetForecastForPrompt(programMetrics, "HandledToOffered", x => x.HandledToOffered, latestMonth, forecastHorizon);
-    if (entry != null) forecastEntries.Add(entry);
-
-    entry = GetForecastForPrompt(programMetrics, "HandledToStaffing", x => x.HandledToStaffing, latestMonth, forecastHorizon);
-    if (entry != null) forecastEntries.Add(entry);
-}
-
-forecastEntries.AddRange(new[]
-{
-    GetForecastForPrompt(programMetrics, "Shrinkage", x => x.Shrinkage, latestMonth, forecastHorizon),
-    GetForecastForPrompt(programMetrics, "Attrition", x => x.Attrition, latestMonth, forecastHorizon),
-    GetForecastForPrompt(programMetrics, "Staffing", x => x.Staffing, latestMonth, forecastHorizon)
-}.Where(e => e != null));
-
-var aiPrompt = BuildAiPrompt(forecastEntries);
-Console.WriteLine(aiPrompt);
-
-// You can now pass `aiPrompt` to Azure OpenAI via your API call.
-
-
