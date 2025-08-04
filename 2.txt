@@ -1,50 +1,27 @@
-var allSummaries = new List<string>();
-
-foreach (var group in grouped)
+public static string BuildAiPrompt(List<ForecastMetric> entries, string programName)
 {
-    var programMetrics = group.OrderBy(m => m.Month).ToList();
+    var builder = new StringBuilder();
+    builder.AppendLine($"📊 Forecast Summary for Program: **{programName}**");
+    builder.AppendLine("Generate a concise and visually structured forecast analysis.");
+    builder.AppendLine("Use arrows (→), bold text, emojis (📈, 📉, ⚠️), and show month names clearly.");
+    builder.AppendLine("Summarize trends and focus on values for Month+1, Month+2, and Month+3.");
+    builder.AppendLine();
 
-    if (programMetrics.Count < 6)
-        continue;
+    var groupedByMetric = entries.GroupBy(e => e.MetricName);
 
-    var latestMonth = programMetrics.Max(m => m.Month);
-    var entries = new List<ForecastMetric>();
-
-    // Always include these
-    var shrinkageEntry = GetForecastForPrompt(programMetrics, "Shrinkage", x => x.Shrinkage, latestMonth, forecastHorizon);
-    var attritionEntry = GetForecastForPrompt(programMetrics, "Attrition", x => x.Attrition, latestMonth, forecastHorizon);
-    var staffingEntry = GetForecastForPrompt(programMetrics, "Staffing", x => x.Staffing, latestMonth, forecastHorizon);
-
-    if (shrinkageEntry != null) entries.Add(shrinkageEntry);
-    if (attritionEntry != null) entries.Add(attritionEntry);
-    if (staffingEntry != null) entries.Add(staffingEntry);
-
-    // Include additional metrics if AccountType == 0
-    if (programMetrics.First().AccountType == 0)
+    foreach (var g in groupedByMetric)
     {
-        var offeredEntry = GetForecastForPrompt(programMetrics, "OfferedToForecast", x => x.OfferedToForecast, latestMonth, forecastHorizon);
-        var handledEntry = GetForecastForPrompt(programMetrics, "HandledToForecast", x => x.HandledToForecast, latestMonth, forecastHorizon);
-        var offeredHandledEntry = GetForecastForPrompt(programMetrics, "HandledToOffered", x => x.HandledToOffered, latestMonth, forecastHorizon);
-        var handledStaffingEntry = GetForecastForPrompt(programMetrics, "HandledToStaffing", x => x.HandledToStaffing, latestMonth, forecastHorizon);
-
-        if (offeredEntry != null) entries.Add(offeredEntry);
-        if (handledEntry != null) entries.Add(handledEntry);
-        if (offeredHandledEntry != null) entries.Add(offeredHandledEntry);
-        if (handledStaffingEntry != null) entries.Add(handledStaffingEntry);
+        builder.AppendLine($"**{g.Key}**:");
+        foreach (var m in g.OrderBy(e => e.Month))
+        {
+            var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(m.Month.Month);
+            builder.Append($"`{monthName}` → {m.PredictedValue:F1}  ");
+        }
+        builder.AppendLine();
     }
 
-    if (entries.Any())
-    {
-        var programName = programMetrics.First().ProgramName ?? "Unnamed Program";
-        var prompt = BuildAiPrompt(entries, programName); // updated to accept program name
-        var summary = await OpenAiService.CallAzureOpenAIAsync(prompt, apiKey, endpoint, deploymentName, apiVersionName);
-        allSummaries.Add($"### 📌 Summary for {programName}:\n\n{summary.Trim()}");
-    }
+    builder.AppendLine();
+    builder.AppendLine("Conclude with overall trend and recommendation.");
+
+    return builder.ToString();
 }
-
-// Print final consolidated summary
-var finalSummary = string.Join("\n\n---\n\n", allSummaries);
-Console.WriteLine("\n📝 AI Forecast Summary:\n");
-Console.WriteLine(finalSummary);
-
-Console.ReadKey();
