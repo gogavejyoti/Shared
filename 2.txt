@@ -1,26 +1,19 @@
-// Required NuGet Packages:
-// - Dapper
-// - Microsoft.ML
-// - Microsoft.ML.TimeSeries
-// - System.Data.SqlClient
-
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Globalization;
 using System.Linq;
-using System.Text;
 using Dapper;
 using Microsoft.ML;
 using Microsoft.ML.TimeSeries;
 
-namespace WfmForecasting
+namespace WfmForecastConsole
 {
     public class WfmMetric
     {
         public string Program { get; set; }
-        public int AccountType { get; set; }
         public DateTime Month { get; set; }
-
+        public int AccountType { get; set; }
         public float? OfferedToForecast { get; set; }
         public float? HandledToForecast { get; set; }
         public float? HandledToOffered { get; set; }
@@ -30,78 +23,96 @@ namespace WfmForecasting
         public float? Staffing { get; set; }
     }
 
-    public class ForecastInput { public float Value { get; set; } }
-    public class ForecastOutput { public float[] ForecastedValues { get; set; } }
-
-    class Program
+    public class ForecastInput
     {
-        static void Main(string[] args)
+        public float Value { get; set; }
+    }
+
+    public class ForecastOutput
+    {
+        public float[] ForecastedValues { get; set; }
+    }
+
+    internal class Program
+    {
+        static void Main()
         {
-            string connString = "your_connection_string_here";
-            var rawMetrics = LoadMetricsFromDatabase(connString);
+            var connectionString = "YourConnectionStringHere";
+            var forecastHorizon = 3;
 
-            // Filter out bad entries early
-            var validMetrics = rawMetrics
-                .Where(m => !string.IsNullOrWhiteSpace(m.Program) && m.Month != default)
-                .ToList();
+            using var connection = new SqlConnection(connectionString);
 
-            var byProgram = validMetrics.GroupBy(m => m.Program);
+            var metrics = connection.Query<WfmMetric>("SELECT * FROM WfmMetrics").ToList();
 
-            foreach (var programGroup in byProgram)
+            var cleaned = CleanData(metrics);
+            var grouped = cleaned.GroupBy(m => m.Program);
+
+            foreach (var group in grouped)
             {
-                string program = programGroup.Key;
-                int accountType = programGroup.First().AccountType;
-                Console.WriteLine($"\n🔵 Forecast for Program: {program} (AccountType = {accountType})");
+                Console.WriteLine($"\n📊 Forecast for Program: {group.Key}");
+                var programMetrics = group.OrderBy(m => m.Month).ToList();
 
-                if (accountType == 0)
+                if (programMetrics.Count < 6)
                 {
-                    ForecastAndPrint(programGroup.ToList(), "OfferedToForecast", m => m.OfferedToForecast);
-                    ForecastAndPrint(programGroup.ToList(), "HandledToForecast", m => m.HandledToForecast);
-                    ForecastAndPrint(programGroup.ToList(), "HandledToOffered", m => m.HandledToOffered);
-                    ForecastAndPrint(programGroup.ToList(), "HandledToStaffing", m => m.HandledToStaffing);
+                    Console.WriteLine("Not enough data for reliable forecasting.");
+                    continue;
                 }
 
-                ForecastAndPrint(programGroup.ToList(), "Shrinkage", m => m.Shrinkage);
-                ForecastAndPrint(programGroup.ToList(), "Attrition", m => m.Attrition);
-                ForecastAndPrint(programGroup.ToList(), "Staffing", m => m.Staffing);
+                var latestMonth = programMetrics.Max(m => m.Month);
+
+                ForecastAndPrint(programMetrics, "Shrinkage", x => x.Shrinkage, latestMonth, forecastHorizon);
+                ForecastAndPrint(programMetrics, "Attrition", x => x.Attrition, latestMonth, forecastHorizon);
+                ForecastAndPrint(programMetrics, "Staffing", x => x.Staffing, latestMonth, forecastHorizon);
+
+                if (programMetrics.First().AccountType == 0)
+                {
+                    ForecastAndPrint(programMetrics, "OfferedToForecast", x => x.OfferedToForecast, latestMonth, forecastHorizon);
+                    ForecastAndPrint(programMetrics, "HandledToForecast", x => x.HandledToForecast, latestMonth, forecastHorizon);
+                    ForecastAndPrint(programMetrics, "HandledToOffered", x => x.HandledToOffered, latestMonth, forecastHorizon);
+                    ForecastAndPrint(programMetrics, "HandledToStaffing", x => x.HandledToStaffing, latestMonth, forecastHorizon);
+                }
             }
+
+            Console.WriteLine("\n✅ Forecasting completed using ML.NET SSA (Singular Spectrum Analysis). Ready for Azure OpenAI summarization.");
         }
 
-        static List<WfmMetric> LoadMetricsFromDatabase(string connectionString)
+        static List<WfmMetric> CleanData(List<WfmMetric> data)
         {
-            using var conn = new SqlConnection(connectionString);
-            string sql = @"SELECT Program, AccountType, Month,
-                            OfferedToForecast, HandledToForecast,
-                            HandledToOffered, HandledToStaffing,
-                            Shrinkage, Attrition, Staffing
-                         FROM WfmMetrics";
-            return conn.Query<WfmMetric>(sql).ToList();
+            return data
+                .Where(m => !string.IsNullOrWhiteSpace(m.Program) && m.Month != default)
+                .ToList();
         }
 
-        static void ForecastAndPrint(List<WfmMetric> data, string metricName, Func<WfmMetric, float?> selector)
+        static void ForecastAndPrint(List<WfmMetric> data, string metricName, Func<WfmMetric, float?> selector, DateTime lastMonth, int horizon)
         {
-            var cleanedSeries = data
-                .OrderBy(x => x.Month)
+            var values = data
+                .OrderBy(m => m.Month)
                 .Select(selector)
-                .Where(v => v.HasValue && v.Value > 0 && v.Value < 1000) // filter nulls, zeros, garbage
-                .Select(v => v.Value)
+                .Where(v => v.HasValue && v.Value != 0)
+                .Select(v => v.Value.Value)
                 .ToList();
 
-            if (cleanedSeries.Count < 10)
+            if (values.Count < 6)
             {
-                Console.WriteLine($"⚠️ Skipping {metricName}: Not enough valid data points ({cleanedSeries.Count}).");
+                Console.WriteLine($"⚠️ Skipping {metricName} — not enough valid data.");
                 return;
             }
 
-            var forecast = Forecast(cleanedSeries);
+            var forecast = Forecast(values, horizon);
+
             Console.WriteLine($"\n📈 {metricName} Forecast:");
-            foreach (var (value, i) in forecast.Select((v, i) => (v, i + 1)))
-                Console.WriteLine($"  Month +{i}: {value:F2}");
+            for (int i = 0; i < forecast.Count; i++)
+            {
+                var predictedMonth = lastMonth.AddMonths(i + 1);
+                Console.WriteLine($"  {predictedMonth:yyyy-MM} (Month +{i + 1}): {forecast[i]:F2}");
+            }
         }
 
-        static List<float> Forecast(List<float> values, int horizon = 3)
+        static List<float> Forecast(List<float> values, int horizon)
         {
             var context = new MLContext();
+
+            int windowSize = Math.Max(3, values.Count / 3);
 
             var data = values.Select(v => new ForecastInput { Value = v }).ToList();
             var dataView = context.Data.LoadFromEnumerable(data);
@@ -109,7 +120,7 @@ namespace WfmForecasting
             var pipeline = context.Forecasting.ForecastBySsa(
                 outputColumnName: nameof(ForecastOutput.ForecastedValues),
                 inputColumnName: nameof(ForecastInput.Value),
-                windowSize: 6,
+                windowSize: windowSize,
                 seriesLength: values.Count,
                 trainSize: values.Count,
                 horizon: horizon);
