@@ -1,49 +1,48 @@
-static string BuildAiPrompt(List<AIForecastEntry> forecastEntries)
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+public static class OpenAiService
 {
-    var grouped = forecastEntries
-        .GroupBy(f => f.Program)
-        .Select(g => new
-        {
-            Program = g.Key,
-            Metrics = g.ToList()
-        });
-
-    var promptBuilder = new System.Text.StringBuilder();
-
-    promptBuilder.AppendLine("You are a Workforce Forecasting Expert AI Assistant.");
-    promptBuilder.AppendLine("Given below is a set of forecast data for multiple programs. Each program includes metrics like Shrinkage, Attrition, Staffing, etc.");
-    promptBuilder.AppendLine();
-    promptBuilder.AppendLine("🔍 **Your task**:");
-    promptBuilder.AppendLine("1. Analyze each program’s forecast trends.");
-    promptBuilder.AppendLine("2. Highlight any increase or decrease with appropriate emojis/icons and explain their impact.");
-    promptBuilder.AppendLine("3. Present the output in a professional, visually engaging format using:");
-    promptBuilder.AppendLine("   - ✅ Good trends (e.g., declining attrition)");
-    promptBuilder.AppendLine("   - 🔴 Bad trends (e.g., rising shrinkage)");
-    promptBuilder.AppendLine("   - 📉 Downward trends | 📈 Upward trends");
-    promptBuilder.AppendLine("   - Bold headings, bullet points per metric, and consistent format.");
-    promptBuilder.AppendLine();
-    promptBuilder.AppendLine("Please use Markdown formatting for output clarity.");
-    promptBuilder.AppendLine();
-    promptBuilder.AppendLine("📦 **Forecast Data:**");
-
-    foreach (var group in grouped)
+    public static async Task<string> CallAzureOpenAIAsync(string prompt, string apiKey, string endpoint, string deploymentName)
     {
-        promptBuilder.AppendLine($"\n### 📊 Program: **{group.Program}**");
+        using var httpClient = new HttpClient();
 
-        foreach (var metric in group.Metrics)
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        var requestUri = $"{endpoint}/openai/deployments/{deploymentName}/chat/completions?api-version=2024-02-15-preview";
+
+        var requestBody = new
         {
-            promptBuilder.AppendLine($"- **{metric.Metric}**:");
-            foreach (var f in metric.Forecasts)
+            messages = new[]
             {
-                promptBuilder.AppendLine($"  - {f}");
-            }
+                new { role = "system", content = "You are a Workforce Forecasting Expert. Respond only in markdown format with icons and trend analysis." },
+                new { role = "user", content = prompt }
+            },
+            temperature = 0.4,
+            max_tokens = 1500
+        };
+
+        var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+
+        var response = await httpClient.PostAsync(requestUri, content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Azure OpenAI error: {response.StatusCode}\n{error}");
         }
+
+        var jsonResponse = await response.Content.ReadAsStringAsync();
+        var result = JsonDocument.Parse(jsonResponse);
+        var answer = result.RootElement
+                           .GetProperty("choices")[0]
+                           .GetProperty("message")
+                           .GetProperty("content")
+                           .GetString();
+
+        return answer;
     }
-
-    promptBuilder.AppendLine("\nPlease analyze each program and provide:");
-    promptBuilder.AppendLine("- A short summary of the trend (improving 📈, declining 📉, or stable ➖)");
-    promptBuilder.AppendLine("- Highlight risks or anomalies (e.g., consistent rise in attrition 🔴)");
-    promptBuilder.AppendLine("- Recommended actions or monitoring suggestions");
-
-    return promptBuilder.ToString();
 }
