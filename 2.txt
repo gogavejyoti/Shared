@@ -1,20 +1,33 @@
-// Step 3: Inject context into chat history
-    var contextText = string.Join("\n\n", topMatches.Select(x => $"Q: {x.Question}\nA: {x.Answer}"));
-    var fullHistory = new List<ChatMessage>();
+		public async Task<string> SummarizeAnswerWithChatGPT(string userQuestion, List<QuestionAnswerModel> matches)
+		{
+			var systemPrompt = "You are a helpful assistant. Use the below Q&A context to answer the user's question clearly and concisely.";
+			var context = string.Join("\n\n", matches.Select(m => $"Q: {m.QuestionText}\nA: {m.AnswerText}"));
 
-    // Optional system message
-    fullHistory.Add(new ChatMessage
-    {
-        Role = "system",
-        Content = "You are an assistant. Use the provided Q&A context and maintain prior conversation understanding. Respond in Markdown format."
-    });
+			var chatRequest = new
+			{
+				messages = new[]
+				{
+				new { role = "system", content = "You are a helpful assistant." },
+				new { role = "user",content = "Explain cloud computing in **Markdown** format." },
+				new { role = "system", content = systemPrompt },
+				new { role = "user", content = $"Context:\n{context}\n\nUser Question:\n{userQuestion}" }
+			},
+				temperature = 0.2,
+				max_tokens = 300
+			};
 
-    // Add semantic Q&A context
-    fullHistory.Add(new ChatMessage
-    {
-        Role = "system",
-        Content = $"Here is some helpful context:\n\n{contextText}"
-    });
+			using var http = new HttpClient();
+			http.DefaultRequestHeaders.Add("api-key", azureApiKey);
 
-    // Append entire chat history (includes user query)
-    fullHistory.AddRange(chatHistory);
+			var url = $"{azureEndpoint}openai/deployments/{chatDeployment}/chat/completions?api-version={chatApiVersion}";
+			var content = new StringContent(JsonConvert.SerializeObject(chatRequest), Encoding.UTF8, "application/json");
+
+			var response = await http.PostAsync(url, content);
+			var responseJson = await response.Content.ReadAsStringAsync();
+
+			if (!response.IsSuccessStatusCode)
+				throw new Exception("ChatGPT error: " + responseJson);
+
+			dynamic result = JsonConvert.DeserializeObject(responseJson);
+			return result.choices[0].message.content.ToString();
+		}
