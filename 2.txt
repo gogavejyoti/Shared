@@ -1,26 +1,118 @@
-$menu.find('.sr-play').on('click', function () {
-  if (synth.speaking || synth.paused) return;
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  function speakNow() {
-    utterance = new SpeechSynthesisUtterance(text);
-    const voice = loadVoice();
+<script>
+  (function ($) {
+    $.fn.summaryReader = function (options) {
+      const settings = $.extend({
+        text: null,
+        rate: 1,
+        pitch: 1,
+        lang: 'en-US',
+        menuPosition: 'bottom'
+      }, options);
 
-    if (!voice) {
-      console.warn('Voice not ready yet, retrying...');
-      setTimeout(speakNow, 100); // Retry after short delay
-      return;
-    }
+      const synth = window.speechSynthesis;
+      let utterance;
+      let voices = [];
+      let voiceLoaded = false;
 
-    utterance.voice = voice;
-    utterance.rate = settings.rate;
-    utterance.pitch = settings.pitch;
-    synth.speak(utterance);
-  }
+      function loadVoices(callback) {
+        voices = synth.getVoices();
+        if (voices.length) {
+          voiceLoaded = true;
+          if (callback) callback();
+        } else {
+          // Retry once voices load
+          speechSynthesis.onvoiceschanged = () => {
+            voices = synth.getVoices();
+            voiceLoaded = true;
+            if (callback) callback();
+          };
+        }
+      }
 
-  // Wait for voices to load if not ready
-  if (speechSynthesis.getVoices().length === 0) {
-    speechSynthesis.onvoiceschanged = speakNow;
-  } else {
-    speakNow();
-  }
-});
+      function getVoice() {
+        return (
+          voices.find(v => v.lang === settings.lang && v.name.includes('Google')) ||
+          voices.find(v => v.lang === settings.lang) ||
+          voices[0]
+        );
+      }
+
+      return this.each(function () {
+        const $el = $(this);
+        const rawText = settings.text || $el.text() || $el.html();
+        const text = $('<div>').html(rawText).text(); // Remove HTML tags safely
+
+        const $menu = $(`
+          <div class="summary-reader-menu" style="margin-top: 10px;">
+            <button class="sr-play" title="Play"><i class="fas fa-play"></i></button>
+            <button class="sr-pause" title="Pause"><i class="fas fa-pause"></i></button>
+            <button class="sr-resume" title="Resume"><i class="fas fa-redo"></i></button>
+            <button class="sr-stop" title="Stop"><i class="fas fa-stop"></i></button>
+          </div>
+        `).css({
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'center',
+          fontSize: '1.2rem'
+        });
+
+        if (settings.menuPosition === 'top') {
+          $el.before($menu);
+        } else {
+          $el.after($menu);
+        }
+
+        // Initial load
+        loadVoices();
+
+        // Play
+        $menu.find('.sr-play').on('click', function () {
+          if (synth.speaking || synth.paused) return;
+
+          const trySpeak = () => {
+            const voice = getVoice();
+            if (!voice) {
+              console.warn('Voice not ready yet. Retrying...');
+              setTimeout(trySpeak, 200);
+              return;
+            }
+
+            utterance = new SpeechSynthesisUtterance(text);
+            utterance.voice = voice;
+            utterance.rate = settings.rate;
+            utterance.pitch = settings.pitch;
+            synth.speak(utterance);
+          };
+
+          if (!voiceLoaded) {
+            loadVoices(trySpeak);
+          } else {
+            trySpeak();
+          }
+        });
+
+        // Pause
+        $menu.find('.sr-pause').on('click', function () {
+          if (synth.speaking && !synth.paused) {
+            synth.pause();
+          }
+        });
+
+        // Resume
+        $menu.find('.sr-resume').on('click', function () {
+          if (synth.paused) {
+            synth.resume();
+          }
+        });
+
+        // Stop
+        $menu.find('.sr-stop').on('click', function () {
+          synth.cancel();
+        });
+      });
+    };
+  })(jQuery);
+</script>
