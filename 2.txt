@@ -1,28 +1,25 @@
-public async Task<string> SummarizeAnswerWithChatGPT(List<ChatMessage> fullHistory)
+CREATE TABLE ChatHistory (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    SessionId UNIQUEIDENTIFIER,           -- Group messages per session/user
+    Role NVARCHAR(20),                    -- 'user' or 'assistant' or 'system'
+    MessageText NVARCHAR(MAX),
+    CreatedAt DATETIME DEFAULT GETDATE()
+);
+
+
+public class ChatMessage
 {
-    var chatRequest = new
-    {
-        messages = fullHistory.Select(m => new
-        {
-            role = m.Role,
-            content = m.Content
-        }),
-        temperature = 0.2,
-        max_tokens = 300
-    };
+    public Guid SessionId { get; set; }
+    public string Role { get; set; }     // "user", "assistant", "system"
+    public string MessageText { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
 
-    using var http = new HttpClient();
-    http.DefaultRequestHeaders.Add("api-key", azureApiKey);
 
-    var url = $"{azureEndpoint}openai/deployments/{chatDeployment}/chat/completions?api-version={chatApiVersion}";
-    var content = new StringContent(JsonConvert.SerializeObject(chatRequest), Encoding.UTF8, "application/json");
-
-    var response = await http.PostAsync(url, content);
-    var responseJson = await response.Content.ReadAsStringAsync();
-
-    if (!response.IsSuccessStatusCode)
-        throw new Exception("ChatGPT error: " + responseJson);
-
-    dynamic result = JsonConvert.DeserializeObject(responseJson);
-    return result.choices[0].message.content.ToString();
+public async Task SaveChatMessage(ChatMessage message)
+{
+    using var connection = new SqlConnection(_connectionString);
+    await connection.ExecuteAsync(
+        @"INSERT INTO ChatHistory (SessionId, Role, MessageText) 
+          VALUES (@SessionId, @Role, @MessageText)", message);
 }
