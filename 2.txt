@@ -1,27 +1,89 @@
-public static string BuildAiPrompt(List<ForecastMetric> entries, string programName)
-{
-    var builder = new StringBuilder();
-    builder.AppendLine($"📊 Forecast Summary for Program: **{programName}**");
-    builder.AppendLine("Generate a concise and visually structured forecast analysis.");
-    builder.AppendLine("Use arrows (→), bold text, emojis (📈, 📉, ⚠️), and show month names clearly.");
-    builder.AppendLine("Summarize trends and focus on values for Month+1, Month+2, and Month+3.");
-    builder.AppendLine();
+<!-- Font Awesome CDN -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    var groupedByMetric = entries.GroupBy(e => e.MetricName);
+<script>
+  (function ($) {
+    $.fn.summaryReader = function (options) {
+      const settings = $.extend({
+        text: null,
+        rate: 1,
+        pitch: 1,
+        lang: 'en-US',
+        menuPosition: 'bottom' // 'top' or 'bottom'
+      }, options);
 
-    foreach (var g in groupedByMetric)
-    {
-        builder.AppendLine($"**{g.Key}**:");
-        foreach (var m in g.OrderBy(e => e.Month))
-        {
-            var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(m.Month.Month);
-            builder.Append($"`{monthName}` → {m.PredictedValue:F1}  ");
+      const synth = window.speechSynthesis;
+      let utterance;
+      let voices = [];
+
+      function loadVoice() {
+        voices = synth.getVoices();
+        return (
+          voices.find(v => v.lang === settings.lang && v.name.includes('Google')) ||
+          voices.find(v => v.lang === settings.lang) ||
+          voices[0]
+        );
+      }
+
+      if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = loadVoice;
+      }
+
+      return this.each(function () {
+        const $el = $(this);
+        const text = settings.text || $el.text();
+
+        // Create the control menu
+        const $menu = $(`
+          <div class="summary-reader-menu" style="margin-top: 10px;">
+            <button class="sr-play" title="Play"><i class="fas fa-play"></i></button>
+            <button class="sr-pause" title="Pause"><i class="fas fa-pause"></i></button>
+            <button class="sr-resume" title="Resume"><i class="fas fa-redo"></i></button>
+            <button class="sr-stop" title="Stop"><i class="fas fa-stop"></i></button>
+          </div>
+        `).css({
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'center',
+          fontSize: '1.2rem'
+        });
+
+        // Insert menu above or below
+        if (settings.menuPosition === 'top') {
+          $el.before($menu);
+        } else {
+          $el.after($menu);
         }
-        builder.AppendLine();
-    }
 
-    builder.AppendLine();
-    builder.AppendLine("Conclude with overall trend and recommendation.");
+        // Bind button actions
+        $menu.find('.sr-play').on('click', function () {
+          if (synth.speaking || synth.paused) return;
 
-    return builder.ToString();
-}
+          utterance = new SpeechSynthesisUtterance(text);
+          const voice = loadVoice();
+          if (voice) utterance.voice = voice;
+
+          utterance.rate = settings.rate;
+          utterance.pitch = settings.pitch;
+          synth.speak(utterance);
+        });
+
+        $menu.find('.sr-pause').on('click', function () {
+          if (synth.speaking && !synth.paused) {
+            synth.pause();
+          }
+        });
+
+        $menu.find('.sr-resume').on('click', function () {
+          if (synth.paused) {
+            synth.resume();
+          }
+        });
+
+        $menu.find('.sr-stop').on('click', function () {
+          synth.cancel();
+        });
+      });
+    };
+  })(jQuery);
+</script>
