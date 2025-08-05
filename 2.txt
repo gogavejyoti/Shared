@@ -1,89 +1,27 @@
-<!-- Font Awesome CDN -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  .summary-reader-menu button {
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .summary-reader-menu button:hover {
+    background: #e0e0e0;
+  }
+</style>
+
+
+<div id="summaryBox" style="padding: 10px; border: 1px solid #ccc;">
+  Staffing is currently at 94.8 percent with an attrition rate of 11.3 percent. July saw a spike in variance, exceeding $3,200.
+</div>
 
 <script>
-  (function ($) {
-    $.fn.summaryReader = function (options) {
-      const settings = $.extend({
-        text: null,
-        rate: 1,
-        pitch: 1,
-        lang: 'en-US',
-        menuPosition: 'bottom' // 'top' or 'bottom'
-      }, options);
-
-      const synth = window.speechSynthesis;
-      let utterance;
-      let voices = [];
-
-      function loadVoice() {
-        voices = synth.getVoices();
-        return (
-          voices.find(v => v.lang === settings.lang && v.name.includes('Google')) ||
-          voices.find(v => v.lang === settings.lang) ||
-          voices[0]
-        );
-      }
-
-      if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = loadVoice;
-      }
-
-      return this.each(function () {
-        const $el = $(this);
-        const text = settings.text || $el.text();
-
-        // Create the control menu
-        const $menu = $(`
-          <div class="summary-reader-menu" style="margin-top: 10px;">
-            <button class="sr-play" title="Play"><i class="fas fa-play"></i></button>
-            <button class="sr-pause" title="Pause"><i class="fas fa-pause"></i></button>
-            <button class="sr-resume" title="Resume"><i class="fas fa-redo"></i></button>
-            <button class="sr-stop" title="Stop"><i class="fas fa-stop"></i></button>
-          </div>
-        `).css({
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'center',
-          fontSize: '1.2rem'
-        });
-
-        // Insert menu above or below
-        if (settings.menuPosition === 'top') {
-          $el.before($menu);
-        } else {
-          $el.after($menu);
-        }
-
-        // Bind button actions
-        $menu.find('.sr-play').on('click', function () {
-          if (synth.speaking || synth.paused) return;
-
-          utterance = new SpeechSynthesisUtterance(text);
-          const voice = loadVoice();
-          if (voice) utterance.voice = voice;
-
-          utterance.rate = settings.rate;
-          utterance.pitch = settings.pitch;
-          synth.speak(utterance);
-        });
-
-        $menu.find('.sr-pause').on('click', function () {
-          if (synth.speaking && !synth.paused) {
-            synth.pause();
-          }
-        });
-
-        $menu.find('.sr-resume').on('click', function () {
-          if (synth.paused) {
-            synth.resume();
-          }
-        });
-
-        $menu.find('.sr-stop').on('click', function () {
-          synth.cancel();
-        });
-      });
-    };
-  })(jQuery);
+  $('#summaryBox').summaryReader({
+    rate: 1,
+    pitch: 1,
+    menuPosition: 'bottom' // You can also try 'top'
+  });
 </script>
