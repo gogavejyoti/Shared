@@ -1,118 +1,142 @@
-<!-- Font Awesome -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    function sendMessage() {
+        const userMessage = $('#userInput').val().trim();
+        if (userMessage === '') return;
 
-<script>
-  (function ($) {
-    $.fn.summaryReader = function (options) {
-      const settings = $.extend({
-        text: null,
-        rate: 1,
-        pitch: 1,
-        lang: 'en-US',
-        menuPosition: 'bottom'
-      }, options);
+        $('#aiChatIntro').hide(); // Hide intro
+        $('#aiChatPrev').append(`
+            <div class="d-flex justify-content-end align-items-end mb-3">
+                <div class="px-3 py-2 text-body bg-white bg-opacity-15 mw-75">${userMessage}</div>
+                <div>
+                    <div class="w-30px h-30px mx-2 text-white rounded-circle bg-white bg-opacity-15 fs-16px d-flex align-items-center justify-content-center"> <i class="fa fa-user"></i></div>
+                </div>
+            </div>
+        `);
 
-      const synth = window.speechSynthesis;
-      let utterance;
-      let voices = [];
-      let voiceLoaded = false;
+        $('#userInput').val('');
 
-      function loadVoices(callback) {
-        voices = synth.getVoices();
-        if (voices.length) {
-          voiceLoaded = true;
-          if (callback) callback();
-        } else {
-          // Retry once voices load
-          speechSynthesis.onvoiceschanged = () => {
-            voices = synth.getVoices();
-            voiceLoaded = true;
-            if (callback) callback();
-          };
-        }
-      }
+        const botMessageId = 'botMsg_' + Date.now();
+        const thinkingId = 'thinking_' + botMessageId;
 
-      function getVoice() {
-        return (
-          voices.find(v => v.lang === settings.lang && v.name.includes('Google')) ||
-          voices.find(v => v.lang === settings.lang) ||
-          voices[0]
-        );
-      }
+        // Show blinking "Analyzing..." message
+        $('#aiChatPrev').append(`
+            <div id="${thinkingId}" class="mb-3">
+                <div class="d-flex justify-content-start align-items-end">
+                    <div>
+                        <div class="w-30px h-30px mx-2 fs-16px rounded-circle bg-theme bg-opacity-15 text-theme d-flex align-items-center justify-content-center">
+                            <i class="fa fa-robot"></i>
+                        </div>
+                    </div>
+                    <div class="px-3 py-2 text-body bg-white bg-opacity-15 mw-75">
+                        <span class="typing-dots">Analyzing</span>
+                    </div>
+                </div>
+            </div>
+        `);
 
-      return this.each(function () {
-        const $el = $(this);
-        const rawText = settings.text || $el.text() || $el.html();
-        const text = $('<div>').html(rawText).text(); // Remove HTML tags safely
+        scrollToBottom();
 
-        const $menu = $(`
-          <div class="summary-reader-menu" style="margin-top: 10px;">
-            <button class="sr-play" title="Play"><i class="fas fa-play"></i></button>
-            <button class="sr-pause" title="Pause"><i class="fas fa-pause"></i></button>
-            <button class="sr-resume" title="Resume"><i class="fas fa-redo"></i></button>
-            <button class="sr-stop" title="Stop"><i class="fas fa-stop"></i></button>
-          </div>
-        `).css({
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'center',
-          fontSize: '1.2rem'
-        });
+        // AJAX call to backend
+        $.ajax({
+            url: '/ChatBot/Chat', // Your C# endpoint
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(userMessage),
+            success: function (response) {
+                const htmlFormatted = marked.parse(response.message);
 
-        if (settings.menuPosition === 'top') {
-          $el.before($menu);
-        } else {
-          $el.after($menu);
-        }
+                // Remove "Analyzing..." message
+                $('#' + thinkingId).remove();
 
-        // Initial load
-        loadVoices();
+                // Add final bot message container
+                $('#aiChatPrev').append(`
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-start align-items-end">
+                            <div>
+                                <div class="w-30px h-30px mx-2 fs-16px rounded-circle bg-theme bg-opacity-15 text-theme d-flex align-items-center justify-content-center">
+                                    <i class="fa fa-robot"></i>
+                                </div>
+                            </div>
+                            <div id="${botMessageId}" class="px-3 py-2 text-body bg-white bg-opacity-15 mw-75  border-theme" style="border: solid thin;"></div>
+                        </div>
+ <div class="d-flex">
+      <div class="w-30px h-30px mx-3"></div>
+      <div class="d-flex flex-wrap w-100 p-2 opacity-75">
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="far fa-fw fa-copy"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="far fa-fw fa-thumbs-up"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="far fa-fw fa-thumbs-down"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration me-2"><i class="fa fa-fw fa-microphone"></i></a>
+        <a href="#" class="text-white text-opacity-50 text-decoration"><i class="fa fa-fw fa-arrow-rotate-right"></i></a>
+      </div>
+    </div>
+  </div>
+                    </div>
+                `);
 
-        // Play
-        $menu.find('.sr-play').on('click', function () {
-          if (synth.speaking || synth.paused) return;
-
-          const trySpeak = () => {
-            const voice = getVoice();
-            if (!voice) {
-              console.warn('Voice not ready yet. Retrying...');
-              setTimeout(trySpeak, 200);
-              return;
+                simulateTypingEffect(htmlFormatted, botMessageId);
+            },
+            error: function () {
+                $('#' + thinkingId).remove();
+                $('#aiChatPrev').append(`<div class="text-danger">Error communicating with the bot.</div>`);
             }
-
-            utterance = new SpeechSynthesisUtterance(text);
-            utterance.voice = voice;
-            utterance.rate = settings.rate;
-            utterance.pitch = settings.pitch;
-            synth.speak(utterance);
-          };
-
-          if (!voiceLoaded) {
-            loadVoices(trySpeak);
-          } else {
-            trySpeak();
-          }
         });
+    }
 
-        // Pause
-        $menu.find('.sr-pause').on('click', function () {
-          if (synth.speaking && !synth.paused) {
-            synth.pause();
-          }
-        });
 
-        // Resume
-        $menu.find('.sr-resume').on('click', function () {
-          if (synth.paused) {
-            synth.resume();
-          }
-        });
+		public async Task<QueryResponse> ProcessQuery(string query)
+		{
+			var userEmbedding = await GetAzureEmbedding(query);
+			var storedQAs = await LoadQnAFromDatabase();
+			var topMatches = storedQAs
+			.Select(q => new
+			{
+				qa = q,
+				similarity = CosineSimilarity(userEmbedding, q.Embedding)
+			})
+			.OrderByDescending(x => x.similarity)
+			.Take(3)
+			.Select(x => x.qa)
+			.ToList();
 
-        // Stop
-        $menu.find('.sr-stop').on('click', function () {
-          synth.cancel();
-        });
-      });
-    };
-  })(jQuery);
-</script>
+			if (topMatches.Count == 0)
+			{
+				return new QueryResponse { Message= "❌ No relevant answer found." };
+			}
+			string finalAnswer = await SummarizeAnswerWithChatGPT(query, topMatches);
+			return new QueryResponse { Message = finalAnswer };
+
+		}
+
+
+		public async Task<string> SummarizeAnswerWithChatGPT(string userQuestion, List<QuestionAnswerModel> matches)
+		{
+			var systemPrompt = "You are a helpful assistant. Use the below Q&A context to answer the user's question clearly and concisely.";
+			var context = string.Join("\n\n", matches.Select(m => $"Q: {m.QuestionText}\nA: {m.AnswerText}"));
+
+			var chatRequest = new
+			{
+				messages = new[]
+				{
+				new { role = "system", content = "You are a helpful assistant." },
+				new { role = "user",content = "Explain cloud computing in **Markdown** format." },
+				new { role = "system", content = systemPrompt },
+				new { role = "user", content = $"Context:\n{context}\n\nUser Question:\n{userQuestion}" }
+			},
+				temperature = 0.2,
+				max_tokens = 300
+			};
+
+			using var http = new HttpClient();
+			http.DefaultRequestHeaders.Add("api-key", azureApiKey);
+
+			var url = $"{azureEndpoint}openai/deployments/{chatDeployment}/chat/completions?api-version={chatApiVersion}";
+			var content = new StringContent(JsonConvert.SerializeObject(chatRequest), Encoding.UTF8, "application/json");
+
+			var response = await http.PostAsync(url, content);
+			var responseJson = await response.Content.ReadAsStringAsync();
+
+			if (!response.IsSuccessStatusCode)
+				throw new Exception("ChatGPT error: " + responseJson);
+
+			dynamic result = JsonConvert.DeserializeObject(responseJson);
+			return result.choices[0].message.content.ToString();
+		}
