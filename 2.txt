@@ -1,25 +1,21 @@
-CREATE TABLE ChatHistory (
-    Id INT IDENTITY(1,1) PRIMARY KEY,
-    SessionId UNIQUEIDENTIFIER,           -- Group messages per session/user
-    Role NVARCHAR(20),                    -- 'user' or 'assistant' or 'system'
-    MessageText NVARCHAR(MAX),
-    CreatedAt DATETIME DEFAULT GETDATE()
-);
+<div class="fw-bold small mb-2 d-flex align-items-center">
+                            <iconify-icon icon="ph:chat-teardrop-text" class="fs-16px w-18px me-7px pb-2px text-theme"></iconify-icon>
+                            Chat History
+                        </div>
 
-
-public class ChatMessage
-{
-    public Guid SessionId { get; set; }
-    public string Role { get; set; }     // "user", "assistant", "system"
-    public string MessageText { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
-
-
-public async Task SaveChatMessage(ChatMessage message)
-{
-    using var connection = new SqlConnection(_connectionString);
-    await connection.ExecuteAsync(
-        @"INSERT INTO ChatHistory (SessionId, Role, MessageText) 
-          VALUES (@SessionId, @Role, @MessageText)", message);
-}
+<div class="fs-11px">
+								<div class="position-relative hover-bg-white bg-opacity-10 hover-show py-5px px-3 ps-25px border-0 d-flex align-items-center">
+									<div class="flex-1 text-body text-opacity-75">Plan My Dream Vacation</div>
+									<a href="#" class="stretched-link" data-toggle-ai-tab="aiChatPrev"></a>
+									<div class="dropdown position-relative z-3">
+										<a href="#" data-bs-toggle="dropdown" class="text-body text-opacity-50 d-none hover-show-elm"><i class="fa fa-ellipsis"></i></a>
+										<div class="dropdown-menu">
+											<a href="#" class="dropdown-item">Share Chat</a>
+											<a href="#" class="dropdown-item">See Details</a>
+											<div class="dropdown-divider"></div>
+											<a href="#" class="dropdown-item">Rename</a>
+											<a href="#" class="dropdown-item">Archive</a>
+											<a href="#" class="dropdown-item">Delete</a>
+										</div>
+									</div>
+								</div>
