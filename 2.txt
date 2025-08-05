@@ -1,4 +1,26 @@
-  const utter = new SpeechSynthesisUtterance("Testing text-to-speech");
-  utter.rate = 1;
-  utter.pitch = 1;
-  speechSynthesis.speak(utter);
+$menu.find('.sr-play').on('click', function () {
+  if (synth.speaking || synth.paused) return;
+
+  function speakNow() {
+    utterance = new SpeechSynthesisUtterance(text);
+    const voice = loadVoice();
+
+    if (!voice) {
+      console.warn('Voice not ready yet, retrying...');
+      setTimeout(speakNow, 100); // Retry after short delay
+      return;
+    }
+
+    utterance.voice = voice;
+    utterance.rate = settings.rate;
+    utterance.pitch = settings.pitch;
+    synth.speak(utterance);
+  }
+
+  // Wait for voices to load if not ready
+  if (speechSynthesis.getVoices().length === 0) {
+    speechSynthesis.onvoiceschanged = speakNow;
+  } else {
+    speakNow();
+  }
+});
