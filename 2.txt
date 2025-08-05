@@ -1,27 +1,4 @@
-<style>
-  .summary-reader-menu button {
-    background: #f0f0f0;
-    border: 1px solid #ccc;
-    padding: 6px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .summary-reader-menu button:hover {
-    background: #e0e0e0;
-  }
-</style>
-
-
-<div id="summaryBox" style="padding: 10px; border: 1px solid #ccc;">
-  Staffing is currently at 94.8 percent with an attrition rate of 11.3 percent. July saw a spike in variance, exceeding $3,200.
-</div>
-
-<script>
-  $('#summaryBox').summaryReader({
-    rate: 1,
-    pitch: 1,
-    menuPosition: 'bottom' // You can also try 'top'
-  });
-</script>
+  const utter = new SpeechSynthesisUtterance("Testing text-to-speech");
+  utter.rate = 1;
+  utter.pitch = 1;
+  speechSynthesis.speak(utter);
