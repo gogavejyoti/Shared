@@ -1,21 +1,22 @@
-<div class="fw-bold small mb-2 d-flex align-items-center">
-                            <iconify-icon icon="ph:chat-teardrop-text" class="fs-16px w-18px me-7px pb-2px text-theme"></iconify-icon>
-                            Chat History
-                        </div>
+public class ChatSessionDto
+{
+	public Guid SessionId { get; set; }
+	public DateTime CreatedAt { get; set; }
+	public string Preview { get; set; }
+}
 
-<div class="fs-11px">
-								<div class="position-relative hover-bg-white bg-opacity-10 hover-show py-5px px-3 ps-25px border-0 d-flex align-items-center">
-									<div class="flex-1 text-body text-opacity-75">Plan My Dream Vacation</div>
-									<a href="#" class="stretched-link" data-toggle-ai-tab="aiChatPrev"></a>
-									<div class="dropdown position-relative z-3">
-										<a href="#" data-bs-toggle="dropdown" class="text-body text-opacity-50 d-none hover-show-elm"><i class="fa fa-ellipsis"></i></a>
-										<div class="dropdown-menu">
-											<a href="#" class="dropdown-item">Share Chat</a>
-											<a href="#" class="dropdown-item">See Details</a>
-											<div class="dropdown-divider"></div>
-											<a href="#" class="dropdown-item">Rename</a>
-											<a href="#" class="dropdown-item">Archive</a>
-											<a href="#" class="dropdown-item">Delete</a>
-										</div>
-									</div>
-								</div>
+public async Task<IActionResult> GetChatSessions(string userId)
+{
+	var sessions = await _db.QueryAsync<ChatSessionDto>(@"
+		SELECT 
+			SessionId,
+			MIN(CreatedAt) AS CreatedAt,
+			LEFT(MAX(CASE WHEN Role = 'user' THEN Message END), 30) + '...' AS Preview
+		FROM ChatHistory
+		WHERE UserId = @UserId
+		GROUP BY SessionId
+		ORDER BY CreatedAt DESC
+	", new { UserId = userId });
+
+	return Ok(sessions);
+}
