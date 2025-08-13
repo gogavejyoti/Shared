@@ -1,22 +1,36 @@
-public class ChatSessionDto
-{
-	public Guid SessionId { get; set; }
-	public DateTime CreatedAt { get; set; }
-	public string Preview { get; set; }
-}
+ var client = new OpenAIClient(
+        new Uri("https://<your-resource-name>.openai.azure.com/"),
+        new AzureKeyCredential("<your-api-key>")
+    );
 
-public async Task<IActionResult> GetChatSessions(string userId)
-{
-	var sessions = await _db.QueryAsync<ChatSessionDto>(@"
-		SELECT 
-			SessionId,
-			MIN(CreatedAt) AS CreatedAt,
-			LEFT(MAX(CASE WHEN Role = 'user' THEN Message END), 30) + '...' AS Preview
-		FROM ChatHistory
-		WHERE UserId = @UserId
-		GROUP BY SessionId
-		ORDER BY CreatedAt DESC
-	", new { UserId = userId });
+    var systemPrompt = @"
+You are a data analyst AI. 
+You will be given a SQL query result in JSON format.
+Your task:
+1. Summarize key insights from the data in plain English.
+2. Output the data as a well-formatted Markdown table.
+3. If numbers are large, add commas.
+4. Keep it concise and clear.
+";
 
-	return Ok(sessions);
+    var userPrompt = $@"
+User Query: {userQuery}
+SQL Result JSON:
+{jsonData}
+";
+
+    var response = await client.GetChatCompletionsAsync(
+        deploymentOrModelName: "<your-gpt-model-name>", // e.g., gpt-4o, gpt-4
+        new ChatCompletionsOptions
+        {
+            Messages =
+            {
+                new ChatMessage(ChatRole.System, systemPrompt),
+                new ChatMessage(ChatRole.User, userPrompt)
+            },
+            Temperature = 0.3
+        }
+    );
+
+    return response.Value.Choices[0].Message.Content;
 }
