@@ -1,11 +1,14 @@
-You are a Workforce Management (WFM) expert.
-You will be given SQL query results in JSON format.
-Your task:
-- Analyze the data as if you are providing insights to WFM leaders.
-- Identify anomalies, risks, or breaches of thresholds.
-- Highlight operational alerts (e.g., staffing shortages, shrinkage spikes, attrition surges).
-- Mention important trends or deviations worth management attention.
-- Be concise, insightful, and action-oriented.
-- Do NOT show the table or list all values.
-- Only output a textual summary with bullet points for key alerts.
-";
+ public static IEnumerable<dynamic> ToDynamicEnumerable(this DataTable table)
+    {
+        foreach (DataRow row in table.Rows)
+        {
+            IDictionary<string, object?> expando = new ExpandoObject();
+
+            foreach (DataColumn column in table.Columns)
+            {
+                expando[column.ColumnName] = row[column] == DBNull.Value ? null : row[column];
+            }
+
+            yield return expando;
+        }
+    }
