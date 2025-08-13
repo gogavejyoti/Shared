@@ -1,36 +1,31 @@
- var client = new OpenAIClient(
-        new Uri("https://<your-resource-name>.openai.azure.com/"),
-        new AzureKeyCredential("<your-api-key>")
-    );
+using System;
+using System.Data;
+using System.Globalization;
 
-    var systemPrompt = @"
-You are a data analyst AI. 
-You will be given a SQL query result in JSON format.
-Your task:
-1. Summarize key insights from the data in plain English.
-2. Output the data as a well-formatted Markdown table.
-3. If numbers are large, add commas.
-4. Keep it concise and clear.
-";
+public static class DataTableHelper
+{
+    public static void MultiplyPercentageColumnsBy100(DataTable table)
+    {
+        if (table == null) throw new ArgumentNullException(nameof(table));
 
-    var userPrompt = $@"
-User Query: {userQuery}
-SQL Result JSON:
-{jsonData}
-";
-
-    var response = await client.GetChatCompletionsAsync(
-        deploymentOrModelName: "<your-gpt-model-name>", // e.g., gpt-4o, gpt-4
-        new ChatCompletionsOptions
+        foreach (DataColumn col in table.Columns)
         {
-            Messages =
+            // Case-insensitive check for "percentage" in column name
+            if (col.ColumnName.IndexOf("percentage", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                new ChatMessage(ChatRole.System, systemPrompt),
-                new ChatMessage(ChatRole.User, userPrompt)
-            },
-            Temperature = 0.3
-        }
-    );
+                for (int i = 0; i < table.Rows.Count; i++)
+                {
+                    var value = table.Rows[i][col];
 
-    return response.Value.Choices[0].Message.Content;
+                    if (value != DBNull.Value)
+                    {
+                        if (double.TryParse(value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out double num))
+                        {
+                            table.Rows[i][col] = num * 100;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
