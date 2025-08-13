@@ -1,31 +1,7 @@
-using System;
-using System.Data;
-using System.Globalization;
-
-public static class DataTableHelper
-{
-    public static void MultiplyPercentageColumnsBy100(DataTable table)
-    {
-        if (table == null) throw new ArgumentNullException(nameof(table));
-
-        foreach (DataColumn col in table.Columns)
-        {
-            // Case-insensitive check for "percentage" in column name
-            if (col.ColumnName.IndexOf("percentage", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                for (int i = 0; i < table.Rows.Count; i++)
-                {
-                    var value = table.Rows[i][col];
-
-                    if (value != DBNull.Value)
-                    {
-                        if (double.TryParse(value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out double num))
-                        {
-                            table.Rows[i][col] = num * 100;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+1. Summarize key insights in plain English.
+2. Output the table in GitHub-flavored Markdown format:
+   - First row = column names
+   - Second row = alignment specifiers (e.g., |---:| for right alignment)
+   - Each row = data
+3. Format numbers with commas, and percentages with '%' symbol.
+4. Do not output extra commentary after the table.
