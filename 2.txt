@@ -1,1 +1,45 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script>
+function sendJson(jsonObj) {
+    let jsonStr = JSON.stringify(jsonObj);
+
+    // Compress with gzip
+    let compressed = pako.gzip(jsonStr);
+
+    // Convert to Base64 so it can travel safely in JSON
+    let base64 = btoa(String.fromCharCode.apply(null, compressed));
+
+    $.ajax({
+        url: "/Plan/Save",
+        type: "POST",
+        data: JSON.stringify({ compressedData: base64 }),
+        contentType: "application/json; charset=utf-8",
+        success: function (res) {
+            console.log("Saved");
+        }
+    });
+}
+</script>
+
+
+
+[HttpPost]
+public IActionResult Save([FromBody] SaveRequest request)
+{
+    byte[] compressed = Convert.FromBase64String(request.CompressedData);
+
+    using var inputStream = new MemoryStream(compressed);
+    using var gzip = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
+    using var outputStream = new MemoryStream();
+    gzip.CopyTo(outputStream);
+
+    string json = Encoding.UTF8.GetString(outputStream.ToArray());
+
+    // Now save json or compress again with Zstd before SQL insert
+    return Ok();
+}
+
+public class SaveRequest
+{
+    public string CompressedData { get; set; }
+}
