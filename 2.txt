@@ -1,18 +1,8 @@
-[HttpPost]
-public async Task<IActionResult> SaveSheetsCompressed(IFormFile file)
-{
-    if (file == null || file.Length == 0)
-        return BadRequest("No file uploaded.");
-
-    using var input = file.OpenReadStream();
-    using var deflate = new DeflateStream(input, CompressionMode.Decompress);
-    using var reader = new StreamReader(deflate);
-    var json = await reader.ReadToEndAsync();
-
-    var sheets = JsonConvert.DeserializeObject<List<SaveSheetDto>>(json);
-
-    var userId = User.GetIdByEmail();
-    await _resourcePlannerService.SaveSheetsAsync(sheets, _vertical, userId);
-
-    return Ok();
-}
+ystem.IO.InvalidDataException: The archive entry was compressed using an unsupported compression method.
+   at System.IO.Compression.Inflater.Inflate(FlushCode flushCode)
+   at System.IO.Compression.Inflater.ReadInflateOutput(Byte* bufPtr, Int32 length, FlushCode flushCode, Int32& bytesRead)
+   at System.IO.Compression.Inflater.ReadOutput(Byte* bufPtr, Int32 length, Int32& bytesRead)
+   at System.IO.Compression.Inflater.InflateVerified(Byte* bufPtr, Int32 length)
+   at System.IO.Compression.DeflateStream.<ReadAsyncMemory>g__Core|50_0(Memory`1 buffer, CancellationToken cancellationToken)
+   at System.IO.StreamReader.ReadBufferAsync(CancellationToken cancellationToken)
+   at System.IO.StreamReader.ReadToEndAsyncInternal()
