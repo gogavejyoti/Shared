@@ -1,10 +1,45 @@
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.js"></script>
 
-        [HttpPost]
-        public async Task<IActionResult> SaveSheets([FromBody] List<SaveSheetDto> sheets)
-        {
-            if (sheets == null || !sheets.Any())
-                return BadRequest("Invalid sheet data.");
-            var userId = User.GetIdByEmail();
-            await _resourcePlannerService.SaveSheetsAsync(sheets, _vertical, userId);
-            return Ok();
-        }
+function compressJson(obj) {
+    const json = JSON.stringify(obj);
+    const compressed = fflate.compressSync(new TextEncoder().encode(json));
+    return new Blob([compressed], { type: "application/octet-stream" });
+}
+
+async function saveSheets(sheets) {
+    const compressedBlob = compressJson(sheets);
+    const formData = new FormData();
+    formData.append("file", compressedBlob, "sheets.bin");
+
+    await fetch("/ResourcePlanner/SaveSheetsCompressed", {
+        method: "POST",
+        body: formData
+    });
+}
+
+
+
+[HttpPost]
+public async Task<IActionResult> SaveSheetsCompressed(IFormFile file)
+{
+    if (file == null || file.Length == 0)
+        return BadRequest("No file uploaded.");
+
+    using var input = file.OpenReadStream();
+    using var decompressed = new MemoryStream();
+    using (var ds = new DeflateStream(input, CompressionMode.Decompress))
+    {
+        await ds.CopyToAsync(decompressed);
+    }
+
+    decompressed.Position = 0;
+    using var reader = new StreamReader(decompressed);
+    var json = await reader.ReadToEndAsync();
+
+    var sheets = JsonConvert.DeserializeObject<List<SaveSheetDto>>(json);
+
+    var userId = User.GetIdByEmail();
+    await _resourcePlannerService.SaveSheetsAsync(sheets, _vertical, userId);
+
+    return Ok();
+}
