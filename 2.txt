@@ -1,21 +1,32 @@
-<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fflate/umd/index.js"></script>
+<script>
+    // compress sheets JSON with fflate.gzip
+    function compressJson(obj) {
+        const json = JSON.stringify(obj);
+        const compressed = fflate.gzip(new TextEncoder().encode(json));
+        return new Blob([compressed], { type: "application/gzip" });
+    }
 
-function compressJson(obj) {
-    const json = JSON.stringify(obj);
-    const compressed = fflate.compressSync(new TextEncoder().encode(json));
-    return new Blob([compressed], { type: "application/octet-stream" });
-}
+    function saveSheets(sheets) {
+        const compressedBlob = compressJson(sheets);
+        const formData = new FormData();
+        formData.append("file", compressedBlob, "sheets.gz");
 
-async function saveSheets(sheets) {
-    const compressedBlob = compressJson(sheets);
-    const formData = new FormData();
-    formData.append("file", compressedBlob, "sheets.bin");
-
-    await fetch("/ResourcePlanner/SaveSheetsCompressed", {
-        method: "POST",
-        body: formData
-    });
-}
+        $.ajax({
+            url: "/ResourcePlanner/SaveSheetsCompressed",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function () {
+                console.log("Saved successfully");
+            },
+            error: function (err) {
+                console.error("Error:", err);
+            }
+        });
+    }
+</script>
 
 
 
@@ -27,9 +38,9 @@ public async Task<IActionResult> SaveSheetsCompressed(IFormFile file)
 
     using var input = file.OpenReadStream();
     using var decompressed = new MemoryStream();
-    using (var ds = new DeflateStream(input, CompressionMode.Decompress))
+    using (var gzip = new GZipStream(input, CompressionMode.Decompress))
     {
-        await ds.CopyToAsync(decompressed);
+        await gzip.CopyToAsync(decompressed);
     }
 
     decompressed.Position = 0;
