@@ -1,8 +1,21 @@
-ystem.IO.InvalidDataException: The archive entry was compressed using an unsupported compression method.
-   at System.IO.Compression.Inflater.Inflate(FlushCode flushCode)
-   at System.IO.Compression.Inflater.ReadInflateOutput(Byte* bufPtr, Int32 length, FlushCode flushCode, Int32& bytesRead)
-   at System.IO.Compression.Inflater.ReadOutput(Byte* bufPtr, Int32 length, Int32& bytesRead)
-   at System.IO.Compression.Inflater.InflateVerified(Byte* bufPtr, Int32 length)
-   at System.IO.Compression.DeflateStream.<ReadAsyncMemory>g__Core|50_0(Memory`1 buffer, CancellationToken cancellationToken)
-   at System.IO.StreamReader.ReadBufferAsync(CancellationToken cancellationToken)
-   at System.IO.StreamReader.ReadToEndAsyncInternal()
+function compressJson(obj) {
+    const json = JSON.stringify(obj);
+
+    // gzip instead of deflate
+    const compressed = fflate.gzipSync(
+        new TextEncoder().encode(json), 
+        { level: 9 }
+    );
+
+    return new Blob([compressed], { type: "application/octet-stream" });
+}
+
+
+using (var input = file.OpenReadStream())
+using (var gzip = new GZipStream(input, CompressionMode.Decompress))
+using (var reader = new StreamReader(gzip))
+{
+    var json = await reader.ReadToEndAsync();
+    var sheets = JsonConvert.DeserializeObject<List<SaveSheetDto>>(json);
+    ...
+}
