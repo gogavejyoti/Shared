@@ -1,3 +1,6 @@
+Implicit conversion from data type nvarchar(max) to varbinary(max) is not allowed. Use the CONVERT function to run this query.
+
+
 -- Change column to VARBINARY
 ALTER TABLE RP_PlanSheets_Travel
 ALTER COLUMN JsonData VARBINARY(MAX);
@@ -10,3 +13,4 @@ VALUES (1, COMPRESS(CAST(@JsonText AS NVARCHAR(MAX))));
 SELECT CAST(DECOMPRESS(JsonData) AS NVARCHAR(MAX)) AS JsonText
 FROM RP_PlanSheets_Travel
 WHERE RPPlanId = @PlanId;
+
