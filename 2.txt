@@ -1,66 +1,7 @@
-USE [ResourcePlanner]
-GO
-/****** Object:  Table [dbo].[LOBs]    Script Date: 18-08-2025 15:26:41 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[LOBs](
-	[LOBId] [int] IDENTITY(1,1) NOT NULL,
-	[PlanId] [int] NULL,
-	[Name] [nvarchar](100) NULL,
-	[BillingModel] [nvarchar](50) NULL,
-	[ProjectId] [nvarchar](100) NULL,
-	[TrainingWk] [smallint] NOT NULL,
-	[NestingWk] [smallint] NOT NULL,
-	[LearningWk] [smallint] NOT NULL,
-	[CreatedAt] [datetime] NULL,
-	[UpdatedAt] [datetime] NULL,
-	[CreatedBy] [varchar](20) NULL,
-	[UpdatedBy] [varchar](20) NULL,
-	[Geo] [varchar](50) NULL,
-	[Site] [varchar](50) NULL,
- CONSTRAINT [PK__LOBs__F63EE67C598AA650] PRIMARY KEY CLUSTERED 
-(
-	[LOBId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Plans]    Script Date: 18-08-2025 15:26:41 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Plans](
-	[PlanId] [int] IDENTITY(1,1) NOT NULL,
-	[Name] [nvarchar](200) NULL,
-	[Vertical] [nvarchar](100) NULL,
-	[Account] [nvarchar](100) NULL,
-	[WeekStart] [nvarchar](10) NULL,
-	[PlanFrom] [date] NULL,
-	[PlanTo] [date] NULL,
-	[SOTracker] [bit] NULL,
-	[AssumptionSheet] [bit] NULL,
-	[CreatedAt] [datetime] NULL,
-	[UpdatedAt] [datetime] NULL,
-	[CreatedBy] [varchar](20) NULL,
-	[UpdatedBy] [varchar](20) NULL,
-	[CopiedFrom] [int] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[PlanId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[PlanSheets]    Script Date: 18-08-2025 15:26:41 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[PlanSheets](
-	[PlanSheetId] [int] IDENTITY(1,1) NOT NULL,
-	[PlanId] [int] NOT NULL,
-	[LobId] [int] NULL,
+CREATE TABLE [dbo].[RP_PlanSheets_Travel](
+	[RPPlanSheetId] [int] IDENTITY(1,1) NOT NULL,
+	[RPPlanId] [int] NOT NULL,
+	[RPLobId] [int] NULL,
 	[Name] [nvarchar](100) NOT NULL,
 	[Type] [nvarchar](50) NOT NULL,
 	[JsonData] [nvarchar](max) NOT NULL,
@@ -68,42 +9,4 @@ CREATE TABLE [dbo].[PlanSheets](
 	[UpdatedAt] [datetime] NULL,
 	[CreatedBy] [varchar](20) NULL,
 	[UpdatedBy] [varchar](20) NULL,
- CONSTRAINT [PK__PlanShee__CE1DA211B42435C0] PRIMARY KEY CLUSTERED 
-(
-	[PlanSheetId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-ALTER TABLE [dbo].[LOBs] ADD  CONSTRAINT [DF_LOBs_TrainingWk]  DEFAULT ((0)) FOR [TrainingWk]
-GO
-ALTER TABLE [dbo].[LOBs] ADD  CONSTRAINT [DF_LOBs_NestingWk]  DEFAULT ((0)) FOR [NestingWk]
-GO
-ALTER TABLE [dbo].[LOBs] ADD  CONSTRAINT [DF_LOBs_LearningWk]  DEFAULT ((0)) FOR [LearningWk]
-GO
-ALTER TABLE [dbo].[LOBs] ADD  CONSTRAINT [DF_LOBs_CreatedAt]  DEFAULT (getutcdate()) FOR [CreatedAt]
-GO
-ALTER TABLE [dbo].[Plans] ADD  CONSTRAINT [DF__Plans__CreatedAt__46E78A0C]  DEFAULT (getutcdate()) FOR [CreatedAt]
-GO
-ALTER TABLE [dbo].[PlanSheets] ADD  CONSTRAINT [DF__PlanSheet__Creat__6C190EBB]  DEFAULT (getutcdate()) FOR [CreatedAt]
-GO
-ALTER TABLE [dbo].[LOBs]  WITH CHECK ADD  CONSTRAINT [FK__LOBs__PlanId__49C3F6B7] FOREIGN KEY([PlanId])
-REFERENCES [dbo].[Plans] ([PlanId])
-ON DELETE CASCADE
-GO
-ALTER TABLE [dbo].[LOBs] CHECK CONSTRAINT [FK__LOBs__PlanId__49C3F6B7]
-GO
-ALTER TABLE [dbo].[Plans]  WITH CHECK ADD  CONSTRAINT [FK_Plans_Plans] FOREIGN KEY([PlanId])
-REFERENCES [dbo].[Plans] ([PlanId])
-GO
-ALTER TABLE [dbo].[Plans] CHECK CONSTRAINT [FK_Plans_Plans]
-GO
-ALTER TABLE [dbo].[PlanSheets]  WITH CHECK ADD  CONSTRAINT [FK_PlanSheets_Lobs] FOREIGN KEY([LobId])
-REFERENCES [dbo].[LOBs] ([LOBId])
-GO
-ALTER TABLE [dbo].[PlanSheets] CHECK CONSTRAINT [FK_PlanSheets_Lobs]
-GO
-ALTER TABLE [dbo].[PlanSheets]  WITH CHECK ADD  CONSTRAINT [FK_PlanSheets_Plans] FOREIGN KEY([PlanId])
-REFERENCES [dbo].[Plans] ([PlanId])
-GO
-ALTER TABLE [dbo].[PlanSheets] CHECK CONSTRAINT [FK_PlanSheets_Plans]
-GO
+	[IsActive] [bit] NULL,
