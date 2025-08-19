@@ -1,31 +1,33 @@
-Implicit conversion from data type nvarchar(max) to varbinary(max) is not allowed. Use the CONVERT function to run this query.
+using System.IO;
+using System.IO.Compression;
+using System.Text;
 
-ALTER TABLE RP_PlanSheets_Travel
-ADD JsonDataCompressed VARBINARY(MAX) NULL;
+public static class CompressionHelper
+{
+    // Compress JSON string to byte[]
+    public static byte[] CompressString(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        using (var msi = new MemoryStream(bytes))
+        using (var mso = new MemoryStream())
+        {
+            using (var gs = new GZipStream(mso, CompressionMode.Compress))
+            {
+                msi.CopyTo(gs);
+            }
+            return mso.ToArray();
+        }
+    }
 
-UPDATE RP_PlanSheets_Travel
-SET JsonDataCompressed = COMPRESS(CONVERT(VARBINARY(MAX), JsonData));
-
-
-ALTER TABLE RP_PlanSheets_Travel
-DROP COLUMN JsonData;
-
-EXEC sp_rename 
-    'RP_PlanSheets_Travel.JsonDataCompressed',
-    'JsonData',
-    'COLUMN';
-
--- Change column to VARBINARY
-ALTER TABLE RP_PlanSheets_Travel
-ALTER COLUMN JsonData VARBINARY(MAX);
-
--- Store compressed JSON
-INSERT INTO RP_PlanSheets_Travel (RPPlanId, JsonData)
-VALUES (1, COMPRESS(CAST(@JsonText AS NVARCHAR(MAX))));
-
--- Read
-SELECT CAST(DECOMPRESS(JsonData) AS NVARCHAR(MAX)) AS JsonText
-FROM RP_PlanSheets_Travel
-WHERE RPPlanId = @PlanId;
-
-
+    // Decompress byte[] back to JSON string
+    public static string DecompressString(byte[] compressed)
+    {
+        using (var msi = new MemoryStream(compressed))
+        using (var mso = new MemoryStream())
+        using (var gs = new GZipStream(msi, CompressionMode.Decompress))
+        {
+            gs.CopyTo(mso);
+            return Encoding.UTF8.GetString(mso.ToArray());
+        }
+    }
+}
