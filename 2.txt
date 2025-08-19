@@ -1,2 +1,12 @@
+-- Change column to VARBINARY
 ALTER TABLE RP_PlanSheets_Travel
-ADD JsonData VARBINARY(MAX) FILESTREAM NULL;
+ALTER COLUMN JsonData VARBINARY(MAX);
+
+-- Store compressed JSON
+INSERT INTO RP_PlanSheets_Travel (RPPlanId, JsonData)
+VALUES (1, COMPRESS(CAST(@JsonText AS NVARCHAR(MAX))));
+
+-- Read
+SELECT CAST(DECOMPRESS(JsonData) AS NVARCHAR(MAX)) AS JsonText
+FROM RP_PlanSheets_Travel
+WHERE RPPlanId = @PlanId;
