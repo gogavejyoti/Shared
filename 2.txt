@@ -1,33 +1,20 @@
-using System.IO;
-using System.IO.Compression;
+using System;
 using System.Text;
+using ZstdSharp;
 
-public static class CompressionHelper
+public static class JsonZstdHelper
 {
-    // Compress JSON string to byte[]
-    public static byte[] CompressString(string text)
+    public static byte[] Compress(string json, int compressionLevel = 3)
     {
-        var bytes = Encoding.UTF8.GetBytes(text);
-        using (var msi = new MemoryStream(bytes))
-        using (var mso = new MemoryStream())
-        {
-            using (var gs = new GZipStream(mso, CompressionMode.Compress))
-            {
-                msi.CopyTo(gs);
-            }
-            return mso.ToArray();
-        }
+        var bytes = Encoding.UTF8.GetBytes(json);
+        using var compressor = new Compressor(compressionLevel);
+        return compressor.Wrap(bytes);
     }
 
-    // Decompress byte[] back to JSON string
-    public static string DecompressString(byte[] compressed)
+    public static string Decompress(byte[] compressed)
     {
-        using (var msi = new MemoryStream(compressed))
-        using (var mso = new MemoryStream())
-        using (var gs = new GZipStream(msi, CompressionMode.Decompress))
-        {
-            gs.CopyTo(mso);
-            return Encoding.UTF8.GetString(mso.ToArray());
-        }
+        using var decompressor = new Decompressor();
+        var bytes = decompressor.Unwrap(compressed);
+        return Encoding.UTF8.GetString(bytes);
     }
 }
