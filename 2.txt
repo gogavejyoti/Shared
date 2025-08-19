@@ -1,35 +1,3 @@
-<script src="https://cdn.jsdelivr.net/npm/fflate/umd/index.js"></script>
-<script>
-    // compress sheets JSON with fflate.gzip
-    function compressJson(obj) {
-        const json = JSON.stringify(obj);
-        const compressed = fflate.gzip(new TextEncoder().encode(json));
-        return new Blob([compressed], { type: "application/gzip" });
-    }
-
-    function saveSheets(sheets) {
-        const compressedBlob = compressJson(sheets);
-        const formData = new FormData();
-        formData.append("file", compressedBlob, "sheets.gz");
-
-        $.ajax({
-            url: "/ResourcePlanner/SaveSheetsCompressed",
-            type: "POST",
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function () {
-                console.log("Saved successfully");
-            },
-            error: function (err) {
-                console.error("Error:", err);
-            }
-        });
-    }
-</script>
-
-
-
 [HttpPost]
 public async Task<IActionResult> SaveSheetsCompressed(IFormFile file)
 {
@@ -37,14 +5,8 @@ public async Task<IActionResult> SaveSheetsCompressed(IFormFile file)
         return BadRequest("No file uploaded.");
 
     using var input = file.OpenReadStream();
-    using var decompressed = new MemoryStream();
-    using (var gzip = new GZipStream(input, CompressionMode.Decompress))
-    {
-        await gzip.CopyToAsync(decompressed);
-    }
-
-    decompressed.Position = 0;
-    using var reader = new StreamReader(decompressed);
+    using var deflate = new DeflateStream(input, CompressionMode.Decompress);
+    using var reader = new StreamReader(deflate);
     var json = await reader.ReadToEndAsync();
 
     var sheets = JsonConvert.DeserializeObject<List<SaveSheetDto>>(json);
@@ -54,4 +16,3 @@ public async Task<IActionResult> SaveSheetsCompressed(IFormFile file)
 
     return Ok();
 }
-
