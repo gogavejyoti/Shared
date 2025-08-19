@@ -1,12 +1,1 @@
-CREATE TABLE [dbo].[RP_PlanSheets_Travel](
-	[RPPlanSheetId] [int] IDENTITY(1,1) NOT NULL,
-	[RPPlanId] [int] NOT NULL,
-	[RPLobId] [int] NULL,
-	[Name] [nvarchar](100) NOT NULL,
-	[Type] [nvarchar](50) NOT NULL,
-	[JsonData] [nvarchar](max) NOT NULL,
-	[CreatedAt] [datetime] NULL,
-	[UpdatedAt] [datetime] NULL,
-	[CreatedBy] [varchar](20) NULL,
-	[UpdatedBy] [varchar](20) NULL,
-	[IsActive] [bit] NULL,
+ALTER TABLE RP_PlanSheets_Travel REBUILD WITH (DATA_COMPRESSION = PAGE);
