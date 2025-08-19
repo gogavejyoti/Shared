@@ -1,24 +1,10 @@
-var jsonData = JSON.stringify(luckysheet.getAllSheets()); // if it fits
-var blob = new Blob([jsonData], { type: "application/json" });
-var formData = new FormData();
-formData.append("file", blob, "plan.json");
 
-$.ajax({
-    url: '/Plan/UploadSheet',
-    type: 'POST',
-    data: formData,
-    processData: false,
-    contentType: false,
-    success: function (res) { console.log("Uploaded"); }
-});
-
-
-[HttpPost]
-public async Task<IActionResult> UploadSheet(IFormFile file)
-{
-    using var stream = new MemoryStream();
-    await file.CopyToAsync(stream);
-    string json = Encoding.UTF8.GetString(stream.ToArray());
-    // Save to DB or compress here
-    return Ok();
-}
+        [HttpPost]
+        public async Task<IActionResult> SaveSheets([FromBody] List<SaveSheetDto> sheets)
+        {
+            if (sheets == null || !sheets.Any())
+                return BadRequest("Invalid sheet data.");
+            var userId = User.GetIdByEmail();
+            await _resourcePlannerService.SaveSheetsAsync(sheets, _vertical, userId);
+            return Ok();
+        }
