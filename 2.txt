@@ -1,6 +1,29 @@
-$(document).on("dataLoaded", function () {
-});
-function onReadOnlyActive() {
-  console.log("🔒 Sheet is in read-only mode.");
-  // Custom logic here
-}
+SELECT [Id]
+      ,[Month]
+      ,[WeekBegin]
+      ,[Date]
+      ,[empId]
+      ,[TV_ID]
+      ,[Name]
+      ,[Supervisor]
+      ,[Trainer]
+      ,[Role]
+      ,[Production Status]
+      ,[Roster Status]
+      ,[Location]
+      ,[Site]
+      ,[LOB]
+      ,[Scheduled_From]
+      ,[Scheduled_To]
+      ,[Schedule_Activity]
+      ,[Scheduled_Duration]
+      ,[Actual_Duration]
+      ,[Wave]
+      ,[Start Date]
+      ,[Nesting Date]
+      ,[GoLive Date]
+      ,[CreatedOn]
+      ,[ReportMonth]
+      ,[ReportYear]
+      ,[MonthDate]
+  FROM [dbo].[TranSchAdhAccount1]
