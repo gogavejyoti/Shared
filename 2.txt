@@ -1,14 +1,24 @@
+public class CompressResponseAttribute : ActionFilterAttribute
+{
+    public override void OnActionExecuting(ActionExecutingContext filterContext)
+    {
+        var encodings = filterContext.HttpContext.Request.Headers["Accept-Encoding"];
+        if (!string.IsNullOrEmpty(encodings))
+        {
+            encodings = encodings.ToLower();
+            var response = filterContext.HttpContext.Response;
 
-Problem Statement
-The current RFP response process relies on manual searches through historical Q&A datasets, making it time-consuming, repetitive, and heavily dependent on individual expertise. This leads to inconsistent tone, accuracy, and compliance, causing delays and impacting response quality. Without automation, teams struggle to deliver polished, client-ready submissions quickly, ultimately affecting client satisfaction and win rates.
-
-
-Solution Overview
-An AI-powered RFP response assistant will streamline the end-to-end process by automating answer retrieval, content generation, and response polishing. This solution will reduce turnaround time, ensure consistency, and deliver client-ready submissions at scale—empowering teams to respond faster, improve quality, and drive higher win rates.
-
-Objectives
-Implement an AI-powered assistant to automate answer retrieval, generate polished, context-appropriate responses, and ensure alignment with organizational tone and compliance. The solution will cut RFP response time by up to 60%, improve consistency, and create a centralized, searchable knowledge base for future proposals.
-
-
-The program will transform RFP responses into a competitive advantage by reducing manual effort, improving content quality, and accelerating turnaround time. Teams will achieve greater consistency, scalability, and compliance, leading to improved client trust, higher satisfaction, and stronger win rates.
-
+            if (encodings.Contains("gzip"))
+            {
+                response.AppendHeader("Content-Encoding", "gzip");
+                response.Filter = new GZipStream(response.Filter, CompressionMode.Compress);
+            }
+            else if (encodings.Contains("deflate"))
+            {
+                response.AppendHeader("Content-Encoding", "deflate");
+                response.Filter = new DeflateStream(response.Filter, CompressionMode.Compress);
+            }
+        }
+        base.OnActionExecuting(filterContext);
+    }
+}
