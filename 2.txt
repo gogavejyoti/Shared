@@ -1,24 +1,56 @@
-public class CompressResponseAttribute : ActionFilterAttribute
+[HttpGet("workbook/{id}")]
+public async Task<IActionResult> GetWorkbook(int id)
 {
-    public override void OnActionExecuting(ActionExecutingContext filterContext)
-    {
-        var encodings = filterContext.HttpContext.Request.Headers["Accept-Encoding"];
-        if (!string.IsNullOrEmpty(encodings))
-        {
-            encodings = encodings.ToLower();
-            var response = filterContext.HttpContext.Response;
+    // Get JSON from database
+    string json = await _repo.GetWorkbookJsonAsync(id);
 
-            if (encodings.Contains("gzip"))
-            {
-                response.AppendHeader("Content-Encoding", "gzip");
-                response.Filter = new GZipStream(response.Filter, CompressionMode.Compress);
-            }
-            else if (encodings.Contains("deflate"))
-            {
-                response.AppendHeader("Content-Encoding", "deflate");
-                response.Filter = new DeflateStream(response.Filter, CompressionMode.Compress);
-            }
-        }
-        base.OnActionExecuting(filterContext);
-    }
+    // Convert to bytes
+    byte[] jsonBytes = Encoding.UTF8.GetBytes(json);
+
+    // Compress with Zstd
+    using var compressor = new Compressor();
+    byte[] compressed = compressor.Wrap(jsonBytes);
+
+    // Return as binary
+    return File(compressed, "application/octet-stream");
 }
+
+
+<script src="https://cdn.jsdelivr.net/npm/fzstd@latest/umd/index.js"></script>
+
+
+$.ajax({
+    url: "/api/workbook/123",  // your endpoint
+    method: "GET",
+    xhrFields: {
+        responseType: "arraybuffer"  // important! get raw binary
+    },
+    success: function (data) {
+        try {
+            // Convert ArrayBuffer to Uint8Array
+            const compressed = new Uint8Array(data);
+
+            // Decompress using Zstd
+            const decompressed = fzstd.decompress(compressed);
+
+            // Decode to string
+            const json = new TextDecoder().decode(decompressed);
+
+            // Parse LuckySheet JSON
+            const workbook = JSON.parse(json);
+
+            // Load into LuckySheet
+            luckysheet.create({
+                container: 'luckysheet',
+                data: workbook.sheets
+            });
+
+            console.log("Workbook loaded successfully");
+        } catch (e) {
+            console.error("Failed to decompress JSON:", e);
+        }
+    },
+    error: function (xhr, status, error) {
+        console.error("API error:", error);
+    }
+});
