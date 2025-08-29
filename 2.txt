@@ -1,25 +1,18 @@
-$.ajax({
-    url: "/api/workbook/123",
-    method: "GET",
-    xhrFields: { responseType: "json" }, 
-    success: function (res) {
-        // Convert base64 from JSON to Uint8Array
-        const bytes = base64ToUint8Array(res.jsonData);
-        const decompressed = fzstd.decompress(bytes);
-
-        const json = new TextDecoder().decode(decompressed);
-        const workbook = JSON.parse(json);
-
-        console.log("LuckySheet JSON:", workbook);
+  function base64ToUint8Array(base64) {
+        const binary = atob(base64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
     }
-});
-
-function base64ToUint8Array(base64) {
-    const binary = atob(base64);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binary.charCodeAt(i);
+    function decompressData(sheets) {
+        $.each(sheets, function (index, sheet) {
+            const bytes = base64ToUint8Array(sheet.jsonDataBytes);
+            const decompressed = fzstd.decompress(bytes);
+            const json = new TextDecoder().decode(decompressed);
+            sheet.jsonData = json;
+            sheet.jsonDataBytes = null;
+        });
     }
-    return bytes;
-}
