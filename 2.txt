@@ -1,17 +1,9 @@
-var calcChain = luckysheet.getSheet(sheetIndex).calcChain;
+ const formulaCells = luckysheet.getSheet().celldata?.filter(cell => cell.v?.f);
+        formulaCells?.forEach(cell => {
+            const { r, c, v } = cell;
+            luckysheet.setCellValue(r, c, {
+                f: v.f
+            });
 
-calcChain.forEach(function(pos) {
-    var r = pos.row;
-    var c = pos.col;
-    var cell = luckysheet.getSheet(sheetIndex).flowdata[r][c];
-    if (cell && cell.f) {
-        try {
-            cell.v = luckysheet.formula.getcellvalue(r, c, sheetIndex);
-        } catch(e){
-            cell.v = null;
-        }
-    }
-});
-
-// Redraw only viewport
-luckysheet.refresh({ type: "view" });
+        });
+        //luckysheet.refreshFormula();
