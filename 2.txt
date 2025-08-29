@@ -1,32 +1,17 @@
-// Convert Uint8Array → Base64
-function uint8ArrayToBase64(u8) {
-    let binary = '';
-    for (let i = 0; i < u8.length; i++) {
-        binary += String.fromCharCode(u8[i]);
-    }
-    return btoa(binary);
-}
+var calcChain = luckysheet.getSheet(sheetIndex).calcChain;
 
-// Compress all sheets
-function compressSheets(sheets) {
-    $.each(sheets, function (index, sheet) {
-        if (!sheet.jsonData) return;
-
+calcChain.forEach(function(pos) {
+    var r = pos.row;
+    var c = pos.col;
+    var cell = luckysheet.getSheet(sheetIndex).flowdata[r][c];
+    if (cell && cell.f) {
         try {
-            // Convert JSON string → bytes
-            const encoder = new TextEncoder();
-            const jsonBytes = encoder.encode(sheet.jsonData);
-
-            // Compress with fzstd
-            const compressedBytes = fzstd.compress(jsonBytes);
-
-            // Convert compressed bytes → Base64 for safe transport
-            sheet.jsonDataBytes = uint8ArrayToBase64(compressedBytes);
-
-            // Optionally clear jsonData to save memory
-            // sheet.jsonData = null;
-        } catch (e) {
-            console.error(`Failed to compress sheet at index ${index}:`, e);
+            cell.v = luckysheet.formula.getcellvalue(r, c, sheetIndex);
+        } catch(e){
+            cell.v = null;
         }
-    });
-}
+    }
+});
+
+// Redraw only viewport
+luckysheet.refresh({ type: "view" });
