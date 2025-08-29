@@ -1,18 +1,32 @@
-  function base64ToUint8Array(base64) {
-        const binary = atob(base64);
-        const len = binary.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binary.charCodeAt(i);
+// Convert Uint8Array → Base64
+function uint8ArrayToBase64(u8) {
+    let binary = '';
+    for (let i = 0; i < u8.length; i++) {
+        binary += String.fromCharCode(u8[i]);
+    }
+    return btoa(binary);
+}
+
+// Compress all sheets
+function compressSheets(sheets) {
+    $.each(sheets, function (index, sheet) {
+        if (!sheet.jsonData) return;
+
+        try {
+            // Convert JSON string → bytes
+            const encoder = new TextEncoder();
+            const jsonBytes = encoder.encode(sheet.jsonData);
+
+            // Compress with fzstd
+            const compressedBytes = fzstd.compress(jsonBytes);
+
+            // Convert compressed bytes → Base64 for safe transport
+            sheet.jsonDataBytes = uint8ArrayToBase64(compressedBytes);
+
+            // Optionally clear jsonData to save memory
+            // sheet.jsonData = null;
+        } catch (e) {
+            console.error(`Failed to compress sheet at index ${index}:`, e);
         }
-        return bytes;
-    }
-    function decompressData(sheets) {
-        $.each(sheets, function (index, sheet) {
-            const bytes = base64ToUint8Array(sheet.jsonDataBytes);
-            const decompressed = fzstd.decompress(bytes);
-            const json = new TextDecoder().decode(decompressed);
-            sheet.jsonData = json;
-            sheet.jsonDataBytes = null;
-        });
-    }
+    });
+}
