@@ -1,155 +1,109 @@
-execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    const s = this;
+ execfunction: function (e, n, t, l, a, o) {
+     const s = this, d = Q().formulaMore, err = s.error;
 
-    // === FAST INIT ===
-    if (!a) a = h.flowdata;
-    if (!l) l = h.currentSheetIndex;
+     // Fast reject: invalid range in expression
+     if (e.includes(err.r)) return [false, err.r, e];
 
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja;
-        window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr;
-        window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn;
-        window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c;
-        window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t;
-        window.luckysheet_getSpecialReference = Tc;
-    }
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+     // Ensure brackets are balanced
+     if (!s.checkBracketNum(e)) e += ")";
 
-    if (t) {
-        const tmp = [[{ v: null }]];
-        At(0, 0, tmp, t);
-        s.execFunctionGlobalData[`${e}_${n}_${l}`] = tmp[0][0];
-    }
+     // Default to current sheet index
+     if (l == null) l = h.currentSheetIndex;
+     h.calculateSheetIndex = l;
 
-    // === CACHES ===
-    const rangeCache = Object.create(null);
-    const formulaCache = Object.create(null);
-    const blockCache = Object.create(null);
-    const key = (r, c, i) => `r${r}c${c}i${i}`;
-    const getRange = (ref, idx) => {
-        const k = `${idx}|${ref}`;
-        if (rangeCache[k]) return rangeCache[k];
-        return (rangeCache[k] = s.getcellrange(ref, idx));
-    };
+     // Trim & pre-parse
+     const f = $.trim(s.functionParserExe(e));
 
-    // === FORMULA PARSER ===
-    const parseRefs = (f, idx) => {
-        const ck = `${idx}|${f}`;
-        if (formulaCache[ck]) return formulaCache[ck];
-        if (!/[A-Z]/i.test(f)) return (formulaCache[ck] = []);
-        if (/INDIRECT\(|OFFSET\(|INDEX\(/i.test(f)) {
-            const out = [];
-            s.isFunctionRange(f, null, null, idx, null, r => {
-                const g = getRange($.trim(r), idx);
-                if (g) out.push(g);
-            });
-            return (formulaCache[ck] = out);
-        }
-        const tokens = f
-            .replace(/'[^']*'/g, " ")
-            .replace(/"[^"]*"/g, " ")
-            .split(/==|!=|<>|<=|>=|[,()=+\-*/%&^><]/)
-            .map(x => x.trim())
-            .filter(Boolean);
-        const out = [];
-        for (let i = 0; i < tokens.length; i++) {
-            const r = getRange(tokens[i], idx);
-            if (r) out.push(r);
-        }
-        return (formulaCache[ck] = out);
-    };
+     // Quick reject: invalid function
+     if (!f || !s.testFunction(e, f)) {
+         U.info("", d.execfunctionError);
+         return [false, err.n, e];
+     }
 
-    // === BLOCK EXPANDER ===
-    const expandBlock = b => {
-        const id = `${b.row[0]}:${b.row[1]}-${b.column[0]}:${b.column[1]}-${b.sheetIndex}`;
-        if (blockCache[id]) return blockCache[id];
-        const arr = [];
-        for (let r = b.row[0]; r <= b.row[1]; r++) {
-            for (let c = b.column[0]; c <= b.column[1]; c++) {
-                arr.push({ key: key(r, c, b.sheetIndex), r, c, sheetIndex: b.sheetIndex });
-            }
-        }
-        return (blockCache[id] = arr);
-    };
+     // Reset HTML index only if needed
+     if (f.startsWith("luckysheet_function.") || f.startsWith("luckysheet_compareWith")) {
+         s.functionHTMLIndex = 0;
+     }
 
-    // === BUILD NODE GRAPH ===
-    const fnCells = s.getAllFunctionGroup();
-    const nodes = Object.create(null);
-    for (let i = 0; i < fnCells.length; i++) {
-        const cell = fnCells[i];
-        const k = key(cell.r, cell.c, cell.index);
-        const f = zl(cell.r, cell.c, cell.index);
-        if (!f) continue;
-        nodes[k] = {
-            key: k, r: cell.r, c: cell.c, index: cell.index,
-            formula: f, refs: parseRefs(f, cell.index),
-            parents: Object.create(null), children: Object.create(null),
-            color: "w"
-        };
-    }
+     // Cache globals to avoid window lookups
+     window.luckysheetCurrentRow = n;
+     window.luckysheetCurrentColumn = t;
+     window.luckysheetCurrentIndex = l;
+     window.luckysheetCurrentFunction = e;
 
-    // === TARGET CELLS ===
-    const targets = Object.create(null);
-    if (!s.execFunctionExist) {
-        targets[key(e, n, l)] = 1;
-    } else {
-        for (let i = 0; i < s.execFunctionExist.length; i++) {
-            const c = s.execFunctionExist[i];
-            targets[key(c.r, c.c, c.i)] = 1;
-        }
-    }
+     let m = null, g = null;
 
-    // === BUILD DEPENDENCIES ===
-    const start = [];
-    for (const id in nodes) {
-        const node = nodes[id];
-        for (let i = 0; i < node.refs.length; i++) {
-            const expanded = expandBlock(node.refs[i]);
-            for (let j = 0; j < expanded.length; j++) {
-                const ref = expanded[j];
-                const dep = nodes[ref.key];
-                if (dep) {
-                    node.children[ref.key] = 1;
-                    dep.parents[id] = 1;
-                }
-                if (!o && targets[ref.key]) start.push(node);
-            }
-        }
-        if (o) start.push(node);
-    }
+     try {
+         // Optimized: only scan if string is present
+         if (f.includes("luckysheet_getcelldata")) {
+             const parts = f.split("luckysheet_getcelldata('");
+             for (let i = 1; i < parts.length; i++) {
+                 const range = parts[i].split("')")[0];
+                 const cellRange = s.getcellrange(range);
 
-    // === TOPO SORT ===
-    const order = [], stack = start.slice();
-    const seen = Object.create(null);
-    while (stack.length) {
-        const cur = stack.pop();
-        if (!cur || seen[cur.key]) continue;
-        if (cur.color === "b") {
-            seen[cur.key] = 1; order.push(cur); continue;
-        }
-        const ps = [];
-        for (const p in cur.parents) if (nodes[p]) ps.push(nodes[p]);
-        if (!ps.length) {
-            seen[cur.key] = 1; order.push(cur);
-        } else {
-            cur.color = "b"; stack.push(cur, ...ps);
-        }
-    }
-    order.reverse();
+                 if (cellRange.row[0] < 0 || cellRange.column[0] < 0)
+                     return [true, err.r, e];
 
-    // === EVALUATE ===
-    window.luckysheet_getcelldata_cache = null;
-    for (let i = 0; i < order.length; i++) {
-        const node = order[i];
-        const R = s.execfunction(node.formula, node.r, node.c, node.index);
-        s.groupValuesRefreshData.push({
-            r: node.r, c: node.c, v: R[1], f: R[2], spe: R[3], index: node.index
-        });
-        s.execFunctionGlobalData[`${node.r}_${node.c}_${node.index}`] = { v: R[1], f: R[2] };
-    }
-    s.execFunctionExist = null;
-},
+                 // Circular ref check
+                 if (
+                     cellRange.sheetIndex === h.calculateSheetIndex &&
+                     n >= cellRange.row[0] && n <= cellRange.row[1] &&
+                     t >= cellRange.column[0] && t <= cellRange.column[1]
+                 ) {
+                     de() ? alert(d.execfunctionSelfError) : U.info("", d.execfunctionSelfErrorResult);
+                     return [false, 0, e];
+                 }
+             }
+         }
+
+         // Execute formula
+         m = new Function("return " + f)();
+         if (typeof m === "string") m = m.replace(/\x7F/g, '"');
+         if (f.includes("SPLINES")) { g = m; m = ""; }
+
+     } catch (errCaught) {
+         console.log(errCaught, f);
+         const k = s.errorInfo(errCaught);
+         m = [err.n, k];
+     }
+
+     // Handle object return types quickly
+     if (L(m) === "object" && m.startCell != null) {
+         if (Array.isArray(m.data)) m = err.v;
+         else if (L(m.data) === "object" && !fe(m.data.v)) m = m.data.v;
+         else if (fe(m.data)) m = 0;
+         else if (m.cell > 1 || m.rowl > 1 || typeof m.data === "string" || typeof m.data === "number") m = m.data;
+         else m = 0;
+     }
+
+     // Handle array returns
+     let y = null;
+     if (Array.isArray(m)) {
+         const flatTwo = !Array.isArray(m[0]) && m.length === 2 && H(m[0]);
+         if (flatTwo) {
+             m = m[0];
+         } else if (Array.isArray(m[0]) && m.length === 1 && m[0].length === 1) {
+             m = m[0][0];
+         } else {
+             y = { r: n, c: t, f: e, index: l, data: m };
+             m = "";
+         }
+     }
+
+     // Reset globals
+     window.luckysheetCurrentRow = null;
+     window.luckysheetCurrentColumn = null;
+     window.luckysheetCurrentIndex = null;
+     window.luckysheetCurrentFunction = null;
+
+     // Execute group updates if required
+     if (n != null && t != null) {
+         if (a) s.execFunctionGroup(n, t, m, l);
+         if (!o) s.insertUpdateFunctionGroup(n, t, l);
+     }
+
+     // Return optimized response
+     if (g) return [true, m, e, { type: "sparklines", data: g }];
+     if (y) return [true, m, e, { type: "dynamicArrayItem", data: y }];
+     return [true, m, e];
+ },
