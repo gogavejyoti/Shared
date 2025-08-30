@@ -1,109 +1,84 @@
- execfunction: function (e, n, t, l, a, o) {
-     const s = this, d = Q().formulaMore, err = s.error;
+execfunction: function (e, n, t, l, a, o) {
+    const s = this;
+    const d = Q().formulaMore;
 
-     // Fast reject: invalid range in expression
-     if (e.includes(err.r)) return [false, err.r, e];
+    if (e.includes(s.error.r)) return [false, s.error.r, e];
+    if (!s.checkBracketNum(e)) e += ")";
 
-     // Ensure brackets are balanced
-     if (!s.checkBracketNum(e)) e += ")";
+    if (l == null) l = h.currentSheetIndex;
+    h.calculateSheetIndex = l;
 
-     // Default to current sheet index
-     if (l == null) l = h.currentSheetIndex;
-     h.calculateSheetIndex = l;
+    let f = s.functionParserExe(e).trim();
+    if (!f || !s.testFunction(e, f)) {
+        return U.info("", d.execfunctionError), [false, s.error.n, e];
+    }
 
-     // Trim & pre-parse
-     const f = $.trim(s.functionParserExe(e));
+    // Check cache for compiled formula
+    if (!s._formulaCache) s._formulaCache = new Map();
+    let compiledFn = s._formulaCache.get(f);
 
-     // Quick reject: invalid function
-     if (!f || !s.testFunction(e, f)) {
-         U.info("", d.execfunctionError);
-         return [false, err.n, e];
-     }
+    try {
+        if (!compiledFn) {
+            compiledFn = new Function("return " + f);
+            s._formulaCache.set(f, compiledFn);
+        }
+    } catch (err) {
+        const errorMsg = s.errorInfo(err);
+        return [false, [s.error.n, errorMsg], e];
+    }
 
-     // Reset HTML index only if needed
-     if (f.startsWith("luckysheet_function.") || f.startsWith("luckysheet_compareWith")) {
-         s.functionHTMLIndex = 0;
-     }
+    // Cache cell ranges
+    if (!s._cellRefCache) s._cellRefCache = new Map();
+    let cellRefs = s._cellRefCache.get(e);
+    if (!cellRefs && f.includes("luckysheet_getcelldata")) {
+        cellRefs = [...f.matchAll(/luckysheet_getcelldata\('([^']+)'\)/g)]
+            .map(m => s.getcellrange(m[1]));
+        s._cellRefCache.set(e, cellRefs);
+    }
 
-     // Cache globals to avoid window lookups
-     window.luckysheetCurrentRow = n;
-     window.luckysheetCurrentColumn = t;
-     window.luckysheetCurrentIndex = l;
-     window.luckysheetCurrentFunction = e;
+    if (cellRefs) {
+        for (const w of cellRefs) {
+            if (w.row[0] < 0 || w.column[0] < 0) return [true, s.error.r, e];
+            if (w.sheetIndex === h.calculateSheetIndex &&
+                n >= w.row[0] && n <= w.row[1] &&
+                t >= w.column[0] && t <= w.column[1]) {
+                U.info("", d.execfunctionSelfErrorResult);
+                return [false, 0, e];
+            }
+        }
+    }
 
-     let m = null, g = null;
+    let m;
+    try {
+        m = compiledFn();
+        if (typeof m === "string") m = m.replace(/\x7F/g, '"');
+    } catch (err) {
+        const errorMsg = s.errorInfo(err);
+        return [false, [s.error.n, errorMsg], e];
+    }
 
-     try {
-         // Optimized: only scan if string is present
-         if (f.includes("luckysheet_getcelldata")) {
-             const parts = f.split("luckysheet_getcelldata('");
-             for (let i = 1; i < parts.length; i++) {
-                 const range = parts[i].split("')")[0];
-                 const cellRange = s.getcellrange(range);
+    // Handle dynamic arrays quickly
+    const mType = L(m);
+    let g = null, y = null;
 
-                 if (cellRange.row[0] < 0 || cellRange.column[0] < 0)
-                     return [true, err.r, e];
+    if (mType === "object" && m.startCell != null) {
+        if (Array.isArray(m.data)) m = s.error.v;
+        else if (typeof m.data === "object" && !fe(m.data.v)) m = m.data.v;
+        else if (fe(m.data)) m = 0;
+        else m = m.cell > 1 || m.rowl > 1 ? m.data : 0;
+    } else if (mType === "array") {
+        if (Array.isArray(m[0]) && m.length === 1 && m[0].length === 1) {
+            m = m[0][0];
+        } else {
+            y = { r: n, c: t, f: e, index: l, data: m };
+            m = "";
+        }
+    }
 
-                 // Circular ref check
-                 if (
-                     cellRange.sheetIndex === h.calculateSheetIndex &&
-                     n >= cellRange.row[0] && n <= cellRange.row[1] &&
-                     t >= cellRange.column[0] && t <= cellRange.column[1]
-                 ) {
-                     de() ? alert(d.execfunctionSelfError) : U.info("", d.execfunctionSelfErrorResult);
-                     return [false, 0, e];
-                 }
-             }
-         }
+    if (a) s.execFunctionGroup(n, t, m, l);
+    if (!o) s.insertUpdateFunctionGroup(n, t, l);
 
-         // Execute formula
-         m = new Function("return " + f)();
-         if (typeof m === "string") m = m.replace(/\x7F/g, '"');
-         if (f.includes("SPLINES")) { g = m; m = ""; }
-
-     } catch (errCaught) {
-         console.log(errCaught, f);
-         const k = s.errorInfo(errCaught);
-         m = [err.n, k];
-     }
-
-     // Handle object return types quickly
-     if (L(m) === "object" && m.startCell != null) {
-         if (Array.isArray(m.data)) m = err.v;
-         else if (L(m.data) === "object" && !fe(m.data.v)) m = m.data.v;
-         else if (fe(m.data)) m = 0;
-         else if (m.cell > 1 || m.rowl > 1 || typeof m.data === "string" || typeof m.data === "number") m = m.data;
-         else m = 0;
-     }
-
-     // Handle array returns
-     let y = null;
-     if (Array.isArray(m)) {
-         const flatTwo = !Array.isArray(m[0]) && m.length === 2 && H(m[0]);
-         if (flatTwo) {
-             m = m[0];
-         } else if (Array.isArray(m[0]) && m.length === 1 && m[0].length === 1) {
-             m = m[0][0];
-         } else {
-             y = { r: n, c: t, f: e, index: l, data: m };
-             m = "";
-         }
-     }
-
-     // Reset globals
-     window.luckysheetCurrentRow = null;
-     window.luckysheetCurrentColumn = null;
-     window.luckysheetCurrentIndex = null;
-     window.luckysheetCurrentFunction = null;
-
-     // Execute group updates if required
-     if (n != null && t != null) {
-         if (a) s.execFunctionGroup(n, t, m, l);
-         if (!o) s.insertUpdateFunctionGroup(n, t, l);
-     }
-
-     // Return optimized response
-     if (g) return [true, m, e, { type: "sparklines", data: g }];
-     if (y) return [true, m, e, { type: "dynamicArrayItem", data: y }];
-     return [true, m, e];
- },
+    return g ? [true, m, e, { type: "sparklines", data: g }] :
+        y ? [true, m, e, { type: "dynamicArrayItem", data: y }] :
+            [true, m, e];
+},
