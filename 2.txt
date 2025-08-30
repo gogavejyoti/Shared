@@ -1,9 +1,84 @@
- const formulaCells = luckysheet.getSheet().celldata?.filter(cell => cell.v?.f);
-        formulaCells?.forEach(cell => {
-            const { r, c, v } = cell;
-            luckysheet.setCellValue(r, c, {
-                f: v.f
-            });
+copySheet: function (e, n) {
+    if (de() || h.allowEdit === false) return;
 
+    let t = this,
+        l = h.luckysheetfile.length,
+        a = t.generateRandomSheetIndex(),
+        o = t.getSheetIndex(e),
+        s = $.extend(true, {}, h.luckysheetfile[o]); // Deep clone
+
+    let oldIndex = s.index; // Save old sheet index
+    s.order = l;
+    s.index = a;
+    s.name = t.generateCopySheetName(h.luckysheetfile, s.name);
+
+    // 🔹 Inline recursive index replacement
+    (function replaceIndex(obj) {
+        if (obj == null) return;
+        if (typeof obj === "object") {
+            for (let key in obj) {
+                if (!obj.hasOwnProperty(key)) continue;
+                let val = obj[key];
+                if (val === oldIndex) {
+                    obj[key] = a; // Replace old with new
+                } else if (typeof val === "object") {
+                    replaceIndex(val); // Recurse
+                }
+            }
+        }
+    })(s);
+
+    // Hook before copying
+    if (!Je.createHookFunction("sheetCopyBefore", {
+        targetSheet: h.luckysheetfile[o],
+        copySheet: s
+    })) return;
+
+    // Tab color
+    let u = "";
+    if (s.color != null) {
+        u = '<div class="luckysheet-sheets-item-color" style="position:absolute;width:100%;height:3px;bottom:0;left:0;background-color:' + s.color + ';"></div>';
+    }
+
+    // Create and insert new sheet tab in UI
+    let d = $("#luckysheet-sheets-item" + e);
+    $("#luckysheet-sheet-container-c").append(xe(Jl, {
+        index: s.index,
+        active: "",
+        name: s.name,
+        order: s.order,
+        style: "",
+        colorset: u
+    }));
+    $("#luckysheet-sheets-item" + s.index).insertAfter(d);
+
+    // Insert into sheet list
+    h.luckysheetfile.splice(o + 1, 0, s);
+
+    // Update UI
+    $("#luckysheet-sheet-area div.luckysheet-sheets-item").removeClass("luckysheet-sheets-item-active");
+    $("#luckysheet-sheets-item" + a).addClass("luckysheet-sheets-item-active");
+    $("#luckysheet-cell-main").append('<div id="luckysheet-datavisual-selection-set-' + a + '" class="luckysheet-datavisual-selection-set"></div>');
+
+    // Trigger refresh & save
+    tl(n);
+    ne.saveParam("shc", a, { copyindex: e, name: s.name });
+    t.changeSheetExec(a, void 0, void 0, true);
+    t.reOrderAllSheet();
+
+    // Undo/redo stack
+    if (h.clearjfundo) {
+        h.jfredo.push({
+            type: "copySheet",
+            copyindex: e,
+            index: s.index,
+            sheetIndex: s.index
         });
-        //luckysheet.refreshFormula();
+    } else if (h.jfredo.length > 0) {
+        let f = h.jfredo[h.jfredo.length - 1];
+        if (f.type === "copySheet") {
+            f.index = s.index;
+            f.sheetIndex = s.index;
+        }
+    }
+},
