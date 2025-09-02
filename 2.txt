@@ -1,12 +1,92 @@
-using Microsoft.AspNetCore.SignalR;
-using System;
-using System.Collections.Concurrent;
-using System.Threading.Tasks;
+let connection = null;
+let documentId = null;
+let userId = null;
+let hasEditLock = false;
+let keepAliveInterval = null;
 
-public class DocumentLockHub : Hub
+// Start connection with manual retry
+async function startConnection() {
+    try {
+        await connection.start();
+        console.log("Connected to SignalR Hub.");
+        await tryLockDocument();
+    } catch (err) {
+        console.error("Connection failed, retrying in 5s...", err);
+        setTimeout(startConnection, 5000);
+    }
+}
+
+async function initDocumentLock(docId, uId) {
+    documentId = docId;
+    userId = uId;
+
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl("/DocumentHub")
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    connection.onclose(async () => {
+        console.log("Disconnected, retrying...");
+        hasEditLock = false;
+        updateUI();
+        await startConnection();
+    });
+
+    await startConnection();
+
+    // Setup beforeunload to unlock
+    window.addEventListener("beforeunload", async function () {
+        if (hasEditLock) {
+            await connection.invoke("UnlockDocument", documentId, userId);
+        }
+    });
+}
+
+async function tryLockDocument() {
+    try {
+        const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
+        hasEditLock = canEdit;
+        updateUI();
+
+        if (canEdit) {
+            if (!keepAliveInterval) {
+                keepAliveInterval = setInterval(() => {
+                    connection.invoke("RefreshLock", documentId, userId);
+                }, 30000); // every 30 sec
+            }
+        } else {
+            if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
+                keepAliveInterval = null;
+            }
+        }
+    } catch (err) {
+        console.error("Lock request failed:", err);
+    }
+}
+
+function updateUI() {
+    if (!hasEditLock) {
+        $('#btnSaveSheets').css('display', 'none');
+        $("#msgReadOnly").show();
+    } else {
+        $('#btnSaveSheets').css('display', 'block');
+        $("#msgReadOnly").hide();
+    }
+}
+
+
+
+    
+using Microsoft.AspNetCore.SignalR;
+    using System;
+    using System.Collections.Concurrent;
+    using System.Threading.Tasks;
+
+public class DocumentHub : Hub
 {
     // Store document locks: documentId → (userId, lockTime)
-    private static ConcurrentDictionary<string, (string UserId, DateTime LockTime)> _locks 
+    private static ConcurrentDictionary<string, (string UserId, DateTime LockTime)> _locks
         = new ConcurrentDictionary<string, (string, DateTime)>();
 
     // Try to lock document
@@ -58,3 +138,7 @@ public class DocumentLockHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 }
+
+
+
+
