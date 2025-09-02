@@ -1,119 +1,54 @@
-let connection = null;
-let documentId = null;
-let userId = null;
-let hasEditLock = false;
-let keepAliveInterval = null;
-
-// Start connection with manual retry
-async function startConnection() {
-    try {
-        await connection.start();
-        console.log("Connected to SignalR Hub.");
-        await tryLockDocument();
-    } catch (err) {
-        console.error("Connection failed, retrying in 5s...", err);
-        setTimeout(startConnection, 5000);
-    }
-}
-
-async function initDocumentLock(docId, uId) {
-    documentId = docId;
-    userId = uId;
-
-    connection = new signalR.HubConnectionBuilder()
-        .withUrl("/DocumentHub")
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
-
-    connection.onclose(async () => {
-        console.log("Disconnected, retrying...");
-        hasEditLock = false;
-        updateUI();
-        await startConnection();
-    });
-
-    await startConnection();
-
-    // Setup beforeunload to unlock
-    window.addEventListener("beforeunload", async function () {
-        if (hasEditLock) {
-            await connection.invoke("UnlockDocument", documentId, userId);
-        }
-    });
-}
-
-async function tryLockDocument() {
-    try {
-        const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
-        hasEditLock = canEdit;
-        updateUI();
-
-        if (canEdit) {
-            if (!keepAliveInterval) {
-                keepAliveInterval = setInterval(() => {
-                    connection.invoke("RefreshLock", documentId, userId);
-                }, 30000); // every 30 sec
-            }
-        } else {
-            if (keepAliveInterval) {
-                clearInterval(keepAliveInterval);
-                keepAliveInterval = null;
-            }
-        }
-    } catch (err) {
-        console.error("Lock request failed:", err);
-    }
-}
-
-function updateUI() {
-    if (!hasEditLock) {
-        $('#btnSaveSheets').css('display', 'none');
-        $("#msgReadOnly").show();
-    } else {
-        $('#btnSaveSheets').css('display', 'block');
-        $("#msgReadOnly").hide();
-    }
-}
-
-
-
-    
 using Microsoft.AspNetCore.SignalR;
-    using System;
-    using System.Collections.Concurrent;
-    using System.Threading.Tasks;
+using System;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 public class DocumentHub : Hub
 {
-    // Store document locks: documentId → (userId, lockTime)
-    private static ConcurrentDictionary<string, (string UserId, DateTime LockTime)> _locks
-        = new ConcurrentDictionary<string, (string, DateTime)>();
+    private static readonly ConcurrentDictionary<string, (string UserId, string ConnectionId, DateTime LockTime)> _locks
+        = new ConcurrentDictionary<string, (string, string, DateTime)>();
+
+    private static readonly TimeSpan LockTimeout = TimeSpan.FromMinutes(1);
 
     // Try to lock document
     public async Task<bool> TryLockDocument(string documentId, string userId)
     {
+        var connectionId = Context.ConnectionId;
+
         if (_locks.TryGetValue(documentId, out var lockInfo))
         {
+            // 🔹 Lock is valid and owned by another user
+            if (lockInfo.UserId != userId && (DateTime.UtcNow - lockInfo.LockTime) <= LockTimeout)
+            {
+                await BroadcastLockStatus(documentId, lockInfo.UserId);
+                return false; // Still locked by another user
+            }
+
+            // 🔹 If current user already owns it, just refresh timestamp
             if (lockInfo.UserId == userId)
             {
-                // Already locked by same user
-                _locks[documentId] = (userId, DateTime.UtcNow);
+                _locks[documentId] = (userId, lockInfo.ConnectionId, DateTime.UtcNow);
+                await BroadcastLockStatus(documentId, userId);
                 return true;
             }
-            return false; // Locked by someone else
+
+            // 🔹 If lock expired, remove and assign to this user
+            _locks.TryRemove(documentId, out _);
         }
 
-        // Lock document
-        _locks[documentId] = (userId, DateTime.UtcNow);
+        // 🔹 Assign lock to this user
+        _locks[documentId] = (userId, connectionId, DateTime.UtcNow);
+        await BroadcastLockStatus(documentId, userId);
         return true;
     }
 
-    // Unlock document explicitly
+    // Unlock explicitly
     public async Task UnlockDocument(string documentId, string userId)
     {
         if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
         {
             _locks.TryRemove(documentId, out _);
+            await BroadcastLockStatus(documentId, null);
         }
     }
 
@@ -122,23 +57,130 @@ public class DocumentHub : Hub
     {
         if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
         {
-            _locks[documentId] = (userId, DateTime.UtcNow);
+            _locks[documentId] = (userId, lockInfo.ConnectionId, DateTime.UtcNow);
         }
     }
 
-    // Cleanup locks when user disconnects
+    // Remove lock when connection drops
     public override async Task OnDisconnectedAsync(Exception exception)
     {
-        string connectionId = Context.ConnectionId;
         foreach (var doc in _locks)
         {
-            if (doc.Value.UserId == Context.UserIdentifier)
+            if (doc.Value.ConnectionId == Context.ConnectionId)
+            {
                 _locks.TryRemove(doc.Key, out _);
+                await BroadcastLockStatus(doc.Key, null);
+            }
         }
         await base.OnDisconnectedAsync(exception);
+    }
+
+    private Task BroadcastLockStatus(string documentId, string lockedBy)
+    {
+        return Clients.All.SendAsync("ReceiveLockStatus", documentId, lockedBy);
     }
 }
 
 
 
+
+let connection = null;
+let documentId = null;
+let userId = null;
+let hasEditLock = false;
+let keepAliveInterval = null;
+
+// Start connection with retry
+async function startConnection() {
+    try {
+        await connection.start();
+        console.log("✅ Connected to SignalR Hub.");
+        await tryLockDocument();
+    } catch (err) {
+        console.error("❌ Connection failed, retrying in 5s...", err);
+        setTimeout(startConnection, 5000);
+    }
+}
+
+// Initialize lock logic
+async function initDocumentLock(docId, uId) {
+    if (connection) return; // Avoid multiple initializations
+
+    documentId = docId;
+    userId = uId;
+
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl("/DocumentHub")
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    // When connection closes, retry
+    connection.onclose(async () => {
+        console.warn("⚠️ Disconnected, retrying...");
+        hasEditLock = false;
+        updateUI();
+        await startConnection();
+    });
+
+    // 🔥 Listen for lock updates
+    connection.on("ReceiveLockStatus", (docId, lockedBy) => {
+        if (docId === documentId) {
+            showLockStatus(lockedBy);
+        }
+    });
+
+    await startConnection();
+
+    // Unlock when leaving page
+    window.addEventListener("beforeunload", async function () {
+        if (hasEditLock) {
+            try {
+                await connection.invoke("UnlockDocument", documentId, userId);
+            } catch (err) {
+                console.warn("Failed to unlock on unload", err);
+            }
+        }
+    });
+}
+
+// Try to lock document
+async function tryLockDocument() {
+    if (!connection || connection.state !== "Connected") return;
+
+    try {
+        const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
+        hasEditLock = canEdit;
+        updateUI();
+
+        if (!keepAliveInterval) {
+            keepAliveInterval = setInterval(() => {
+                tryLockDocument(); // Keep refreshing or retrying
+            }, 30000);
+        }
+    } catch (err) {
+        console.error("Lock request failed:", err);
+    }
+}
+
+// Update UI based on lock state
+function updateUI() {
+    if (!hasEditLock) {
+        $('#btnSaveSheets').hide();
+        $("#msgReadOnly").show();
+    } else {
+        $('#btnSaveSheets').show();
+        $("#msgReadOnly").hide();
+    }
+}
+
+// Show lock message
+function showLockStatus(lockedBy) {
+    if (!lockedBy) {
+        $("#msgLockOwner").text("🔓 Document is available").show();
+    } else if (lockedBy === userId) {
+        $("#msgLockOwner").text("✅ You are editing this document").show();
+    } else {
+        $("#msgLockOwner").text(`🔒 Locked by ${lockedBy}`).show();
+    }
+}
 
