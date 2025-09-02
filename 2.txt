@@ -3,150 +3,58 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 
-public class DocumentHub : Hub
+public class DocumentLockHub : Hub
 {
-    private static ConcurrentDictionary<string, DocumentLock> _locks = new ConcurrentDictionary<string, DocumentLock>();
+    // Store document locks: documentId → (userId, lockTime)
+    private static ConcurrentDictionary<string, (string UserId, DateTime LockTime)> _locks 
+        = new ConcurrentDictionary<string, (string, DateTime)>();
 
-    public async Task<object> TryLockDocument(string documentId, string userId)
+    // Try to lock document
+    public async Task<bool> TryLockDocument(string documentId, string userId)
     {
-        var now = DateTime.UtcNow;
-        var key = documentId;
-
-        _locks.AddOrUpdate(key, 
-            new DocumentLock { UserId = userId, LastPing = now }, 
-            (k, existing) =>
-            {
-                // If lock expired, take it
-                if ((now - existing.LastPing).TotalSeconds > 15)
-                {
-                    return new DocumentLock { UserId = userId, LastPing = now };
-                }
-
-                // If same user, refresh lock
-                if (existing.UserId == userId)
-                {
-                    existing.LastPing = now;
-                    return existing;
-                }
-
-                // Otherwise, lock stays with existing user
-                return existing;
-            });
-
-        var lockData = _locks[key];
-        bool success = lockData.UserId == userId;
-
-        return new { success, lockedBy = lockData.UserId };
-    }
-
-    public Task Ping(string documentId, string userId)
-    {
-        if (_locks.TryGetValue(documentId, out var lockData))
+        if (_locks.TryGetValue(documentId, out var lockInfo))
         {
-            if (lockData.UserId == userId)
+            if (lockInfo.UserId == userId)
             {
-                lockData.LastPing = DateTime.UtcNow;
+                // Already locked by same user
+                _locks[documentId] = (userId, DateTime.UtcNow);
+                return true;
             }
+            return false; // Locked by someone else
         }
-        return Task.CompletedTask;
+
+        // Lock document
+        _locks[documentId] = (userId, DateTime.UtcNow);
+        return true;
     }
 
+    // Unlock document explicitly
     public async Task UnlockDocument(string documentId, string userId)
     {
-        if (_locks.TryGetValue(documentId, out var lockData))
+        if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
         {
-            if (lockData.UserId == userId)
-            {
-                _locks.TryRemove(documentId, out _);
-                await Clients.All.SendAsync("DocumentUnlocked", documentId);
-            }
+            _locks.TryRemove(documentId, out _);
         }
     }
 
-    private class DocumentLock
+    // Refresh lock timestamp (keep-alive)
+    public async Task RefreshLock(string documentId, string userId)
     {
-        public string UserId { get; set; }
-        public DateTime LastPing { get; set; }
-    }
-}
-
-
-
-
-// document-lock.js
-let connection = new signalR.HubConnectionBuilder()
-    .withUrl("/documentHub")
-    .configureLogging(signalR.LogLevel.Information)
-    .build();
-
-let documentId = window.currentDocumentId;  // Set this from server-side
-let userId = window.currentUserId;          // Set this from server-side
-let hasEditLock = false;
-let pingInterval = null;
-
-async function startConnection() {
-    try {
-        await connection.start();
-        console.log("SignalR Connected");
-        tryLockDocument();
-    } catch (err) {
-        console.error(err);
-        setTimeout(startConnection, 3000); // Retry connection if dropped
-    }
-}
-
-async function tryLockDocument() {
-    try {
-        const result = await connection.invoke("TryLockDocument", documentId, userId);
-        hasEditLock = result.success;
-
-        if (hasEditLock) {
-            enableEditing();
-            console.log(`You have edit lock for document ${documentId}`);
-        } else {
-            disableEditing();
-            alert(`Document is locked by ${result.lockedBy}. You are in read-only mode.`);
-        }
-
-        // Start ping if lock acquired
-        if (hasEditLock && !pingInterval) {
-            pingInterval = setInterval(() => {
-                connection.invoke("Ping", documentId, userId)
-                    .catch(err => console.error("Ping failed", err));
-            }, 5000);
-        }
-    } catch (err) {
-        console.error(err);
-    }
-}
-
-function enableEditing() {
-    $("#saveButton").prop("disabled", false);
-}
-
-function disableEditing() {
-    $("#saveButton").prop("disabled", true);
-}
-
-// Listen for document unlock notifications
-connection.on("DocumentUnlocked", (docId) => {
-    if (docId === documentId && !hasEditLock) {
-        console.log(`Document ${docId} unlocked. Refresh to edit.`);
-    }
-});
-
-// Unlock on unload
-window.addEventListener("beforeunload", async () => {
-    if (hasEditLock) {
-        try {
-            await connection.invoke("UnlockDocument", documentId, userId);
-        } catch (err) {
-            console.error("Failed to unlock on unload", err);
+        if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
+        {
+            _locks[documentId] = (userId, DateTime.UtcNow);
         }
     }
-});
 
-// Start SignalR connection
-$(document).ready(() => {
-    startConnection();
-});
+    // Cleanup locks when user disconnects
+    public override async Task OnDisconnectedAsync(Exception exception)
+    {
+        string connectionId = Context.ConnectionId;
+        foreach (var doc in _locks)
+        {
+            if (doc.Value.UserId == Context.UserIdentifier)
+                _locks.TryRemove(doc.Key, out _);
+        }
+        await base.OnDisconnectedAsync(exception);
+    }
+}
