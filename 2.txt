@@ -1,4 +1,4 @@
-🧑‍💻 async function tryLockDocument() {
+🧑‍💻 Developer async function tryLockDocument() {
     try {
         const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
         hasEditLock = canEdit;
@@ -105,5 +105,6 @@ public class DocumentHub : Hub
         return base.OnDisconnectedAsync(exception);
     }
 }
+
 
 
