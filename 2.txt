@@ -1,100 +1,23 @@
-let connection = null;
-let documentId = null;
-let userId = null;
-let hasEditLock = false;
-let keepAliveInterval = null;
-
-// Start connection with retry logic
-async function startConnection() {
-    try {
-        await connection.start();
-        console.log("✅ Connected to SignalR Hub.");
-        await tryLockDocument();
-    } catch (err) {
-        console.error("❌ Connection failed, retrying in 5s...", err);
-        setTimeout(startConnection, 5000);
-    }
-}
-
-// Initialize locking system
-async function initDocumentLock(docId, uId) {
-    if (connection) return; // Prevent multiple inits
-
-    documentId = docId;
-    userId = uId;
-
-    connection = new signalR.HubConnectionBuilder()
-        .withUrl("/DocumentHub")
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
-
-    // Handle disconnects (try reconnect)
-    connection.onclose(async () => {
-        console.warn("⚠️ Disconnected, retrying...");
-        hasEditLock = false;
-        updateUI();
-        await startConnection();
-    });
-
-    // 🔥 Listen for real-time lock status
-    connection.on("ReceiveLockStatus", (docId, lockedBy) => {
-        if (docId === documentId) {
-            showLockStatus(lockedBy);
-        }
-    });
-
-    await startConnection();
-
-    // Explicit unlock when leaving page
-    window.addEventListener("beforeunload", async function () {
-        if (hasEditLock) {
-            try {
-                await connection.invoke("UnlockDocument", documentId, userId);
-            } catch (err) {
-                console.warn("⚠️ Unlock failed on unload", err);
-            }
-        }
-    });
-}
-
-// Try to lock the document
 async function tryLockDocument() {
-    if (!connection || connection.state !== "Connected") return;
+    // If connection is not ready, retry in 1 second
+    if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
+        console.warn("⏳ Connection not ready, retrying...");
+        setTimeout(tryLockDocument, 1000);
+        return;
+    }
 
     try {
         const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
         hasEditLock = canEdit;
         updateUI();
 
-        // Start keep-alive
+        // Keep lock alive every 30s
         if (!keepAliveInterval) {
             keepAliveInterval = setInterval(() => {
-                tryLockDocument(); // Refresh or retry lock every 30s
+                tryLockDocument();
             }, 30000);
         }
     } catch (err) {
         console.error("❌ Lock request failed:", err);
-    }
-}
-
-// Update UI based on lock state
-function updateUI() {
-    if (!hasEditLock) {
-        $('#btnSaveSheets').hide();
-        $("#msgReadOnly").show();
-    } else {
-        $('#btnSaveSheets').show();
-        $("#msgReadOnly").hide();
-    }
-}
-
-// Show real-time lock message
-function showLockStatus(lockedBy) {
-    if (!lockedBy) {
-        $("#msgLockOwner").text("🔓 Document is available").show();
-    } else if (lockedBy === userId) {
-        $("#msgLockOwner").text("✅ You are editing this document").show();
-    } else {
-        $("#msgLockOwner").text(`🔒 Locked by ${lockedBy}`).show();
     }
 }
