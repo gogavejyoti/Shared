@@ -1,96 +1,211 @@
-            execfunction: function (e, n, t, l, a, o) {
-                const s = this;
-                const d = Q().formulaMore;
+using Microsoft.AspNetCore.SignalR;
+using System;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading.Tasks;
 
-                if (e.includes(s.error.r)) return [false, s.error.r, e];
-                if (!s.checkBracketNum(e)) e += ")";
+public class DocumentHub : Hub
+{
+    // Key: documentId, Value: Lock info
+    private static ConcurrentDictionary<string, DocumentLock> DocumentLocks = new();
 
-                if (l == null) l = h.currentSheetIndex;
-                h.calculateSheetIndex = l;
+    // Keep track of user connections
+    private static ConcurrentDictionary<string, string> ConnectionToUser = new();
 
-                // ---------- parsed formula cache (keyed by exact formula string) ----------
-                if (!s._parsedFormulaCache) s._parsedFormulaCache = new Map();
-                let f = s._parsedFormulaCache.get(e);
-                if (!f) {
-                    f = s.functionParserExe(e).trim();
-                    s._parsedFormulaCache.set(e, f);
+    public override Task OnConnectedAsync()
+    {
+        var userId = Context.GetHttpContext()?.Request.Query["userId"];
+        if (!string.IsNullOrEmpty(userId))
+        {
+            ConnectionToUser[Context.ConnectionId] = userId!;
+        }
+        return base.OnConnectedAsync();
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        if (ConnectionToUser.TryRemove(Context.ConnectionId, out var userId))
+        {
+            // Remove this connectionId from all locks
+            foreach (var lockEntry in DocumentLocks.Values)
+            {
+                lockEntry.ActiveConnections.Remove(Context.ConnectionId);
+            }
+
+            // Remove locks where no active connections remain
+            var docsToUnlock = DocumentLocks
+                .Where(d => d.Value.ActiveConnections.Count == 0)
+                .Select(d => d.Key)
+                .ToList();
+
+            foreach (var docId in docsToUnlock)
+            {
+                DocumentLocks.TryRemove(docId, out _);
+                Clients.All.SendAsync("DocumentUnlocked", docId);
+            }
+        }
+        return base.OnDisconnectedAsync(exception);
+    }
+
+    public async Task<bool> TryLockDocument(string documentId, string userId)
+    {
+        var docLock = DocumentLocks.GetOrAdd(documentId, _ => new DocumentLock(userId));
+
+        lock (docLock)
+        {
+            if (docLock.UserId == userId)
+            {
+                // Same user, allow edit
+                docLock.LastHeartbeat = DateTime.UtcNow;
+                docLock.ActiveConnections.Add(Context.ConnectionId);
+                return true;
+            }
+            else if (DateTime.UtcNow - docLock.LastHeartbeat > TimeSpan.FromMinutes(2))
+            {
+                // Lock timed out
+                docLock.UserId = userId;
+                docLock.LastHeartbeat = DateTime.UtcNow;
+                docLock.ActiveConnections.Clear();
+                docLock.ActiveConnections.Add(Context.ConnectionId);
+                Clients.All.SendAsync("DocumentLocked", documentId, userId);
+                return true;
+            }
+            else
+            {
+                return false; // Someone else has the lock
+            }
+        }
+    }
+
+    public Task SendHeartbeat(string documentId, string userId)
+    {
+        if (DocumentLocks.TryGetValue(documentId, out var docLock) && docLock.UserId == userId)
+        {
+            docLock.LastHeartbeat = DateTime.UtcNow;
+        }
+        return Task.CompletedTask;
+    }
+
+    public async Task UnlockDocument(string documentId, string userId)
+    {
+        if (DocumentLocks.TryGetValue(documentId, out var docLock))
+        {
+            lock (docLock)
+            {
+                if (docLock.UserId == userId)
+                {
+                    DocumentLocks.TryRemove(documentId, out _);
+                    Clients.All.SendAsync("DocumentUnlocked", documentId);
                 }
+            }
+        }
+    }
 
-                if (!f || !s.testFunction(e, f)) {
-                    U.info("", d.execfunctionError);
-                    return [false, s.error.n, e];
-                }
+    private class DocumentLock
+    {
+        public string UserId { get; set; }
+        public DateTime LastHeartbeat { get; set; }
+        public HashSet<string> ActiveConnections { get; set; }
 
-                // ---------- compiled function cache (keyed by exact compiled string f) ----------
-                if (!s._formulaCache) s._formulaCache = new Map();
-                let compiledFn = s._formulaCache.get(f);
-                if (!compiledFn) {
-                    try {
-                        compiledFn = new Function("return " + f);
-                        s._formulaCache.set(f, compiledFn);
-                    } catch (err) {
-                        const errorMsg = s.errorInfo(err);
-                        return [false, [s.error.n, errorMsg], e];
-                    }
-                }
+        public DocumentLock(string userId)
+        {
+            UserId = userId;
+            LastHeartbeat = DateTime.UtcNow;
+            ActiveConnections = new HashSet<string>();
+        }
+    }
+}
 
-                // ---------- cache cell ranges (keyed by exact formula string) ----------
-                if (!s._cellRefCache) s._cellRefCache = new Map();
-                let cellRefs = s._cellRefCache.get(e);
-                if (!cellRefs && f.indexOf("luckysheet_getcelldata") !== -1) {
-                    const regex = /luckysheet_getcelldata\('([^']+)'\)/g;
-                    let match, refs = [];
-                    while ((match = regex.exec(f)) !== null) {
-                        refs.push(s.getcellrange(match[1]));
-                    }
-                    cellRefs = refs;
-                    s._cellRefCache.set(e, cellRefs);
-                }
 
-                if (cellRefs) {
-                    for (const w of cellRefs) {
-                        if (w.row[0] < 0 || w.column[0] < 0) return [true, s.error.r, e];
-                        if (w.sheetIndex === h.calculateSheetIndex &&
-                            n >= w.row[0] && n <= w.row[1] &&
-                            t >= w.column[0] && t <= w.column[1]) {
-                            U.info("", d.execfunctionSelfErrorResult);
-                            return [false, 0, e];
-                        }
-                    }
-                }
 
-                // ---------- execute ----------
-                let m;
-                try {
-                    m = compiledFn();
-                    if (typeof m === "string") m = m.replace(/\x7F/g, '"');
-                } catch (err) {
-                    const errorMsg = s.errorInfo(err);
-                    return [false, [s.error.n, errorMsg], e];
-                }
 
-                // ---------- handle dynamic arrays (unchanged) ----------
-                const mType = L(m);
-                let g = null, y = null;
-                if (mType === "object" && m.startCell != null) {
-                    if (Array.isArray(m.data)) m = s.error.v;
-                    else if (typeof m.data === "object" && !fe(m.data.v)) m = m.data.v;
-                    else if (fe(m.data)) m = 0;
-                    else m = m.cell > 1 || m.rowl > 1 ? m.data : 0;
-                } else if (mType === "array") {
-                    if (Array.isArray(m[0]) && m.length === 1 && m[0].length === 1) {
-                        m = m[0][0];
-                    } else {
-                        y = { r: n, c: t, f: e, index: l, data: m };
-                        m = "";
-                    }
-                }
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSignalR();
 
-                if (a) s.execFunctionGroup(n, t, m, l);
-                if (!o) s.insertUpdateFunctionGroup(n, t, l);
+var app = builder.Build();
+app.MapHub<DocumentHub>("/documentHub");
+app.Run();
 
-                return g ? [true, m, e, { type: "sparklines", data: g }] :
-                    y ? [true, m, e, { type: "dynamicArrayItem", data: y }] :
-                        [true, m, e];
-            },
+
+
+
+let connection;
+let editMode = false;
+let heartbeatInterval;
+
+async function initDocumentLock(documentId, userId) {
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl(`/documentHub?userId=${userId}`)
+        .withAutomaticReconnect()
+        .build();
+
+    connection.on("DocumentUnlocked", (docId) => {
+        if (docId === documentId) {
+            console.log("Document unlocked, refresh to edit.");
+            if (!editMode) {
+                enableEditButton();
+            }
+        }
+    });
+
+    connection.on("DocumentLocked", (docId, lockedBy) => {
+        if (docId === documentId && lockedBy !== userId) {
+            console.log("Document locked by someone else.");
+            setReadOnlyMode();
+        }
+    });
+
+    await connection.start();
+
+    const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
+    if (canEdit) {
+        console.log("Edit mode enabled");
+        editMode = true;
+        enableEditing();
+        startHeartbeat(documentId, userId);
+    } else {
+        console.log("Read-only mode");
+        setReadOnlyMode();
+    }
+
+    window.addEventListener("beforeunload", async () => {
+        if (editMode) {
+            await connection.invoke("UnlockDocument", documentId, userId);
+        }
+    });
+}
+
+function startHeartbeat(documentId, userId) {
+    heartbeatInterval = setInterval(() => {
+        connection.invoke("SendHeartbeat", documentId, userId);
+    }, 30000); // every 30 seconds
+}
+
+function enableEditing() {
+    $("#saveBtn").prop("disabled", false);
+}
+
+function setReadOnlyMode() {
+    editMode = false;
+    $("#saveBtn").prop("disabled", true);
+}
+
+function enableEditButton() {
+    $("#saveBtn").prop("disabled", false);
+}
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+<script src="/js/document-lock.js"></script>
+<script>
+$(document).ready(function () {
+    const userId = "@User.Identity.Name";
+    const documentId = "123"; // Get dynamically
+    initDocumentLock(documentId, userId);
+});
+</script>
+
+
+
 
