@@ -1,140 +1,152 @@
-let connection = null;
-let documentId = null;
-let userId = null;
-let hasEditLock = false;
-let keepAliveInterval = null;
-
-// Start connection with manual retry
-async function startConnection() {
-    try {
-        await connection.start();
-        console.log("Connected to SignalR Hub.");
-        await tryLockDocument();
-    } catch (err) {
-        console.error("Connection failed, retrying in 5s...", err);
-        setTimeout(startConnection, 5000);
-    }
-}
-
-async function initDocumentLock(docId, uId) {
-    documentId = docId;
-    userId = uId;
-
-    connection = new signalR.HubConnectionBuilder()
-        .withUrl("/documentLockHub")
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
-
-    connection.onclose(async () => {
-        console.log("Disconnected, retrying...");
-        hasEditLock = false;
-        updateUI();
-        await startConnection();
-    });
-
-    await startConnection();
-
-    // Setup beforeunload to unlock
-    window.addEventListener("beforeunload", async function () {
-        if (hasEditLock) {
-            await connection.invoke("UnlockDocument", documentId, userId);
-        }
-    });
-}
-
-async function tryLockDocument() {
-    try {
-        const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
-        hasEditLock = canEdit;
-        updateUI();
-
-        if (canEdit) {
-            if (!keepAliveInterval) {
-                keepAliveInterval = setInterval(() => {
-                    connection.invoke("RefreshLock", documentId, userId);
-                }, 30000); // every 30 sec
-            }
-        } else {
-            if (keepAliveInterval) {
-                clearInterval(keepAliveInterval);
-                keepAliveInterval = null;
-            }
-        }
-    } catch (err) {
-        console.error("Lock request failed:", err);
-    }
-}
-
-function updateUI() {
-    if (hasEditLock) {
-        $("#saveBtn").prop("disabled", false);
-        $("#readonlyBanner").hide();
-    } else {
-        $("#saveBtn").prop("disabled", true);
-        $("#readonlyBanner").show();
-    }
-}
-
-
-
-
 using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 
-public class DocumentLockHub : Hub
+public class DocumentHub : Hub
 {
-    // Store document locks: documentId → (userId, lockTime)
-    private static ConcurrentDictionary<string, (string UserId, DateTime LockTime)> _locks 
-        = new ConcurrentDictionary<string, (string, DateTime)>();
+    private static ConcurrentDictionary<string, DocumentLock> _locks = new ConcurrentDictionary<string, DocumentLock>();
 
-    // Try to lock document
-    public async Task<bool> TryLockDocument(string documentId, string userId)
+    public async Task<object> TryLockDocument(string documentId, string userId)
     {
-        if (_locks.TryGetValue(documentId, out var lockInfo))
-        {
-            if (lockInfo.UserId == userId)
-            {
-                // Already locked by same user
-                _locks[documentId] = (userId, DateTime.UtcNow);
-                return true;
-            }
-            return false; // Locked by someone else
-        }
+        var now = DateTime.UtcNow;
+        var key = documentId;
 
-        // Lock document
-        _locks[documentId] = (userId, DateTime.UtcNow);
-        return true;
+        _locks.AddOrUpdate(key, 
+            new DocumentLock { UserId = userId, LastPing = now }, 
+            (k, existing) =>
+            {
+                // If lock expired, take it
+                if ((now - existing.LastPing).TotalSeconds > 15)
+                {
+                    return new DocumentLock { UserId = userId, LastPing = now };
+                }
+
+                // If same user, refresh lock
+                if (existing.UserId == userId)
+                {
+                    existing.LastPing = now;
+                    return existing;
+                }
+
+                // Otherwise, lock stays with existing user
+                return existing;
+            });
+
+        var lockData = _locks[key];
+        bool success = lockData.UserId == userId;
+
+        return new { success, lockedBy = lockData.UserId };
     }
 
-    // Unlock document explicitly
+    public Task Ping(string documentId, string userId)
+    {
+        if (_locks.TryGetValue(documentId, out var lockData))
+        {
+            if (lockData.UserId == userId)
+            {
+                lockData.LastPing = DateTime.UtcNow;
+            }
+        }
+        return Task.CompletedTask;
+    }
+
     public async Task UnlockDocument(string documentId, string userId)
     {
-        if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
+        if (_locks.TryGetValue(documentId, out var lockData))
         {
-            _locks.TryRemove(documentId, out _);
+            if (lockData.UserId == userId)
+            {
+                _locks.TryRemove(documentId, out _);
+                await Clients.All.SendAsync("DocumentUnlocked", documentId);
+            }
         }
     }
 
-    // Refresh lock timestamp (keep-alive)
-    public async Task RefreshLock(string documentId, string userId)
+    private class DocumentLock
     {
-        if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
-        {
-            _locks[documentId] = (userId, DateTime.UtcNow);
-        }
-    }
-
-    // Cleanup locks when user disconnects
-    public override async Task OnDisconnectedAsync(Exception exception)
-    {
-        string connectionId = Context.ConnectionId;
-        foreach (var doc in _locks)
-        {
-            if (doc.Value.UserId == Context.UserIdentifier)
-                _locks.TryRemove(doc.Key, out _);
-        }
-        await base.OnDisconnectedAsync(exception);
+        public string UserId { get; set; }
+        public DateTime LastPing { get; set; }
     }
 }
+
+
+
+
+// document-lock.js
+let connection = new signalR.HubConnectionBuilder()
+    .withUrl("/documentHub")
+    .configureLogging(signalR.LogLevel.Information)
+    .build();
+
+let documentId = window.currentDocumentId;  // Set this from server-side
+let userId = window.currentUserId;          // Set this from server-side
+let hasEditLock = false;
+let pingInterval = null;
+
+async function startConnection() {
+    try {
+        await connection.start();
+        console.log("SignalR Connected");
+        tryLockDocument();
+    } catch (err) {
+        console.error(err);
+        setTimeout(startConnection, 3000); // Retry connection if dropped
+    }
+}
+
+async function tryLockDocument() {
+    try {
+        const result = await connection.invoke("TryLockDocument", documentId, userId);
+        hasEditLock = result.success;
+
+        if (hasEditLock) {
+            enableEditing();
+            console.log(`You have edit lock for document ${documentId}`);
+        } else {
+            disableEditing();
+            alert(`Document is locked by ${result.lockedBy}. You are in read-only mode.`);
+        }
+
+        // Start ping if lock acquired
+        if (hasEditLock && !pingInterval) {
+            pingInterval = setInterval(() => {
+                connection.invoke("Ping", documentId, userId)
+                    .catch(err => console.error("Ping failed", err));
+            }, 5000);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function enableEditing() {
+    $("#saveButton").prop("disabled", false);
+}
+
+function disableEditing() {
+    $("#saveButton").prop("disabled", true);
+}
+
+// Listen for document unlock notifications
+connection.on("DocumentUnlocked", (docId) => {
+    if (docId === documentId && !hasEditLock) {
+        console.log(`Document ${docId} unlocked. Refresh to edit.`);
+    }
+});
+
+// Unlock on unload
+window.addEventListener("beforeunload", async () => {
+    if (hasEditLock) {
+        try {
+            await connection.invoke("UnlockDocument", documentId, userId);
+        } catch (err) {
+            console.error("Failed to unlock on unload", err);
+        }
+    }
+});
+
+// Start SignalR connection
+$(document).ready(() => {
+    startConnection();
+});
