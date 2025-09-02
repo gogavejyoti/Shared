@@ -1,52 +1,12 @@
-let connection = null;
-let documentId = null;
-let userId = null;
-let hasEditLock = false;
-let keepAliveInterval = null;
-
-async function startConnection() {
-    try {
-        await connection.start();
-        console.log("Connected to SignalR Hub.");
-        await tryLockDocument();
-    } catch (err) {
-        console.error("Connection failed, retrying in 5s...", err);
-        setTimeout(startConnection, 5000);
-    }
-}
-
-async function initDocumentLock(docId, uId) {
-    documentId = docId;
-    userId = uId;
-
-    connection = new signalR.HubConnectionBuilder()
-        .withUrl("/DocumentHub")
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
-
-    connection.onclose(async () => {
-        console.log("Disconnected, retrying...");
-        hasEditLock = false;
-        updateUI();
-        await startConnection();
-    });
-
-    await startConnection();
-
-    window.addEventListener("beforeunload", async function () {
-        if (hasEditLock) {
-            try {
-                await connection.invoke("UnlockDocument", documentId, userId);
-            } catch {}
-        }
-    });
-}
-
 async function tryLockDocument() {
     try {
         const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
         hasEditLock = canEdit;
         updateUI();
+
+        // Get lock owner info
+        const owner = await connection.invoke("GetLockOwner", documentId);
+        displayLockOwner(owner);
 
         if (canEdit && !keepAliveInterval) {
             keepAliveInterval = setInterval(() => {
@@ -61,16 +21,17 @@ async function tryLockDocument() {
     }
 }
 
-function updateUI() {
-    if (!hasEditLock) {
-        $('#btnSaveSheets').hide();
-        $("#msgReadOnly").show();
+function displayLockOwner(owner) {
+    if (owner) {
+        if (owner === userId) {
+            $("#lockInfo").text("You have edit access.");
+        } else {
+            $("#lockInfo").text(`Locked by ${owner}`);
+        }
     } else {
-        $('#btnSaveSheets').show();
-        $("#msgReadOnly").hide();
+        $("#lockInfo").text("No one has locked this document.");
     }
 }
-
 
 
 
@@ -93,11 +54,10 @@ public class DocumentHub : Hub
         {
             if (lockInfo.UserId == userId)
             {
-                // Already locked by same user
                 _locks[documentId] = (userId, DateTime.UtcNow);
                 return Task.FromResult(true);
             }
-            return Task.FromResult(false); // Locked by someone else
+            return Task.FromResult(false);
         }
 
         _locks[documentId] = (userId, DateTime.UtcNow);
@@ -124,7 +84,17 @@ public class DocumentHub : Hub
         return Task.CompletedTask;
     }
 
-    // Cleanup locks if user disconnects (best-effort)
+    // 🔥 NEW: Get lock owner for a document
+    public Task<string> GetLockOwner(string documentId)
+    {
+        if (_locks.TryGetValue(documentId, out var lockInfo))
+        {
+            return Task.FromResult(lockInfo.UserId);
+        }
+        return Task.FromResult<string>(null);
+    }
+
+    // Cleanup locks if user disconnects
     public override Task OnDisconnectedAsync(Exception exception)
     {
         var locksToRemove = _locks.Where(kv => kv.Value.UserId == Context.ConnectionId).Select(kv => kv.Key).ToList();
@@ -134,14 +104,5 @@ public class DocumentHub : Hub
         }
         return base.OnDisconnectedAsync(exception);
     }
-
-    // Optional: lock expiration (clean up old locks)
-    public static void CleanupExpiredLocks(TimeSpan timeout)
-    {
-        var expired = _locks.Where(kv => DateTime.UtcNow - kv.Value.LockTime > timeout).Select(kv => kv.Key).ToList();
-        foreach (var key in expired)
-        {
-            _locks.TryRemove(key, out _);
-        }
-    }
 }
+
