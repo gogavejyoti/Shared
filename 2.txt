@@ -1,23 +1,147 @@
-async function tryLockDocument() {
-    // If connection is not ready, retry in 1 second
-    if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
-        console.warn("⏳ Connection not ready, retrying...");
-        setTimeout(tryLockDocument, 1000);
-        return;
-    }
+let connection = null;
+let documentId = null;
+let userId = null;
+let hasEditLock = false;
+let keepAliveInterval = null;
 
+async function startConnection() {
+    try {
+        await connection.start();
+        console.log("Connected to SignalR Hub.");
+        await tryLockDocument();
+    } catch (err) {
+        console.error("Connection failed, retrying in 5s...", err);
+        setTimeout(startConnection, 5000);
+    }
+}
+
+async function initDocumentLock(docId, uId) {
+    documentId = docId;
+    userId = uId;
+
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl("/DocumentHub")
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    connection.onclose(async () => {
+        console.log("Disconnected, retrying...");
+        hasEditLock = false;
+        updateUI();
+        await startConnection();
+    });
+
+    await startConnection();
+
+    window.addEventListener("beforeunload", async function () {
+        if (hasEditLock) {
+            try {
+                await connection.invoke("UnlockDocument", documentId, userId);
+            } catch {}
+        }
+    });
+}
+
+async function tryLockDocument() {
     try {
         const canEdit = await connection.invoke("TryLockDocument", documentId, userId);
         hasEditLock = canEdit;
         updateUI();
 
-        // Keep lock alive every 30s
-        if (!keepAliveInterval) {
+        if (canEdit && !keepAliveInterval) {
             keepAliveInterval = setInterval(() => {
-                tryLockDocument();
+                connection.invoke("RefreshLock", documentId, userId);
             }, 30000);
+        } else if (!canEdit && keepAliveInterval) {
+            clearInterval(keepAliveInterval);
+            keepAliveInterval = null;
         }
     } catch (err) {
-        console.error("❌ Lock request failed:", err);
+        console.error("Lock request failed:", err);
+    }
+}
+
+function updateUI() {
+    if (!hasEditLock) {
+        $('#btnSaveSheets').hide();
+        $("#msgReadOnly").show();
+    } else {
+        $('#btnSaveSheets').show();
+        $("#msgReadOnly").hide();
+    }
+}
+
+
+
+
+using Microsoft.AspNetCore.SignalR;
+using System;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading.Tasks;
+
+public class DocumentHub : Hub
+{
+    // Store document locks: documentId → (userId, lockTime)
+    private static readonly ConcurrentDictionary<string, (string UserId, DateTime LockTime)> _locks
+        = new ConcurrentDictionary<string, (string, DateTime)>();
+
+    // Try to lock document
+    public Task<bool> TryLockDocument(string documentId, string userId)
+    {
+        if (_locks.TryGetValue(documentId, out var lockInfo))
+        {
+            if (lockInfo.UserId == userId)
+            {
+                // Already locked by same user
+                _locks[documentId] = (userId, DateTime.UtcNow);
+                return Task.FromResult(true);
+            }
+            return Task.FromResult(false); // Locked by someone else
+        }
+
+        _locks[documentId] = (userId, DateTime.UtcNow);
+        return Task.FromResult(true);
+    }
+
+    // Unlock explicitly
+    public Task UnlockDocument(string documentId, string userId)
+    {
+        if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
+        {
+            _locks.TryRemove(documentId, out _);
+        }
+        return Task.CompletedTask;
+    }
+
+    // Keep-alive
+    public Task RefreshLock(string documentId, string userId)
+    {
+        if (_locks.TryGetValue(documentId, out var lockInfo) && lockInfo.UserId == userId)
+        {
+            _locks[documentId] = (userId, DateTime.UtcNow);
+        }
+        return Task.CompletedTask;
+    }
+
+    // Cleanup locks if user disconnects (best-effort)
+    public override Task OnDisconnectedAsync(Exception exception)
+    {
+        var locksToRemove = _locks.Where(kv => kv.Value.UserId == Context.ConnectionId).Select(kv => kv.Key).ToList();
+        foreach (var key in locksToRemove)
+        {
+            _locks.TryRemove(key, out _);
+        }
+        return base.OnDisconnectedAsync(exception);
+    }
+
+    // Optional: lock expiration (clean up old locks)
+    public static void CleanupExpiredLocks(TimeSpan timeout)
+    {
+        var expired = _locks.Where(kv => DateTime.UtcNow - kv.Value.LockTime > timeout).Select(kv => kv.Key).ToList();
+        foreach (var key in expired)
+        {
+            _locks.TryRemove(key, out _);
+        }
     }
 }
