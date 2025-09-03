@@ -1,72 +1,277 @@
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+// ======================= EXECUTE SINGLE FORMULA =======================
+execfunction: function (e, n, t, l, a, o) {
+    const s = this;
+    const d = Q().formulaMore;
 
-getcellrange: function (e, n) {
-                if (e == null || e.length == 0)
-                    return;
-                let t = ""
-                    , l = ""
-                    , a = null
-                    , o = null
-                    , s = Ft();
-                if (e.indexOf("!") > -1) {
-                    if (e in this.cellTextToIndexList)
-                        return this.cellTextToIndexList[e];
-                    let u = e.split("!");
-                    t = u[0],
-                        l = u[1],
-                        t = t.replace(/\\'/g, "'").replace(/''/g, "'"),
-                        t.substr(0, 1) == "'" && t.substr(t.length - 1, 1) == "'" && (t = t.substring(1, t.length - 1));
-                    for (let d in s)
-                        if (t == s[d].name) {
-                            a = s[d].index,
-                                o = s[d].data;
-                            break
-                        }
-                } else {
-                    let u = n;
-                    if (u == null && (u = h.currentSheetIndex),
-                        e + "_" + u in this.cellTextToIndexList)
-                        return this.cellTextToIndexList[e + "_" + u];
-                    let d = K(u);
-                    t = s[d].name,
-                        a = s[d].index,
-                        o = h.flowdata,
-                        l = e
-                }
-                if (l.indexOf(":") == -1) {
-                    let u = parseInt(l.replace(/[^0-9]/g, "")) - 1
-                        , d = cl(l.replace(/[^A-Za-z]/g, ""));
-                    if (!isNaN(u) && !isNaN(d)) {
-                        let f = {
-                            row: [u, u],
-                            column: [d, d],
-                            sheetIndex: a
-                        };
-                        return this.addToCellIndexList(e, f),
-                            f
-                    } else
-                        return null
-                } else {
-                    l = l.split(":");
-                    let u = []
-                        , d = [];
-                    if (u[0] = parseInt(l[0].replace(/[^0-9]/g, "")) - 1,
-                        u[1] = parseInt(l[1].replace(/[^0-9]/g, "")) - 1,
-                        isNaN(u[0]) && (u[0] = 0),
-                        isNaN(u[1]) && (u[1] = o.length - 1),
-                        u[0] > u[1] || (d[0] = cl(l[0].replace(/[^A-Za-z]/g, "")),
-                            d[1] = cl(l[1].replace(/[^A-Za-z]/g, "")),
-                            isNaN(d[0]) && (d[0] = 0),
-                            isNaN(d[1]) && (d[1] = o[0].length - 1),
-                            d[0] > d[1]))
-                        return null;
-                    let f = {
-                        row: u,
-                        column: d,
-                        sheetIndex: a
-                    };
-                    return this.addToCellIndexList(e, f),
-                        f
-                }
-            },
+    if (e.includes(s.error.r)) return [false, s.error.r, e];
+    if (!s.checkBracketNum(e)) e += ")";
 
+    if (l == null) l = h.currentSheetIndex;
+    h.calculateSheetIndex = l;
+
+    // ---------- parsed formula cache ----------
+    if (!s._parsedFormulaCache) s._parsedFormulaCache = new Map();
+    let f = s._parsedFormulaCache.get(e);
+    if (!f) {
+        f = s.functionParserExe(e).trim();
+        s._parsedFormulaCache.set(e, f);
+    }
+
+    if (!f || !s.testFunction(e, f)) {
+        U.info("", d.execfunctionError);
+        return [false, s.error.n, e];
+    }
+
+    // ---------- compiled function cache ----------
+    if (!s._formulaCache) s._formulaCache = new Map();
+    let compiledFn = s._formulaCache.get(f);
+    if (!compiledFn) {
+        try {
+            compiledFn = new Function("return " + f);
+            s._formulaCache.set(f, compiledFn);
+        } catch (err) {
+            const errorMsg = s.errorInfo(err);
+            return [false, [s.error.n, errorMsg], e];
+        }
+    }
+
+    // ---------- cache cell ranges ----------
+    if (!s._cellRefCache) s._cellRefCache = new Map();
+    let cellRefs = s._cellRefCache.get(e);
+    if (!cellRefs && f.indexOf("luckysheet_getcelldata") !== -1) {
+        const regex = /luckysheet_getcelldata\('([^']+)'\)/g;
+        let match, refs = [];
+        while ((match = regex.exec(f)) !== null) {
+            refs.push(s.getcellrange(match[1]));
+        }
+        cellRefs = refs;
+        s._cellRefCache.set(e, cellRefs);
+    }
+
+    if (cellRefs) {
+        for (const w of cellRefs) {
+            if (w.row[0] < 0 || w.column[0] < 0) return [true, s.error.r, e];
+            if (w.sheetIndex === h.calculateSheetIndex &&
+                n >= w.row[0] && n <= w.row[1] &&
+                t >= w.column[0] && t <= w.column[1]) {
+                U.info("", d.execfunctionSelfErrorResult);
+                return [false, 0, e];
+            }
+        }
+    }
+
+    // ---------- execute ----------
+    let m;
+    try {
+        m = compiledFn();
+        if (typeof m === "string") m = m.replace(/\x7F/g, '"');
+    } catch (err) {
+        const errorMsg = s.errorInfo(err);
+        return [false, [s.error.n, errorMsg], e];
+    }
+
+    // ---------- handle dynamic arrays ----------
+    const mType = L(m);
+    let g = null, y = null;
+    if (mType === "object" && m.startCell != null) {
+        if (Array.isArray(m.data)) m = s.error.v;
+        else if (typeof m.data === "object" && !fe(m.data.v)) m = m.data.v;
+        else if (fe(m.data)) m = 0;
+        else m = m.cell > 1 || m.rowl > 1 ? m.data : 0;
+    } else if (mType === "array") {
+        if (Array.isArray(m[0]) && m.length === 1 && m[0].length === 1) {
+            m = m[0][0];
+        } else {
+            y = { r: n, c: t, f: e, index: l, data: m };
+            m = "";
+        }
+    }
+
+    if (a) s.execFunctionGroup(n, t, m, l);
+    if (!o) s.insertUpdateFunctionGroup(n, t, l);
+
+    return g ? [true, m, e, { type: "sparklines", data: g }] :
+        y ? [true, m, e, { type: "dynamicArrayItem", data: y }] :
+            [true, m, e];
+},
+
+// ======================= FUNCTION PARSER =======================
+functionParser: function (e, n) {
+    const t = this;
+
+    if (!t.operatorjson) {
+        const y = t.operator.split("|");
+        t.operatorjson = Object.create(null);
+        for (let k = 0; k < y.length; k++) t.operatorjson[y[k]] = 1;
+    }
+
+    if (e == null) return "";
+
+    if (e.startsWith("=+")) e = e.substr(2);
+    else if (e.startsWith("=")) e = e.substr(1);
+
+    let l = e, a = 0, o = "", s = "";
+    const u = { bracket: 0, comma: 0, squote: 0, dquote: 0, compare: 0, braces: 0 };
+    const d = [], f = [], m = [], arrayRegex = /{.*?}/;
+    let g = -1;
+
+    for (; a < l.length;) {
+        const y = l[a];
+
+        // ---------------- HANDLE BRACKETS ----------------
+        if (y === "(" && u.squote === 0 && u.dquote === 0 && u.braces === 0) {
+            if (o.length > 0 && m.length === 0) {
+                const fnName = o.toUpperCase();
+                s += fnName.indexOf(":") > -1
+                    ? `luckysheet_getSpecialReference(true,'${$.trim(fnName.split(":")[0]).replace(/'/g, "\\'")}', luckysheet_function.${fnName.split(":")[1]}.f(#lucky#`
+                    : `luckysheet_function.${fnName}.f(`;
+                m.push(1); o = "";
+            } else {
+                if (m.length === 0) { s += "("; m.push(0); o = ""; }
+                else { m.push(0); o += y; }
+            }
+        }
+        else if (y === ")" && u.squote === 0 && u.dquote === 0 && u.braces === 0) {
+            const v = m.pop();
+            if (m.length === 0) {
+                let k = t.functionParser(o, n);
+                if (k.includes("#lucky#")) k = k.replace(/#lucky#/g, "") + ")";
+                s += k + ")"; o = "";
+            } else o += y;
+        }
+        else if (y === "{" && u.squote === 0 && u.dquote === 0) { o += "{"; u.braces += 1; }
+        else if (y === "}" && u.squote === 0 && u.dquote === 0) { o += "}"; u.braces -= 1; }
+        else if (y === '"' && u.squote === 0) {
+            if (u.dquote > 0) { if (a < l.length - 1 && l[a + 1] === '"') { a++; o += "\x7F"; } else { u.dquote--; o += '"'; } }
+            else { u.dquote++; o += '"'; }
+        }
+        else if (y === "'" && u.dquote === 0) {
+            o += "'";
+            if (u.squote > 0) {
+                if (g === a - 1) return "";
+                if (a < l.length - 1 && l[a + 1] === "'") { a++; o += "'"; }
+                else { if (l[a - 1] === "'") return ""; u.squote--; }
+            } else { u.squote++; g = a; }
+        }
+        else if (y === "," && u.squote === 0 && u.dquote === 0 && u.braces === 0) {
+            if (m.length <= 1) { let v = t.functionParser(o, n); if (v.includes("#lucky#")) v = v.replace(/#lucky#/g, "") + ")"; s += v + ","; o = ""; } else o += ","; }
+        else if (y in t.operatorjson && u.squote === 0 && u.dquote === 0 && u.braces === 0) {
+            const v = a + 1 < l.length ? l[a + 1] : "", k = t.operatorPriority;
+            if ((y + v) in t.operatorjson) { if (m.length === 0) { if ($.trim(o)) f.push(t.functionParser($.trim(o), n)); if (d[0] in t.operatorjson) { let b = k[d[0]]; while (d.length && b != null) { f.push(d.shift()); b = k[d[0]]; } } d.unshift(y + v); s = ""; o = ""; } else o += y + v; a++; }
+            else if (m.length === 0) { if ($.trim(o)) f.push(t.functionParser($.trim(o), n)); if (d[0] in t.operatorjson) { let b = k[d[0]] ?? 1e3, w = k[y] ?? 1e3; while (d.length && w >= b) { f.push(d.shift()); b = k[d[0]] ?? 1e3; } } d.unshift(y); s = ""; o = ""; }
+            else o += y;
+        }
+        else { o += y; }
+
+        // ---------------- END OF FORMULA ----------------
+        if (a === l.length - 1) {
+            let v = "", k = $.trim(o).replace(/'/g, "\\'");
+            if (t.iscelldata(k) && !k.startsWith(":")) { v = `luckysheet_getcelldata('${k}')`; if (typeof n === "function") n(k); }
+            else if (k.startsWith(":")) { k = k.substr(1); if (t.iscelldata(k)) v = `luckysheet_getSpecialReference(false,${s},'${k}')`; }
+            else { o = $.trim(o); if (arrayRegex.test(o) && !o.startsWith('"') && !o.endsWith('"')) { let w = arrayRegex.exec(o)[0], x = o.search(arrayRegex); if (x > 0) v += o.substr(0, x); v += `luckysheet_getarraydata('${w}')`; if (x + w.length < o.length) v += o.substr(x + w.length, o.length); } else v = o; }
+            if (v) f.push(v); if (d.length) { if (s.length) { f.push(s); s = ""; } while (d.length) f.push(d.shift()); }
+            s = f.length ? t.calPostfixExpression(f.reverse()) : s + v;
+        }
+
+        a++;
+    }
+
+    return s;
+},
+
+// ======================= EXECUTE FORMULA GROUP (ALL SHEETS) =======================
+execFunctionGroup: function (e, n, t, l, a, o = false) {
+    const s = this;
+
+    if (!a) a = h.flowdata;
+    if (!l) l = h.currentSheetIndex;
+
+    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+
+    if (t) {
+        const tmp = [[{ v: null }]];
+        At(0, 0, tmp, t);
+        s.execFunctionGlobalData[`${e}_${n}_${l}`] = tmp[0][0];
+    }
+
+    const rangeCache = Object.create(null);
+    const formulaCache = Object.create(null);
+    const blockCache = Object.create(null);
+    const key = (r, c, i) => `r${r}c${c}i${i}`;
+    const getRange = (ref, idx) => rangeCache[`${idx}|${ref}`] || (rangeCache[`${idx}|${ref}`] = s.getcellrange(ref, idx));
+    const parseRefs = (f, idx) => {
+        const ck = `${idx}|${f}`;
+        if (formulaCache[ck]) return formulaCache[ck];
+        if (!/[A-Z]/i.test(f)) return formulaCache[ck] = [];
+        if (/INDIRECT\(|OFFSET\(|INDEX\(/i.test(f)) {
+            const out = [];
+            s.isFunctionRange(f, null, null, idx, null, r => { const g = getRange($.trim(r), idx); if (g) out.push(g); });
+            return formulaCache[ck] = out;
+        }
+        const tokens = f.replace(/'[^']*'/g, " ").replace(/"[^"]*"/g, " ").split(/==|!=|<>|<=|>=|[,()=+\-*/%&^><]/).map(x => x.trim()).filter(Boolean);
+        const out = [];
+        for (let i = 0; i < tokens.length; i++) { const r = getRange(tokens[i], idx); if (r) out.push(r); }
+        return formulaCache[ck] = out;
+    };
+    const expandBlock = b => {
+        const id = `${b.row[0]}:${b.row[1]}-${b.column[0]}:${b.column[1]}-${b.sheetIndex}`;
+        if (blockCache[id]) return blockCache[id];
+        const arr = [];
+        for (let r = b.row[0]; r <= b.row[1]; r++) for (let c = b.column[0]; c <= b.column[1]; c++) arr.push({ key: key(r, c, b.sheetIndex), r, c, sheetIndex: b.sheetIndex });
+        return blockCache[id] = arr;
+    };
+
+    const fnCells = s.getAllFunctionGroup();
+    const nodes = Object.create(null);
+    for (let i = 0; i < fnCells.length; i++) {
+        const cell = fnCells[i];
+        const k = key(cell.r, cell.c, cell.index);
+        const f = zl(cell.r, cell.c, cell.index);
+        if (!f) continue;
+        nodes[k] = { key: k, r: cell.r, c: cell.c, index: cell.index, formula: f, refs: parseRefs(f, cell.index), parents: Object.create(null), children: Object.create(null), color: "w" };
+    }
+
+    const targets = Object.create(null);
+    if (!s.execFunctionExist) targets[key(e, n, l)] = 1;
+    else for (let i = 0; i < s.execFunctionExist.length; i++) targets[key(s.execFunctionExist[i].r, s.execFunctionExist[i].c, s.execFunctionExist[i].i)] = 1;
+
+    const start = [];
+    for (const id in nodes) {
+        const node = nodes[id];
+        for (let i = 0; i < node.refs.length; i++) {
+            const expanded = expandBlock(node.refs[i]);
+            for (let j = 0; j < expanded.length; j++) {
+                const ref = expanded[j];
+                const dep = nodes[ref.key];
+                if (dep) { node.children[ref.key] = 1; dep.parents[id] = 1; }
+                if (!o && targets[ref.key]) start.push(node);
+            }
+        }
+        if (o) start.push(node);
+    }
+
+    // Topo sort with cross-sheet circular detection
+    const order = [];
+    const seen = Object.create(null), visiting = Object.create(null);
+    const visitNode = node => {
+        if (!node || seen[node.key]) return;
+        if (visiting[node.key]) { console.warn(`Circular reference at ${node.key}`); return; }
+        visiting[node.key] = true;
+        for (const childKey in node.children) visitNode(nodes[childKey]);
+        visiting[node.key] = false;
+        seen[node.key] = true;
+        order.push(node);
+    };
+    start.forEach(n => visitNode(n));
+    order.reverse();
+
+    window.luckysheet_getcelldata_cache = null;
+    for (let i = 0; i < order.length; i++) {
+        const node = order[i];
+        const R = s.execfunction(node.formula, node.r, node.c, node.index);
+        s.groupValuesRefreshData.push({ r: node.r, c: node.c, v: R[1], f: R[2], spe: R[3], index: node.index });
+        s.execFunctionGlobalData[`${node.r}_${node.c}_${node.index}`] = { v: R[1], f: R[2] };
+    }
+
+    s.execFunctionExist = null;
+},
