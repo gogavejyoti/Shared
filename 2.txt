@@ -1,156 +1,38 @@
-execfunction: function (e, n, t, l, a, o) {
-    const s = this, d = Q().formulaMore;
+            function ue(J, G, le) {
+                le == null && (le = {});
+                var pe = "";
 
-    // Quick reject if error marker found
-    if (e.indexOf(s.error.r) !== -1) return [!1, s.error.r, e];
-
-    // Fix unmatched brackets
-    if (!s.checkBracketNum(e)) e += ")";
-
-    if (l == null) l = h.currentSheetIndex;
-    h.calculateSheetIndex = l;
-
-    const parsed = $.trim(s.functionParserExe(e));
-    const isFunc = parsed.substr(0, 20) === "luckysheet_function." || parsed.substr(0, 22) === "luckysheet_compareWith";
-    if (isFunc) s.functionHTMLIndex = 0;
-
-    // Validation
-    if (!s.testFunction(e, parsed) || parsed === "") {
-        U.info("", d.execfunctionError);
-        return [!1, s.error.n, e];
-    }
-
-    let m, spark = null;
-
-    // Set globals
-    window.luckysheetCurrentRow = n;
-    window.luckysheetCurrentColumn = t;
-    window.luckysheetCurrentIndex = l;
-    window.luckysheetCurrentFunction = e;
-
-    try {
-        // Optimized self-ref scan
-        if (parsed.indexOf("luckysheet_getcelldata") !== -1) {
-            let idx = parsed.indexOf("luckysheet_getcelldata('");
-            while (idx !== -1) {
-                idx += 26; // len of "luckysheet_getcelldata('"
-                const endIdx = parsed.indexOf("')", idx);
-                const ref = parsed.substring(idx, endIdx);
-                const w = s.getcellrange(ref);
-                if (w.row[0] < 0 || w.column[0] < 0) return [!0, s.error.r, e];
-                if (
-                    w.sheetIndex === h.calculateSheetIndex &&
-                    n >= w.row[0] && n <= w.row[1] &&
-                    t >= w.column[0] && t <= w.column[1]
-                ) {
-                    if (de()) alert(d.execfunctionSelfError);
-                    else U.info("", d.execfunctionSelfErrorResult);
-                    return [!1, 0, e];
+                // Determine format string
+                switch (typeof J) {
+                    case "string":
+                        pe = (J === "m/d/yy" && le.dateNF) ? le.dateNF : J;
+                        break;
+                    case "number":
+                        pe = (J === 14 && le.dateNF) ? le.dateNF : (le.table != null ? le.table : b)[J];
+                        if (pe == null) pe = (le.table && le.table[w[J]]) || b[w[J]];
+                        if (pe == null) pe = C[J] || "General";
+                        break;
                 }
-                idx = parsed.indexOf("luckysheet_getcelldata('", endIdx);
+
+                // If format is w/W, return plain number
+                var oe = /^(w|W)((0?)|(0\.0+))$/;
+                if (pe.match(oe)) {
+                    if (isNaN(G)) return G;
+                    var isNegative = Number(G) < 0;
+                    G = Math.abs(G);
+                    return isNegative ? "-" + G : G;  // plain number, no symbols
+                }
+
+                // General fallback
+                if (g(pe, 0)) return D(G, le);
+                if (G instanceof Date) G = I(G, le.date1904);
+
+                var gt = ie(pe, G);
+                if (g(gt[1])) return D(G, le);
+
+                if (G === true) return "TRUE";
+                if (G === false) return "FALSE";
+                if (G === "" || G == null) return "";
+
+                return ee(gt[1], G, le, gt[0]);
             }
-        }
-
-        m = new Function("return " + parsed)();
-        if (typeof m === "string") m = m.replace(/\x7F/g, '"');
-        if (parsed.indexOf("SPLINES") !== -1) { spark = m; m = ""; }
-    } catch (err) {
-        console.log(err, parsed);
-        m = [s.error.n, s.errorInfo(err)];
-    }
-
-    // Normalize object results
-    if (L(m) === "object" && m.startCell != null) {
-        if (L(m.data) === "array") m = s.error.v;
-        else if (L(m.data) === "object" && !fe(m.data.v)) m = m.data.v;
-        else if (fe(m.data)) m = 0;
-        else if (m.cell > 1 || m.rowl > 1 || typeof m.data === "string" || typeof m.data === "number") m = m.data;
-        else m = 0;
-    }
-
-    let arrData = null;
-    if (L(m) === "array") {
-        const first = m[0];
-        if (L(first) !== "array" && m.length === 2 && H(first)) {
-            m = first;
-        } else if (L(first) === "array" && m.length === 1 && first.length === 1) {
-            m = first[0];
-        } else {
-            arrData = { r: n, c: t, f: e, index: l, data: m };
-            m = "";
-        }
-    }
-
-    // Reset globals
-    window.luckysheetCurrentRow = null;
-    window.luckysheetCurrentColumn = null;
-    window.luckysheetCurrentIndex = null;
-    window.luckysheetCurrentFunction = null;
-
-    // Post updates
-    if (n != null && t != null) {
-        if (a) s.execFunctionGroup(n, t, m, l);
-        if (!o) s.insertUpdateFunctionGroup(n, t, l);
-    }
-
-    if (spark) return [!0, m, e, { type: "sparklines", data: spark }];
-    if (arrData) return [!0, m, e, { type: "dynamicArrayItem", data: arrData }];
-    return [!0, m, e];
-},
-
-
-functionParser: function (e, n) {
-    const t = this;
-
-    // Cache operator JSON once
-    if (!t.operatorjson) {
-        t.operatorjson = {};
-        const ops = t.operator.split("|");
-        for (let i = 0, len = ops.length; i < len; i++) t.operatorjson[ops[i]] = 1;
-    }
-
-    if (!e) return "";
-
-    // Strip "=+" or "=" early
-    if (e.charAt(0) === "=") e = e.charAt(1) === "+" ? e.slice(2) : e.slice(1);
-
-    const chars = e.split("");
-    const len = chars.length;
-    let idx = 0, o = "", s = "", sq = 0, dq = 0, br = 0, brc = 0;
-    const d = [], f = [], m = [];
-    let g = -1;
-
-    while (idx < len) {
-        const ch = chars[idx];
-
-        // Original parsing logic (unchanged)
-        if (ch === "'") {
-            sq = sq ? 0 : 1;
-            o += ch;
-        } else if (ch === '"') {
-            dq = dq ? 0 : 1;
-            o += ch;
-        } else if (!sq && !dq) {
-            if (ch === "(") br++;
-            else if (ch === ")") br--;
-
-            if (ch === "[") brc++;
-            else if (ch === "]") brc--;
-
-            if (br === 0 && brc === 0 && t.operatorjson[ch]) {
-                if (o !== "") { m.push(o); o = ""; }
-                m.push(ch);
-            } else {
-                o += ch;
-            }
-        } else {
-            o += ch;
-        }
-
-        idx++;
-    }
-
-    if (o !== "") m.push(o);
-    s = m.join(" ");
-    return s;
-}
