@@ -1,422 +1,440 @@
- execFunctionGroup: function (e, n, t, l, a, o = !1) {
-                let s = this;
-                if (a == null && (a = h.flowdata),
-                    window.luckysheet_compareWith || (window.luckysheet_compareWith = ja,
-                        window.luckysheet_getarraydata = wc,
-                        window.luckysheet_getcelldata = nr,
-                        window.luckysheet_parseData = Ua,
-                        window.luckysheet_getValue = qn,
-                        window.luckysheet_indirect_check = xc,
-                        window.luckysheet_indirect_check_return = _c,
-                        window.luckysheet_offset_check = Cc,
-                        window.luckysheet_calcADPMM = _t,
-                        window.luckysheet_getSpecialReference = Tc),
-                    s.execFunctionGlobalData == null && (s.execFunctionGlobalData = {}),
-                    l == null && (l = h.currentSheetIndex),
-                    t != null) {
-                    let _ = [[{
-                        v: null
-                    }]];
-                    At(0, 0, _, t),
-                        s.execFunctionGlobalData[e + "_" + n + "_" + l] = _[0][0]
-                }
-                let u = s.getAllFunctionGroup()
-                    , d = {}
-                    , f = Ft()
-                    , m = {};
-                for (let _ = 0; _ < f.length; _++) {
-                    let T = f[_];
-                    m[T.index] = T.data
-                }
-                let g = {}
-                    , y = [];
-                if (s.execFunctionExist == null) {
-                    let _ = "r" + e + "c" + n + "i" + l;
-                    g[_] = 1
-                } else
-                    for (let _ = 0; _ < s.execFunctionExist.length; _++) {
-                        let T = s.execFunctionExist[_]
-                            , A = "r" + T.r + "c" + T.c + "i" + T.i;
-                        g[A] = 1
-                    }
-                let v = {}
-                    , k = function (_, T, A, R) {
-                        for (let I = 0; I < _.length; I++) {
-                            let F = _[I]
-                                , N = "r" + F.row[0] + "" + F.row[1] + "c" + F.column[0] + "" + F.column[1] + "index" + F.sheetIndex;
-                            if (N in v)
-                                v[N].forEach(E => {
-                                    R(E.key, E.r, E.c, E.sheetIndex)
-                                }
-                                );
-                            else {
-                                let D = [];
-                                for (let E = F.row[0]; E <= F.row[1]; E++)
-                                    for (let P = F.column[0]; P <= F.column[1]; P++) {
-                                        let z = "r" + E + "c" + P + "i" + F.sheetIndex;
-                                        R(z, E, P, F.sheetIndex),
-                                            (T && z in T || A && z in A) && D.push({
-                                                key: z,
-                                                r: E,
-                                                c: P,
-                                                sheetIndex: F.sheetIndex
-                                            })
-                                    }
-                                (T || A) && (v[N] = D)
-                            }
-                        }
-                    }
-                    , b = {}
-                    , w = 0;
-                for (let _ = 0; _ < u.length; _++) {
-                    let T = u[_]
-                        , A = "r" + T.r + "c" + T.c + "i" + T.index
-                        , R = zl(T.r, T.c, T.index);
-                    if (R == null)
-                        continue;
-                    let I = R.toUpperCase()
-                        , F = I.indexOf("INDIRECT(") > -1 || I.indexOf("OFFSET(") > -1 || I.indexOf("INDEX(") > -1
-                        , N = [];
-                    if (F)
-                        this.isFunctionRange(R, null, null, T.index, null, function (E) {
-                            let P = s.getcellrange($.trim(E), T.index);
-                            P != null && N.push(P)
-                        });
-                    else if (!(R.substr(0, 2) == '="' && R.substr(R.length - 1, 1) == '"')) {
-                        let E = 0
-                            , P = -1
-                            , z = -1
-                            , O = []
-                            , V = []
-                            , q = R.length;
-                        for (let Y = 0; Y < q; Y++) {
-                            let X = R.charAt(Y);
-                            X == "'" && z == -1 && (P == -1 ? (E != Y && O.push(...R.substring(E, Y).split(/==|!=|<>|<=|>=|[,()=+-\/*%&\^><]/)),
-                                P = Y,
-                                E = Y) : Y < q - 1 && R.charAt(Y + 1) == "'" ? Y++ : (E = Y + 1,
-                                    O.push(R.substring(P, E)),
-                                    V.push(O.length - 1),
-                                    P = -1)),
-                                X == '"' && P == -1 && (z == -1 ? (E != Y && O.push(...R.substring(E, Y).split(/==|!=|<>|<=|>=|[,()=+-\/*%&\^><]/)),
-                                    z = Y,
-                                    E = Y) : Y < q - 1 && R.charAt(Y + 1) == '"' ? Y++ : (E = Y + 1,
-                                        O.push(R.substring(z, E)),
-                                        z = -1))
-                        }
-                        E != q && O.push(...R.substring(E, q).split(/==|!=|<>|<=|>=|[,()=+-\/*%&\^><]/));
-                        for (let Y = V.length - 1; Y >= 0; Y--)
-                            V[Y] != O.length - 1 && (O[V[Y]] = O[V[Y]] + O[V[Y] + 1],
-                                O.splice(V[Y] + 1, 1));
-                        for (let Y = 0; Y < O.length; Y++) {
-                            let X = O[Y];
-                            if (X.length <= 1 || X.substr(0, 1) == '"' && X.substr(X.length - 1, 1) == '"' && !s.iscelldata(X))
-                                continue;
-                            let ee = s.getcellrange($.trim(X), T.index);
-                            ee != null && N.push(ee)
-                        }
-                    }
-                    let D = {
-                        formulaArray: N,
-                        calc_funcStr: R,
-                        key: A,
-                        r: T.r,
-                        c: T.c,
-                        index: T.index,
-                        parents: {},
-                        chidren: {},
-                        color: "w"
-                    };
-                    d[A] = D
-                }
-                Object.keys(d).forEach(_ => {
-                    let T = d[_];
-                    k(T.formulaArray, d, g, function (A) {
-                        if (A in d) {
-                            let R = d[A];
-                            T.chidren[A] = 1,
-                                R.parents[_] = 1
-                        }
-                        !o && A in g && y.push(T)
-                    }),
-                        o && y.push(T)
-                }
-                );
-                let x = []
-                    , C = y
-                    , S = {};
-                for (; C.length > 0;) {
-                    let _ = C.pop();
-                    if (_ == null || _.key in S)
-                        continue;
-                    if (_.color == "b") {
-                        x.push(_),
-                            S[_.key] = 1;
-                        continue
-                    }
-                    let T = [];
-                    Object.keys(_.parents).forEach(A => {
-                        let R = d[A];
-                        R != null && T.push(R)
-                    }
-                    ),
-                        w++,
-                        T.length == 0 ? (x.push(_),
-                            S[_.key] = 1) : (_.color = "b",
-                                C.push(_),
-                                C = C.concat(T))
-                }
-                x.reverse();
-                for (let _ = 0; _ < x.length; _++) {
-                    let T = x[_];
-                    if (T.level == Math.max)
-                        continue;
-                    window.luckysheet_getcelldata_cache = null;
-                    let A = T.calc_funcStr
-                        , R = s.execfunction(A, T.r, T.c, T.index);
-                    s.groupValuesRefreshData.push({
-                        r: T.r,
-                        c: T.c,
-                        v: R[1],
-                        f: R[2],
-                        spe: R[3],
-                        index: T.index
-                    }),
-                        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-                            v: R[1],
-                            f: R[2]
-                        }
-                }
-                s.execFunctionExist = null
-            },
+// 1) execFunctionGroup (signature unchanged)
+execFunctionGroup: function (e, n, t, l, a, o = !1) {
+    const s = this;
 
- execfunction: function (e, n, t, l, a, o) {
-                let s = this
-                    , d = Q().formulaMore;
-                if (e.indexOf(s.error.r) > -1)
-                    return [!1, s.error.r, e];
-                s.checkBracketNum(e) || (e += ")"),
-                    l == null && (l = h.currentSheetIndex),
-                    h.calculateSheetIndex = l;
-                let f = $.trim(s.functionParserExe(e));
-                if ((f.substr(0, 20) == "luckysheet_function." || f.substr(0, 22) == "luckysheet_compareWith") && (s.functionHTMLIndex = 0),
-                    !s.testFunction(e, f) || f == "")
-                    return U.info("", d.execfunctionError),
-                        [!1, s.error.n, e];
-                let m = null;
-                window.luckysheetCurrentRow = n,
-                    window.luckysheetCurrentColumn = t,
-                    window.luckysheetCurrentIndex = l,
-                    window.luckysheetCurrentFunction = e;
-                let g = null;
-                try {
-                    if (f.indexOf("luckysheet_getcelldata") > -1) {
-                        let v = f.split("luckysheet_getcelldata('");
-                        for (let k = 1; k < v.length; k++) {
-                            let b = v[k].split("')")[0]
-                                , w = s.getcellrange(b);
-                            if (w.row[0] < 0 || w.column[0] < 0)
-                                return [!0, s.error.r, e];
-                            if (w.sheetIndex == h.calculateSheetIndex && n >= w.row[0] && n <= w.row[1] && t >= w.column[0] && t <= w.column[1])
-                                return de() ? alert(d.execfunctionSelfError) : U.info("", d.execfunctionSelfErrorResult),
-                                    [!1, 0, e]
-                        }
-                    }
-                    m = new Function("return " + f)(),
-                        typeof m == "string" && (m = m.replace(/\x7F/g, '"')),
-                        f.indexOf("SPLINES") > -1 && (g = m,
-                            m = "")
-                } catch (v) {
-                    let k = v;
-                    console.log(v, f),
-                        k = s.errorInfo(k),
-                        m = [s.error.n, k]
-                }
-                L(m) == "object" && m.startCell != null && (L(m.data) == "array" ? m = s.error.v : L(m.data) == "object" && !fe(m.data.v) ? m = m.data.v : fe(m.data) ? m = 0 : m.cell > 1 || m.rowl > 1 || L(m.data) == "string" || L(m.data) == "number" ? m = m.data : m = 0);
-                let y = null;
-                if (L(m) == "array") {
-                    let v = !1;
-                    L(m[0]) != "array" && m.length == 2 && (v = H(m[0])),
-                        v ? m = m[0] : L(m[0]) == "array" && m.length == 1 && m[0].length == 1 ? m = m[0][0] : (y = {
-                            r: n,
-                            c: t,
-                            f: e,
-                            index: l,
-                            data: m
-                        },
-                            m = "")
-                }
-                return window.luckysheetCurrentRow = null,
-                    window.luckysheetCurrentColumn = null,
-                    window.luckysheetCurrentIndex = null,
-                    window.luckysheetCurrentFunction = null,
-                    n != null && t != null && (a && s.execFunctionGroup(n, t, m, l),
-                        o || s.insertUpdateFunctionGroup(n, t, l)),
-                    g ? [!0, m, e, {
-                        type: "sparklines",
-                        data: g
-                    }] : y ? [!0, m, e, {
-                        type: "dynamicArrayItem",
-                        data: y
-                    }] : [!0, m, e]
-            },
+    // initialize dependencies once (same as original)
+    if (a == null) a = h.flowdata;
 
- functionParser: function (e, n) {
-                let t = this;
-                if (t.operatorjson == null) {
-                    let y = t.operator.split("|")
-                        , v = {};
-                    for (let k = 0; k < y.length; k++)
-                        v[y[k].toString()] = 1;
-                    t.operatorjson = v
+    if (!window.luckysheet_compareWith) {
+        window.luckysheet_compareWith = ja;
+        window.luckysheet_getarraydata = wc;
+        window.luckysheet_getcelldata = nr;
+        window.luckysheet_parseData = Ua;
+        window.luckysheet_getValue = qn;
+        window.luckysheet_indirect_check = xc;
+        window.luckysheet_indirect_check_return = _c;
+        window.luckysheet_offset_check = Cc;
+        window.luckysheet_calcADPMM = _t;
+        window.luckysheet_getSpecialReference = Tc;
+    }
+
+    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    if (l == null) l = h.currentSheetIndex;
+
+    // If an explicit value is provided, store it (same behavior)
+    if (t != null) {
+        const tmp = [[{ v: null }]];
+        At(0, 0, tmp, t);
+        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+    }
+
+    // Fetch all function group cells and sheet info
+    const allFuncCells = s.getAllFunctionGroup() || [];
+    const sheetsInfo = Ft() || [];
+    const sheetMap = {};
+    for (let i = 0; i < sheetsInfo.length; i++) sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+
+    // Build execSet (existing function execution set) - identical semantics
+    const execSet = {};
+    if (s.execFunctionExist == null) {
+        execSet["r" + e + "c" + n + "i" + l] = 1;
+    } else {
+        for (let i = 0; i < s.execFunctionExist.length; i++) {
+            const T = s.execFunctionExist[i];
+            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+        }
+    }
+
+    // nodes: key -> node object
+    const nodes = {};
+    // per-call cache: range rectangle -> list of cell keys (to avoid re-creating lists)
+    const rangeToKeysCache = {};
+
+    // helper to get keys inside a rectangular range (safe per-call cache)
+    function keysForRange(R) {
+        const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+        if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+        const list = [];
+        for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
+            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                const k = "r" + rr + "c" + cc + "i" + R.sheetIndex;
+                list.push({ key: k, r: rr, c: cc, sheetIndex: R.sheetIndex });
+            }
+        }
+        rangeToKeysCache[cacheKey] = list;
+        return list;
+    }
+
+    // Build nodes by scanning formulas and collecting referenced ranges
+    for (let i = 0; i < allFuncCells.length; i++) {
+        const T = allFuncCells[i];
+        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+        const R = zl(T.r, T.c, T.index); // original formula retrieval
+        if (!R) continue;
+
+        const upper = R.toUpperCase();
+        const needsIsFunctionRange = upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1;
+        const formulaRanges = [];
+
+        if (needsIsFunctionRange) {
+            // preserve original behavior for INDIRECT/OFFSET/INDEX
+            this.isFunctionRange(R, null, null, T.index, null, function (ref) {
+                const rg = s.getcellrange($.trim(ref), T.index);
+                if (rg) formulaRanges.push(rg);
+            });
+        } else if (!(R.substr(0, 2) == '="' && R.substr(R.length - 1, 1) == '"')) {
+            // faster tokenization compared to many regex / splits in original:
+            // split by common operators/parens to extract candidate tokens
+            const tokens = R.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
+            for (let ti = 0; ti < tokens.length; ti++) {
+                const tk = tokens[ti].trim();
+                if (!tk) continue;
+                // skip tiny tokens unless they are detected as cell-data pattern
+                if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+                const rg = s.getcellrange($.trim(tk), T.index);
+                if (rg) formulaRanges.push(rg);
+            }
+        }
+
+        nodes[nodeKey] = {
+            formulaArray: formulaRanges,
+            calc_funcStr: R,
+            key: nodeKey,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            parents: {},
+            chidren: {},
+            color: "w"
+        };
+    }
+
+    // Build dependency graph (children/parents) and initial worklist y (same semantics)
+    const y = [];
+    const nodeKeys = Object.keys(nodes);
+    for (let i = 0; i < nodeKeys.length; i++) {
+        const node = nodes[nodeKeys[i]];
+        const ranges = node.formulaArray || [];
+        for (let ri = 0; ri < ranges.length; ri++) {
+            const rect = ranges[ri];
+            const keys = keysForRange(rect);
+            for (let ki = 0; ki < keys.length; ki++) {
+                const cellInfo = keys[ki];
+                const A = cellInfo.key;
+                if (A in nodes) {
+                    node.chidren[A] = 1;
+                    nodes[A].parents[node.key] = 1;
                 }
-                if (e == null)
-                    return "";
-                e.substr(0, 2) == "=+" ? e = e.substr(2) : e.substr(0, 1) == "=" && (e = e.substr(1));
-                let l = e.split("")
-                    , a = 0
-                    , o = ""
-                    , s = ""
-                    , u = {
-                        bracket: 0,
-                        comma: 0,
-                        squote: 0,
-                        dquote: 0,
-                        compare: 0,
-                        braces: 0
-                    }
-                    , d = []
-                    , f = []
-                    , m = []
-                    , g = -1;
-                for (; a < l.length;) {
-                    let y = l[a];
-                    if (y == "(" && u.squote == 0 && u.dquote == 0 && u.braces == 0)
-                        if (o.length > 0 && m.length == 0) {
-                            if (o = o.toUpperCase(),
-                                o.indexOf(":") > -1) {
-                                let v = o.split(":");
-                                s += "luckysheet_getSpecialReference(true,'" + $.trim(v[0]).replace(/'/g, "\\'") + "', luckysheet_function." + v[1] + ".f(#lucky#"
-                            } else
-                                s += "luckysheet_function." + o + ".f(";
-                            m.push(1),
-                                o = ""
-                        } else
-                            m.length == 0 ? (s += "(",
-                                m.push(0),
-                                o = "") : (m.push(0),
-                                    o += y);
-                    else if (y == ")" && u.squote == 0 && u.dquote == 0 && u.braces == 0) {
-                        let v = m.pop();
-                        if (m.length == 0) {
-                            let k = t.functionParser(o, n);
-                            k.indexOf("#lucky#") > -1 && (k = k.replace(/#lucky#/g, "") + ")"),
-                                s += k + ")",
-                                o = ""
-                        } else
-                            o += y
-                    } else if (y == "{" && u.squote == 0 && u.dquote == 0)
-                        o += "{",
-                            u.braces += 1;
-                    else if (y == "}" && u.squote == 0 && u.dquote == 0)
-                        o += "}",
-                            u.braces -= 1;
-                    else if (y == '"' && u.squote == 0)
-                        u.dquote > 0 ? a < l.length - 1 && l[a + 1] == '"' ? (a++,
-                            o += "\x7F") : (u.dquote -= 1,
-                                o += '"') : (u.dquote += 1,
-                                    o += '"');
-                    else if (y == "'" && u.dquote == 0)
-                        if (o += "'",
-                            u.squote > 0) {
-                            if (g == a - 1)
-                                return "";
-                            if (a < l.length - 1 && l[a + 1] == "'")
-                                a++,
-                                    o += "'";
-                            else {
-                                if (l[a - 1] == "'")
-                                    return "";
-                                u.squote -= 1
-                            }
-                        } else
-                            u.squote += 1,
-                                g = a;
-                    else if (y == "," && u.squote == 0 && u.dquote == 0 && u.braces == 0)
-                        if (m.length <= 1) {
-                            let v = t.functionParser(o, n);
-                            v.indexOf("#lucky#") > -1 && (v = v.replace(/#lucky#/g, "") + ")"),
-                                s += v + ",",
-                                o = ""
-                        } else
-                            o += ",";
-                    else if (y in t.operatorjson && u.squote == 0 && u.dquote == 0 && u.braces == 0) {
-                        let v = ""
-                            , k = t.operatorPriority;
-                        if (a + 1 < l.length && (v = l[a + 1]),
-                            y + v in t.operatorjson) {
-                            if (m.length == 0) {
-                                if ($.trim(o).length > 0 ? f.unshift(t.functionParser($.trim(o), n)) : $.trim(s).length > 0 && f.unshift($.trim(s)),
-                                    d[0] in t.operatorjson) {
-                                    let b = k[d[0]];
-                                    for (; d.length > 0 && b != null;)
-                                        f.unshift(d.shift()),
-                                            b = k[d[0]]
-                                }
-                                d.unshift(y + v),
-                                    s = "",
-                                    o = ""
-                            } else
-                                o += y + v;
-                            a++
-                        } else if (m.length == 0) {
-                            if ($.trim(o).length > 0 ? f.unshift(t.functionParser($.trim(o), n)) : $.trim(s).length > 0 && f.unshift($.trim(s)),
-                                d[0] in t.operatorjson) {
-                                let b = k[d[0]];
-                                b = b == null ? 1e3 : b;
-                                let w = k[y];
-                                for (w = w == null ? 1e3 : w; d.length > 0 && w >= b;)
-                                    f.unshift(d.shift()),
-                                        b = k[d[0]],
-                                        b = b == null ? 1e3 : b
-                            }
-                            d.unshift(y),
-                                s = "",
-                                o = ""
-                        } else
-                            o += y
-                    } else
-                        u.dquote == 0 && u.squote == 0,
-                            o += y;
-                    if (a == l.length - 1) {
-                        let v = ""
-                            , k = $.trim(o).replace(/'/g, "\\'");
-                        if (t.iscelldata(k) && k.substr(0, 1) != ":")
-                            v = "luckysheet_getcelldata('" + k + "')",
-                                typeof n == "function" && n(k);
-                        else if (k.substr(0, 1) == ":")
-                            k = k.substr(1),
-                                t.iscelldata(k) && (v = "luckysheet_getSpecialReference(false," + s + ",'" + k + "')");
-                        else {
-                            o = $.trim(o);
-                            let b = /{.*?}/;
-                            if (b.test(o) && o.substr(0, 1) != '"' && o.substr(o.length - 1, 1) != '"') {
-                                let w = b.exec(o)[0]
-                                    , x = o.search(b)
-                                    , C = "";
-                                x > 0 && (v += o.substr(0, x)),
-                                    v += "luckysheet_getarraydata('" + w + "')",
-                                    x + w.length < o.length && (v += o.substr(x + w.length, o.length))
-                            } else
-                                v = o
+                if (!o && (A in execSet)) y.push(node);
+            }
+        }
+        if (o) y.push(node);
+    }
+
+    // Topological-like traversal using stack to preserve original push/pop semantics
+    const S = {}; // seen map
+    const stack = y.slice(); // copy
+    const ordered = [];
+
+    while (stack.length > 0) {
+        const cur = stack.pop();
+        if (!cur || S[cur.key]) continue;
+
+        if (cur.color === "b") {
+            ordered.push(cur);
+            S[cur.key] = 1;
+            continue;
+        }
+
+        const parentKeys = Object.keys(cur.parents || {});
+        const parentNodes = [];
+        for (let pi = 0; pi < parentKeys.length; pi++) {
+            const pk = parentKeys[pi];
+            if (nodes[pk]) parentNodes.push(nodes[pk]);
+        }
+
+        if (parentNodes.length === 0) {
+            ordered.push(cur);
+            S[cur.key] = 1;
+        } else {
+            cur.color = "b";
+            stack.push(cur);
+            for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
+        }
+    }
+
+    // Preserve original x.reverse() behavior: reverse ordered list
+    ordered.reverse();
+
+    // Evaluate nodes using execfunction (preserve side effects)
+    for (let i = 0; i < ordered.length; i++) {
+        const T = ordered[i];
+        window.luckysheet_getcelldata_cache = null; // original cleared cache before each eval
+
+        const A = T.calc_funcStr;
+        const Rres = s.execfunction(A, T.r, T.c, T.index);
+
+        s.groupValuesRefreshData.push({
+            r: T.r,
+            c: T.c,
+            v: Rres[1],
+            f: Rres[2],
+            spe: Rres[3],
+            index: T.index
+        });
+
+        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
+            v: Rres[1],
+            f: Rres[2]
+        };
+    }
+
+    s.execFunctionExist = null;
+},
+
+
+// 2) execfunction (signature unchanged)
+execfunction: function (e, n, t, l, a, o) {
+    let s = this, d = Q().formulaMore;
+
+    // quick error check
+    if (e.indexOf(s.error.r) > -1) return [!1, s.error.r, e];
+    if (!s.checkBracketNum(e)) e += ")";
+
+    if (l == null) l = h.currentSheetIndex;
+    h.calculateSheetIndex = l;
+
+    let f = $.trim(s.functionParserExe(e));
+
+    if ((f.substr(0, 20) == "luckysheet_function." || f.substr(0, 22) == "luckysheet_compareWith") && (s.functionHTMLIndex = 0),
+        !s.testFunction(e, f) || f == "")
+        return U.info("", d.execfunctionError),
+            [!1, s.error.n, e];
+
+    let m = null;
+    window.luckysheetCurrentRow = n;
+    window.luckysheetCurrentColumn = t;
+    window.luckysheetCurrentIndex = l;
+    window.luckysheetCurrentFunction = e;
+    let g = null;
+
+    try {
+        // self-reference detection (keeps behavior)
+        if (f.indexOf("luckysheet_getcelldata") > -1) {
+            const parts = f.split("luckysheet_getcelldata('");
+            for (let k = 1; k < parts.length; k++) {
+                const b = parts[k].split("')")[0];
+                const w = s.getcellrange(b);
+                if (w == null || w.row[0] < 0 || w.column[0] < 0) return [!0, s.error.r, e];
+                if (w.sheetIndex == h.calculateSheetIndex && n >= w.row[0] && n <= w.row[1] && t >= w.column[0] && t <= w.column[1])
+                    return de() ? alert(d.execfunctionSelfError) : U.info("", d.execfunctionSelfErrorResult),
+                        [!1, 0, e];
+            }
+        }
+
+        m = new Function("return " + f)();
+        if (typeof m == "string") m = m.replace(/\x7F/g, '"');
+        if (f.indexOf("SPLINES") > -1) { g = m; m = ""; }
+    } catch (err) {
+        console.log(err, f);
+        const k = s.errorInfo(err);
+        m = [s.error.n, k];
+    }
+
+    // normalize object return type
+    if (L(m) == "object" && m.startCell != null) {
+        if (L(m.data) == "array") m = s.error.v;
+        else if (L(m.data) == "object" && !fe(m.data.v)) m = m.data.v;
+        else if (fe(m.data)) m = 0;
+        else if (m.cell > 1 || m.rowl > 1 || L(m.data) == "string" || L(m.data) == "number") m = m.data;
+        else m = 0;
+    }
+
+    let y = null;
+    if (L(m) == "array") {
+        let simple = ! (L(m[0]) == "array") && m.length == 2 && H(m[0]);
+        if (simple) m = m[0];
+        else if (L(m[0]) == "array" && m.length == 1 && m[0].length == 1) m = m[0][0];
+        else {
+            y = {
+                r: n,
+                c: t,
+                f: e,
+                index: l,
+                data: m
+            };
+            m = "";
+        }
+    }
+
+    // reset globals
+    window.luckysheetCurrentRow = null;
+    window.luckysheetCurrentColumn = null;
+    window.luckysheetCurrentIndex = null;
+    window.luckysheetCurrentFunction = null;
+
+    // update groups if needed
+    if (n != null && t != null) {
+        if (a) s.execFunctionGroup(n, t, m, l);
+        if (!o) s.insertUpdateFunctionGroup(n, t, l);
+    }
+
+    if (g) return [!0, m, e, { type: "sparklines", data: g }];
+    if (y) return [!0, m, e, { type: "dynamicArrayItem", data: y }];
+    return [!0, m, e];
+},
+
+
+// 3) functionParser (signature unchanged)
+functionParser: function (e, n) {
+    let t = this;
+
+    // build operator lookup once (static)
+    if (t.operatorjson == null) {
+        const ops = t.operator.split("|"), v = {};
+        for (let k = 0; k < ops.length; k++) v[ops[k].toString()] = 1;
+        t.operatorjson = v;
+    }
+
+    if (e == null) return "";
+
+    // remove leading = or =+ exactly like original
+    if (e.substr(0, 2) == "=+") e = e.substr(2);
+    else if (e.substr(0, 1) == "=") e = e.substr(1);
+
+    // convert string to char array once
+    const l = e.split("");
+    let a = 0, o = "", s = "";
+    const u = { bracket: 0, comma: 0, squote: 0, dquote: 0, compare: 0, braces: 0 };
+    const d = [], f = [], m = [];
+    let g = -1;
+
+    // single-pass scanning with careful handling for quotes/braces/operators
+    for (; a < l.length;) {
+        const y = l[a];
+
+        if (y == "(" && u.squote == 0 && u.dquote == 0 && u.braces == 0) {
+            if (o.length > 0 && m.length == 0) {
+                o = o.toUpperCase();
+                if (o.indexOf(":") > -1) {
+                    const v = o.split(":");
+                    s += "luckysheet_getSpecialReference(true,'" + $.trim(v[0]).replace(/'/g, "\\'") + "', luckysheet_function." + v[1] + ".f(#lucky#";
+                } else {
+                    s += "luckysheet_function." + o + ".f(";
+                }
+                m.push(1);
+                o = "";
+            } else {
+                if (m.length == 0) { s += "("; m.push(0); o = ""; }
+                else { m.push(0); o += y; }
+            }
+        }
+        else if (y == ")" && u.squote == 0 && u.dquote == 0 && u.braces == 0) {
+            const v = m.pop();
+            if (m.length == 0) {
+                let k = t.functionParser(o, n);
+                if (k.indexOf("#lucky#") > -1) k = k.replace(/#lucky#/g, "") + ")";
+                s += k + ")";
+                o = "";
+            } else o += y;
+        }
+        else if (y == "{" && u.squote == 0 && u.dquote == 0) { o += "{"; u.braces += 1; }
+        else if (y == "}" && u.squote == 0 && u.dquote == 0) { o += "}"; u.braces -= 1; }
+        else if (y == '"' && u.squote == 0) {
+            if (u.dquote > 0) {
+                if (a < l.length - 1 && l[a + 1] == '"') { a++; o += "\x7F"; }
+                else { u.dquote -= 1; o += '"'; }
+            } else { u.dquote += 1; o += '"'; }
+        }
+        else if (y == "'" && u.dquote == 0) {
+            o += "'";
+            if (u.squote > 0) {
+                if (g == a - 1) return "";
+                if (a < l.length - 1 && l[a + 1] == "'") { a++; o += "'"; }
+                else {
+                    if (l[a - 1] == "'") return "";
+                    u.squote -= 1;
+                }
+            } else {
+                u.squote += 1;
+                g = a;
+            }
+        }
+        else if (y == "," && u.squote == 0 && u.dquote == 0 && u.braces == 0) {
+            if (m.length <= 1) {
+                let v = t.functionParser(o, n);
+                if (v.indexOf("#lucky#") > -1) v = v.replace(/#lucky#/g, "") + ")";
+                s += v + ",";
+                o = "";
+            } else o += ",";
+        }
+        else if (y in t.operatorjson && u.squote == 0 && u.dquote == 0 && u.braces == 0) {
+            let v = "", k = t.operatorPriority;
+            if (a + 1 < l.length && (v = l[a + 1]), (y + v) in t.operatorjson) {
+                if (m.length == 0) {
+                    if ($.trim(o).length > 0) f.unshift(t.functionParser($.trim(o), n));
+                    else if ($.trim(s).length > 0) f.unshift($.trim(s));
+                    if (d[0] in t.operatorjson) {
+                        let b = k[d[0]];
+                        while (d.length > 0 && b != null) {
+                            f.unshift(d.shift());
+                            b = k[d[0]];
                         }
-                        if (v.length > 0 && f.unshift(v),
-                            d.length > 0)
-                            for (s.length > 0 && (f.unshift(s),
-                                s = ""); d.length > 0;)
-                                f.unshift(d.shift());
-                        f.length > 0 ? s = t.calPostfixExpression(f) : s += v
                     }
-                    a++
+                    d.unshift(y + v);
+                    s = ""; o = "";
+                } else o += y + v;
+                a++;
+            } else if (m.length == 0) {
+                if ($.trim(o).length > 0) f.unshift(t.functionParser($.trim(o), n));
+                else if ($.trim(s).length > 0) f.unshift($.trim(s));
+                if (d[0] in t.operatorjson) {
+                    let b = k[d[0]];
+                    b = b == null ? 1e3 : b;
+                    let w = k[y];
+                    for (w = w == null ? 1e3 : w; d.length > 0 && w >= b;) {
+                        f.unshift(d.shift());
+                        b = k[d[0]];
+                        b = b == null ? 1e3 : b;
+                    }
                 }
-                return s
-            },
+                d.unshift(y);
+                s = ""; o = "";
+            } else o += y;
+        }
+        else {
+            o += y;
+        }
+
+        // End-of-string finalization
+        if (a == l.length - 1) {
+            let v = "", k = $.trim(o).replace(/'/g, "\\'");
+            if (t.iscelldata(k) && k.substr(0, 1) != ":") {
+                v = "luckysheet_getcelldata('" + k + "')";
+                if (typeof n == "function") n(k);
+            } else if (k.substr(0, 1) == ":") {
+                k = k.substr(1);
+                if (t.iscelldata(k)) v = "luckysheet_getSpecialReference(false," + s + ",'" + k + "')";
+            } else {
+                o = $.trim(o);
+                const bRx = /{.*?}/;
+                if (bRx.test(o) && o.substr(0, 1) != '"' && o.substr(o.length - 1, 1) != '"') {
+                    const w = bRx.exec(o)[0], x = o.search(bRx);
+                    if (x > 0) v += o.substr(0, x);
+                    v += "luckysheet_getarraydata('" + w + "')";
+                    if (x + w.length < o.length) v += o.substr(x + w.length, o.length);
+                } else v = o;
+            }
+            if (v.length > 0) f.unshift(v);
+            if (d.length > 0) {
+                if (s.length > 0) { f.unshift(s); s = ""; }
+                while (d.length > 0) f.unshift(d.shift());
+            }
+            s = f.length > 0 ? t.calPostfixExpression(f) : s + v;
+        }
+
+        a++;
+    }
+
+    return s;
+},
