@@ -1,4 +1,40 @@
-            function ue(J, G, le) {
+    <style>
+        /* Fix sheet tabs ABOVE the status bar */
+        #luckysheet-sheet-area {
+            position: fixed !important;
+            bottom: 30px; /* Height of status bar */
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 9999;
+            background: #fff;
+            border-top: 1px solid #ddd;
+            padding: 5px 0;
+        }
+
+        /* Fix status bar at very bottom */
+        .luckysheet-stat-area {
+            position: fixed !important;
+            bottom: 0; /* Stick to bottom of window */
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 9998;
+            background: #f9f9f9;
+            border-top: 1px solid #ddd;
+            padding: 5px 0;
+        }
+
+        #luckysheet-scrollbar-x{
+            margin-bottom: 5px!important;
+        }
+
+    </style>
+
+
+
+
+function ue(J, G, le) {
                 le == null && (le = {});
                 var pe = "";
 
@@ -36,3 +72,4 @@
 
                 return ee(gt[1], G, le, gt[0]);
             }
+
