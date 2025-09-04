@@ -1,18 +1,44 @@
- const sel = luckysheet.getluckysheet_select_save();
- if (!sel || !sel.length) return;
-
- let sheet = luckysheet.getSheet();
- let data = sheet.data;
-
- sel.forEach(range => {
-     for (let r = range.row[0]; r <= range.row[1]; r++) {
-         for (let c = range.column[0]; c <= range.column[1]; c++) {
-             let cell = data[r][c];
-             if (cell && cell.f !== undefined) {
-                 // Keep only computed value
-                 let value = cell.v;
-                 luckysheet.setCellValue(r, c, { v: value });
-             }
-         }
-     }
- });
+    $("#luckysheet-delete-text").click(function () {
+                if (!!gr(h.luckysheet_select_save, h.currentSheetIndex) && ($("#luckysheet-rightclick-menu").hide(),
+                    rt(),
+                    h.allowEdit !== !1 && h.luckysheet_select_save.length > 0)) {
+                    let e = we.deepCopyFlowData(h.flowdata)
+                        , n = !1;
+                    for (let o = 0; o < h.luckysheet_select_save.length; o++) {
+                        let s = h.luckysheet_select_save[o].row[0]
+                            , u = h.luckysheet_select_save[o].row[1]
+                            , d = h.luckysheet_select_save[o].column[0]
+                            , f = h.luckysheet_select_save[o].column[1];
+                        if (Dt(h.config, s, u, d, f)) {
+                            n = !0;
+                            break
+                        }
+                    }
+                    if (n) {
+                        let o = Q().drag;
+                        de() ? alert(o.noPartMerge) : U.info(o.noPartMerge, "");
+                        return
+                    }
+                    let t = h.luckysheetfile[K(h.currentSheetIndex)], l = t.hyperlink && $.extend(!0, {}, t.hyperlink), a;
+                    for (let o = 0; o < h.luckysheet_select_save.length; o++) {
+                        let s = h.luckysheet_select_save[o].row[0]
+                            , u = h.luckysheet_select_save[o].row[1]
+                            , d = h.luckysheet_select_save[o].column[0]
+                            , f = h.luckysheet_select_save[o].column[1];
+                        for (let m = s; m <= u; m++)
+                            for (let g = d; g <= f; g++)
+                                Be.isPivotRange(m, g) || (L(e[m][g]) == "object" ? (delete e[m][g].m,
+                                    delete e[m][g].v,
+                                    e[m][g].f != null && (delete e[m][g].f,
+                                        p.delFunctionGroup(m, g, h.currentSheetIndex),
+                                        delete e[m][g].spl),
+                                    e[m][g].ct != null && e[m][g].ct.t == "inlineStr" && delete e[m][g].ct) : e[m][g] = null,
+                                    (l == null ? void 0 : l[`${m}_${g}`]) && (delete l[`${m}_${g}`],
+                                        a = !0))
+                    }
+                    Ye(e, h.luckysheet_select_save, a && {
+                        hyperlink: l
+                    }),
+                        $("#luckysheet-rich-text-editor").html("")
+                }
+            }),
