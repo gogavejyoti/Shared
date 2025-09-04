@@ -1,44 +1,63 @@
-    $("#luckysheet-delete-text").click(function () {
-                if (!!gr(h.luckysheet_select_save, h.currentSheetIndex) && ($("#luckysheet-rightclick-menu").hide(),
-                    rt(),
-                    h.allowEdit !== !1 && h.luckysheet_select_save.length > 0)) {
-                    let e = we.deepCopyFlowData(h.flowdata)
-                        , n = !1;
-                    for (let o = 0; o < h.luckysheet_select_save.length; o++) {
-                        let s = h.luckysheet_select_save[o].row[0]
-                            , u = h.luckysheet_select_save[o].row[1]
-                            , d = h.luckysheet_select_save[o].column[0]
-                            , f = h.luckysheet_select_save[o].column[1];
-                        if (Dt(h.config, s, u, d, f)) {
-                            n = !0;
-                            break
+$("#luckysheet-delete-formula").click(function () {
+    if (!!gr(h.luckysheet_select_save, h.currentSheetIndex) && ($("#luckysheet-rightclick-menu").hide(),
+        rt(),
+        h.allowEdit !== !1 && h.luckysheet_select_save.length > 0)) {
+
+        let e = we.deepCopyFlowData(h.flowdata),
+            hasMerge = !1;
+
+        // Check if range includes merged cells
+        for (let o = 0; o < h.luckysheet_select_save.length; o++) {
+            let s = h.luckysheet_select_save[o].row[0],
+                u = h.luckysheet_select_save[o].row[1],
+                d = h.luckysheet_select_save[o].column[0],
+                f = h.luckysheet_select_save[o].column[1];
+
+            if (Dt(h.config, s, u, d, f)) {
+                hasMerge = !0;
+                break;
+            }
+        }
+
+        if (hasMerge) {
+            let o = Q().drag;
+            de() ? alert(o.noPartMerge) : U.info(o.noPartMerge, "");
+            return;
+        }
+
+        let t = h.luckysheetfile[K(h.currentSheetIndex)],
+            l = t.hyperlink && $.extend(!0, {}, t.hyperlink),
+            a;
+
+        for (let o = 0; o < h.luckysheet_select_save.length; o++) {
+            let s = h.luckysheet_select_save[o].row[0],
+                u = h.luckysheet_select_save[o].row[1],
+                d = h.luckysheet_select_save[o].column[0],
+                f = h.luckysheet_select_save[o].column[1];
+
+            for (let m = s; m <= u; m++) {
+                for (let g = d; g <= f; g++) {
+                    if (Be.isPivotRange(m, g)) continue;
+
+                    if (L(e[m][g]) == "object") {
+                        // ✅ Keep the value
+                        let val = e[m][g].v;
+
+                        // Remove only the formula
+                        if (e[m][g].f != null) {
+                            delete e[m][g].f;
+                            p.delFunctionGroup(m, g, h.currentSheetIndex);
+                            delete e[m][g].spl;
                         }
+
+                        // Re-assign value back
+                        e[m][g].v = val;
                     }
-                    if (n) {
-                        let o = Q().drag;
-                        de() ? alert(o.noPartMerge) : U.info(o.noPartMerge, "");
-                        return
-                    }
-                    let t = h.luckysheetfile[K(h.currentSheetIndex)], l = t.hyperlink && $.extend(!0, {}, t.hyperlink), a;
-                    for (let o = 0; o < h.luckysheet_select_save.length; o++) {
-                        let s = h.luckysheet_select_save[o].row[0]
-                            , u = h.luckysheet_select_save[o].row[1]
-                            , d = h.luckysheet_select_save[o].column[0]
-                            , f = h.luckysheet_select_save[o].column[1];
-                        for (let m = s; m <= u; m++)
-                            for (let g = d; g <= f; g++)
-                                Be.isPivotRange(m, g) || (L(e[m][g]) == "object" ? (delete e[m][g].m,
-                                    delete e[m][g].v,
-                                    e[m][g].f != null && (delete e[m][g].f,
-                                        p.delFunctionGroup(m, g, h.currentSheetIndex),
-                                        delete e[m][g].spl),
-                                    e[m][g].ct != null && e[m][g].ct.t == "inlineStr" && delete e[m][g].ct) : e[m][g] = null,
-                                    (l == null ? void 0 : l[`${m}_${g}`]) && (delete l[`${m}_${g}`],
-                                        a = !0))
-                    }
-                    Ye(e, h.luckysheet_select_save, a && {
-                        hyperlink: l
-                    }),
-                        $("#luckysheet-rich-text-editor").html("")
                 }
-            }),
+            }
+        }
+
+        Ye(e, h.luckysheet_select_save, a && { hyperlink: l });
+        $("#luckysheet-rich-text-editor").html("");
+    }
+});
