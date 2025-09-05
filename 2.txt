@@ -15,12 +15,9 @@ pasteHandlerOfCopyPaste: function (e) {
         g = [],
         y = false;
 
-    // --- STEP 1: Build source block once
+    // --- STEP 1: Build source block
     for (let se = 0; se < e.copyRange.length; se++) {
-        let ie = Nt({
-            row: e.copyRange[se].row,
-            column: e.copyRange[se].column
-        }, s);
+        let ie = Nt({ row: e.copyRange[se].row, column: e.copyRange[se].column }, s);
         if (e.copyRange.length > 1) {
             if (u == e.copyRange[1].row[0] && d == e.copyRange[1].row[1]) {
                 ie = ie[0].map((ue, he) => ie.map(J => J[he]));
@@ -37,7 +34,7 @@ pasteHandlerOfCopyPaste: function (e) {
         g = g[0].map((se, ie) => g.map(ue => ue[ie]));
     }
 
-    let v = g,
+    let v = g, // reuse block
         k = v.length,
         b = v[0].length;
 
@@ -56,9 +53,7 @@ pasteHandlerOfCopyPaste: function (e) {
 
     // --- STEP 2: Merge validation
     let R = false;
-    if (l.merge != null) {
-        R = Dt(l, x, C, S, _);
-    }
+    if (l.merge != null) R = Dt(l, x, C, S, _);
     if (R) {
         de()
             ? alert(t.errorNotAllowMerged)
@@ -78,11 +73,12 @@ pasteHandlerOfCopyPaste: function (e) {
         N = il([].concat(N), P, z, true);
     }
 
-    let V = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification),
+    let O = Ur(s),
+        V = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification),
         q = null,
         changedCells = [];
 
-    // --- STEP 3: Apply all cells in memory
+    // --- STEP 3: Apply block
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
             let Y = x + (se - 1) * k,
@@ -96,18 +92,20 @@ pasteHandlerOfCopyPaste: function (e) {
 
                     let rowIndex = Y + G, colIndex = X + pe;
 
+                    // --- Formula handling (fix for empty cell issue)
                     if (src.f) {
-                        // Adjust formula for relative shift
                         let Fe = src.f;
                         if (se > 1) Fe = "=" + p.functionCopy(Fe, "down", (se - 1) * k);
                         if (ie > 1) Fe = "=" + p.functionCopy(Fe, "right", (ie - 1) * b);
 
                         src.f = Fe;
 
-                        // Clear stale values, must recalc
-                        delete src.v;
-                        delete src.m;
+                        // Evaluate once immediately for display
+                        let ae = p.execfunction(Fe, rowIndex, colIndex, void 0, true);
+                        src.v = ae[1];
+                        src.m = (src.ct && src.ct.fa) ? mt(src.ct.fa, ae[1]) : ae[1];
 
+                        // Mark for batch recalc
                         changedCells.push({ r: rowIndex, c: colIndex, i: h.currentSheetIndex });
                     }
 
@@ -118,7 +116,7 @@ pasteHandlerOfCopyPaste: function (e) {
         }
     }
 
-    // --- STEP 4: Save conditional formats
+    // --- STEP 4: Formats
     let ce = null;
     if (e.copyRange.length == 1) {
         let srcSheet = h.luckysheetfile[K(s)],
@@ -134,16 +132,12 @@ pasteHandlerOfCopyPaste: function (e) {
     w.row = [x, C];
     w.column = [S, _];
 
-    let params = {
-        cfg: l,
-        cdformat: ce,
-        dataVerification: q
-    };
+    let params = { cfg: l, cdformat: ce, dataVerification: q };
     if (o || P > 0 || z > 0) params.RowlChange = true;
 
     Ye(N, h.luckysheet_select_save, params);
 
-    // --- STEP 6: Batch recalc once (fastest possible)
+    // --- STEP 6: Batch recalc
     if (changedCells.length > 0) {
         p.execFunctionExist = changedCells;
         p.execFunctionGroup(null, null, null, null, N);
@@ -154,7 +148,6 @@ pasteHandlerOfCopyPaste: function (e) {
     setTimeout(He, 1);
     tt();
 },
-
 
 
 
@@ -328,6 +321,7 @@ pasteHandlerOfCopyPaste: function (e) {
       setTimeout(He, 1);
       tt();
   },
+
 
 
 
