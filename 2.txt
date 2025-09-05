@@ -83,7 +83,7 @@ pasteHandlerOfCopyPaste: function (e) {
         q = null,
         changedCells = [];
 
-    // --- STEP 3: Apply block (formula adjust only, no inline eval)
+    // --- STEP 3: Apply block (formula adjust + defer value calc)
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
             let Y = x + (se - 1) * k,
@@ -102,11 +102,9 @@ pasteHandlerOfCopyPaste: function (e) {
                         if (se > 1) Fe = "=" + p.functionCopy(Fe, "down", (se - 1) * k);
                         if (ie > 1) Fe = "=" + p.functionCopy(Fe, "right", (ie - 1) * b);
 
-                        // only store adjusted formula, no per-cell exec
                         oe.f = Fe;
-                        delete oe.v;
-                        delete oe.m;
 
+                        // ⚡ mark for recalc
                         changedCells.push({ r: rowIndex, c: colIndex, i: h.currentSheetIndex });
                     }
 
@@ -142,10 +140,24 @@ pasteHandlerOfCopyPaste: function (e) {
 
     Ye(N, h.luckysheet_select_save, params);
 
-    // --- STEP 6: Batch recalc once
+    // --- STEP 6: Batch recalc once (fills v + m)
     if (changedCells.length > 0) {
         p.execFunctionExist = changedCells;
         p.execFunctionGroup(null, null, null, null, N);
+
+        // ✅ force value/m update
+        for (let cell of changedCells) {
+            let c = N[cell.r][cell.c];
+            if (c && c.f) {
+                let ae = p.execfunction(c.f, cell.r, cell.c, void 0, true);
+                c.v = ae[1];
+                if (c.ct && c.ct.fa) {
+                    c.m = mt(c.ct.fa, ae[1]);
+                } else {
+                    c.m = ae[1];
+                }
+            }
+        }
     }
 
     // --- STEP 7: Refresh once
@@ -153,6 +165,7 @@ pasteHandlerOfCopyPaste: function (e) {
     setTimeout(He, 1);
     tt();
 }
+
 
 
 
@@ -325,6 +338,7 @@ pasteHandlerOfCopyPaste: function (e) {
       setTimeout(He, 1);
       tt();
   },
+
 
 
 
