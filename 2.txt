@@ -1,63 +1,167 @@
-$("#luckysheet-delete-formula").click(function () {
-    if (!!gr(h.luckysheet_select_save, h.currentSheetIndex) && ($("#luckysheet-rightclick-menu").hide(),
-        rt(),
-        h.allowEdit !== !1 && h.luckysheet_select_save.length > 0)) {
+  pasteHandlerOfCopyPaste: function (e) {
+      if (!gr(h.luckysheet_select_save, h.currentSheetIndex)) return;
 
-        let e = we.deepCopyFlowData(h.flowdata),
-            hasMerge = !1;
+      let t = Q().paste,
+          l = $.extend(true, {}, h.config);
+      if (l.merge == null) l.merge = {};
 
-        // Check if range includes merged cells
-        for (let o = 0; o < h.luckysheet_select_save.length; o++) {
-            let s = h.luckysheet_select_save[o].row[0],
-                u = h.luckysheet_select_save[o].row[1],
-                d = h.luckysheet_select_save[o].column[0],
-                f = h.luckysheet_select_save[o].column[1];
+      let a = e.HasMC,
+          o = e.RowlChange,
+          s = e.dataSheetIndex,
+          u = e.copyRange[0].row[0],
+          d = e.copyRange[0].row[1],
+          f = e.copyRange[0].column[0],
+          m = e.copyRange[0].column[1],
+          g = [],
+          y = false;
 
-            if (Dt(h.config, s, u, d, f)) {
-                hasMerge = !0;
-                break;
-            }
-        }
+      // --- STEP 1: Build source data block once
+      for (let se = 0; se < e.copyRange.length; se++) {
+          let ie = Nt({
+              row: e.copyRange[se].row,
+              column: e.copyRange[se].column
+          }, s);
+          if (e.copyRange.length > 1) {
+              if (u == e.copyRange[1].row[0] && d == e.copyRange[1].row[1]) {
+                  ie = ie[0].map((ue, he) => ie.map(J => J[he]));
+                  g = g.concat(ie);
+                  y = true;
+              } else if (f == e.copyRange[1].column[0] && m == e.copyRange[1].column[1]) {
+                  g = g.concat(ie);
+              }
+          } else {
+              g = ie;
+          }
+      }
+      if (y) {
+          g = g[0].map((se, ie) => g.map(ue => ue[ie]));
+      }
 
-        if (hasMerge) {
-            let o = Q().drag;
-            de() ? alert(o.noPartMerge) : U.info(o.noPartMerge, "");
-            return;
-        }
+      let v = g; // avoid deep clone per cell
+      let k = v.length,
+          b = v[0].length;
 
-        let t = h.luckysheetfile[K(h.currentSheetIndex)],
-            l = t.hyperlink && $.extend(!0, {}, t.hyperlink),
-            a;
+      let w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
+          x = w.row[0],
+          C = w.row[1],
+          S = w.column[0],
+          _ = w.column[1],
+          T = (C - x + 1) % k,
+          A = (_ - S + 1) % b;
 
-        for (let o = 0; o < h.luckysheet_select_save.length; o++) {
-            let s = h.luckysheet_select_save[o].row[0],
-                u = h.luckysheet_select_save[o].row[1],
-                d = h.luckysheet_select_save[o].column[0],
-                f = h.luckysheet_select_save[o].column[1];
+      if (T != 0 || A != 0) {
+          C = x + k - 1;
+          _ = S + b - 1;
+      }
 
-            for (let m = s; m <= u; m++) {
-                for (let g = d; g <= f; g++) {
-                    if (Be.isPivotRange(m, g)) continue;
+      // --- STEP 2: Merge validation
+      let R = false;
+      if (l.merge != null) {
+          R = Dt(l, x, C, S, _);
+      }
+      if (R) {
+          de()
+              ? alert(t.errorNotAllowMerged)
+              : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
+          return;
+      }
 
-                    if (L(e[m][g]) == "object") {
-                        // ✅ Keep the value
-                        let val = e[m][g].v;
+      let I = (C - x + 1) / k,
+          F = (_ - S + 1) / b,
+          N = we.deepCopyFlowData(h.flowdata), // deep copy once
+          D = N.length,
+          E = N[0].length,
+          P = k + x - D,
+          z = b + S - E;
 
-                        // Remove only the formula
-                        if (e[m][g].f != null) {
-                            delete e[m][g].f;
-                            p.delFunctionGroup(m, g, h.currentSheetIndex);
-                            delete e[m][g].spl;
-                        }
+      if (P > 0 || z > 0) {
+          N = il([].concat(N), P, z, true);
+      }
 
-                        // Re-assign value back
-                        e[m][g].v = val;
-                    }
-                }
-            }
-        }
+      let O = Ur(s),
+          V = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification),
+          q = null,
+          changedCells = []; // <--- batch recalc list
 
-        Ye(e, h.luckysheet_select_save, a && { hyperlink: l });
-        $("#luckysheet-rich-text-editor").html("");
-    }
-});
+      // --- STEP 3: Apply block in memory (no UI updates yet)
+      for (let se = 0; se < I; se++) {
+          for (let ie = 0; ie < F; ie++) {
+              let Y = x + se * k,
+                  X = S + ie * b;
+
+              for (let G = 0; G < k; G++) {
+                  let row = N[Y + G] || [];
+                  for (let pe = 0; pe < b; pe++) {
+                      let srcCell = v[G] && v[G][pe] ? $.extend(true, {}, v[G][pe]) : null;
+                      if (!srcCell) continue;
+
+                      let rowIndex = Y + G,
+                          colIndex = X + pe;
+
+                      // --- Formula adjustment (fixed)
+                      if (srcCell.f) {
+                          let Fe = srcCell.f;
+
+                          // offset between this source cell and target cell
+                          let srcRow = u + G;
+                          let srcCol = f + pe;
+                          let rowOffset = rowIndex - srcRow;
+                          let colOffset = colIndex - srcCol;
+
+                          if (rowOffset > 0) Fe = "=" + p.functionCopy(Fe, "down", rowOffset);
+                          if (rowOffset < 0) Fe = "=" + p.functionCopy(Fe, "up", Math.abs(rowOffset));
+                          if (colOffset > 0) Fe = "=" + p.functionCopy(Fe, "right", colOffset);
+                          if (colOffset < 0) Fe = "=" + p.functionCopy(Fe, "left", Math.abs(colOffset));
+
+                          let ae = p.execfunction(Fe, rowIndex, colIndex, void 0, true);
+                          srcCell.f = ae[2];
+                          srcCell.v = ae[1];
+                          if (srcCell.ct && srcCell.ct.fa) {
+                              srcCell.m = mt(srcCell.ct.fa, ae[1]);
+                          }
+                      }
+
+                      row[colIndex] = srcCell;
+                      N[rowIndex] = row;
+                      changedCells.push({ r: rowIndex, c: colIndex, i: h.currentSheetIndex });
+                  }
+              }
+          }
+      }
+
+      // --- STEP 4: Save formats (condition formatting, dataValidation etc.)
+      let ce = null;
+      if (e.copyRange.length == 1) {
+          let srcSheet = h.luckysheetfile[K(s)],
+              tgtSheet = h.luckysheetfile[K(h.currentSheetIndex)],
+              cf = $.extend(true, [], srcSheet.luckysheet_conditionformat_save);
+          if (cf && cf.length > 0) {
+              ce = $.extend(true, [], tgtSheet.luckysheet_conditionformat_save);
+              ce = ce.concat(cf);
+          }
+      }
+
+      // --- STEP 5: Commit once
+      w.row = [x, C];
+      w.column = [S, _];
+
+      let params = {
+          cfg: l,
+          cdformat: ce,
+          dataVerification: q
+      };
+      if (o || P > 0 || z > 0) params.RowlChange = true;
+
+      Ye(N, h.luckysheet_select_save, params);
+
+      // --- STEP 6: Batch recalc once
+      if (changedCells.length > 0) {
+          p.execFunctionExist = changedCells;
+          p.execFunctionGroup(null, null, null, null, N);
+      }
+
+      // --- STEP 7: Single refresh
+      gc([w], h.currentSheetIndex, N);
+      setTimeout(He, 1);
+      tt();
+  },
