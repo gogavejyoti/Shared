@@ -15,12 +15,9 @@ pasteHandlerOfCopyPaste: function (e) {
         g = [],
         y = false;
 
-    // --- STEP 1: Build source data block once
+    // --- STEP 1: Build source block
     for (let se = 0; se < e.copyRange.length; se++) {
-        let ie = Nt({
-            row: e.copyRange[se].row,
-            column: e.copyRange[se].column
-        }, s);
+        let ie = Nt({ row: e.copyRange[se].row, column: e.copyRange[se].column }, s);
         if (e.copyRange.length > 1) {
             if (u == e.copyRange[1].row[0] && d == e.copyRange[1].row[1]) {
                 ie = ie[0].map((ue, he) => ie.map(J => J[he]));
@@ -37,8 +34,8 @@ pasteHandlerOfCopyPaste: function (e) {
         g = g[0].map((se, ie) => g.map(ue => ue[ie]));
     }
 
-    let v = g;
-    let k = v.length,
+    let v = g, // use directly
+        k = v.length,
         b = v[0].length;
 
     let w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
@@ -54,7 +51,7 @@ pasteHandlerOfCopyPaste: function (e) {
         _ = S + b - 1;
     }
 
-    // --- STEP 2: Merge validation
+    // --- STEP 2: Merge check
     let R = false;
     if (l.merge != null) {
         R = Dt(l, x, C, S, _);
@@ -68,7 +65,7 @@ pasteHandlerOfCopyPaste: function (e) {
 
     let I = (C - x + 1) / k,
         F = (_ - S + 1) / b,
-        N = we.deepCopyFlowData(h.flowdata),
+        N = we.deepCopyFlowData(h.flowdata), // deep copy once
         D = N.length,
         E = N[0].length,
         P = k + x - D,
@@ -83,39 +80,41 @@ pasteHandlerOfCopyPaste: function (e) {
         q = null,
         changedCells = [];
 
-    // --- STEP 3: Apply block (formula adjust + defer value calc)
+    // --- STEP 3: Apply block (no UI updates yet)
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
             let Y = x + (se - 1) * k,
                 X = S + (ie - 1) * b;
 
             for (let G = 0; G < k; G++) {
-                let row = N[Y + G] || [];
+                let rowIndex = Y + G;
+                let row = N[rowIndex] || [];
                 for (let pe = 0; pe < b; pe++) {
-                    let oe = v[G] && v[G][pe] ? $.extend(true, {}, v[G][pe]) : null;
-                    if (!oe) continue;
+                    let colIndex = X + pe;
+                    let src = v[G] && v[G][pe] ? Object.assign({}, v[G][pe]) : null;
+                    if (!src) continue;
 
-                    let rowIndex = Y + G, colIndex = X + pe;
-
-                    if (oe.f) {
-                        let Fe = oe.f;
+                    // adjust formula if present
+                    if (src.f) {
+                        let Fe = src.f;
                         if (se > 1) Fe = "=" + p.functionCopy(Fe, "down", (se - 1) * k);
                         if (ie > 1) Fe = "=" + p.functionCopy(Fe, "right", (ie - 1) * b);
-
-                        oe.f = Fe;
-
-                        // ⚡ mark for recalc
+                        src.f = Fe; // store adjusted formula
+                        src.v = null; // defer calculation
+                        if (src.ct && src.ct.fa) {
+                            src.m = ""; // will be updated after eval
+                        }
                         changedCells.push({ r: rowIndex, c: colIndex, i: h.currentSheetIndex });
                     }
 
-                    row[colIndex] = oe;
+                    row[colIndex] = src;
                     N[rowIndex] = row;
                 }
             }
         }
     }
 
-    // --- STEP 4: Save formats
+    // --- STEP 4: Condition format copy
     let ce = null;
     if (e.copyRange.length == 1) {
         let srcSheet = h.luckysheetfile[K(s)],
@@ -127,7 +126,7 @@ pasteHandlerOfCopyPaste: function (e) {
         }
     }
 
-    // --- STEP 5: Commit
+    // --- STEP 5: Commit once
     w.row = [x, C];
     w.column = [S, _];
 
@@ -140,29 +139,15 @@ pasteHandlerOfCopyPaste: function (e) {
 
     Ye(N, h.luckysheet_select_save, params);
 
-    // --- STEP 6: Batch recalc once (fills v + m)
+    // --- STEP 6: Batch recalc formulas (extremely fast)
     if (changedCells.length > 0) {
         p.execFunctionExist = changedCells;
         p.execFunctionGroup(null, null, null, null, N);
-
-        // ✅ force value/m update
-        for (let cell of changedCells) {
-            let c = N[cell.r][cell.c];
-            if (c && c.f) {
-                let ae = p.execfunction(c.f, cell.r, cell.c, void 0, true);
-                c.v = ae[1];
-                if (c.ct && c.ct.fa) {
-                    c.m = mt(c.ct.fa, ae[1]);
-                } else {
-                    c.m = ae[1];
-                }
-            }
-        }
     }
 
-    // --- STEP 7: Refresh once
+    // --- STEP 7: Final refresh
     gc([w], h.currentSheetIndex, N);
-    setTimeout(He, 1);
+    He();
     tt();
 }
 
@@ -338,6 +323,7 @@ pasteHandlerOfCopyPaste: function (e) {
       setTimeout(He, 1);
       tt();
   },
+
 
 
 
