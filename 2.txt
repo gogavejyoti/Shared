@@ -1199,6 +1199,14 @@ CREATE TABLE [dbo].[SheetConfigs](
 GO
 
 
+  public class SheetConfig
+  {
+      public int PlanId { get; set; }
+      public string SheetName { get; set; }
+      public string ConfigJson { get; set; }
+  }
+
+
 
 
 
