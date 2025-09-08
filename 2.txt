@@ -1208,6 +1208,14 @@ GO
 
 
 
+  public class SheetValueDto
+  {
+      public int PlanId { get; set; }
+      public string SheetName { get; set; } = string.Empty;
+      public string Week { get; set; } = string.Empty;  // coming as ISO string from JS, will parse to DateTime
+      public string Header { get; set; } = string.Empty;
+      public float? Value { get; set; }
+  }
 
 
 
