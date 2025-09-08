@@ -1217,6 +1217,17 @@ GO
       public float? Value { get; set; }
   }
 
+ public class SheetInputConfig
+ {
+     public string SheetName { get; set; }
+     public string Type { get; set; }
+     public string LobType { get; set; }
+     public string Location { get; set; }
+     public int? WeekRow { get; set; }
+     public string HeaderCol { get; set; }
+     public Dictionary<string, string> HeaderMappings { get; set; } = new();
+ }
+
 
 
 
