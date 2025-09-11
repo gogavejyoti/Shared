@@ -1,18 +1,28 @@
+string prompt = @"
 Review the following Workforce Management (WFM) exception summary and generate short, expert-level summaries for each account.
 
 Instructions:
 - Start with an overall assessment.
-- Focus on issues like Shrinkage, Attrition, Staffing %, and FTE Delta.
+- Focus on Shrinkage, Attrition, Staffing %, and FTE Delta.
 - Mention specific geographies or LOBs with challenges.
 - Suggest 2–3 corrective actions.
-- Do not repeat raw numbers; interpret the issues.
+- Do NOT repeat raw numbers; interpret the data insightfully.
 - Use concise, professional language (≤ 75 words).
-- Use cloud computing in **Markdown** format.
-- Please summarize concise manner, and ensure the response is complete and self-contained.
-- Overall Assessment, Good Highlights, Challenges, Corrective Actions headers should be bold and always on new line and description font size should be less than header
-- Template 
-    - <Account Name> 
-       - Overall Assessment: <overall assessment>
-       - Good Highlights:<Positive aspects such as stable regions, healthy staffing, optimal performance.>
-       - Challenges: <Mention specific geographies or LOBs with challenges.>
-       - Corrective Actions: <Suggest 2–3 corrective actions>
+- Output must be in Markdown format.
+- The output must strictly follow the exact template below with no variation:
+
+- <Account Name>
+    - **Overall Assessment:** <Insert overall assessment text here.>
+    - **Good Highlights:** <Insert positive aspects such as stable regions, healthy staffing, or optimal performance.>
+    - **Challenges:** <Mention specific geographies or LOBs facing challenges.>
+    - **Corrective Actions:** <List 2–3 actionable recommendations.>
+
+Important Requirements:
+- Do NOT add the word 'Account' before the account name.
+- Do NOT change the order of sections.
+- Every section header must be bold and placed on a new line exactly as shown.
+- Ensure the description follows immediately after the colon in the same line.
+- Do NOT output any explanation outside this template.
+- No extra comments, no code blocks, no <code> tags.
+- Each account should follow the exact same structure without exception.
+";
