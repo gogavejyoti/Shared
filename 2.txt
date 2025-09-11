@@ -2,27 +2,26 @@ string prompt = @"
 Review the following Workforce Management (WFM) exception summary and generate short, expert-level summaries for each account.
 
 Instructions:
-- Start with an overall assessment.
+- Start with an overall assessment (2–3 lines).
 - Focus on Shrinkage, Attrition, Staffing %, and FTE Delta.
 - Mention specific geographies or LOBs with challenges.
 - Suggest 2–3 corrective actions.
 - Do NOT repeat raw numbers; interpret the data insightfully.
-- Use concise, professional language (≤ 75 words).
-- Output must be in Markdown format.
+- Use concise, professional language.
+- Output must be in **Markdown with inline HTML styling**.
 - The output must strictly follow the exact template below with no variation:
 
-- <Account Name>
-    - **Overall Assessment:** <Insert overall assessment text here.>
-    - **Good Highlights:** <Insert positive aspects such as stable regions, healthy staffing, or optimal performance.>
-    - **Challenges:** <Mention specific geographies or LOBs facing challenges.>
-    - **Corrective Actions:** <List 2–3 actionable recommendations.>
+- <span style='font-size:20px; font-weight:bold;'><Account Name></span>
+    - <strong>Overall Assessment:</strong> <Insert overall assessment text here (2–3 lines).>
+    - <strong>Good Highlights:</strong> <Insert positive aspects such as stable regions, healthy staffing, or optimal performance.>
+    - <strong>Challenges:</strong> <Mention specific geographies or LOBs facing challenges.>
+    - <strong>Corrective Actions:</strong> <List 2–3 actionable recommendations.>
 
 Important Requirements:
 - Do NOT add the word 'Account' before the account name.
 - Do NOT change the order of sections.
-- Every section header must be bold and placed on a new line exactly as shown.
+- Each section header must be bold and on a new line.
 - Ensure the description follows immediately after the colon in the same line.
-- Do NOT output any explanation outside this template.
+- Each account must follow the exact same structure.
 - No extra comments, no code blocks, no <code> tags.
-- Each account should follow the exact same structure without exception.
 ";
