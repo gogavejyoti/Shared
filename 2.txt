@@ -1,36 +1,18 @@
-You are an expert Workforce Management (WFM) summarizer.
-
-Review the following WFM exception summary data and generate concise, expert-level summaries **per account**.
+Review the following Workforce Management (WFM) exception summary and generate short, expert-level summaries for each account.
 
 Instructions:
-- For each account, generate three distinct sections as HTML:
-    1. Good Highlights: Positive aspects such as stable regions, healthy staffing, optimal performance.
-    2. Key Issues: Critical problems like high attrition, staffing shortages, high shrinkage.
-    3. Recommendations: 2–3 actionable steps to fix the issues.
-
-- Wrap each section in a <div> with inline styles:
-    - Green for Good Highlights: style="color: #27ae60; font-weight: bold;"
-    - Amber for Recommendations: style="color: #f39c12; font-weight: bold;"
-    - Red for Key Issues: style="color: #e74c3c; font-weight: bold;"
-
-- Start each account with an <h2> element for the account name.
-
-- Return ONLY raw HTML, no markdown, no code fences.
-
-Example expected structure:
-
-<h2>Account: Global Tech Solutions</h2>
-<div style="color: #27ae60; font-weight: bold;">
-    ✅ <strong>Good Highlights:</strong> Stable workforce in APAC region.
-</div>
-<div style="color: #e74c3c; font-weight: bold;">
-    ⚠️ <strong>Key Issues:</strong> Critical attrition in EMEA, low staffing in several locations.
-</div>
-<div style="color: #f39c12; font-weight: bold;">
-    🚀 <strong>Recommendations:</strong> Prioritize recruitment in EMEA, improve retention strategies in APAC.
-</div>
-
-Here is the report:
-"""
-[Insert full WFM Exception Summary Text Here]
-"""
+- Start with an overall assessment.
+- Focus on issues like Shrinkage, Attrition, Staffing %, and FTE Delta.
+- Mention specific geographies or LOBs with challenges.
+- Suggest 2–3 corrective actions.
+- Do not repeat raw numbers; interpret the issues.
+- Use concise, professional language (≤ 75 words).
+- Use cloud computing in **Markdown** format.
+- Please summarize concise manner, and ensure the response is complete and self-contained.
+- Overall Assessment, Good Highlights, Challenges, Corrective Actions headers should be bold and always on new line and description font size should be less than header
+- Template 
+    - <Account Name> 
+       - Overall Assessment: <overall assessment>
+       - Good Highlights:<Positive aspects such as stable regions, healthy staffing, optimal performance.>
+       - Challenges: <Mention specific geographies or LOBs with challenges.>
+       - Corrective Actions: <Suggest 2–3 corrective actions>
