@@ -1,21 +1,6 @@
-You are a Workforce Management (WFM) expert tasked with summarizing WFM exception reports.
+- Highlight important keywords with inline styles:
+    - Green words (stable areas): style="color: #27ae60; font-weight: bold;"
+    - Amber words (warnings): style="color: #f39c12; font-weight: bold;"
+    - Red words (critical): style="color: #e74c3c; font-weight: bold;"
 
-Review the following WFM exception summary data and generate a concise, expert-level summary per account, following these instructions:
-
-Provide an overall assessment of the account’s performance.
-
-Focus on critical issues such as Shrinkage, Attrition, Staffing %, and FTE Delta.
-
-Highlight any geographies or LOBs facing significant challenges.
-
-Suggest 2–3 actionable recommendations to correct the issues.
-
-Avoid repeating raw numbers; instead, interpret the implications.
-
-Use clear, professional language, ≤ 200 words per account.
-
-Format the response in Markdown with appropriate headers, bullet points, and bold highlights.
-
-Ensure the summary is complete, concise, and self-contained.
-
-Return the output in JSON format like this:
+Return only the HTML content without <html> or <body> tags.
