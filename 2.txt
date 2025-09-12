@@ -55,24 +55,22 @@
             </div>
           </div>
         </div>`;
-
         $('body').append(modalHTML);
 
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
+        // Parse and format weeks
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
         };
-
         const formatWeek = (date) => {
             const dd = String(date.getDate()).padStart(2, '0');
             const mmm = date.toLocaleString('default', { month: 'short' });
             const yy = String(date.getFullYear()).slice(-2);
             return `${dd}-${mmm}-${yy}`;
         };
-
         const getCurrentWeek = () => {
             const today = new Date();
             const dayOfWeek = today.getDay();
@@ -82,6 +80,7 @@
             return formatWeek(lastWeekDate);
         };
 
+        // Transform data
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -93,8 +92,7 @@
 
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
         const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))]
-            .sort((a, b) => parseWeek(a) - parseWeek(b));
+        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
         uniqueLOBs.forEach(lob => $('#lobSelect').append(`<option value="${lob}">${lob}</option>`));
         uniqueWeeks.forEach(week => {
@@ -107,38 +105,30 @@
         const fallbackIndex = currentIndex >= 0 ? currentIndex : uniqueWeeks.length - 1;
         const fromIndex = Math.max(0, fallbackIndex - 6);
         const toIndex = Math.min(uniqueWeeks.length - 1, fallbackIndex + 6);
-
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
         $('#lobSelect').val(uniqueLOBs[0]);
 
+        // Colors for metrics
         const metricColors = {
-            "Required HC": "#007bff",
-            "Available HC": "#28a745",
-            "Actual Hours": "#17a2b8",
-            "Forecasted Hours": "#ffc107",
-            "Planned Shrinkage": "#6f42c1",
-            "Actual Shrinkage": "#fd7e14",
-            "Planned Attrition": "#e83e8c",
-            "Actual Attrition": "#20c997",
-            "Planned AHT": "#6610f2",
-            "Actual AHT": "#fd3955"
+            "Required HC": "#007bff", "Available HC": "#28a745",
+            "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
+            "Planned Shrinkage": "#6f42c1", "Actual Shrinkage": "#fd7e14",
+            "Planned Attrition": "#e83e8c", "Actual Attrition": "#20c997",
+            "Planned AHT": "#6610f2", "Actual AHT": "#fd3955"
         };
 
+        // Filter data
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
             const selectedLOB = $('#lobSelect').val() || uniqueLOBs[0];
             const isComparison = $('#comparisonMode').is(':checked');
-
-            const filtered = structuredData.filter(d =>
-                parseWeek(d.Week) >= parseWeek(fromWeek) &&
-                parseWeek(d.Week) <= parseWeek(toWeek)
-            ).slice(-12);
-
+            let filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek));
             return { filtered, selectedLOB, isComparison };
         };
 
+        // Generate summary
         const generateSummary = (filtered, selectedLOB, isComparison) => {
             let summaryHTML = '<h5>Summary Analytics</h5><ul>';
             const lobsToSummarize = isComparison ? uniqueLOBs : [selectedLOB];
@@ -155,6 +145,7 @@
             $analyticsSummary.html(summaryHTML);
         };
 
+        // Export CSV
         const exportCSV = (filtered, selectedLOB, isComparison) => {
             const headers = ['Week', 'LOB', 'Metric', 'Value'];
             let csvContent = headers.join(',') + '\n';
@@ -184,11 +175,12 @@
             document.body.removeChild(link);
         };
 
+        // Render charts
         const renderCharts = (filtered, selectedLOB, isComparison) => {
             $chartsContainer.empty();
             const labels = filtered.map(d => d.Week);
 
-            const createChart = (type, title, metrics, isPercentage) => {
+            const createChart = (type, title, metrics, lobList, isPercentage) => {
                 $chartsContainer.append(`
                     <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
                         <div class="card-body text-center">
@@ -197,15 +189,15 @@
                         </div>
                     </div>`);
 
-                const datasets = metrics.map((metric) => ({
-                    label: metric,
-                    data: filtered.map(d => isPercentage
-                        ? ((d[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2)
-                        : (d[`${metric}||${selectedLOB}`] || 0)),
-                    borderColor: metricColors[metric],
-                    backgroundColor: metricColors[metric] + '55',
-                    fill: type === 'line' || type === 'area' ? true : false
-                }));
+                const datasets = metrics.flatMap(metric =>
+                    lobList.map((lob, i) => ({
+                        label: lob + ' - ' + metric,
+                        data: filtered.map(d => isPercentage && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')) ? ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2) : (d[`${metric}||${lob}`] || 0)),
+                        borderColor: metricColors[metric],
+                        backgroundColor: metricColors[metric] + '55',
+                        fill: type === 'area' ? true : false
+                    }))
+                );
 
                 new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
                     type: type === 'area' ? 'line' : type,
@@ -219,34 +211,41 @@
                 });
             };
 
-            createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], false);
-            createChart('bar', 'Required HC vs Available HC', ['Required HC', 'Available HC'], false);
-            createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], true);
-            createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], true);
-            createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], false);
+            if (isComparison) {
+                // Comparison mode charts
+                uniqueHeaders.forEach(header => {
+                    createChart('bar', `${header} Comparison`, [header], uniqueLOBs, true);
+                });
+            } else {
+                // Individual LOB charts
+                createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], [selectedLOB], false);
+                createChart('bar', 'Required HC vs Available HC', ['Required HC', 'Available HC'], [selectedLOB], false);
+                createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], [selectedLOB], true);
+                createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], [selectedLOB], true);
+                createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], [selectedLOB], false);
 
-            const latest = filtered[filtered.length - 1];
-            $chartsContainer.append(`
-                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
-                    <div class="card-body text-center">
-                        <h6 class="card-title fw-bold">Latest Week Key Metrics Breakdown</h6>
-                        <canvas></canvas>
-                    </div>
-                </div>`);
-
-            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                type: 'pie',
-                data: {
-                    labels: ['Required HC', 'Available HC', 'Planned Shrinkage', 'Actual Shrinkage', 'Planned Attrition', 'Actual Attrition'],
-                    datasets: [{
-                        data: ['Required HC', 'Available HC'].map(m => latest[`${m}||${selectedLOB}`] || 0)
-                            .concat(['Planned Shrinkage', 'Actual Shrinkage', 'Planned Attrition', 'Actual Attrition'].map(m =>
-                                ((latest[`${m}||${selectedLOB}`] || 0) * 100).toFixed(2))),
-                        backgroundColor: Object.values(metricColors)
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-            });
+                // Latest week grouped bar chart
+                const latest = filtered[filtered.length - 1];
+                const metricsForLatest = ['Required HC', 'Available HC', 'Planned Shrinkage', 'Actual Shrinkage', 'Planned Attrition', 'Actual Attrition'];
+                $chartsContainer.append(`
+                    <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">Latest Week Key Metrics</h6>
+                            <canvas></canvas>
+                        </div>
+                    </div>`);
+                const latestData = metricsForLatest.map(metric =>
+                    metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition') ? ((latest[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2) : (latest[`${metric}||${selectedLOB}`] || 0)
+                );
+                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: metricsForLatest,
+                        datasets: [{ label: selectedLOB, data: latestData, backgroundColor: Object.values(metricColors) }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } } }
+                });
+            }
         };
 
         const applyFilters = () => {
