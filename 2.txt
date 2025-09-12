@@ -18,39 +18,49 @@
                     border: 1px solid #ccc;
                     background: #fff;
                 }
+
                 table {
                     border-collapse: collapse;
                     width: max-content;
-                    min-width: 800px;
                     table-layout: fixed;
                 }
+
                 th, td {
                     border: 1px solid #ccc;
                     padding: 8px;
                     text-align: center;
                     white-space: nowrap;
                     background: #fff;
+                    min-width: 100px;
                 }
+
                 thead th {
                     position: sticky;
                     top: 0;
                     background: #f1f1f1;
-                    z-index: 3;
+                    z-index: 4;
                 }
+
                 .sticky-left {
                     position: sticky;
-                    top: 0;
                     left: 0;
                     background: #f1f1f1;
                     z-index: 5;
+                    min-width: 120px;
+                    max-width: 120px;
+                    white-space: nowrap;
                 }
+
                 .sticky-left-2 {
                     position: sticky;
-                    top: 0;
                     left: 120px;
                     background: #f1f1f1;
                     z-index: 5;
+                    min-width: 150px;
+                    max-width: 150px;
+                    white-space: nowrap;
                 }
+
                 .rag-red { color: red; font-weight: bold; }
                 .rag-amber { color: orange; font-weight: bold; }
                 .rag-green { color: green; font-weight: bold; }
@@ -104,20 +114,27 @@
         });
 
         let html = '<table><thead><tr>';
-        html += `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
-        uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
+        html += `<th class="sticky-left">LOB</th>`;
+        html += `<th class="sticky-left-2">Metric</th>`;
+        uniqueWeeks.forEach(week => {
+            html += `<th>${week}</th>`;
+        });
         html += '</tr></thead><tbody>';
 
         uniqueLOBs.forEach(lob => {
             metrics.forEach((metric, i) => {
                 html += '<tr>';
+
                 if (i === 0) {
-                    html += `<td class="sticky-left" rowspan="${metrics.length}">${lob}</td>`;
+                    html += `<td class="sticky-left" style="min-width:120px; max-width:120px;" rowspan="${metrics.length}">${lob}</td>`;
                 }
-                html += `<td class="sticky-left-2">${metric}</td>`;
+
+                html += `<td class="sticky-left-2" style="min-width:150px; max-width:150px;">${metric}</td>`;
+
                 uniqueWeeks.forEach(week => {
                     let val = groupedData[lob][week][metric] || 0;
                     val = Math.round(val);
+
                     let cls = '';
                     if (metric === 'Delta' && val < 0) cls = 'rag-red';
                     if (metric === 'Staffing %') {
@@ -128,8 +145,10 @@
                     } else {
                         val = Number(val).toLocaleString();
                     }
+
                     html += `<td class="${cls}">${val}</td>`;
                 });
+
                 html += '</tr>';
             });
         });
