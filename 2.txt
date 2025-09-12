@@ -7,51 +7,55 @@
 
         $('#analyticsModal').remove();
 
-        const styles = `
-        <style>
-            .table-wrapper {
-                overflow-x: auto;
-                overflow-y: auto;
-                max-height: 500px;
-                position: relative;
-                border: 1px solid #ccc;
-            }
-            table {
-                border-collapse: collapse;
-                width: max-content;
-                min-width: 800px;
-                table-layout: fixed;
-            }
-            th, td {
-                border: 1px solid #ccc;
-                padding: 8px;
-                text-align: center;
-                white-space: nowrap;
-                background: #fff;
-            }
-            thead th {
-                position: sticky;
-                top: 0;
-                background: #f1f1f1;
-                z-index: 3;
-            }
-            .sticky-left {
-                position: sticky;
-                left: 0;
-                background: #f1f1f1;
-                z-index: 4;
-            }
-            .sticky-left-2 {
-                position: sticky;
-                left: 120px;
-                background: #f1f1f1;
-                z-index: 4;
-            }
-            .rag-red { color: red; font-weight: bold; }
-            .rag-amber { color: orange; font-weight: bold; }
-            .rag-green { color: green; font-weight: bold; }
-        </style>`;
-        $('head').append(styles);
+        if ($('#weekAnalyticsPopupStyles').length === 0) {
+            $('head').append(`
+            <style id="weekAnalyticsPopupStyles">
+                .table-wrapper {
+                    overflow-x: auto;
+                    overflow-y: auto;
+                    max-height: 500px;
+                    position: relative;
+                    border: 1px solid #ccc;
+                    background: #fff;
+                }
+                table {
+                    border-collapse: collapse;
+                    width: max-content;
+                    min-width: 800px;
+                    table-layout: fixed;
+                }
+                th, td {
+                    border: 1px solid #ccc;
+                    padding: 8px;
+                    text-align: center;
+                    white-space: nowrap;
+                    background: #fff;
+                }
+                thead th {
+                    position: sticky;
+                    top: 0;
+                    background: #f1f1f1;
+                    z-index: 3;
+                }
+                .sticky-left {
+                    position: sticky;
+                    top: 0;
+                    left: 0;
+                    background: #f1f1f1;
+                    z-index: 5;
+                }
+                .sticky-left-2 {
+                    position: sticky;
+                    top: 0;
+                    left: 120px;
+                    background: #f1f1f1;
+                    z-index: 5;
+                }
+                .rag-red { color: red; font-weight: bold; }
+                .rag-amber { color: orange; font-weight: bold; }
+                .rag-green { color: green; font-weight: bold; }
+            </style>`);
+        }
 
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;">
@@ -67,6 +71,7 @@
             </div>
           </div>
         </div>`;
+
         $('body').append(modalHTML);
 
         const $container = $('#staffingContainer');
@@ -76,8 +81,10 @@
             return new Date(`${mmm} ${dd}, 20${yy}`);
         };
 
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
+        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))]
+            .sort((a, b) => parseWeek(a) - parseWeek(b));
+        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))]
+            .sort();
         const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
 
         const groupedData = {};
@@ -117,7 +124,9 @@
                         if (val < 80) cls = 'rag-red';
                         else if (val < 100) cls = 'rag-amber';
                         else cls = 'rag-green';
-                        val = val + '%';
+                        val = `${val}%`;
+                    } else {
+                        val = Number(val).toLocaleString();
                     }
                     html += `<td class="${cls}">${val}</td>`;
                 });
@@ -128,7 +137,10 @@
         html += '</tbody></table>';
         $container.html(html);
 
-        $('#analyticsModal').modal('show');
+        const modalEl = document.getElementById('analyticsModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
         return this;
     };
 })(jQuery);
