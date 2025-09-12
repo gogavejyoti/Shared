@@ -169,13 +169,16 @@
         html += '</tbody></table>';
         $container.html(html);
 
-        // Dynamically set correct left offset
-        const firstSticky = $container.find('th.sticky-left').first();
-        const firstStickyWidth = firstSticky.outerWidth();
-        const secondSticky = $container.find('th.sticky-left-2').first();
-        const secondStickyBody = $container.find('tbody td.sticky-left-2').first();
-        secondSticky.css('left', `${firstStickyWidth}px`);
-        secondStickyBody.css('left', `${firstStickyWidth}px`);
+        // Dynamically calculate correct left offsets
+        const firstStickyWidth = $container.find('th.sticky-left').outerWidth();
+        const secondStickyLeft = firstStickyWidth;
+        const secondStickyWidth = $container.find('th.sticky-left-2').outerWidth();
+
+        $container.find('th.sticky-left').css('left', '0');
+        $container.find('tbody td.sticky-left').css('left', '0');
+
+        $container.find('th.sticky-left-2').css('left', `${secondStickyLeft}px`);
+        $container.find('tbody td.sticky-left-2').css('left', `${secondStickyLeft}px`);
 
         const modalEl = document.getElementById('analyticsModal');
         const modal = new bootstrap.Modal(modalEl);
