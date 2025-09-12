@@ -5,15 +5,15 @@
             weekStartDay: 'sunday'
         }, options);
 
-        $('#analyticsModal').remove();
+        $('#analyticsModal').remove(); // Ensure previous modal is removed
 
         // Styles
         const styles = `
         <style>
-            #chartsContainer { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; justify-items:center; }
+            #chartsContainer { display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:20px; justify-items:center; }
             #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
             .custom-multiselect { position: relative; display: inline-block; width: 200px; }
-            .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-content: nowrap; text-overflow: ellipsis; }
             .custom-multiselect .multiselect-options { 
                 display: none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; background:white; border:1px solid #ced4da; border-radius:4px; padding:5px 0; width: 100%;
                 box-shadow:0 2px 5px rgba(0,0,0,0.15);
@@ -25,6 +25,24 @@
             .table-summary table { margin-bottom:0; }
             #applyFilter, #exportCsv { transition:0.2s; }
             #applyFilter:hover, #exportCsv:hover { opacity:0.85; }
+            /* Loading Spinner */
+            .loading-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(255, 255, 255, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1050;
+                border-radius: .3rem;
+            }
+            .spinner-border {
+                width: 3rem;
+                height: 3rem;
+            }
         </style>`;
         $('head').append(styles);
 
@@ -32,28 +50,37 @@
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content position-relative">
+              <div class="loading-overlay d-none">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
               <div class="modal-header">
                 <h5 class="modal-title">Workforce Analytics Dashboard</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
-                  <label>From Week: 
-                    <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
-                  </label>
-                  <label>To Week: 
-                    <select id="toWeek" class="form-select d-inline-block w-auto"></select>
-                  </label>
-                  <label>LOB: 
+                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-3">
+                  <div class="input-group" style="width: auto;">
+                    <span class="input-group-text">From Week:</span>
+                    <input type="text" class="form-control datepicker-week" id="fromWeekInput" placeholder="Select Week">
+                  </div>
+                  <div class="input-group" style="width: auto;">
+                    <span class="input-group-text">To Week:</span>
+                    <input type="text" class="form-control datepicker-week" id="toWeekInput" placeholder="Select Week">
+                  </div>
+                  <label class="mb-0">LOB: 
                     <div class="custom-multiselect" id="lobSelectContainer">
                         <button type="button" class="btn btn-light dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
                         <div class="multiselect-options"></div>
                     </div>
                   </label>
-                  <label class="ms-2"><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
+                  <label class="ms-2 mb-0 form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="comparisonMode"> Comparison Mode
+                  </label>
                   <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
-                  <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
+                  <button id="exportCsv" class="btn btn-success btn-sm">Export CSV</button>
                 </div>
                 <div id="chartsContainer" class="mt-3"></div>
                 <div id="analyticsSummary" class="mt-4 table-summary"></div>
@@ -65,25 +92,30 @@
 
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
+        const $loadingOverlay = $('.loading-overlay');
 
         // Week parsing & formatting
         const parseWeek = (weekStr) => {
+            if (!weekStr) return null;
             const [dd, mmm, yy] = weekStr.split('-');
+            if (!dd || !mmm || !yy) return null;
             return new Date(`${mmm} ${dd}, 20${yy}`);
         };
+
         const formatWeek = (date) => {
+            if (!date) return '';
             const dd = String(date.getDate()).padStart(2, '0');
             const mmm = date.toLocaleString('default', { month: 'short' });
             const yy = String(date.getFullYear()).slice(-2);
             return `${dd}-${mmm}-${yy}`;
         };
-        const getCurrentWeek = () => {
-            const today = new Date();
-            const dayOfWeek = today.getDay();
+
+        const getWeekStartDate = (date) => {
+            const dayOfWeek = date.getDay();
             const diff = settings.weekStartDay === 'sunday' ? dayOfWeek : (dayOfWeek + 6) % 7;
-            const lastWeekDate = new Date(today);
-            lastWeekDate.setDate(today.getDate() - diff);
-            return formatWeek(lastWeekDate);
+            const startDate = new Date(date);
+            startDate.setDate(date.getDate() - diff);
+            return startDate;
         };
 
         // Data transform
@@ -100,20 +132,49 @@
         const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        // Populate weeks
-        uniqueWeeks.forEach(week => {
-            $('#fromWeek').append(`<option value="${week}">${week}</option>`);
-            $('#toWeek').append(`<option value="${week}">${week}</option>`);
+        // Initialize Datepicker for week selection
+        $('.datepicker-week').datepicker({
+            format: 'dd-M-yy',
+            autoclose: true,
+            forceParse: false,
+            // Custom week highlighting
+            beforeShowDay: function (date) {
+                // Highlight the start of the week
+                const weekStartDate = getWeekStartDate(date);
+                if (date.getTime() === weekStartDate.getTime()) {
+                    return {
+                        classes: 'highlight-week-start',
+                        tooltip: 'Week Start: ' + formatWeek(weekStartDate)
+                    };
+                }
+                return;
+            }
+        }).on('changeDate', function (e) {
+            // When a date is selected, set the input to the start of that week
+            const selectedDate = e.date;
+            const weekStartDate = getWeekStartDate(selectedDate);
+            $(this).val(formatWeek(weekStartDate));
         });
-        const currentWeek = getCurrentWeek();
-        const currentIndex = uniqueWeeks.indexOf(currentWeek);
-        const fallbackIndex = currentIndex >= 0 ? currentIndex : uniqueWeeks.length - 1;
-        const fromIndex = Math.max(0, fallbackIndex - 6);
-        const toIndex = Math.min(uniqueWeeks.length - 1, fallbackIndex + 6);
-        $('#fromWeek').val(uniqueWeeks[fromIndex]);
-        $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // Custom multi-select
+        // Set initial week range
+        if (uniqueWeeks.length > 0) {
+            const latestWeek = parseWeek(uniqueWeeks[uniqueWeeks.length - 1]);
+            const sixWeeksAgo = new Date(latestWeek);
+            sixWeeksAgo.setDate(latestWeek.getDate() - (6 * 7)); // Go back 6 weeks
+
+            let initialFromWeek = formatWeek(getWeekStartDate(sixWeeksAgo));
+            let initialToWeek = formatWeek(getWeekStartDate(latestWeek));
+
+            // Ensure initialFromWeek is within available uniqueWeeks
+            if (parseWeek(initialFromWeek) < parseWeek(uniqueWeeks[0])) {
+                initialFromWeek = uniqueWeeks[0];
+            }
+
+            $('#fromWeekInput').val(initialFromWeek);
+            $('#toWeekInput').val(initialToWeek);
+        }
+
+        // Custom multi-select (can be replaced with bootstrap-select if desired)
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -125,14 +186,18 @@
         const getSelectedLOBs = () => {
             const selected = [];
             $optionsDiv.find('input:checked').each(function () { selected.push($(this).val()); });
-            return selected.length ? selected : [uniqueLOBs[0]];
+            return selected.length ? selected : uniqueLOBs; // Select all if none chosen
         };
 
         $optionsDiv.find('input').on('change', function () {
             const selected = getSelectedLOBs();
-            $lobBtn.text(selected.join(', '));
+            $lobBtn.text(selected.length === uniqueLOBs.length ? 'All LOBs Selected' : selected.join(', '));
+            if (selected.length === 0) {
+                $lobBtn.text('Select LOBs');
+            }
         });
-        $optionsDiv.find('input').first().prop('checked', true).trigger('change');
+        // Select all LOBs by default
+        $optionsDiv.find('input').prop('checked', true).trigger('change');
 
         // Colors
         const metricColors = {
@@ -140,117 +205,283 @@
             "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
             "Planned Shrinkage": "#6f42c1", "Actual Shrinkage": "#fd7e14",
             "Planned Attrition": "#e83e8c", "Actual Attrition": "#20c997",
-            "Planned AHT": "#6610f2", "Actual AHT": "#fd3955"
+            "Planned AHT": "#6610f2", "Actual AHT": "#fd3955",
+            "Staffing %": "#343a40" // Dark color for staffing line
         };
         const lobColors = {};
-        const colorPalette = ['#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997', '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#fd3955'];
+        const colorPalette = [
+            '#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997',
+            '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#dc3545',
+            '#6c757d', '#adb5bd', '#343a40', '#f8f9fa', '#e9ecef'
+        ]; // Extended palette
         uniqueLOBs.forEach((lob, i) => lobColors[lob] = colorPalette[i % colorPalette.length]);
 
         // Filter data
         const filterData = () => {
-            const fromWeek = $('#fromWeek').val();
-            const toWeek = $('#toWeek').val();
+            const fromWeek = $('#fromWeekInput').val();
+            const toWeek = $('#toWeekInput').val();
             const selectedLOBs = getSelectedLOBs();
             const isComparison = $('#comparisonMode').is(':checked');
-            const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek));
+
+            const filtered = structuredData.filter(d => {
+                const weekDate = parseWeek(d.Week);
+                return weekDate >= parseWeek(fromWeek) && weekDate <= parseWeek(toWeek);
+            });
             return { filtered, selectedLOBs, isComparison };
         };
 
         // Summary table with rounded numbers
         const generateSummary = (filtered, selectedLOBs) => {
-            let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Value</th></tr></thead><tbody>`;
-            selectedLOBs.forEach(lob => {
-                uniqueHeaders.forEach(header => {
-                    let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
-                    if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
-                        total = total.toFixed(2) + '%';
-                    } else {
-                        total = Math.round(total).toLocaleString();
-                    }
-                    html += `<tr><td>${lob}</td><td>${header}</td><td>${total}</td></tr>`;
+            let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Total Value</th></tr></thead><tbody>`;
+            if (filtered.length === 0) {
+                html += `<tr><td colspan="3" class="text-center">No data available for the selected filters.</td></tr>`;
+            } else {
+                selectedLOBs.forEach(lob => {
+                    uniqueHeaders.forEach(header => {
+                        let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
+                        let displayValue;
+                        if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
+                            displayValue = total.toFixed(2) + '%';
+                        } else if (header.toLowerCase().includes('aht')) {
+                            displayValue = total.toFixed(1); // AHT usually has one decimal
+                        } else {
+                            displayValue = Math.round(total).toLocaleString();
+                        }
+                        html += `<tr><td>${lob}</td><td>${header}</td><td>${displayValue}</td></tr>`;
+                    });
                 });
-            });
+            }
             html += `</tbody></table></div>`;
             $analyticsSummary.html(html);
         };
 
+        // Existing Chart.js instances to destroy before re-rendering
+        let currentCharts = [];
+
         // Render charts
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
             $chartsContainer.empty();
+            // Destroy existing charts to prevent memory leaks
+            currentCharts.forEach(chart => chart.destroy());
+            currentCharts = [];
+
+            if (filtered.length === 0) {
+                $chartsContainer.html('<p class="text-center text-muted">No chart data available for the selected filters. Please adjust your week range or LOB selections.</p>');
+                return;
+            }
+
             const labels = filtered.map(d => d.Week);
 
-            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
-                $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;"><div class="card-body text-center"><h6 class="card-title fw-bold">${title}</h6><canvas></canvas></div></div>`);
+            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false, chartTypeOverride = null) => {
+                const chartId = `chart-${Math.random().toString(36).substr(2, 9)}`;
+                $chartsContainer.append(`
+                    <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">${title}</h6>
+                            <canvas id="${chartId}"></canvas>
+                        </div>
+                    </div>
+                `);
                 const datasets = [];
+
                 metrics.forEach(metric => {
                     lobList.forEach(lob => {
+                        const isStaffingPercent = (metric === 'Staffing %');
+                        const isPercentageMetric = showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition'));
+
+                        let data = filtered.map(d => {
+                            if (isStaffingPercent) {
+                                const availableHC = Number(d['Available HC||' + lob] || 0);
+                                const requiredHC = Number(d['Required HC||' + lob] || 0);
+                                return requiredHC > 0 ? (availableHC / requiredHC * 100) : 0;
+                            }
+                            if (isPercentageMetric) {
+                                return (Number(d[`${metric}||${lob}`] || 0) * 100);
+                            }
+                            return Number(d[`${metric}||${lob}`] || 0);
+                        });
+
                         datasets.push({
-                            label: (metric === 'Staffing %') ? 'Staffing %' : `${lob} - ${metric}`,
-                            data: filtered.map(d => {
-                                if (metric === 'Staffing %') return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
-                                if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
-                                    return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
-                                return d[`${metric}||${lob}`] || 0;
-                            }),
-                            borderColor: (metric === 'Staffing %') ? '#000000' : (isComparison ? lobColors[lob] : metricColors[metric]),
-                            backgroundColor: (metric === 'Staffing %') ? 'rgba(0,0,0,0.1)' : (isComparison ? lobColors[lob] + '55' : metricColors[metric] + '55'),
-                            fill: type === 'area' ? true : false,
-                            borderDash: (metric === 'Staffing %') ? [5, 5] : [],
-                            yAxisID: (metric === 'Staffing %') ? 'y1' : 'y'
+                            label: isStaffingPercent ? 'Staffing %' : `${lob} - ${metric}`,
+                            data: data,
+                            borderColor: isStaffingPercent ? metricColors['Staffing %'] : (isComparison ? lobColors[lob] : metricColors[metric]),
+                            backgroundColor: isStaffingPercent ? 'rgba(52, 58, 64, 0.1)' : (isComparison ? lobColors[lob] + '55' : metricColors[metric] + '55'),
+                            fill: (type === 'area' || isStaffingPercent) ? true : false,
+                            borderDash: isStaffingPercent ? [5, 5] : [],
+                            yAxisID: isStaffingPercent ? 'y1' : 'y',
+                            type: chartTypeOverride || type // Allow override for mixed charts
                         });
                     });
                 });
 
-                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                    type: type === 'area' ? 'line' : type,
+                const newChart = new Chart($(`#${chartId}`)[0].getContext('2d'), {
                     data: { labels, datasets },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { position: 'bottom' },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 20,
+                                    padding: 15
+                                }
+                            },
                             tooltip: {
                                 mode: 'index',
                                 intersect: false,
                                 callbacks: {
                                     label: function (context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
                                         let val = context.raw;
                                         if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
-                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
+                                            return label + Number(val).toFixed(2) + '%';
                                         }
-                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
+                                        return label + Number(val).toLocaleString();
                                     }
                                 }
                             }
                         },
                         scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Value' } },
-                            y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Value',
+                                    font: { weight: 'bold' }
+                                },
+                                ticks: {
+                                    callback: function(value) { return Number(value).toLocaleString(); }
+                                }
+                            },
+                            y1: {
+                                position: 'right',
+                                beginAtZero: true,
+                                title: {
+                                    display: includeStaffing,
+                                    text: 'Staffing %',
+                                    font: { weight: 'bold' }
+                                },
+                                grid: {
+                                    drawOnChartArea: false
+                                },
+                                ticks: {
+                                    callback: function(value) { return value + '%'; }
+                                }
+                            }
                         }
                     }
                 });
+                currentCharts.push(newChart);
             };
 
             if (isComparison) {
-                uniqueHeaders.forEach(header => createChart('bar', `${header} Comparison`, [header], selectedLOBs, true));
+                selectedLOBs.forEach(lob => {
+                     // For comparison mode, show each LOB's metrics across weeks
+                    createChart('bar', `Headcount for ${lob}`, ['Required HC', 'Available HC'], [lob]);
+                    createChart('line', `Hours for ${lob}`, ['Actual Hours', 'Forecasted Hours'], [lob]);
+                    createChart('area', `Shrinkage % for ${lob}`, ['Planned Shrinkage', 'Actual Shrinkage'], [lob], true);
+                    createChart('area', `Attrition % for ${lob}`, ['Planned Attrition', 'Actual Attrition'], [lob], true);
+                    createChart('bar', `AHT for ${lob}`, ['Planned AHT', 'Actual AHT'], [lob]);
+                });
+
             } else {
-                createChart('line', 'Required vs Available HC + Staffing %', ['Required HC', 'Available HC', 'Staffing %'], selectedLOBs, false, true);
-                createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
-                createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
-                createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
-                createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], selectedLOBs, false);
+                // Default view: combined metrics across selected LOBs (if only one LOB is selected, it's simpler)
+                // If multiple LOBs are selected, default view will compare LOBs for each metric
+                if (selectedLOBs.length === 1) {
+                    const singleLob = selectedLOBs[0];
+                    createChart('line', `Headcount & Staffing % for ${singleLob}`, ['Required HC', 'Available HC', 'Staffing %'], [singleLob], false, true, 'line'); // Staffing % as line, others as line
+                    createChart('bar', `Hours for ${singleLob}`, ['Actual Hours', 'Forecasted Hours'], [singleLob]);
+                    createChart('area', `Shrinkage % for ${singleLob}`, ['Planned Shrinkage', 'Actual Shrinkage'], [singleLob], true);
+                    createChart('area', `Attrition % for ${singleLob}`, ['Planned Attrition', 'Actual Attrition'], [singleLob], true);
+                    createChart('bar', `AHT for ${singleLob}`, ['Planned AHT', 'Actual AHT'], [singleLob]);
+                } else {
+                    // When multiple LOBs are selected in non-comparison mode, show metrics by LOB
+                    uniqueHeaders.forEach(header => {
+                        // Special handling for Staffing %
+                        if (header === 'Required HC' || header === 'Available HC') return; // Handled by Staffing chart
+                        if (header === 'Staffing %') {
+                             createChart('line', `Staffing % Comparison`, ['Staffing %'], selectedLOBs, false, true, 'line');
+                        } else {
+                             createChart('bar', `${header} Comparison`, [header], selectedLOBs, header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition'));
+                        }
+                    });
+                    // Add a combined HC + Staffing % chart for multiple LOBs
+                    createChart('line', `Headcount (Required & Available) Across LOBs`, ['Required HC', 'Available HC'], selectedLOBs, false, false, 'line');
+                    createChart('line', `Staffing % Across LOBs`, ['Staffing %'], selectedLOBs, true, true, 'line');
+                }
             }
         };
 
+        const exportCSV = (filtered, selectedLOBs) => {
+            if (filtered.length === 0) {
+                alert("No data to export for the current filters.");
+                return;
+            }
+
+            let csv = '';
+            const allHeaders = ['Week', ...uniqueHeaders.flatMap(h => selectedLOBs.map(l => `${h} (${l})`))];
+            csv += allHeaders.map(header => `"${header.replace(/"/g, '""')}"`).join(',') + '\n';
+
+            filtered.forEach(row => {
+                const rowData = [];
+                rowData.push(`"${row.Week}"`);
+                uniqueHeaders.forEach(header => {
+                    selectedLOBs.forEach(lob => {
+                        let value = row[`${header}||${lob}`] || 0;
+                        if (header === 'Staffing %') { // Calculate on the fly for export
+                            const availableHC = Number(row['Available HC||' + lob] || 0);
+                            const requiredHC = Number(row['Required HC||' + lob] || 0);
+                            value = requiredHC > 0 ? (availableHC / requiredHC * 100).toFixed(2) + '%' : '0%';
+                        } else if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
+                            value = (Number(value) * 100).toFixed(2) + '%';
+                        } else if (header.toLowerCase().includes('aht')) {
+                            value = Number(value).toFixed(1);
+                        } else {
+                             value = Number(value).toLocaleString();
+                        }
+                        rowData.push(`"${String(value).replace(/"/g, '""')}"`);
+                    });
+                });
+                csv += rowData.join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'workforce_analytics.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert("Your browser does not support downloading files directly. Please copy the data manually.");
+            }
+        };
+
+
         const applyFilters = () => {
-            const { filtered, selectedLOBs, isComparison } = filterData();
-            renderCharts(filtered, selectedLOBs, isComparison);
-            generateSummary(filtered, selectedLOBs);
+            $loadingOverlay.removeClass('d-none');
+            setTimeout(() => { // Simulate a small delay for loading effect
+                const { filtered, selectedLOBs, isComparison } = filterData();
+                renderCharts(filtered, selectedLOBs, isComparison);
+                generateSummary(filtered, selectedLOBs);
+                $loadingOverlay.addClass('d-none');
+            }, 300);
         };
 
         $('#applyFilter').off('click').on('click', applyFilters);
-        $('#exportCsv').off('click').on('click', () => { const { filtered, selectedLOBs } = filterData(); exportCSV(filtered, selectedLOBs); });
+        $('#exportCsv').off('click').on('click', () => {
+            const { filtered, selectedLOBs } = filterData();
+            exportCSV(filtered, selectedLOBs);
+        });
 
+        // Trigger initial load
         applyFilters();
         $('#analyticsModal').modal('show');
 
