@@ -66,17 +66,20 @@
                     html+=`<td style="display:none"></td>`; // placeholder for frozen
                     html+=`<td>${metric}</td>`;
                     uniqueWeeks.forEach(week=>{
-                        let val=structuredData.find(d=>d.Week===week)?structuredData.find(d=>d.Week===week)[`${metric}||${lob}`]||0:0;
-                        let style='';
-                        if(metric==='Staffing %'){ 
-                            val=Math.round(val*100)/100+'%'; 
-                            const numVal=Number(val.replace('%',''));
-                            style=`color:${getRAGColor(numVal)}; font-weight:bold;`;
+                        const weekData=structuredData.find(d=>d.Week===week) || {};
+                        const required=Number(weekData[`Required HC||${lob}`]||0);
+                        const available=Number(weekData[`Available HC||${lob}`]||0);
+                        let val=0, style='';
+                        if(metric==='Delta'){ val=available-required; if(val<0) style='color:red;font-weight:bold;'; }
+                        else if(metric==='Staffing %'){ 
+                            val=(required>0)?(available/required*100):0; 
+                            val=Math.round(val*100)/100; 
+                            style=`color:${getRAGColor(val)}; font-weight:bold;`; 
+                            val+=`%`;
                         }
-                        if(metric==='Delta' && val<0){
-                            style='color:red; font-weight:bold;';
-                        }
-                        else if(metric!=='Staffing %' && metric!=='Delta'){ val=Math.round(val).toLocaleString(); }
+                        else if(metric==='Required HC'){ val=required.toLocaleString(); }
+                        else if(metric==='Available HC'){ val=available.toLocaleString(); }
+
                         html+=`<td style="${style}">${val}</td>`;
                     });
                     html+='</tr>';
