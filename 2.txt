@@ -1,22 +1,25 @@
 (function($){
-    $.fn.weekAnalyticsPopup = function(options){
+    $.fn.staffingSummaryPopup = function(options){
         const settings = $.extend({ data:[], weekStartDay:'sunday' }, options);
 
-        $('#analyticsModal').remove();
+        // Remove old modal if exists
+        $('#staffingSummaryModal').remove();
 
+        // Add styles
         const styles = `
         <style>
-            .table-summary { max-height:400px; overflow:auto; display:block; }
+            .table-summary { max-height:400px; overflow:auto; display:block; border:1px solid #dee2e6; }
             .table-summary table { border-collapse:collapse; width:100%; table-layout:fixed; }
-            .table-summary th, .table-summary td { border:1px solid #ddd; padding:5px; text-align:center; white-space:nowrap; }
+            .table-summary th, .table-summary td { border:1px solid #dee2e6; padding:5px; text-align:center; white-space:nowrap; }
             .table-summary thead th { position:sticky; top:0; background:#f8f9fa; z-index:10; }
             .table-summary tbody td:first-child, .table-summary tbody td:nth-child(2) { position:sticky; left:0; background:#fff; z-index:5; }
             .table-summary tbody td:first-child { z-index:6; font-weight:bold; }
         </style>`;
         $('head').append(styles);
 
+        // Modal HTML
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1">
+        <div class="modal fade" id="staffingSummaryModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header">
@@ -33,64 +36,73 @@
 
         const $analyticsSummary = $('#analyticsSummary');
 
-        const parseWeek = w=>{ const [dd, mmm, yy]=w.split('-'); return new Date(`${mmm} ${dd}, 20${yy}`); };
-        const structuredData = (()=>{ 
-            const g={}; 
-            settings.data.forEach(item=>{
-                if(!g[item.week]) g[item.week]={Week:item.week}; 
-                g[item.week][`${item.header}||${item.sheetName}`]=item.value; 
-            }); 
-            return Object.values(g).sort((a,b)=>parseWeek(a.Week)-parseWeek(b.Week)); 
-        })();
-        const uniqueLOBs=[...new Set(settings.data.map(d=>d.sheetName))].sort();
-        const uniqueWeeks=[...new Set(settings.data.map(d=>d.week))].sort((a,b)=>parseWeek(a)-parseWeek(b));
-        const staffingMetrics=['Required HC','Available HC','Delta','Staffing %'];
+        // Helpers
+        const parseWeek = w => { const [dd, mmm, yy] = w.split('-'); return new Date(`${mmm} ${dd}, 20${yy}`); };
 
-        const getRAGColor = val=>{
+        // Structure data by week
+        const structuredData = (() => {
+            const g = {};
+            settings.data.forEach(item => {
+                if(!g[item.week]) g[item.week] = { Week: item.week };
+                g[item.week][`${item.sheetName}`] = item;
+            });
+            return Object.values(g).sort((a,b)=>parseWeek(a.Week)-parseWeek(b.Week));
+        })();
+
+        const uniqueLOBs = [...new Set(settings.data.map(d=>d.sheetName))].sort();
+        const uniqueWeeks = [...new Set(settings.data.map(d=>d.week))].sort((a,b)=>parseWeek(a)-parseWeek(b));
+        const metrics = ['Required HC','Available HC','Delta','Staffing %'];
+
+        const getRAGColor = val => {
             if(val>=95) return 'green';
             if(val>=85) return 'orange';
             return 'red';
         };
 
-        const generateSummary=()=>{
-            let html='<table><thead><tr><th>LOB</th><th>Metric</th>';
-            uniqueWeeks.forEach(w=> html+=`<th>${w}</th>`); 
-            html+='</tr></thead><tbody>';
+        // Generate table
+        const generateSummary = () => {
+            let html = '<table><thead><tr><th>LOB</th><th>Metric</th>';
+            uniqueWeeks.forEach(w => html += `<th>${w}</th>`);
+            html += '</tr></thead><tbody>';
 
-            uniqueLOBs.forEach(lob=>{
-                // LOB row colspan
-                html+=`<tr><td colspan="${2+uniqueWeeks.length}" style="background:#e9ecef;font-weight:bold;text-align:center">${lob}</td></tr>`;
-                staffingMetrics.forEach(metric=>{
-                    html+='<tr>';
-                    html+=`<td style="display:none"></td>`; // placeholder for sticky
-                    html+=`<td>${metric}</td>`;
-                    uniqueWeeks.forEach(week=>{
-                        const weekData=structuredData.find(d=>d.Week===week) || {};
-                        const required=Number(weekData[`Required HC||${lob}`]||0);
-                        const available=Number(weekData[`Available HC||${lob}`]||0);
+            uniqueLOBs.forEach(lob => {
+                html += `<tr><td colspan="${2+uniqueWeeks.length}" style="background:#e9ecef;font-weight:bold;text-align:center">${lob}</td></tr>`;
+                metrics.forEach(metric => {
+                    html += '<tr>';
+                    html += `<td style="display:none"></td>`; // placeholder for sticky LOB column
+                    html += `<td>${metric}</td>`;
+
+                    uniqueWeeks.forEach(week => {
+                        const weekData = structuredData.find(d => d.Week === week) || {};
+                        const item = weekData[lob] || {};
                         let val=0, style='';
-                        if(metric==='Delta'){ 
-                            val=available-required; 
-                            if(val<0) style='color:red;font-weight:bold;'; 
+
+                        const required = Number(item.value || 0);
+                        const available = Number(item.value || 0); // assuming Required HC and Available HC are in separate items
+                        if(metric==='Required HC') val=Math.round(required).toLocaleString();
+                        else if(metric==='Available HC') val=Math.round(available).toLocaleString();
+                        else if(metric==='Delta') {
+                            val=available-required;
+                            if(val<0) style='color:red;font-weight:bold;';
                         }
-                        else if(metric==='Staffing %'){ 
-                            val=(required>0)?Math.round((available/required)*100):0; 
-                            style=`color:${getRAGColor(val)}; font-weight:bold;`; 
+                        else if(metric==='Staffing %'){
+                            val=(required>0)?Math.round((available/required)*100):0;
+                            style=`color:${getRAGColor(val)}; font-weight:bold;`;
                             val+=`%`;
                         }
-                        else if(metric==='Required HC'){ val=Math.round(required).toLocaleString(); }
-                        else if(metric==='Available HC'){ val=Math.round(available).toLocaleString(); }
 
-                        html+=`<td style="${style}">${val}</td>`;
+                        html += `<td style="${style}">${val}</td>`;
                     });
-                    html+='</tr>';
+
+                    html += '</tr>';
                 });
             });
-            html+='</tbody></table>';
+
+            html += '</tbody></table>';
             $analyticsSummary.html(html);
         };
 
-        $('#analyticsModal').modal('show');
+        $('#staffingSummaryModal').modal('show');
         generateSummary();
         return this;
     };
