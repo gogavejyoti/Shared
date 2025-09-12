@@ -120,25 +120,17 @@
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
 
-        // Populate options
         uniqueLOBs.forEach(lob => {
             $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`);
         });
 
-        // Toggle dropdown
         $lobBtn.on('click', function(e){ e.stopPropagation(); $optionsDiv.toggle(); });
-
-        // Close dropdown on outside click
         $(document).on('click', function(){ $optionsDiv.hide(); });
-
-        // Get selected LOBs
         const getSelectedLOBs = () => {
             const selected = [];
             $optionsDiv.find('input:checked').each(function(){ selected.push($(this).val()); });
             return selected.length ? selected : [uniqueLOBs[0]]; // default first
         };
-
-        // Update button text dynamically
         $optionsDiv.find('input').on('change', function(){
             const selected = getSelectedLOBs();
             $lobBtn.text(selected.length === 0 ? 'Select LOBs' : selected.join(', '));
@@ -217,17 +209,21 @@
                         </div>
                     </div>`);
                 const labels = filtered.map(d => d.Week);
-                const datasets = metrics.flatMap(metric =>
-                    lobList.map(lob=>({
-                        label: lob + ' - ' + metric,
-                        data: filtered.map(d=> isPercentage && (metric.toLowerCase().includes('shrinkage')||metric.toLowerCase().includes('attrition')) ? ((d[`${metric}||${lob}`]||0)*100).toFixed(2) : (d[`${metric}||${lob}`]||0)),
-                        borderColor: lobColors[lob],
-                        backgroundColor: lobColors[lob]+'55',
-                        fill: type==='area'?true:false,
-                        yAxisID:'y'
-                    }))
-                );
-                // Staffing % for Required vs Available
+                const datasets = [];
+
+                metrics.forEach(metric=>{
+                    lobList.forEach(lob=>{
+                        datasets.push({
+                            label: lob + ' - ' + metric,
+                            data: filtered.map(d=> isPercentage && (metric.toLowerCase().includes('shrinkage')||metric.toLowerCase().includes('attrition')) ? ((d[`${metric}||${lob}`]||0)*100).toFixed(2) : (d[`${metric}||${lob}`]||0)),
+                            borderColor: metricColors[metric] || lobColors[lob],
+                            backgroundColor: (metricColors[metric] || lobColors[lob])+'55',
+                            fill: type==='area'?true:false,
+                            yAxisID:'y'
+                        });
+                    });
+                });
+
                 if(includeStaffing){
                     lobList.forEach(lob=>{
                         const staffingData = filtered.map(d=>{
@@ -238,7 +234,7 @@
                         datasets.push({
                             label: lob + ' - Staffing %',
                             data: staffingData,
-                            borderColor: lobColors[lob],
+                            borderColor: '#ff33aa',
                             borderDash:[5,5],
                             backgroundColor:'transparent',
                             fill:false,
@@ -246,6 +242,7 @@
                         });
                     });
                 }
+
                 new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'),{
                     type:type==='area'?'line':type,
                     data:{ labels, datasets },
@@ -254,7 +251,7 @@
                         maintainAspectRatio:false,
                         plugins:{ legend:{ position:'bottom' }, tooltip:{ mode:'index', intersect:false }},
                         scales:{
-                            y:{ beginAtZero:true, title:{ display:true, text:'HC' }},
+                            y:{ beginAtZero:true, title:{ display:true, text:'HC / Value' }},
                             yPercent:{ beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false }}
                         }
                     }
@@ -266,7 +263,6 @@
                     createChart('bar',`${header} Comparison`,[header],selectedLOBs,true);
                 });
             } else {
-                // Required vs Available HC with Staffing %
                 createChart('line','Required vs Available HC + Staffing %',['Required HC','Available HC'],selectedLOBs,false,true);
                 createChart('line','Actual vs Forecasted Hours',['Actual Hours','Forecasted Hours'],selectedLOBs,false);
                 createChart('area','Planned vs Actual Shrinkage (%)',['Planned Shrinkage','Actual Shrinkage'],selectedLOBs,true);
