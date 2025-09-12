@@ -2,9 +2,7 @@
     $.fn.weekAnalyticsPopup = function (options) {
         const settings = $.extend({
             data: [],
-            defaultFromWeek: '',
-            defaultToWeek: '',
-            defaultMode: 'comparison' // or 'single'
+            weekStartDay: 'sunday' // or 'monday'
         }, options);
 
         $('#analyticsModal').remove();
@@ -46,18 +44,39 @@
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
+        const parseWeek = (weekStr) => {
+            const [dd, mmm, yy] = weekStr.split('-');
+            return new Date(`${mmm} ${dd}, 20${yy}`);
+        };
+
+        const formatWeek = (date) => {
+            const dd = String(date.getDate()).padStart(2, '0');
+            const mmm = date.toLocaleString('default', { month: 'short' });
+            const yy = String(date.getFullYear()).slice(-2);
+            return `${dd}-${mmm}-${yy}`;
+        };
+
+        const getCurrentWeek = () => {
+            const today = new Date();
+            const dayOfWeek = today.getDay();
+            const diff = settings.weekStartDay === 'sunday' ? dayOfWeek : (dayOfWeek + 6) % 7;
+            const lastWeekDate = new Date(today);
+            lastWeekDate.setDate(today.getDate() - diff);
+            return formatWeek(lastWeekDate);
+        };
+
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
                 if (!grouped[item.week]) grouped[item.week] = { Week: item.week };
                 grouped[item.week][`${item.header}||${item.sheetName}`] = item.value;
             });
-            return Object.values(grouped).sort((a, b) => new Date(a.Week) - new Date(b.Week));
+            return Object.values(grouped).sort((a, b) => parseWeek(a.Week) - parseWeek(b.Week));
         })();
 
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
         const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort();
+        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
         uniqueLOBs.forEach(lob => $('#lobSelect').append(`<option value="${lob}">${lob}</option>`));
         uniqueHeaders.forEach(header => $('#headerSelect').append(`<option value="${header}">${header}</option>`));
@@ -66,15 +85,19 @@
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
         });
 
-        $('#fromWeek').val(settings.defaultFromWeek || uniqueWeeks[0]);
-        $('#toWeek').val(settings.defaultToWeek || uniqueWeeks[uniqueWeeks.length - 1]);
-        $('#headerSelect').val(uniqueHeaders[0]);
+        const currentWeek = getCurrentWeek();
+        const currentIndex = uniqueWeeks.indexOf(currentWeek);
+        const fromIndex = Math.max(0, currentIndex - 6);
+        const toIndex = Math.min(uniqueWeeks.length - 1, currentIndex + 6);
+
+        $('#fromWeek').val(uniqueWeeks[fromIndex]);
+        $('#toWeek').val(uniqueWeeks[toIndex]);
 
         const metricColors = {
             "Required HC": "#007bff",
             "Available HC": "#28a745",
-            "Actual Hours": "#ffc107",
-            "Forecasted Hours": "#17a2b8",
+            "Actual Hours": "#17a2b8",
+            "Forecasted Hours": "#ffc107",
             "Planned Shrinkage": "#6f42c1",
             "Actual Shrinkage": "#fd7e14",
             "Planned Attrition": "#e83e8c",
@@ -88,8 +111,11 @@
             const toWeek = $('#toWeek').val();
             const selectedLOB = $('#lobSelect').val() || uniqueLOBs[0];
             const isComparison = $('#comparisonMode').is(':checked');
-            const filtered = structuredData.filter(d => d.Week >= fromWeek && d.Week <= toWeek)
-                                           .slice(-12); // Max 12 weeks
+
+            const filtered = structuredData.filter(d =>
+                parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek)
+            ).slice(-12);
+
             return { filtered, selectedLOB, isComparison };
         };
 
@@ -98,7 +124,10 @@
             const lobsToSummarize = isComparison ? uniqueLOBs : [selectedLOB];
             uniqueHeaders.forEach(header => {
                 lobsToSummarize.forEach(lob => {
-                    const total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
+                    let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
+                    if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
+                        total = (total * 100).toFixed(2) + '%';
+                    }
                     summaryHTML += `<li><strong>${lob}</strong> - <em>${header}</em>: ${total}</li>`;
                 });
             });
@@ -137,55 +166,10 @@
 
         const renderCharts = (filtered, selectedLOB, isComparison) => {
             $chartsContainer.empty();
-
             const labels = filtered.map(d => d.Week);
 
-            // 1️⃣ Heatmap: Latest selected header vs LOBs over 12 weeks
-            const heatmapCanvas = `<div class="card mb-4 shadow-sm border rounded" style="background: linear-gradient(to bottom, #f8f9fa, #e9ecef);">
-                <div class="card-body">
-                    <h6 class="card-title fw-bold">Heatmap - ${$('#headerSelect').val()}</h6>
-                    <canvas id="heatmapChart" height="200"></canvas>
-                </div>
-            </div>`;
-            $chartsContainer.append(heatmapCanvas);
-
-            const heatmapData = [];
-            uniqueLOBs.forEach((lob, i) => {
-                filtered.forEach((d, j) => {
-                    heatmapData.push({
-                        x: d.Week,
-                        y: lob,
-                        v: d[`${$('#headerSelect').val()}||${lob}`] || 0
-                    });
-                });
-            });
-
-            new Chart(document.getElementById('heatmapChart'), {
-                type: 'matrix',
-                data: {
-                    datasets: [{
-                        label: $('#headerSelect').val(),
-                        data: heatmapData,
-                        backgroundColor(ctx) {
-                            const value = ctx.dataset.data[ctx.dataIndex].v;
-                            const alpha = Math.min(1, value / 100);
-                            return `rgba(0, 123, 255, ${alpha})`;
-                        },
-                        width: ({chart}) => (chart.chartArea || {}).width / 12 - 2,
-                        height: ({chart}) => (chart.chartArea || {}).height / uniqueLOBs.length - 2
-                    }]
-                },
-                options: {
-                    scales: {
-                        x: { type: 'category', labels },
-                        y: { type: 'category', labels: uniqueLOBs }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
-
-            // 2️⃣ Line Chart: Actual vs Forecasted Hours
-            const lineCanvas = `<div class="card mb-4 shadow-sm border rounded" style="background: linear-gradient(to bottom, #f8f9fa, #e9ecef);">
+            // 1️⃣ Line Chart: Actual vs Forecasted Hours
+            const lineCanvas = `<div class="card mb-4 shadow-sm border rounded bg-light">
                 <div class="card-body">
                     <h6 class="card-title fw-bold">Actual vs Forecasted Hours</h6>
                     <canvas id="lineChart" height="200"></canvas>
@@ -193,22 +177,23 @@
             </div>`;
             $chartsContainer.append(lineCanvas);
 
-            const lineDatasets = ['Actual Hours', 'Forecasted Hours'].map((metric, i) => ({
-                label: metric,
-                data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
-                borderColor: metricColors[metric],
-                backgroundColor: metricColors[metric] + '55',
-                fill: false
-            }));
-
             new Chart(document.getElementById('lineChart'), {
                 type: 'line',
-                data: { labels, datasets: lineDatasets },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } },
+                data: {
+                    labels,
+                    datasets: ['Actual Hours', 'Forecasted Hours'].map(metric => ({
+                        label: metric,
+                        data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
+                        borderColor: metricColors[metric],
+                        backgroundColor: metricColors[metric] + '55',
+                        fill: false
+                    }))
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
 
-            // 3️⃣ Bar Chart: Required vs Available HC
-            const barCanvas = `<div class="card mb-4 shadow-sm border rounded" style="background: linear-gradient(to bottom, #f8f9fa, #e9ecef);">
+            // 2️⃣ Bar Chart: Required vs Available HC
+            const barCanvas = `<div class="card mb-4 shadow-sm border rounded bg-light">
                 <div class="card-body">
                     <h6 class="card-title fw-bold">Required vs Available HC</h6>
                     <canvas id="barChart" height="200"></canvas>
@@ -216,20 +201,21 @@
             </div>`;
             $chartsContainer.append(barCanvas);
 
-            const barDatasets = ['Required HC', 'Available HC'].map(metric => ({
-                label: metric,
-                data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
-                backgroundColor: metricColors[metric]
-            }));
-
             new Chart(document.getElementById('barChart'), {
                 type: 'bar',
-                data: { labels, datasets: barDatasets },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                data: {
+                    labels,
+                    datasets: ['Required HC', 'Available HC'].map(metric => ({
+                        label: metric,
+                        data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
+                        backgroundColor: metricColors[metric]
+                    }))
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
 
-            // 4️⃣ Area Chart: Planned vs Actual Shrinkage (%)
-            const areaCanvas = `<div class="card mb-4 shadow-sm border rounded" style="background: linear-gradient(to bottom, #f8f9fa, #e9ecef);">
+            // 3️⃣ Area Chart: Planned vs Actual Shrinkage (%)
+            const areaCanvas = `<div class="card mb-4 shadow-sm border rounded bg-light">
                 <div class="card-body">
                     <h6 class="card-title fw-bold">Planned vs Actual Shrinkage (%)</h6>
                     <canvas id="areaChart" height="200"></canvas>
@@ -237,22 +223,23 @@
             </div>`;
             $chartsContainer.append(areaCanvas);
 
-            const areaDatasets = ['Planned Shrinkage', 'Actual Shrinkage'].map(metric => ({
-                label: metric,
-                data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
-                borderColor: metricColors[metric],
-                backgroundColor: metricColors[metric] + '55',
-                fill: true
-            }));
-
             new Chart(document.getElementById('areaChart'), {
                 type: 'line',
-                data: { labels, datasets: areaDatasets },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                data: {
+                    labels,
+                    datasets: ['Planned Shrinkage', 'Actual Shrinkage'].map(metric => ({
+                        label: metric,
+                        data: filtered.map(d => ((d[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2)),
+                        borderColor: metricColors[metric],
+                        backgroundColor: metricColors[metric] + '55',
+                        fill: true
+                    }))
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
 
-            // 5️⃣ Line Chart: Planned vs Actual Attrition (%)
-            const attritionCanvas = `<div class="card mb-4 shadow-sm border rounded" style="background: linear-gradient(to bottom, #f8f9fa, #e9ecef);">
+            // 4️⃣ Line Chart: Planned vs Actual Attrition (%)
+            const attritionCanvas = `<div class="card mb-4 shadow-sm border rounded bg-light">
                 <div class="card-body">
                     <h6 class="card-title fw-bold">Planned vs Actual Attrition (%)</h6>
                     <canvas id="attritionChart" height="200"></canvas>
@@ -260,39 +247,19 @@
             </div>`;
             $chartsContainer.append(attritionCanvas);
 
-            const attritionDatasets = ['Planned Attrition', 'Actual Attrition'].map(metric => ({
-                label: metric,
-                data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
-                borderColor: metricColors[metric],
-                backgroundColor: metricColors[metric] + '55',
-                fill: false
-            }));
-
             new Chart(document.getElementById('attritionChart'), {
                 type: 'line',
-                data: { labels, datasets: attritionDatasets },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-            });
-
-            // 6️⃣ Bar Chart: Planned vs Actual AHT
-            const ahtCanvas = `<div class="card mb-4 shadow-sm border rounded" style="background: linear-gradient(to bottom, #f8f9fa, #e9ecef);">
-                <div class="card-body">
-                    <h6 class="card-title fw-bold">Planned vs Actual AHT</h6>
-                    <canvas id="ahtChart" height="200"></canvas>
-                </div>
-            </div>`;
-            $chartsContainer.append(ahtCanvas);
-
-            const ahtDatasets = ['Planned AHT', 'Actual AHT'].map(metric => ({
-                label: metric,
-                data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
-                backgroundColor: metricColors[metric]
-            }));
-
-            new Chart(document.getElementById('ahtChart'), {
-                type: 'bar',
-                data: { labels, datasets: ahtDatasets },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                data: {
+                    labels,
+                    datasets: ['Planned Attrition', 'Actual Attrition'].map(metric => ({
+                        label: metric,
+                        data: filtered.map(d => ((d[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2)),
+                        borderColor: metricColors[metric],
+                        backgroundColor: metricColors[metric] + '55',
+                        fill: false
+                    }))
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
         };
 
