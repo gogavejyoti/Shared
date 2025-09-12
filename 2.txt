@@ -10,7 +10,9 @@
             .table-summary table { border-collapse:collapse; width:100%; }
             .table-summary th, .table-summary td { border:1px solid #ddd; padding:4px; white-space:nowrap; text-align:center; }
             .table-summary thead th { position:sticky; top:0; background:#f1f1f1; z-index:10; }
-            .table-summary tbody td:first-child, .table-summary tbody td:nth-child(2) { position:sticky; left:0; background:#fff; z-index:5; }
+            .table-summary tbody td:first-child, 
+            .table-summary tbody td:nth-child(2) { position:sticky; left:0; background:#fff; z-index:5; }
+            .table-summary tbody td:first-child { z-index:6; }
         </style>`;
         $('head').append(styles);
 
@@ -70,15 +72,17 @@
                         const required=Number(weekData[`Required HC||${lob}`]||0);
                         const available=Number(weekData[`Available HC||${lob}`]||0);
                         let val=0, style='';
-                        if(metric==='Delta'){ val=available-required; if(val<0) style='color:red;font-weight:bold;'; }
+                        if(metric==='Delta'){ 
+                            val=available-required; 
+                            if(val<0) style='color:red;font-weight:bold;'; 
+                        }
                         else if(metric==='Staffing %'){ 
-                            val=(required>0)?(available/required*100):0; 
-                            val=Math.round(val*100)/100; 
+                            val=(required>0)?Math.round((available/required)*100):0; 
                             style=`color:${getRAGColor(val)}; font-weight:bold;`; 
                             val+=`%`;
                         }
-                        else if(metric==='Required HC'){ val=required.toLocaleString(); }
-                        else if(metric==='Available HC'){ val=available.toLocaleString(); }
+                        else if(metric==='Required HC'){ val=Math.round(required).toLocaleString(); }
+                        else if(metric==='Available HC'){ val=Math.round(available).toLocaleString(); }
 
                         html+=`<td style="${style}">${val}</td>`;
                     });
