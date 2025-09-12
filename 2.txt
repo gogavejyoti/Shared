@@ -1,5 +1,4 @@
-<script src="https://cdn.tailwindcss.com"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 (function ($) {
     $.fn.weekAnalyticsPopup = function (options) {
         const settings = $.extend({
@@ -9,11 +8,9 @@
 
         $('#analyticsModal').remove();
 
-        // Styles
         const styles = `
         <style>
             #chartsContainer { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; justify-items: center; }
-            #chartsContainer canvas { width: 100% !important; max-width: 450px; height: 220px !important; }
             .custom-multiselect { position: relative; display: inline-block; width: 200px; }
             .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
             .custom-multiselect .multiselect-options { 
@@ -26,7 +23,6 @@
         </style>`;
         $('head').append(styles);
 
-        // Tailwind Modal HTML
         const modalHTML = `
         <div id="analyticsModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
           <div class="bg-white rounded-lg shadow-lg w-full max-w-5xl max-h-[90vh] overflow-auto">
@@ -70,7 +66,6 @@
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
-        // Existing logic for week parsing, data transform, etc. (reuse your code)
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -101,7 +96,6 @@
         const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        // Populate week selects
         uniqueWeeks.forEach(week => {
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
@@ -114,7 +108,6 @@
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // Custom multi-select logic (reuse your code)
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -173,66 +166,45 @@
             $chartsContainer.empty();
             const labels = filtered.map(d => d.Week);
 
-            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
-                $chartsContainer.append(`<div class="bg-white p-4 rounded shadow w-full max-w-[900px]"><h6 class="font-semibold text-center mb-3">${title}</h6><canvas></canvas></div>`);
-                const datasets = [];
+            const createChart = (title, metrics, lobList, showPercent = false, includeStaffing = false) => {
+                const chartId = 'chart-' + Math.random().toString(36).substr(2, 9);
+                $chartsContainer.append(`<div class="bg-white shadow rounded-lg p-4 w-full max-w-2xl"><h5 class="font-semibold text-center mb-4">${title}</h5><div id="${chartId}"></div></div>`);
+
+                const series = [];
                 metrics.forEach(metric => {
                     lobList.forEach(lob => {
-                        datasets.push({
-                            label: (metric === 'Staffing %') ? 'Staffing %' : `${lob} - ${metric}`,
+                        series.push({
+                            name: (metric === 'Staffing %') ? 'Staffing %' : `${lob} - ${metric}`,
                             data: filtered.map(d => {
                                 if (metric === 'Staffing %') return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
                                 if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
                                     return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
                                 return d[`${metric}||${lob}`] || 0;
-                            }),
-                            borderColor: (metric === 'Staffing %') ? '#000000' : (isComparison ? lobColors[lob] : metricColors[metric]),
-                            backgroundColor: (metric === 'Staffing %') ? 'rgba(0,0,0,0.1)' : (isComparison ? lobColors[lob] + '55' : metricColors[metric] + '55'),
-                            fill: type === 'area' ? true : false,
-                            borderDash: (metric === 'Staffing %') ? [5, 5] : [],
-                            yAxisID: (metric === 'Staffing %') ? 'y1' : 'y'
+                            })
                         });
                     });
                 });
 
-                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                    type: type === 'area' ? 'line' : type,
-                    data: { labels, datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            tooltip: {
-                                mode: 'index',
-                                intersect: false,
-                                callbacks: {
-                                    label: function (context) {
-                                        let val = context.raw;
-                                        if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
-                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
-                                        }
-                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Value' } },
-                            y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
-                        }
-                    }
-                });
+                const options = {
+                    chart: { type: 'line', height: 300, toolbar: { show: true } },
+                    series: series,
+                    xaxis: { categories: labels },
+                    yaxis: { labels: { formatter: (val) => showPercent ? val + '%' : val.toLocaleString() } },
+                    tooltip: { y: { formatter: (val) => showPercent ? val + '%' : val.toLocaleString() } },
+                    stroke: { curve: 'smooth' }
+                };
+
+                new ApexCharts(document.querySelector('#' + chartId), options).render();
             };
 
             if (isComparison) {
-                uniqueHeaders.forEach(header => createChart('bar', `${header} Comparison`, [header], selectedLOBs, true));
+                uniqueHeaders.forEach(header => createChart(`${header} Comparison`, [header], selectedLOBs, true));
             } else {
-                createChart('line', 'Required vs Available HC + Staffing %', ['Required HC', 'Available HC', 'Staffing %'], selectedLOBs, false, true);
-                createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
-                createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
-                createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
-                createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], selectedLOBs, false);
+                createChart('Required vs Available HC + Staffing %', ['Required HC', 'Available HC', 'Staffing %'], selectedLOBs, false, true);
+                createChart('Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs);
+                createChart('Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
+                createChart('Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
+                createChart('Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], selectedLOBs);
             }
         };
 
@@ -243,10 +215,7 @@
         };
 
         $('#applyFilter').off('click').on('click', applyFilters);
-        $('#exportCsv').off('click').on('click', () => {
-            const { filtered, selectedLOBs } = filterData();
-            exportCSV(filtered, selectedLOBs);
-        });
+        $('#exportCsv').off('click').on('click', () => { const { filtered, selectedLOBs } = filterData(); exportCSV(filtered, selectedLOBs); });
 
         applyFilters();
         $('#analyticsModal').removeClass('hidden');
