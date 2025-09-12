@@ -1,7 +1,7 @@
 (function ($) {
     $.fn.weekAnalyticsPopup = function (options) {
         const settings = $.extend({
-            data: [],             // flat JSON: { week, sheetName, header, value }
+            data: [],
             weekStartDay: 'sunday'
         }, options);
 
@@ -11,11 +11,11 @@
         const styles = `
         <style>
             .table-container { overflow:auto; max-height:400px; position:relative; }
-            table { border-collapse:collapse; width:100%; min-width:600px; }
-            th, td { border:1px solid #ccc; padding:5px; text-align:center; min-width:80px; }
+            table { border-collapse:collapse; width:100%; min-width:600px; table-layout:fixed; }
+            th, td { border:1px solid #ccc; padding:5px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
             th { position:sticky; top:0; background:#f1f1f1; z-index:2; }
-            .sticky-left { position:sticky; left:0; background:#fff; z-index:3; }
-            .sticky-left-2 { position:sticky; left:120px; background:#fff; z-index:3; }
+            .sticky-left { position:sticky; left:0; background:#fff; z-index:3; width:120px; }
+            .sticky-left-2 { position:sticky; left:120px; background:#fff; z-index:3; width:120px; }
             .rag-red { color:red; font-weight:bold; }
             .rag-amber { color:orange; font-weight:bold; }
             .rag-green { color:green; font-weight:bold; }
@@ -47,12 +47,10 @@
             return new Date(`${mmm} ${dd}, 20${yy}`);
         };
 
-        // Unique weeks and LOBs
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
         const metrics = ['Required HC','Available HC','Delta','Staffing %'];
 
-        // Group data
         const groupedData = {};
         settings.data.forEach(d => {
             if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
@@ -60,7 +58,6 @@
             groupedData[d.sheetName][d.week][d.header] = Number(d.value);
         });
 
-        // Add Delta and Staffing %
         uniqueLOBs.forEach(lob => {
             uniqueWeeks.forEach(week => {
                 const req = groupedData[lob][week]?.['Required HC'] || 0;
@@ -70,7 +67,6 @@
             });
         });
 
-        // Generate table
         let html = '<table><thead><tr><th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>';
         uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
         html += '</tr></thead><tbody>';
