@@ -22,7 +22,7 @@
                 table {
                     border-collapse: collapse;
                     width: max-content;
-                    table-layout: auto; /* Dynamic column widths */
+                    table-layout: auto;
                 }
 
                 th, td {
@@ -46,17 +46,14 @@
                     left: 0;
                     background: #f1f1f1;
                     z-index: 7;
-                    min-width: 120px;
                     white-space: nowrap;
                 }
 
                 thead th.sticky-left-2 {
                     position: sticky;
                     top: 0;
-                    left: 120px;
                     background: #f1f1f1;
                     z-index: 7;
-                    min-width: 150px;
                     white-space: nowrap;
                 }
 
@@ -66,17 +63,14 @@
                     left: 0;
                     background: #f1f1f1;
                     z-index: 5;
-                    min-width: 120px;
                     white-space: nowrap;
                 }
 
                 tbody td.sticky-left-2 {
                     position: sticky;
                     top: 0;
-                    left: 120px;
                     background: #f1f1f1;
                     z-index: 5;
-                    min-width: 150px;
                     white-space: nowrap;
                 }
 
@@ -174,6 +168,14 @@
 
         html += '</tbody></table>';
         $container.html(html);
+
+        // Dynamically set correct left offset
+        const firstSticky = $container.find('th.sticky-left').first();
+        const firstStickyWidth = firstSticky.outerWidth();
+        const secondSticky = $container.find('th.sticky-left-2').first();
+        const secondStickyBody = $container.find('tbody td.sticky-left-2').first();
+        secondSticky.css('left', `${firstStickyWidth}px`);
+        secondStickyBody.css('left', `${firstStickyWidth}px`);
 
         const modalEl = document.getElementById('analyticsModal');
         const modal = new bootstrap.Modal(modalEl);
