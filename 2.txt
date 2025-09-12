@@ -1,116 +1,125 @@
-(function($) {
-    $.fn.weekAnalyticsPopup = function(options) {
+(function($){
+    $.fn.weekAnalyticsPopup = function(options){
         const settings = $.extend({
             data: [],
             defaultFromWeek: '',
             defaultToWeek: '',
-            defaultMode: 'comparison'
+            defaultMode: 'comparison' // or 'single'
         }, options);
 
+        // Remove existing modal
         $('#analyticsModal').remove();
 
+        // Modal HTML
         const modalHTML = `
-            <div class="modal fade" id="analyticsModal" tabindex="-1">
-                <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Workforce Analytics Dashboard</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="filters mb-3">
-                                <label>From Week: <input type="week" id="fromWeek" class="form-control d-inline-block w-auto"></label>
-                                <label class="ms-3">To Week: <input type="week" id="toWeek" class="form-control d-inline-block w-auto"></label>
-                                <label class="ms-3">LOB: 
-                                    <select id="lobSelect" class="form-select d-inline-block w-auto"></select>
-                                </label>
-                                <label class="ms-3">
-                                    <input type="checkbox" id="comparisonMode"> Comparison Mode
-                                </label>
-                                <label class="ms-3">Header (Metric): 
-                                    <select id="headerSelect" class="form-select d-inline-block w-auto"></select>
-                                </label>
-                                <button id="applyFilter" class="btn btn-primary btn-sm ms-3">Apply Filter</button>
-                                <button id="exportCsv" class="btn btn-secondary btn-sm ms-2">Export CSV</button>
-                            </div>
-                            <div id="chartsContainer" class="row"></div>
-                            <div id="analyticsSummary" class="mt-4"></div>
-                        </div>
-                    </div>
+        <div class="modal fade" id="analyticsModal" tabindex="-1">
+          <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Workforce Analytics Dashboard</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="filters mb-3 p-3 border rounded bg-light">
+                  <label>From Week: 
+                    <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label class="ms-3">To Week: 
+                    <select id="toWeek" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label class="ms-3">LOB: 
+                    <select id="lobSelect" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label class="ms-3">Header (Metric): 
+                    <select id="headerSelect" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label class="ms-3">
+                    <input type="checkbox" id="comparisonMode"> Comparison Mode
+                  </label>
+                  <button id="applyFilter" class="btn btn-primary btn-sm ms-3">Apply Filter</button>
+                  <button id="exportCsv" class="btn btn-secondary btn-sm ms-2">Export CSV</button>
                 </div>
-            </div>`;
+                <div id="chartsContainer" class="row mt-3"></div>
+                <div id="analyticsSummary" class="mt-4"></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
 
         $('body').append(modalHTML);
+
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
+        // Transform data into structured format
         const structuredData = (() => {
             const grouped = {};
-            settings.data.forEach(item => {
-                if (!grouped[item.week]) grouped[item.week] = { Week: item.week };
+            settings.data.forEach(item=>{
+                if(!grouped[item.week]) grouped[item.week] = {Week: item.week};
                 grouped[item.week][`${item.header}||${item.sheetName}`] = item.value;
             });
-            return Object.values(grouped).sort((a, b) => new Date(a.Week) - new Date(b.Week));
+            return Object.values(grouped).sort((a,b)=> new Date(a.Week) - new Date(b.Week));
         })();
 
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
+        const uniqueLOBs = [...new Set(settings.data.map(d=>d.sheetName))].sort();
+        const uniqueHeaders = [...new Set(settings.data.map(d=>d.header))].sort();
+        const uniqueWeeks = [...new Set(settings.data.map(d=>d.week))].sort();
 
-        uniqueLOBs.forEach(lob => $('#lobSelect').append(`<option value="${lob}">${lob}</option>`));
-        uniqueHeaders.forEach(header => $('#headerSelect').append(`<option value="${header}">${header}</option>`));
+        // Populate dropdowns
+        uniqueLOBs.forEach(lob=>$('#lobSelect').append(`<option value="${lob}">${lob}</option>`));
+        uniqueHeaders.forEach(header=>$('#headerSelect').append(`<option value="${header}">${header}</option>`));
+        uniqueWeeks.forEach(week=>{
+            $('#fromWeek').append(`<option value="${week}">${week}</option>`);
+            $('#toWeek').append(`<option value="${week}">${week}</option>`);
+        });
 
-        $('#fromWeek').val(settings.defaultFromWeek || structuredData[0].Week.slice(0,7));
-        $('#toWeek').val(settings.defaultToWeek || structuredData[structuredData.length - 1].Week.slice(0,7));
+        $('#fromWeek').val(settings.defaultFromWeek || uniqueWeeks[0]);
+        $('#toWeek').val(settings.defaultToWeek || uniqueWeeks[uniqueWeeks.length-1]);
         $('#headerSelect').val(uniqueHeaders[0]);
 
-        const filterData = () => {
+        const filterData = ()=>{
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
             const selectedLOB = $('#lobSelect').val() || uniqueLOBs[0];
             const selectedHeader = $('#headerSelect').val() || uniqueHeaders[0];
             const isComparison = $('#comparisonMode').is(':checked');
-
-            let filtered = structuredData.filter(d => d.Week.slice(0,7) >= fromWeek && d.Week.slice(0,7) <= toWeek);
-
-            return { filtered, selectedLOB, selectedHeader, isComparison };
+            const filtered = structuredData.filter(d=> d.Week >= fromWeek && d.Week <= toWeek);
+            return {filtered, selectedLOB, selectedHeader, isComparison};
         };
 
-        const generateSummary = (filtered, selectedLOB, selectedHeader, isComparison) => {
+        const generateSummary = (filtered, selectedLOB, selectedHeader, isComparison)=>{
             let summaryHTML = '<h5>Summary Analytics</h5><ul>';
-
             const lobsToSummarize = isComparison ? uniqueLOBs : [selectedLOB];
-
-            lobsToSummarize.forEach(lob => {
-                const total = filtered.reduce((sum, d) => {
+            lobsToSummarize.forEach(lob=>{
+                const total = filtered.reduce((sum,d)=>{
                     return sum + Number(d[`${selectedHeader}||${lob}`] || 0);
-                }, 0);
-
+                },0);
                 summaryHTML += `<li><strong>${lob}</strong>: Total <em>${selectedHeader}</em> = ${total}</li>`;
             });
-
             summaryHTML += '</ul>';
             $analyticsSummary.html(summaryHTML);
         };
 
-        const exportCSV = (filtered, selectedHeader, selectedLOB, isComparison) => {
-            const headers = ['Week', 'LOB', 'Metric', 'Value'];
+        const exportCSV = (filtered, selectedHeader, selectedLOB, isComparison)=>{
+            const headers = ['Week','LOB','Metric','Value'];
             let csvContent = headers.join(',') + '\n';
-
-            if (isComparison) {
-                filtered.forEach(row => {
-                    uniqueLOBs.forEach(lob => {
-                        const value = Number(row[`${selectedHeader}||${lob}`] || 0);
+            if(isComparison){
+                filtered.forEach(row=>{
+                    uniqueLOBs.forEach(lob=>{
+                        let value = Number(row[`${selectedHeader}||${lob}`] || 0);
+                        // Convert Shrinkage/Attrition to %
+                        if(selectedHeader.toLowerCase().includes('shrinkage') || selectedHeader.toLowerCase().includes('attrition')) value = value + '%';
                         csvContent += `${row.Week},${lob},${selectedHeader},${value}\n`;
                     });
                 });
-            } else {
-                filtered.forEach(row => {
-                    const value = Number(row[`${selectedHeader}||${selectedLOB}`] || 0);
+            }else{
+                filtered.forEach(row=>{
+                    let value = Number(row[`${selectedHeader}||${selectedLOB}`] || 0);
+                    if(selectedHeader.toLowerCase().includes('shrinkage') || selectedHeader.toLowerCase().includes('attrition')) value = value + '%';
                     csvContent += `${row.Week},${selectedLOB},${selectedHeader},${value}\n`;
                 });
             }
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = 'analytics.csv';
@@ -119,135 +128,78 @@
             document.body.removeChild(link);
         };
 
-        const renderCharts = (filtered, selectedLOB, selectedHeader, isComparison) => {
+        const renderCharts = (filtered, selectedLOB, selectedHeader, isComparison)=>{
             $chartsContainer.empty();
-            const labels = filtered.map(d => d.Week);
-            const colorSet = uniqueLOBs.map((_, idx) => `hsl(${(idx * 60) % 360}, 70%, 50%)`);
+            const colorSet = uniqueLOBs.map((_,idx)=>`hsl(${(idx*60)%360},70%,50%)`);
 
-            if (isComparison) {
-                const datasets = uniqueLOBs.map((lob, idx) => ({
-                    label: lob,
-                    data: filtered.map(d => Number(d[`${selectedHeader}||${lob}`] || 0)),
-                    fill: false,
-                    borderColor: colorSet[idx],
-                    backgroundColor: colorSet[idx],
-                    tension: 0.3
-                }));
+            // Define 6 metric combinations
+            const metricPairs = [
+                ['Client Lock','Forecasted Hours'],
+                ['Actual Hours','Forecasted Hours'],
+                ['Planned Shrinkage','Actual Shrinkage'],
+                ['Planned Attrition','Actual Attrition'],
+                ['Required HC','Available HC'],
+                ['Planned AHT','Actual AHT']
+            ];
 
-                const lineCanvasId = 'lineChartComparison';
-                const lineHTML = `
-                    <div class="col-md-12 mb-4">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h6 class="card-title">Comparison: ${selectedHeader}</h6>
-                                <canvas id="${lineCanvasId}" height="150"></canvas>
-                            </div>
+            metricPairs.forEach((pair, idx)=>{
+                const colDiv = `<div class="col-md-6 mb-4">
+                    <div class="card shadow-sm border rounded">
+                        <div class="card-body">
+                            <h6 class="card-title fw-bold">${pair.join(' vs ')}</h6>
+                            <canvas id="chart${idx}" height="150"></canvas>
                         </div>
-                    </div>`;
-                $chartsContainer.append(lineHTML);
+                    </div>
+                </div>`;
+                $chartsContainer.append(colDiv);
 
-                new Chart(document.getElementById(lineCanvasId), {
-                    type: 'line',
-                    data: { labels, datasets },
-                    options: { responsive: true }
+                const labels = filtered.map(d=>d.Week);
+                const datasets = [];
+
+                pair.forEach((metric, mIdx)=>{
+                    const lobsForDataset = isComparison ? uniqueLOBs : [selectedLOB];
+                    lobsForDataset.forEach((lob, lIdx)=>{
+                        const dataPoints = filtered.map(d=>{
+                            let val = Number(d[`${metric}||${lob}`] || 0);
+                            if(metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')) val = val;
+                            return val;
+                        });
+                        datasets.push({
+                            label: `${lob} - ${metric}`,
+                            data: dataPoints,
+                            borderColor: colorSet[lIdx],
+                            backgroundColor: colorSet[lIdx],
+                            fill: false,
+                            tension:0.3
+                        });
+                    });
                 });
 
-                const totalPerLOB = uniqueLOBs.map(lob =>
-                    filtered.reduce((sum, d) => sum + Number(d[`${selectedHeader}||${lob}`] || 0), 0)
-                );
-
-                const barCanvasId = 'barChartComparison';
-                const barHTML = `
-                    <div class="col-md-12 mb-4">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h6 class="card-title">Aggregate Comparison</h6>
-                                <canvas id="${barCanvasId}" height="150"></canvas>
-                            </div>
-                        </div>
-                    </div>`;
-                $chartsContainer.append(barHTML);
-
-                new Chart(document.getElementById(barCanvasId), {
-                    type: 'bar',
-                    data: {
-                        labels: uniqueLOBs,
-                        datasets: [{
-                            label: selectedHeader,
-                            data: totalPerLOB,
-                            backgroundColor: colorSet
-                        }]
-                    },
-                    options: { responsive: true }
+                new Chart(document.getElementById(`chart${idx}`),{
+                    type:'line',
+                    data:{labels,datasets},
+                    options:{
+                        responsive:true,
+                        plugins:{legend:{position:'bottom'}},
+                        scales:{y:{beginAtZero:true}}
+                    }
                 });
-
-                const latestWeek = filtered[filtered.length - 1];
-                const latestValues = uniqueLOBs.map(lob => Number(latestWeek[`${selectedHeader}||${lob}`] || 0));
-
-                const pieCanvasId = 'pieChartComparison';
-                const pieHTML = `
-                    <div class="col-md-6 mb-4">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h6 class="card-title">Latest Week Distribution</h6>
-                                <canvas id="${pieCanvasId}" height="150"></canvas>
-                            </div>
-                        </div>
-                    </div>`;
-                $chartsContainer.append(pieHTML);
-
-                new Chart(document.getElementById(pieCanvasId), {
-                    type: 'pie',
-                    data: {
-                        labels: uniqueLOBs,
-                        datasets: [{ data: latestValues, backgroundColor: colorSet }]
-                    },
-                    options: { responsive: true }
-                });
-            } else {
-                const values = filtered.map(d => Number(d[`${selectedHeader}||${selectedLOB}`] || 0));
-
-                const lineCanvasId = 'lineChartSingle';
-                const lineHTML = `
-                    <div class="col-md-12 mb-4">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h6 class="card-title">${selectedHeader} for ${selectedLOB}</h6>
-                                <canvas id="${lineCanvasId}" height="150"></canvas>
-                            </div>
-                        </div>
-                    </div>`;
-                $chartsContainer.append(lineHTML);
-
-                new Chart(document.getElementById(lineCanvasId), {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: selectedLOB,
-                            data: values,
-                            borderColor: 'hsl(200,70%,50%)',
-                            backgroundColor: 'hsl(200,70%,50%)',
-                            tension: 0.3
-                        }]
-                    },
-                    options: { responsive: true }
-                });
-            }
+            });
         };
 
-        $('#applyFilter').off('click').on('click', () => {
-            const { filtered, selectedLOB, selectedHeader, isComparison } = filterData();
+        const applyFilters = ()=>{
+            const {filtered, selectedLOB, selectedHeader, isComparison} = filterData();
             renderCharts(filtered, selectedLOB, selectedHeader, isComparison);
             generateSummary(filtered, selectedLOB, selectedHeader, isComparison);
-        });
+        };
 
-        $('#exportCsv').off('click').on('click', () => {
-            const { filtered, selectedLOB, selectedHeader, isComparison } = filterData();
+        $('#applyFilter').off('click').on('click',applyFilters);
+        $('#exportCsv').off('click').on('click',()=>{
+            const {filtered, selectedLOB, selectedHeader, isComparison} = filterData();
             exportCSV(filtered, selectedHeader, selectedLOB, isComparison);
         });
 
-        $('#applyFilter').trigger('click');
+        applyFilters();
         $('#analyticsModal').modal('show');
 
         return this;
