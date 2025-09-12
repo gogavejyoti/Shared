@@ -1,8 +1,3 @@
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-
 (function($){
     $.fn.weekAnalyticsPopup = function(options){
         const settings = $.extend({
@@ -20,7 +15,7 @@
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
-              <div class="modal-header bg-primary text-white">
+              <div class="modal-header bg-gradient-primary text-white">
                 <h5 class="modal-title">Workforce Analytics Dashboard</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
@@ -33,9 +28,9 @@
                     <select id="toWeek" class="form-select d-inline-block w-auto"></select>
                   </label>
                   <label class="ms-3">LOB: 
-                    <select id="lobSelect" class="form-select d-inline-block w-auto" multiple></select>
+                    <select id="lobSelect" class="form-select d-inline-block w-auto"></select>
                   </label>
-                  <label class="ms-3">Header/Metric: 
+                  <label class="ms-3">Header (Metric): 
                     <select id="headerSelect" class="form-select d-inline-block w-auto"></select>
                   </label>
                   <label class="ms-3">
@@ -56,14 +51,14 @@
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
-        // Transform flat data to structured
+        // Transform data into structured format
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item=>{
                 if(!grouped[item.week]) grouped[item.week] = {Week: item.week};
                 grouped[item.week][`${item.header}||${item.sheetName}`] = item.value;
             });
-            return Object.values(grouped).sort((a,b)=> new Date(a.Week)-new Date(b.Week));
+            return Object.values(grouped).sort((a,b)=> new Date(a.Week) - new Date(b.Week));
         })();
 
         const uniqueLOBs = [...new Set(settings.data.map(d=>d.sheetName))].sort();
@@ -77,6 +72,7 @@
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
         });
+
         $('#fromWeek').val(settings.defaultFromWeek || uniqueWeeks[0]);
         $('#toWeek').val(settings.defaultToWeek || uniqueWeeks[uniqueWeeks.length-1]);
         $('#headerSelect').val(uniqueHeaders[0]);
@@ -84,42 +80,42 @@
         const filterData = ()=>{
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
-            const selectedLOBs = $('#lobSelect').val() || [uniqueLOBs[0]];
+            const selectedLOB = $('#lobSelect').val() || uniqueLOBs[0];
             const selectedHeader = $('#headerSelect').val() || uniqueHeaders[0];
             const isComparison = $('#comparisonMode').is(':checked');
-            const filtered = structuredData.filter(d=>d.Week >= fromWeek && d.Week <= toWeek);
-            return {filtered, selectedLOBs, selectedHeader, isComparison};
+            const filtered = structuredData.filter(d=> d.Week >= fromWeek && d.Week <= toWeek);
+            return {filtered, selectedLOB, selectedHeader, isComparison};
         };
 
-        const generateSummary = (filtered, selectedLOBs, selectedHeader, isComparison)=>{
+        const generateSummary = (filtered, selectedLOB, selectedHeader, isComparison)=>{
             let summaryHTML = '<h5>Summary Analytics</h5><ul>';
-            const lobsToSummarize = isComparison ? uniqueLOBs : selectedLOBs;
+            const lobsToSummarize = isComparison ? uniqueLOBs : [selectedLOB];
             lobsToSummarize.forEach(lob=>{
-                const total = filtered.reduce((sum,d)=>sum + Number(d[`${selectedHeader}||${lob}`]||0),0);
+                const total = filtered.reduce((sum,d)=>{
+                    return sum + Number(d[`${selectedHeader}||${lob}`] || 0);
+                },0);
                 summaryHTML += `<li><strong>${lob}</strong>: Total <em>${selectedHeader}</em> = ${total}</li>`;
             });
             summaryHTML += '</ul>';
             $analyticsSummary.html(summaryHTML);
         };
 
-        const exportCSV = (filtered, selectedHeader, selectedLOBs, isComparison)=>{
+        const exportCSV = (filtered, selectedHeader, selectedLOB, isComparison)=>{
             const headers = ['Week','LOB','Metric','Value'];
-            let csvContent = headers.join(',')+'\n';
+            let csvContent = headers.join(',') + '\n';
             if(isComparison){
                 filtered.forEach(row=>{
                     uniqueLOBs.forEach(lob=>{
-                        let value = Number(row[`${selectedHeader}||${lob}`]||0);
+                        let value = Number(row[`${selectedHeader}||${lob}`] || 0);
                         if(selectedHeader.toLowerCase().includes('shrinkage') || selectedHeader.toLowerCase().includes('attrition')) value = value + '%';
                         csvContent += `${row.Week},${lob},${selectedHeader},${value}\n`;
                     });
                 });
             }else{
                 filtered.forEach(row=>{
-                    selectedLOBs.forEach(lob=>{
-                        let value = Number(row[`${selectedHeader}||${lob}`]||0);
-                        if(selectedHeader.toLowerCase().includes('shrinkage') || selectedHeader.toLowerCase().includes('attrition')) value = value + '%';
-                        csvContent += `${row.Week},${lob},${selectedHeader},${value}\n`;
-                    });
+                    let value = Number(row[`${selectedHeader}||${selectedLOB}`] || 0);
+                    if(selectedHeader.toLowerCase().includes('shrinkage') || selectedHeader.toLowerCase().includes('attrition')) value = value + '%';
+                    csvContent += `${row.Week},${selectedLOB},${selectedHeader},${value}\n`;
                 });
             }
             const blob = new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
@@ -131,25 +127,26 @@
             document.body.removeChild(link);
         };
 
-        const generateColor = idx => `hsl(${(idx*60)%360},70%,50%)`;
-
-        const renderCharts = (filtered, selectedLOBs, selectedHeader, isComparison)=>{
+        const renderCharts = (filtered, selectedLOB, selectedHeader, isComparison)=>{
             $chartsContainer.empty();
+            const colorSet = [];
+            const generateColor = (idx)=>`hsl(${(idx*60)%360},70%,50%)`;
 
+            // Generate 6 distinct charts
             const metricPairs = [
-                ['Client Lock','Forecasted Hours','line'],
-                ['Actual Hours','Forecasted Hours','line'],
-                ['Planned Shrinkage','Actual Shrinkage','bar'],
-                ['Planned Attrition','Actual Attrition','bar'],
-                ['Required HC','Available HC','bar'],
-                [selectedHeader,'Latest Distribution','pie']
+                ['Actual Hours','Forecasted Hours'],         // Line chart
+                ['Required HC','Available HC'],             // Bar chart
+                ['Planned Shrinkage','Actual Shrinkage'],   // Line chart %
+                ['Planned Attrition','Actual Attrition'],   // Bar chart %
+                ['Planned AHT','Actual AHT'],               // Radar chart
+                ['Latest Week Distribution']                // Pie chart
             ];
 
-            metricPairs.forEach((pair,idx)=>{
+            metricPairs.forEach((pair, idx)=>{
                 const colDiv = `<div class="col-md-6 mb-4">
-                    <div class="card shadow-sm border rounded">
+                    <div class="card shadow-sm border rounded" style="background: linear-gradient(to bottom, #f8f9fa, #e9ecef);">
                         <div class="card-body">
-                            <h6 class="card-title fw-bold">${pair[0]} vs ${pair[1]}</h6>
+                            <h6 class="card-title fw-bold">${pair.join(' vs ')}</h6>
                             <canvas id="chart${idx}" height="200"></canvas>
                         </div>
                     </div>
@@ -157,67 +154,96 @@
                 $chartsContainer.append(colDiv);
 
                 const labels = filtered.map(d=>d.Week);
-                const datasets = [];
+                let datasets = [];
 
-                if(pair[2]==='pie'){
+                if(pair.length===1){ 
+                    // Pie chart: Latest week distribution
                     const latestWeek = filtered[filtered.length-1];
-                    selectedLOBs.forEach((lob,lIdx)=>{
-                        let val = Number(latestWeek[`${selectedHeader}||${lob}`]||0);
-                        if(selectedHeader.toLowerCase().includes('shrinkage') || selectedHeader.toLowerCase().includes('attrition')) val = val;
-                        datasets.push({
-                            label: lob,
-                            data:[val],
-                            backgroundColor:[generateColor(lIdx)]
-                        });
+                    datasets = [{
+                        data: uniqueLOBs.map(lob=>{
+                            return Number(latestWeek[`${selectedHeader}||${lob}`]||0);
+                        }),
+                        backgroundColor: uniqueLOBs.map((_,i)=>generateColor(i)),
+                        label: selectedHeader
+                    }];
+                    new Chart(document.getElementById(`chart${idx}`),{
+                        type:'pie',
+                        data:{labels:uniqueLOBs,datasets},
+                        options:{
+                            plugins:{
+                                legend:{position:'bottom'},
+                                datalabels:{formatter:(val)=>val, color:'#000'}
+                            }
+                        },
+                        plugins:[ChartDataLabels, ChartZoom]
                     });
-                }else{
-                    pair.slice(0,2).forEach((metric)=>{
-                        selectedLOBs.forEach((lob,lIdx)=>{
+                } else if(idx===4){ 
+                    // Radar chart
+                    const radarLabels = pair;
+                    datasets = (isComparison ? uniqueLOBs : [selectedLOB]).map((lob,i)=>({
+                        label: lob,
+                        data: radarLabels.map(metric=>{
+                            let val = filtered[filtered.length-1][`${metric}||${lob}`]||0;
+                            if(metric.toLowerCase().includes('shrinkage')||metric.toLowerCase().includes('attrition')) val = val;
+                            return val;
+                        }),
+                        borderColor: generateColor(i),
+                        backgroundColor: generateColor(i)+'55',
+                        fill:true
+                    }));
+                    new Chart(document.getElementById(`chart${idx}`),{
+                        type:'radar',
+                        data:{labels:radarLabels,datasets},
+                        options:{
+                            responsive:true,
+                            plugins:{legend:{position:'bottom'}}
+                        },
+                        plugins:[ChartZoom, ChartDataLabels]
+                    });
+                } else {
+                    // Line or Bar charts
+                    datasets = [];
+                    pair.forEach(metric=>{
+                        (isComparison ? uniqueLOBs : [selectedLOB]).forEach((lob,i)=>{
                             let dataPoints = filtered.map(d=>{
-                                let val = Number(d[`${metric}||${lob}`]||0);
-                                if(metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')) val = val;
+                                let val = d[`${metric}||${lob}`]||0;
+                                if(metric.toLowerCase().includes('shrinkage')||metric.toLowerCase().includes('attrition')) val = val;
                                 return val;
                             });
                             datasets.push({
-                                label:`${lob}-${metric}`,
+                                label:`${lob} - ${metric}`,
                                 data:dataPoints,
-                                borderColor:generateColor(lIdx),
-                                backgroundColor:generateColor(lIdx),
+                                borderColor:generateColor(i),
+                                backgroundColor:generateColor(i)+'55',
                                 fill:false,
-                                tension:0.3
+                                tension:0.3,
+                                type: (idx%2===0)?'line':'bar'
                             });
                         });
                     });
-                }
-
-                new Chart(document.getElementById(`chart${idx}`),{
-                    type:pair[2],
-                    data:{labels,datasets},
-                    options:{
-                        responsive:true,
-                        plugins:{
-                            legend:{position:'bottom'},
-                            tooltip:{mode:'index',intersect:false},
-                            zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},mode:'x'}},
-                            datalabels:{display:true,color:'#000',align:'top'}
+                    new Chart(document.getElementById(`chart${idx}`),{
+                        data:{labels,datasets},
+                        options:{
+                            responsive:true,
+                            plugins:{legend:{position:'bottom'},datalabels:{formatter:(val)=>val,color:'#000'}},
+                            scales:{y:{beginAtZero:true}}
                         },
-                        scales:{y:{beginAtZero:true}}
-                    },
-                    plugins:[ChartDataLabels,ChartZoom] // assumes plugins loaded
-                });
+                        plugins:[ChartZoom, ChartDataLabels]
+                    });
+                }
             });
         };
 
         const applyFilters = ()=>{
-            const {filtered, selectedLOBs, selectedHeader, isComparison} = filterData();
-            renderCharts(filtered, selectedLOBs, selectedHeader, isComparison);
-            generateSummary(filtered, selectedLOBs, selectedHeader, isComparison);
+            const {filtered, selectedLOB, selectedHeader, isComparison} = filterData();
+            renderCharts(filtered, selectedLOB, selectedHeader, isComparison);
+            generateSummary(filtered, selectedLOB, selectedHeader, isComparison);
         };
 
         $('#applyFilter').off('click').on('click',applyFilters);
         $('#exportCsv').off('click').on('click',()=>{
-            const {filtered, selectedLOBs, selectedHeader, isComparison} = filterData();
-            exportCSV(filtered, selectedHeader, selectedLOBs, isComparison);
+            const {filtered, selectedLOB, selectedHeader, isComparison} = filterData();
+            exportCSV(filtered, selectedHeader, selectedLOB, isComparison);
         });
 
         applyFilters();
@@ -226,5 +252,3 @@
         return this;
     };
 })(jQuery);
-
-
