@@ -21,9 +21,27 @@
                 max-width: 450px;
                 height: 220px !important;
             }
-            .custom-multiselect { position: relative; display: inline-block; }
+            .custom-multiselect { position: relative; display: inline-block; width: 200px; }
+            .custom-multiselect .multiselect-options { 
+                display: none; 
+                max-height: 200px; 
+                overflow-y: auto; 
+                position: absolute; 
+                z-index: 1000; 
+                background: white; 
+                border: 1px solid #ced4da; 
+                border-radius: 4px; 
+                padding: 5px 0;
+                width: 100%;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            }
             .custom-multiselect .multiselect-options label { display: block; padding: 5px 10px; cursor: pointer; }
-            .custom-multiselect .multiselect-options label:hover { background-color: #f0f0f0; }
+            .custom-multiselect .multiselect-options label:hover { background-color: #f1f1f1; }
+            .modal-header { background: linear-gradient(90deg,#007bff,#28a745); color: #fff; }
+            .table-summary { max-height: 250px; overflow-y: auto; display: block; }
+            .table-summary table { margin-bottom: 0; }
+            #applyFilter, #exportCsv { transition: 0.2s; }
+            #applyFilter:hover, #exportCsv:hover { opacity: 0.85; }
         </style>`;
         $('head').append(styles);
 
@@ -32,32 +50,30 @@
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
-              <div class="modal-header bg-gradient-primary text-white">
+              <div class="modal-header">
                 <h5 class="modal-title">Workforce Analytics Dashboard</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <div class="filters mb-3 p-3 border rounded bg-light">
+                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
                   <label>From Week: 
                     <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
                   </label>
-                  <label class="ms-3">To Week: 
+                  <label>To Week: 
                     <select id="toWeek" class="form-select d-inline-block w-auto"></select>
                   </label>
-                  <label class="ms-3">LOB: 
+                  <label>LOB: 
                     <div class="custom-multiselect" id="lobSelectContainer">
                         <button type="button" class="btn btn-light dropdown-toggle w-auto" id="lobSelectBtn">Select LOBs</button>
-                        <div class="multiselect-options border rounded bg-white shadow-sm" style="display:none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000;"></div>
+                        <div class="multiselect-options"></div>
                     </div>
                   </label>
-                  <label class="ms-3">
-                    <input type="checkbox" id="comparisonMode"> Comparison Mode
-                  </label>
-                  <button id="applyFilter" class="btn btn-primary btn-sm ms-3">Apply Filter</button>
-                  <button id="exportCsv" class="btn btn-secondary btn-sm ms-2">Export CSV</button>
+                  <label class="ms-2"><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
+                  <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
+                  <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
                 </div>
                 <div id="chartsContainer" class="mt-3"></div>
-                <div id="analyticsSummary" class="mt-4"></div>
+                <div id="analyticsSummary" class="mt-4 table-summary"></div>
               </div>
             </div>
           </div>
@@ -106,7 +122,6 @@
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
         });
-
         const currentWeek = getCurrentWeek();
         const currentIndex = uniqueWeeks.indexOf(currentWeek);
         const fallbackIndex = currentIndex >= 0 ? currentIndex : uniqueWeeks.length - 1;
@@ -119,23 +134,21 @@
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
+        uniqueLOBs.forEach(lob => $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`));
 
-        uniqueLOBs.forEach(lob => {
-            $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`);
-        });
+        $lobBtn.on('click', e => { e.stopPropagation(); $optionsDiv.toggle(); });
+        $(document).on('click', () => $optionsDiv.hide());
 
-        $lobBtn.on('click', function(e){ e.stopPropagation(); $optionsDiv.toggle(); });
-        $(document).on('click', function(){ $optionsDiv.hide(); });
         const getSelectedLOBs = () => {
             const selected = [];
             $optionsDiv.find('input:checked').each(function(){ selected.push($(this).val()); });
-            return selected.length ? selected : [uniqueLOBs[0]]; // default first LOB
+            return selected.length ? selected : [uniqueLOBs[0]];
         };
+
         $optionsDiv.find('input').on('change', function(){
             const selected = getSelectedLOBs();
             $lobBtn.text(selected.join(', '));
         });
-        // Ensure at least one selected by default
         $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
         // Colors
@@ -148,7 +161,7 @@
         };
         const lobColors = {};
         const colorPalette = ['#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997', '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#fd3955'];
-        uniqueLOBs.forEach((lob, i) => { lobColors[lob] = colorPalette[i % colorPalette.length]; });
+        uniqueLOBs.forEach((lob,i)=>{ lobColors[lob] = colorPalette[i%colorPalette.length]; });
 
         // Filter data
         const filterData = () => {
@@ -162,47 +175,46 @@
 
         // Generate summary
         const generateSummary = (filtered, selectedLOBs) => {
-            let summaryHTML = '<h5>Summary Analytics</h5><ul>';
-            const lobsToSummarize = selectedLOBs; 
-            uniqueHeaders.forEach(header => {
-                lobsToSummarize.forEach(lob => {
-                    let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
-                    if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
-                        total = (total * 100).toFixed(2) + '%';
+            let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Value</th></tr></thead><tbody>`;
+            selectedLOBs.forEach(lob=>{
+                uniqueHeaders.forEach(header=>{
+                    let total = filtered.reduce((sum,d)=>sum + Number(d[`${header}||${lob}`]||0),0);
+                    if(header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')){
+                        total = total.toFixed(2) + '%';
                     }
-                    summaryHTML += `<li><strong>${lob}</strong> - <em>${header}</em>: ${total}</li>`;
+                    html += `<tr><td>${lob}</td><td>${header}</td><td>${total}</td></tr>`;
                 });
             });
-            summaryHTML += '</ul>';
-            $analyticsSummary.html(summaryHTML);
+            html += '</tbody></table></div>';
+            $analyticsSummary.html(html);
         };
 
         // Export CSV
         const exportCSV = (filtered, selectedLOBs) => {
             const headers = ['Week','LOB','Metric','Value'];
-            let csvContent = headers.join(',') + '\n';
-            filtered.forEach(row => {
-                selectedLOBs.forEach(lob => {
-                    uniqueHeaders.forEach(header => {
-                        let value = Number(row[`${header}||${lob}`] || 0);
-                        csvContent += `${row.Week},${lob},${header},${value}\n`;
+            let csvContent = headers.join(',')+'\n';
+            filtered.forEach(row=>{
+                selectedLOBs.forEach(lob=>{
+                    uniqueHeaders.forEach(header=>{
+                        let val = row[`${header}||${lob}`]||0;
+                        if(header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) val = (val*100).toFixed(2);
+                        csvContent += `${row.Week},${lob},${header},${val}\n`;
                     });
                 });
             });
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = 'analytics.csv';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
         };
 
         // Render charts
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
             $chartsContainer.empty();
+            const labels = filtered.map(d=>d.Week);
 
-            const createChart = (type, title, metrics, lobList, isPercentage=false, includeStaffing=false) => {
+            const createChart = (type,title,metrics,lobList,showPercent=false, includeStaffing=false) => {
                 $chartsContainer.append(`
                     <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
                         <div class="card-body text-center">
@@ -211,92 +223,51 @@
                         </div>
                     </div>`);
 
-                const labels = filtered.map(d => d.Week);
                 const datasets = [];
-
-                if(isComparison){
-                    // Comparison mode: different color per LOB
-                    metrics.forEach(metric=>{
-                        lobList.forEach(lob=>{
-                            datasets.push({
-                                label: lob + ' - ' + metric,
-                                data: filtered.map(d => {
-                                    let val = d[`${metric}||${lob}`] || 0;
-                                    if(isPercentage && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition'))) val = (val*100).toFixed(2);
-                                    return val;
-                                }),
-                                borderColor: lobColors[lob],
-                                backgroundColor: lobColors[lob]+'55',
-                                fill: type==='area'?true:false,
-                                yAxisID:'y'
-                            });
+                metrics.forEach(metric=>{
+                    lobList.forEach(lob=>{
+                        datasets.push({
+                            label: metric==='Staffing %' ? 'Staffing %' : `${lob} - ${metric}`,
+                            data: filtered.map(d=>{
+                                if(metric==='Staffing %') return ((d['Available HC||'+lob]||0)/(d['Required HC||'+lob]||1)*100).toFixed(2);
+                                if(showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
+                                    return ((d[`${metric}||${lob}`]||0)*100).toFixed(2);
+                                return d[`${metric}||${lob}`]||0;
+                            }),
+                            borderColor: metric==='Staffing %' ? '#000000' : (isComparison?lobColors[lob]:metricColors[metric]),
+                            backgroundColor: metric==='Staffing %' ? 'rgba(0,0,0,0.1)' : (isComparison?lobColors[lob]+'55':metricColors[metric]+'55'),
+                            fill: type==='area'?true:false,
+                            yAxisID: (metric==='Staffing %')?'y1':'y'
                         });
                     });
-                } else {
-                    // Non-comparison: metric-specific colors
-                    metrics.forEach(metric=>{
-                        lobList.forEach(lob=>{
-                            datasets.push({
-                                label: lob + ' - ' + metric,
-                                data: filtered.map(d => {
-                                    let val = d[`${metric}||${lob}`] || 0;
-                                    if(isPercentage && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition'))) val = (val*100).toFixed(2);
-                                    return val;
-                                }),
-                                borderColor: metricColors[metric] || lobColors[lob],
-                                backgroundColor: (metricColors[metric] || lobColors[lob])+'55',
-                                fill: type==='area'?true:false,
-                                yAxisID:'y'
-                            });
-                        });
-                    });
-                    // Staffing % only in Required vs Available HC chart
-                    if(includeStaffing){
-                        lobList.forEach(lob=>{
-                            const staffingData = filtered.map(d=>{
-                                const req = d[`Required HC||${lob}`]||0;
-                                const ava = d[`Available HC||${lob}`]||0;
-                                return req===0?0:((ava/req)*100).toFixed(2);
-                            });
-                            datasets.push({
-                                label: lob + ' - Staffing %',
-                                data: staffingData,
-                                borderColor:'#ff33aa',
-                                borderDash:[5,5],
-                                backgroundColor:'transparent',
-                                fill:false,
-                                yAxisID:'yPercent'
-                            });
-                        });
-                    }
-                }
-
-                const scalesConfig = { y:{ beginAtZero:true, title:{ display:true, text:'Value / HC' }} };
-                if(includeStaffing) scalesConfig['yPercent'] = { beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false } };
+                });
 
                 new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'),{
-                    type:type==='area'?'line':type,
-                    data:{ labels, datasets },
-                    options:{
+                    type: type==='area'?'line':type,
+                    data: { labels, datasets },
+                    options: {
                         responsive:true,
                         maintainAspectRatio:false,
-                        plugins:{
-                            legend:{ position:'bottom' },
-                            tooltip:{
+                        plugins: {
+                            legend: { position:'bottom' },
+                            tooltip: {
                                 mode:'index',
                                 intersect:false,
                                 callbacks:{
                                     label:function(context){
                                         let val = context.raw;
                                         if(context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')){
-                                            return context.dataset.label + ': ' + val + '%';
+                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
                                         }
-                                        return context.dataset.label + ': ' + val;
+                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
                                     }
                                 }
                             }
                         },
-                        scales: scalesConfig
+                        scales: {
+                            y: { beginAtZero:true, title:{display:true,text:'Value'} },
+                            y1: { position:'right', beginAtZero:true, title:{display:true,text:'Staffing %'}, grid:{ drawOnChartArea:false } }
+                        }
                     }
                 });
             };
@@ -306,7 +277,7 @@
                     createChart('bar',`${header} Comparison`,[header],selectedLOBs,true);
                 });
             } else {
-                createChart('line','Required vs Available HC + Staffing %',['Required HC','Available HC'],selectedLOBs,false,true);
+                createChart('line','Required vs Available HC + Staffing %',['Required HC','Available HC','Staffing %'],selectedLOBs,false,true);
                 createChart('line','Actual vs Forecasted Hours',['Actual Hours','Forecasted Hours'],selectedLOBs,false);
                 createChart('area','Planned vs Actual Shrinkage (%)',['Planned Shrinkage','Actual Shrinkage'],selectedLOBs,true);
                 createChart('area','Planned vs Actual Attrition (%)',['Planned Attrition','Actual Attrition'],selectedLOBs,true);
