@@ -2,10 +2,8 @@
     $.fn.staffingSummaryPopup = function(options){
         const settings = $.extend({ data:[], weekStartDay:'sunday' }, options);
 
-        // Remove old modal if exists
         $('#staffingSummaryModal').remove();
 
-        // Add styles
         const styles = `
         <style>
             .table-summary { max-height:400px; overflow:auto; display:block; border:1px solid #dee2e6; }
@@ -17,7 +15,6 @@
         </style>`;
         $('head').append(styles);
 
-        // Modal HTML
         const modalHTML = `
         <div class="modal fade" id="staffingSummaryModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -36,15 +33,13 @@
 
         const $analyticsSummary = $('#analyticsSummary');
 
-        // Helpers
         const parseWeek = w => { const [dd, mmm, yy] = w.split('-'); return new Date(`${mmm} ${dd}, 20${yy}`); };
 
-        // Structure data by week
         const structuredData = (() => {
             const g = {};
             settings.data.forEach(item => {
                 if(!g[item.week]) g[item.week] = { Week: item.week };
-                g[item.week][`${item.sheetName}`] = item;
+                g[item.week][item.sheetName] = item;
             });
             return Object.values(g).sort((a,b)=>parseWeek(a.Week)-parseWeek(b.Week));
         })();
@@ -53,44 +48,44 @@
         const uniqueWeeks = [...new Set(settings.data.map(d=>d.week))].sort((a,b)=>parseWeek(a)-parseWeek(b));
         const metrics = ['Required HC','Available HC','Delta','Staffing %'];
 
-        const getRAGColor = val => {
-            if(val>=95) return 'green';
-            if(val>=85) return 'orange';
-            return 'red';
-        };
+        const getRAGColor = val => val>=95?'green':val>=85?'orange':'red';
 
-        // Generate table
         const generateSummary = () => {
             let html = '<table><thead><tr><th>LOB</th><th>Metric</th>';
-            uniqueWeeks.forEach(w => html += `<th>${w}</th>`);
+            uniqueWeeks.forEach(w=>html+=`<th>${w}</th>`);
             html += '</tr></thead><tbody>';
 
-            uniqueLOBs.forEach(lob => {
-                html += `<tr><td colspan="${2+uniqueWeeks.length}" style="background:#e9ecef;font-weight:bold;text-align:center">${lob}</td></tr>`;
-                metrics.forEach(metric => {
+            uniqueLOBs.forEach(lob=>{
+                // LOB row placeholder with empty first two cells, then weeks colspan
+                html += `<tr>
+                    <td style="background:#e9ecef;font-weight:bold;"></td>
+                    <td style="background:#e9ecef;font-weight:bold;">${lob}</td>`;
+                uniqueWeeks.forEach(()=>html+=`<td style="background:#e9ecef;"></td>`);
+                html += '</tr>';
+
+                metrics.forEach(metric=>{
                     html += '<tr>';
-                    html += `<td style="display:none"></td>`; // placeholder for sticky LOB column
+                    html += `<td></td>`; // sticky placeholder
                     html += `<td>${metric}</td>`;
 
-                    uniqueWeeks.forEach(week => {
-                        const weekData = structuredData.find(d => d.Week === week) || {};
+                    uniqueWeeks.forEach(week=>{
+                        const weekData = structuredData.find(d=>d.Week===week) || {};
                         const item = weekData[lob] || {};
+                        const req = Number(item['Required HC']||0);
+                        const avail = Number(item['Available HC']||0);
                         let val=0, style='';
 
-                        const required = Number(item.value || 0);
-                        const available = Number(item.value || 0); // assuming Required HC and Available HC are in separate items
-                        if(metric==='Required HC') val=Math.round(required).toLocaleString();
-                        else if(metric==='Available HC') val=Math.round(available).toLocaleString();
-                        else if(metric==='Delta') {
-                            val=available-required;
+                        if(metric==='Required HC') val=req;
+                        else if(metric==='Available HC') val=avail;
+                        else if(metric==='Delta'){
+                            val=avail-req;
                             if(val<0) style='color:red;font-weight:bold;';
                         }
                         else if(metric==='Staffing %'){
-                            val=(required>0)?Math.round((available/required)*100):0;
+                            val = req>0?Math.round(avail/req*100):0;
                             style=`color:${getRAGColor(val)}; font-weight:bold;`;
                             val+=`%`;
                         }
-
                         html += `<td style="${style}">${val}</td>`;
                     });
 
