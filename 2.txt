@@ -7,19 +7,19 @@
 
         $('#analyticsModal').remove();
 
-        // Inject necessary styles
+        // Inject styles
         const styles = `
         <style>
             #chartsContainer {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
                 gap: 20px;
+                justify-items: center;
             }
             #chartsContainer canvas {
                 width: 100% !important;
-                max-width: 800px;
-                height: 400px !important;
+                max-width: 450px;
+                height: 220px !important;
             }
         </style>`;
         $('head').append(styles);
@@ -97,7 +97,6 @@
             .sort((a, b) => parseWeek(a) - parseWeek(b));
 
         uniqueLOBs.forEach(lob => $('#lobSelect').append(`<option value="${lob}">${lob}</option>`));
-        uniqueHeaders.forEach(header => $('#headerSelect').append(`<option value="${header}">${header}</option>`));
         uniqueWeeks.forEach(week => {
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
@@ -106,7 +105,6 @@
         const currentWeek = getCurrentWeek();
         const currentIndex = uniqueWeeks.indexOf(currentWeek);
         const fallbackIndex = currentIndex >= 0 ? currentIndex : uniqueWeeks.length - 1;
-
         const fromIndex = Math.max(0, fallbackIndex - 6);
         const toIndex = Math.min(uniqueWeeks.length - 1, fallbackIndex + 6);
 
@@ -190,115 +188,64 @@
             $chartsContainer.empty();
             const labels = filtered.map(d => d.Week);
 
-            // Line Chart: Actual vs Forecasted Hours
-            $chartsContainer.append(`
-                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
-                    <div class="card-body text-center">
-                        <h6 class="card-title fw-bold">Actual vs Forecasted Hours</h6>
-                        <canvas></canvas>
-                    </div>
-                </div>`);
-            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: ['Actual Hours', 'Forecasted Hours'].map(metric => ({
-                        label: metric,
-                        data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
-                        borderColor: metricColors[metric],
-                        backgroundColor: metricColors[metric] + '55',
-                        fill: false
-                    }))
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
-            });
+            const createChart = (type, title, metrics, isPercentage) => {
+                $chartsContainer.append(`
+                    <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">${title}</h6>
+                            <canvas></canvas>
+                        </div>
+                    </div>`);
 
-            // Bar Chart: Required vs Available HC
-            $chartsContainer.append(`
-                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
-                    <div class="card-body text-center">
-                        <h6 class="card-title fw-bold">Required HC vs Available HC</h6>
-                        <canvas></canvas>
-                    </div>
-                </div>`);
-            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: ['Required HC', 'Available HC'].map(metric => ({
-                        label: metric,
-                        data: filtered.map(d => d[`${metric}||${selectedLOB}`] || 0),
-                        backgroundColor: metricColors[metric]
-                    }))
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
-            });
+                const datasets = metrics.map((metric) => ({
+                    label: metric,
+                    data: filtered.map(d => isPercentage
+                        ? ((d[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2)
+                        : (d[`${metric}||${selectedLOB}`] || 0)),
+                    borderColor: metricColors[metric],
+                    backgroundColor: metricColors[metric] + '55',
+                    fill: type === 'line' || type === 'area' ? true : false
+                }));
 
-            // Area Chart: Shrinkage (%)
-            $chartsContainer.append(`
-                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
-                    <div class="card-body text-center">
-                        <h6 class="card-title fw-bold">Planned vs Actual Shrinkage (%)</h6>
-                        <canvas></canvas>
-                    </div>
-                </div>`);
-            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: ['Planned Shrinkage', 'Actual Shrinkage'].map(metric => ({
-                        label: metric,
-                        data: filtered.map(d => ((d[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2)),
-                        borderColor: metricColors[metric],
-                        backgroundColor: metricColors[metric] + '55',
-                        fill: true
-                    }))
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
-            });
+                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                    type: type === 'area' ? 'line' : type,
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            };
 
-            // Area Chart: Attrition (%)
-            $chartsContainer.append(`
-                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
-                    <div class="card-body text-center">
-                        <h6 class="card-title fw-bold">Planned vs Actual Attrition (%)</h6>
-                        <canvas></canvas>
-                    </div>
-                </div>`);
-            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: ['Planned Attrition', 'Actual Attrition'].map(metric => ({
-                        label: metric,
-                        data: filtered.map(d => ((d[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2)),
-                        borderColor: metricColors[metric],
-                        backgroundColor: metricColors[metric] + '55',
-                        fill: true
-                    }))
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
-            });
+            createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], false);
+            createChart('bar', 'Required HC vs Available HC', ['Required HC', 'Available HC'], false);
+            createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], true);
+            createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], true);
+            createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], false);
 
-            // Heatmap: Example Metric Distribution (can customize as needed)
+            const latest = filtered[filtered.length - 1];
             $chartsContainer.append(`
                 <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
                     <div class="card-body text-center">
-                        <h6 class="card-title fw-bold">Metric Heatmap</h6>
+                        <h6 class="card-title fw-bold">Latest Week Key Metrics Breakdown</h6>
                         <canvas></canvas>
                     </div>
                 </div>`);
+
             new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                type: 'bar',
+                type: 'pie',
                 data: {
-                    labels,
-                    datasets: uniqueHeaders.map((header, i) => ({
-                        label: header,
-                        data: filtered.map(d => d[`${header}||${selectedLOB}`] || 0),
-                        backgroundColor: metricColors[header] || `hsl(${(i * 30) % 360}, 70%, 50%)`
-                    }))
+                    labels: ['Required HC', 'Available HC', 'Planned Shrinkage', 'Actual Shrinkage', 'Planned Attrition', 'Actual Attrition'],
+                    datasets: [{
+                        data: ['Required HC', 'Available HC'].map(m => latest[`${m}||${selectedLOB}`] || 0)
+                            .concat(['Planned Shrinkage', 'Actual Shrinkage', 'Planned Attrition', 'Actual Attrition'].map(m =>
+                                ((latest[`${m}||${selectedLOB}`] || 0) * 100).toFixed(2))),
+                        backgroundColor: Object.values(metricColors)
+                    }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
         };
 
