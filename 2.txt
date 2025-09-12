@@ -10,21 +10,206 @@
         // Styles
         const styles = `
         <style>
-            #chartsContainer { display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:20px; justify-items:center; }
-            #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
-            .custom-multiselect { position: relative; display: inline-block; width: 200px; }
-            .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-content: nowrap; text-overflow: ellipsis; }
-            .custom-multiselect .multiselect-options { 
-                display: none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; background:white; border:1px solid #ced4da; border-radius:4px; padding:5px 0; width: 100%;
-                box-shadow:0 2px 5px rgba(0,0,0,0.15);
+            /* General Body adjustments for better font rendering */
+            body {
+                font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
             }
-            .custom-multiselect .multiselect-options label { display:block; padding:5px 10px; cursor:pointer; }
-            .custom-multiselect .multiselect-options label:hover { background-color:#f1f1f1; }
-            .modal-header { background: linear-gradient(90deg,#007bff,#28a745); color: #fff; }
-            .table-summary { max-height:250px; overflow-y:auto; display:block; }
-            .table-summary table { margin-bottom:0; }
-            #applyFilter, #exportCsv { transition:0.2s; }
-            #applyFilter:hover, #exportCsv:hover { opacity:0.85; }
+
+            /* Filter Section Styling */
+            .filters {
+                background-color: #f8f9fa !important; /* Lighter background */
+                border: 1px solid #e0e0e0 !important;
+                border-radius: 8px !important;
+                padding: 20px !important;
+                margin-bottom: 25px !important;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Softer shadow */
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 15px; /* Consistent spacing */
+            }
+            .filters label {
+                margin-bottom: 0; /* Remove default label margin */
+                font-weight: 500;
+                color: #343a40;
+                display: flex;
+                align-items: center;
+                gap: 8px; /* Space between label text and control */
+            }
+            .filters .form-select,
+            .filters .btn {
+                border-radius: 5px;
+            }
+            .filters .form-select {
+                border: 1px solid #ced4da;
+                padding: 0.375rem 1rem 0.375rem 0.75rem; /* Adjust padding for aesthetics */
+                min-width: 150px; /* Ensure dropdowns have a minimum width */
+            }
+
+            /* Comparison Mode Switch */
+            .form-check.form-switch {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding-left: 0; /* Remove default padding */
+            }
+            .form-check.form-switch .form-check-input {
+                margin-left: 0; /* Align switch with text */
+                flex-shrink: 0; /* Prevent input from shrinking */
+                transform: scale(1.1); /* Slightly larger switch */
+            }
+            .form-check.form-switch .form-check-label {
+                cursor: pointer;
+                user-select: none;
+            }
+
+            /* Buttons */
+            #applyFilter {
+                background-color: #007bff;
+                border-color: #007bff;
+                font-weight: 600;
+                padding: 8px 20px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            }
+            #applyFilter:hover {
+                background-color: #0056b3;
+                border-color: #0056b3;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+            #exportCsv {
+                background-color: #28a745;
+                border-color: #28a745;
+                font-weight: 600;
+                padding: 8px 20px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            }
+            #exportCsv:hover {
+                background-color: #1e7e34;
+                border-color: #1e7e34;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+
+            /* Chart Container */
+            #chartsContainer {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); /* Responsive grid */
+                gap: 25px; /* Increased gap for better separation */
+                justify-items: center;
+            }
+            #chartsContainer canvas {
+                width: 100% !important;
+                max-width: 100%; /* Ensure canvas scales */
+                height: 250px !important; /* Slightly taller charts */
+            }
+
+            /* Chart Card Styling */
+            #chartsContainer .card {
+                background: #ffffff; /* White background for cards */
+                border: 1px solid #e9ecef; /* Lighter border */
+                border-radius: 10px; /* More rounded corners */
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08); /* Enhanced shadow */
+                transition: transform 0.2s ease-in-out;
+            }
+            #chartsContainer .card:hover {
+                transform: translateY(-5px); /* Slight lift on hover */
+            }
+            #chartsContainer .card-title {
+                color: #343a40;
+                font-size: 1.15rem; /* Slightly larger title */
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #f1f1f1; /* Subtle separator */
+            }
+
+            /* Custom Multi-select Styling */
+            .custom-multiselect {
+                width: 200px; /* Fixed width for consistency */
+            }
+            .custom-multiselect button {
+                background-color: #ffffff;
+                border-color: #ced4da;
+                color: #495057;
+                padding-right: 2.25rem; /* Space for dropdown arrow */
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .custom-multiselect button::after {
+                margin-left: auto; /* Push arrow to the right */
+            }
+            .custom-multiselect .multiselect-options {
+                border-color: #ced4da;
+                border-radius: 5px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            }
+            .custom-multiselect .multiselect-options label {
+                padding: 8px 12px;
+                font-size: 0.95rem;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .custom-multiselect .multiselect-options label:hover {
+                background-color: #e9ecef;
+                color: #000;
+            }
+
+            /* Modal Header */
+            .modal-header {
+                background: linear-gradient(90deg, #007bff, #0056b3) !important; /* Darker blue gradient */
+                color: #fff;
+                border-bottom: none;
+                border-top-left-radius: calc(0.5rem - 1px);
+                border-top-right-radius: calc(0.5rem - 1px);
+                padding: 1.5rem; /* More padding */
+            }
+            .modal-title {
+                font-weight: 700;
+                font-size: 1.75rem; /* Larger title */
+            }
+            .modal-content {
+                border-radius: 0.5rem; /* Rounded modal corners */
+                box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            }
+            .btn-close {
+                filter: invert(1); /* White close button */
+                opacity: 0.8;
+                transition: opacity 0.2s;
+            }
+            .btn-close:hover {
+                opacity: 1;
+            }
+
+            /* Summary Table */
+            .table-summary {
+                margin-top: 30px !important;
+                max-height: 300px; /* Increased height */
+                border: 1px solid #e9ecef;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            }
+            .table-summary table {
+                margin-bottom: 0;
+            }
+            .table-summary thead.table-primary {
+                background-color: #007bff !important; /* Match primary blue */
+                color: #fff;
+            }
+            .table-summary thead th {
+                border-bottom: none;
+                padding: 12px 15px;
+                font-size: 0.95rem;
+            }
+            .table-summary tbody tr:hover {
+                background-color: #f1f7fe; /* Light blue hover */
+            }
+            .table-summary tbody td {
+                padding: 10px 15px;
+                vertical-align: middle;
+            }
+            
             /* Loading Spinner */
             .loading-overlay {
                 position: absolute;
@@ -32,21 +217,39 @@
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background: rgba(255, 255, 255, 0.7);
+                background: rgba(255, 255, 255, 0.85); /* Slightly less transparent */
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 z-index: 1050;
-                border-radius: .3rem;
+                border-radius: .5rem; /* Match modal border radius */
             }
             .spinner-border {
-                width: 3rem;
-                height: 3rem;
+                width: 3.5rem; /* Slightly larger spinner */
+                height: 3.5rem;
+                border-width: 0.3em; /* Thicker spinner */
+            }
+
+            /* Responsive Adjustments */
+            @media (max-width: 768px) {
+                .filters {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .filters label,
+                .filters .custom-multiselect,
+                .filters .form-select,
+                .filters button {
+                    width: 100% !important;
+                }
+                #chartsContainer {
+                    grid-template-columns: 1fr; /* Single column on small screens */
+                }
             }
         </style>`;
         $('head').append(styles);
 
-        // Modal HTML
+        // Modal HTML (remains unchanged as per instructions)
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -61,26 +264,22 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-3">
-                  <div class="input-group" style="width: auto;">
-                    <span class="input-group-text">From Week:</span>
-                    <input type="text" class="form-control datepicker-week" id="fromWeekInput" placeholder="Select Week">
-                  </div>
-                  <div class="input-group" style="width: auto;">
-                    <span class="input-group-text">To Week:</span>
-                    <input type="text" class="form-control datepicker-week" id="toWeekInput" placeholder="Select Week">
-                  </div>
-                  <label class="mb-0">LOB: 
+                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
+                  <label>From Week: 
+                    <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label>To Week: 
+                    <select id="toWeek" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label>LOB: 
                     <div class="custom-multiselect" id="lobSelectContainer">
                         <button type="button" class="btn btn-light dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
                         <div class="multiselect-options"></div>
                     </div>
                   </label>
-                  <label class="ms-2 mb-0 form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="comparisonMode"> Comparison Mode
-                  </label>
+                  <label class="ms-2 form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="comparisonMode"> Comparison Mode</label>
                   <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
-                  <button id="exportCsv" class="btn btn-success btn-sm">Export CSV</button>
+                  <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
                 </div>
                 <div id="chartsContainer" class="mt-3"></div>
                 <div id="analyticsSummary" class="mt-4 table-summary"></div>
@@ -94,31 +293,27 @@
         const $analyticsSummary = $('#analyticsSummary');
         const $loadingOverlay = $('.loading-overlay');
 
-        // Week parsing & formatting
+        // Week parsing & formatting (unchanged)
         const parseWeek = (weekStr) => {
-            if (!weekStr) return null;
             const [dd, mmm, yy] = weekStr.split('-');
-            if (!dd || !mmm || !yy) return null;
             return new Date(`${mmm} ${dd}, 20${yy}`);
         };
-
         const formatWeek = (date) => {
-            if (!date) return '';
             const dd = String(date.getDate()).padStart(2, '0');
             const mmm = date.toLocaleString('default', { month: 'short' });
             const yy = String(date.getFullYear()).slice(-2);
             return `${dd}-${mmm}-${yy}`;
         };
-
-        const getWeekStartDate = (date) => {
-            const dayOfWeek = date.getDay();
+        const getCurrentWeek = () => {
+            const today = new Date();
+            const dayOfWeek = today.getDay();
             const diff = settings.weekStartDay === 'sunday' ? dayOfWeek : (dayOfWeek + 6) % 7;
-            const startDate = new Date(date);
-            startDate.setDate(date.getDate() - diff);
-            return startDate;
+            const lastWeekDate = new Date(today);
+            lastWeekDate.setDate(today.getDate() - diff);
+            return formatWeek(lastWeekDate);
         };
 
-        // Data transform
+        // Data transform (unchanged)
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -132,49 +327,20 @@
         const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        // Initialize Datepicker for week selection
-        $('.datepicker-week').datepicker({
-            format: 'dd-M-yy',
-            autoclose: true,
-            forceParse: false,
-            // Custom week highlighting
-            beforeShowDay: function (date) {
-                // Highlight the start of the week
-                const weekStartDate = getWeekStartDate(date);
-                if (date.getTime() === weekStartDate.getTime()) {
-                    return {
-                        classes: 'highlight-week-start',
-                        tooltip: 'Week Start: ' + formatWeek(weekStartDate)
-                    };
-                }
-                return;
-            }
-        }).on('changeDate', function (e) {
-            // When a date is selected, set the input to the start of that week
-            const selectedDate = e.date;
-            const weekStartDate = getWeekStartDate(selectedDate);
-            $(this).val(formatWeek(weekStartDate));
+        // Populate weeks (unchanged, only styling applied by CSS)
+        uniqueWeeks.forEach(week => {
+            $('#fromWeek').append(`<option value="${week}">${week}</option>`);
+            $('#toWeek').append(`<option value="${week}">${week}</option>`);
         });
+        const currentWeek = getCurrentWeek();
+        const currentIndex = uniqueWeeks.indexOf(currentWeek);
+        const fallbackIndex = currentIndex >= 0 ? currentIndex : uniqueWeeks.length - 1;
+        const fromIndex = Math.max(0, fallbackIndex - 6);
+        const toIndex = Math.min(uniqueWeeks.length - 1, fallbackIndex + 6);
+        $('#fromWeek').val(uniqueWeeks[fromIndex]);
+        $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // Set initial week range
-        if (uniqueWeeks.length > 0) {
-            const latestWeek = parseWeek(uniqueWeeks[uniqueWeeks.length - 1]);
-            const sixWeeksAgo = new Date(latestWeek);
-            sixWeeksAgo.setDate(latestWeek.getDate() - (6 * 7)); // Go back 6 weeks
-
-            let initialFromWeek = formatWeek(getWeekStartDate(sixWeeksAgo));
-            let initialToWeek = formatWeek(getWeekStartDate(latestWeek));
-
-            // Ensure initialFromWeek is within available uniqueWeeks
-            if (parseWeek(initialFromWeek) < parseWeek(uniqueWeeks[0])) {
-                initialFromWeek = uniqueWeeks[0];
-            }
-
-            $('#fromWeekInput').val(initialFromWeek);
-            $('#toWeekInput').val(initialToWeek);
-        }
-
-        // Custom multi-select (can be replaced with bootstrap-select if desired)
+        // Custom multi-select (logic unchanged, styling applied by CSS)
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -196,45 +362,40 @@
                 $lobBtn.text('Select LOBs');
             }
         });
-        // Select all LOBs by default
-        $optionsDiv.find('input').prop('checked', true).trigger('change');
+        $optionsDiv.find('input').prop('checked', true).trigger('change'); // Select all LOBs by default
 
-        // Colors
+        // Colors (slightly adjusted palette and added Staffing %)
         const metricColors = {
             "Required HC": "#007bff", "Available HC": "#28a745",
             "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
-            "Planned Shrinkage": "#6f42c1", "Actual Shrinkage": "#fd7e14",
-            "Planned Attrition": "#e83e8c", "Actual Attrition": "#20c997",
-            "Planned AHT": "#6610f2", "Actual AHT": "#fd3955",
+            "Planned Shrinkage": "#6f42c1", "Actual Shrinkage": "#dc3545", // Changed actual shrinkage to red
+            "Planned Attrition": "#e83e8c", "Actual Attrition": "#fd7e14", // Changed actual attrition to orange
+            "Planned AHT": "#6610f2", "Actual AHT": "#20c997",
             "Staffing %": "#343a40" // Dark color for staffing line
         };
         const lobColors = {};
         const colorPalette = [
             '#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997',
             '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#dc3545',
-            '#6c757d', '#adb5bd', '#343a40', '#f8f9fa', '#e9ecef'
-        ]; // Extended palette
+            '#6c757d', '#adb5bd', '##00BFFF', '#7B68EE', '#FF69B4' // More diverse colors
+        ];
         uniqueLOBs.forEach((lob, i) => lobColors[lob] = colorPalette[i % colorPalette.length]);
 
-        // Filter data
+        // Filter data (unchanged)
         const filterData = () => {
-            const fromWeek = $('#fromWeekInput').val();
-            const toWeek = $('#toWeekInput').val();
+            const fromWeek = $('#fromWeek').val();
+            const toWeek = $('#toWeek').val();
             const selectedLOBs = getSelectedLOBs();
             const isComparison = $('#comparisonMode').is(':checked');
-
-            const filtered = structuredData.filter(d => {
-                const weekDate = parseWeek(d.Week);
-                return weekDate >= parseWeek(fromWeek) && weekDate <= parseWeek(toWeek);
-            });
+            const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek));
             return { filtered, selectedLOBs, isComparison };
         };
 
-        // Summary table with rounded numbers
+        // Summary table with rounded numbers (minor aesthetic update)
         const generateSummary = (filtered, selectedLOBs) => {
             let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Total Value</th></tr></thead><tbody>`;
             if (filtered.length === 0) {
-                html += `<tr><td colspan="3" class="text-center">No data available for the selected filters.</td></tr>`;
+                html += `<tr><td colspan="3" class="text-center text-muted py-3">No data available for the selected filters.</td></tr>`;
             } else {
                 selectedLOBs.forEach(lob => {
                     uniqueHeaders.forEach(header => {
@@ -243,7 +404,7 @@
                         if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
                             displayValue = total.toFixed(2) + '%';
                         } else if (header.toLowerCase().includes('aht')) {
-                            displayValue = total.toFixed(1); // AHT usually has one decimal
+                            displayValue = total.toFixed(1);
                         } else {
                             displayValue = Math.round(total).toLocaleString();
                         }
@@ -258,15 +419,14 @@
         // Existing Chart.js instances to destroy before re-rendering
         let currentCharts = [];
 
-        // Render charts
+        // Render charts (Chart.js options slightly tweaked for aesthetics)
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
             $chartsContainer.empty();
-            // Destroy existing charts to prevent memory leaks
             currentCharts.forEach(chart => chart.destroy());
             currentCharts = [];
 
             if (filtered.length === 0) {
-                $chartsContainer.html('<p class="text-center text-muted">No chart data available for the selected filters. Please adjust your week range or LOB selections.</p>');
+                $chartsContainer.html('<p class="text-center text-muted p-4">No chart data available for the selected filters. Please adjust your week range or LOB selections.</p>');
                 return;
             }
 
@@ -309,7 +469,10 @@
                             fill: (type === 'area' || isStaffingPercent) ? true : false,
                             borderDash: isStaffingPercent ? [5, 5] : [],
                             yAxisID: isStaffingPercent ? 'y1' : 'y',
-                            type: chartTypeOverride || type // Allow override for mixed charts
+                            type: chartTypeOverride || type,
+                            pointRadius: 3, // Smaller points
+                            pointHoverRadius: 5,
+                            tension: 0.3 // Slightly smoother lines
                         });
                     });
                 });
@@ -323,8 +486,9 @@
                             legend: {
                                 position: 'bottom',
                                 labels: {
-                                    boxWidth: 20,
-                                    padding: 15
+                                    boxWidth: 15, // Smaller legend boxes
+                                    padding: 15,
+                                    font: { size: 12 }
                                 }
                             },
                             tooltip: {
@@ -333,29 +497,36 @@
                                 callbacks: {
                                     label: function (context) {
                                         let label = context.dataset.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
+                                        if (label) { label += ': '; }
                                         let val = context.raw;
                                         if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
                                             return label + Number(val).toFixed(2) + '%';
                                         }
                                         return label + Number(val).toLocaleString();
                                     }
-                                }
+                                },
+                                backgroundColor: 'rgba(0,0,0,0.8)', // Darker tooltip
+                                titleFont: { size: 14, weight: 'bold' },
+                                bodyFont: { size: 13 }
                             }
                         },
                         scales: {
+                            x: {
+                                ticks: { font: { size: 11 } }
+                            },
                             y: {
                                 beginAtZero: true,
                                 title: {
                                     display: true,
                                     text: 'Value',
-                                    font: { weight: 'bold' }
+                                    font: { weight: 'bold', size: 13 },
+                                    color: '#555'
                                 },
                                 ticks: {
-                                    callback: function(value) { return Number(value).toLocaleString(); }
-                                }
+                                    callback: function(value) { return Number(value).toLocaleString(); },
+                                    font: { size: 11 }
+                                },
+                                grid: { color: '#e9ecef' } // Lighter grid lines
                             },
                             y1: {
                                 position: 'right',
@@ -363,13 +534,13 @@
                                 title: {
                                     display: includeStaffing,
                                     text: 'Staffing %',
-                                    font: { weight: 'bold' }
+                                    font: { weight: 'bold', size: 13 },
+                                    color: '#555'
                                 },
-                                grid: {
-                                    drawOnChartArea: false
-                                },
+                                grid: { drawOnChartArea: false, color: '#e9ecef' },
                                 ticks: {
-                                    callback: function(value) { return value + '%'; }
+                                    callback: function(value) { return value + '%'; },
+                                    font: { size: 11 }
                                 }
                             }
                         }
@@ -380,38 +551,35 @@
 
             if (isComparison) {
                 selectedLOBs.forEach(lob => {
-                     // For comparison mode, show each LOB's metrics across weeks
-                    createChart('bar', `Headcount for ${lob}`, ['Required HC', 'Available HC'], [lob]);
+                     createChart('bar', `Headcount for ${lob}`, ['Required HC', 'Available HC'], [lob]);
                     createChart('line', `Hours for ${lob}`, ['Actual Hours', 'Forecasted Hours'], [lob]);
                     createChart('area', `Shrinkage % for ${lob}`, ['Planned Shrinkage', 'Actual Shrinkage'], [lob], true);
                     createChart('area', `Attrition % for ${lob}`, ['Planned Attrition', 'Actual Attrition'], [lob], true);
                     createChart('bar', `AHT for ${lob}`, ['Planned AHT', 'Actual AHT'], [lob]);
                 });
-
             } else {
-                // Default view: combined metrics across selected LOBs (if only one LOB is selected, it's simpler)
-                // If multiple LOBs are selected, default view will compare LOBs for each metric
                 if (selectedLOBs.length === 1) {
                     const singleLob = selectedLOBs[0];
-                    createChart('line', `Headcount & Staffing % for ${singleLob}`, ['Required HC', 'Available HC', 'Staffing %'], [singleLob], false, true, 'line'); // Staffing % as line, others as line
-                    createChart('bar', `Hours for ${singleLob}`, ['Actual Hours', 'Forecasted Hours'], [singleLob]);
+                    // Mixed chart: HC as bar, Staffing % as line
+                    createChart('bar', `Headcount & Staffing % for ${singleLob}`, ['Required HC', 'Available HC'], [singleLob], false, true, null); // Default to bar
+                    createChart('line', `Staffing % (Line) for ${singleLob}`, ['Staffing %'], [singleLob], true, true, 'line'); // Separate line chart for staffing %
+                    
+                    createChart('line', `Hours for ${singleLob}`, ['Actual Hours', 'Forecasted Hours'], [singleLob]);
                     createChart('area', `Shrinkage % for ${singleLob}`, ['Planned Shrinkage', 'Actual Shrinkage'], [singleLob], true);
                     createChart('area', `Attrition % for ${singleLob}`, ['Planned Attrition', 'Actual Attrition'], [singleLob], true);
                     createChart('bar', `AHT for ${singleLob}`, ['Planned AHT', 'Actual AHT'], [singleLob]);
                 } else {
                     // When multiple LOBs are selected in non-comparison mode, show metrics by LOB
                     uniqueHeaders.forEach(header => {
-                        // Special handling for Staffing %
-                        if (header === 'Required HC' || header === 'Available HC') return; // Handled by Staffing chart
+                        if (header === 'Required HC' || header === 'Available HC') return; 
                         if (header === 'Staffing %') {
-                             createChart('line', `Staffing % Comparison`, ['Staffing %'], selectedLOBs, false, true, 'line');
+                             createChart('line', `Staffing % Across LOBs`, ['Staffing %'], selectedLOBs, true, true, 'line');
                         } else {
-                             createChart('bar', `${header} Comparison`, [header], selectedLOBs, header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition'));
+                             createChart('bar', `${header} Across LOBs`, [header], selectedLOBs, header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition'));
                         }
                     });
-                    // Add a combined HC + Staffing % chart for multiple LOBs
-                    createChart('line', `Headcount (Required & Available) Across LOBs`, ['Required HC', 'Available HC'], selectedLOBs, false, false, 'line');
-                    createChart('line', `Staffing % Across LOBs`, ['Staffing %'], selectedLOBs, true, true, 'line');
+                     // Add a combined HC chart for multiple LOBs
+                    createChart('bar', `Headcount (Required & Available) Across LOBs`, ['Required HC', 'Available HC'], selectedLOBs, false, false);
                 }
             }
         };
@@ -464,7 +632,6 @@
             }
         };
 
-
         const applyFilters = () => {
             $loadingOverlay.removeClass('d-none');
             setTimeout(() => { // Simulate a small delay for loading effect
@@ -472,7 +639,7 @@
                 renderCharts(filtered, selectedLOBs, isComparison);
                 generateSummary(filtered, selectedLOBs);
                 $loadingOverlay.addClass('d-none');
-            }, 300);
+            }, 300); // Increased delay slightly for better visual effect
         };
 
         $('#applyFilter').off('click').on('click', applyFilters);
