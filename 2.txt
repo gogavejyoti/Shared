@@ -1,15 +1,21 @@
 uniqueLOBs.forEach((lob, lobIndex) => {
-    const lobColor = lobColors[lobIndex % lobColors.length]; // pick color per LOB
+    const lobColor = lobColors[lobIndex % lobColors.length]; // LOB color
     metrics.forEach((metric, i) => {
         html += '<tr>';
 
-        // Sticky LOB column (first metric row only)
+        // Sticky LOB column
         if (i === 0) {
             html += `<td class="sticky-left" rowspan="${metrics.length}" style="background:${lobColor}; color:#fff;">${lob}</td>`;
         }
 
-        // Sticky Metric column (keep default styling)
-        html += `<td class="sticky-left-2">${metric}</td>`;
+        // Sticky Metric column with metric-based background
+        let metricBg = '';
+        if (metric === 'Required HC') metricBg = '#eaf1fb';       // light blue
+        else if (metric === 'Available HC') metricBg = '#e8f5e9';  // light green
+        else if (metric === 'Delta') metricBg = '#fce4e4';         // light red
+        else if (metric === 'Staffing %') metricBg = '#f0f8ff';    // light blue shade
+
+        html += `<td class="sticky-left-2" style="background:${metricBg};">${metric}</td>`;
 
         // Metric values
         uniqueWeeks.forEach(week => {
@@ -17,17 +23,16 @@ uniqueLOBs.forEach((lob, lobIndex) => {
             val = Math.round(val);
 
             let cls = '';
+            let cellBg = ''; // optional: you can give lighter shade for values if needed
             if (metric === 'Delta' && val < 0) cls = 'rag-red';
             if (metric === 'Staffing %') {
                 if (val < 80) cls = 'rag-red';
                 else if (val < 100) cls = 'rag-amber';
                 else cls = 'rag-green';
                 val = `${val}%`;
-            } else {
-                val = new Intl.NumberFormat().format(val);
             }
 
-            html += `<td class="${cls}">${val}</td>`;
+            html += `<td class="${cls}" style="background:${cellBg};">${val}</td>`;
         });
 
         html += '</tr>';
