@@ -129,12 +129,14 @@
         const getSelectedLOBs = () => {
             const selected = [];
             $optionsDiv.find('input:checked').each(function(){ selected.push($(this).val()); });
-            return selected.length ? selected : [uniqueLOBs[0]]; // default first
+            return selected.length ? selected : [uniqueLOBs[0]]; // default first LOB
         };
         $optionsDiv.find('input').on('change', function(){
             const selected = getSelectedLOBs();
-            $lobBtn.text(selected.length === 0 ? 'Select LOBs' : selected.join(', '));
+            $lobBtn.text(selected.join(', '));
         });
+        // Ensure at least one selected by default
+        $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
         // Colors
         const metricColors = {
@@ -159,7 +161,7 @@
         };
 
         // Generate summary
-        const generateSummary = (filtered, selectedLOBs, isComparison) => {
+        const generateSummary = (filtered, selectedLOBs) => {
             let summaryHTML = '<h5>Summary Analytics</h5><ul>';
             const lobsToSummarize = selectedLOBs; 
             uniqueHeaders.forEach(header => {
@@ -176,7 +178,7 @@
         };
 
         // Export CSV
-        const exportCSV = (filtered, selectedLOBs, isComparison) => {
+        const exportCSV = (filtered, selectedLOBs) => {
             const headers = ['Week','LOB','Metric','Value'];
             let csvContent = headers.join(',') + '\n';
             filtered.forEach(row => {
@@ -208,6 +210,7 @@
                             <canvas></canvas>
                         </div>
                     </div>`);
+
                 const labels = filtered.map(d => d.Week);
                 const datasets = [];
 
@@ -215,7 +218,11 @@
                     lobList.forEach(lob=>{
                         datasets.push({
                             label: lob + ' - ' + metric,
-                            data: filtered.map(d=> isPercentage && (metric.toLowerCase().includes('shrinkage')||metric.toLowerCase().includes('attrition')) ? ((d[`${metric}||${lob}`]||0)*100).toFixed(2) : (d[`${metric}||${lob}`]||0)),
+                            data: filtered.map(d=> {
+                                let val = d[`${metric}||${lob}`]||0;
+                                if(isPercentage && (metric.toLowerCase().includes('shrinkage')||metric.toLowerCase().includes('attrition'))) val = (val*100).toFixed(2);
+                                return val;
+                            }),
                             borderColor: metricColors[metric] || lobColors[lob],
                             backgroundColor: (metricColors[metric] || lobColors[lob])+'55',
                             fill: type==='area'?true:false,
@@ -243,9 +250,11 @@
                     });
                 }
 
-                const scalesConfig = { y:{ beginAtZero:true, title:{ display:true, text:'HC / Value' }} };
+                const scalesConfig = {
+                    y:{ beginAtZero:true, title:{ display:true, text:'Value / HC' }},
+                };
                 if(includeStaffing){
-                    scalesConfig['yPercent'] = { beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false }};
+                    scalesConfig['yPercent'] = { beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false } };
                 }
 
                 new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'),{
@@ -254,7 +263,22 @@
                     options:{
                         responsive:true,
                         maintainAspectRatio:false,
-                        plugins:{ legend:{ position:'bottom' }, tooltip:{ mode:'index', intersect:false }},
+                        plugins:{
+                            legend:{ position:'bottom' },
+                            tooltip:{
+                                mode:'index',
+                                intersect:false,
+                                callbacks:{
+                                    label:function(context){
+                                        let val = context.raw;
+                                        if(context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')){
+                                            return context.dataset.label + ': ' + val + '%';
+                                        }
+                                        return context.dataset.label + ': ' + val;
+                                    }
+                                }
+                            }
+                        },
                         scales: scalesConfig
                     }
                 });
@@ -276,11 +300,11 @@
         const applyFilters = () => {
             const { filtered, selectedLOBs, isComparison } = filterData();
             renderCharts(filtered, selectedLOBs, isComparison);
-            generateSummary(filtered, selectedLOBs, isComparison);
+            generateSummary(filtered, selectedLOBs);
         };
 
         $('#applyFilter').off('click').on('click', applyFilters);
-        $('#exportCsv').off('click').on('click',()=>{ const { filtered, selectedLOBs, isComparison } = filterData(); exportCSV(filtered, selectedLOBs, isComparison); });
+        $('#exportCsv').off('click').on('click',()=>{ const { filtered, selectedLOBs } = filterData(); exportCSV(filtered, selectedLOBs); });
 
         applyFilters();
         $('#analyticsModal').modal('show');
