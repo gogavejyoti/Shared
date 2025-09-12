@@ -10,17 +10,16 @@
         // Styles
         const styles = `
         <style>
-            .table-container {
+            .table-wrapper {
                 overflow-x: auto;
-                overflow-y: auto;
                 max-height: 500px;
                 position: relative;
                 border: 1px solid #ccc;
             }
             table {
                 border-collapse: collapse;
-                min-width: 800px;
                 width: max-content;
+                min-width: 800px;
                 table-layout: fixed;
             }
             th, td {
@@ -28,23 +27,24 @@
                 padding: 8px;
                 text-align: center;
                 white-space: nowrap;
+                background: #fff;
             }
             thead th {
                 position: sticky;
                 top: 0;
                 background: #f1f1f1;
-                z-index: 5;
+                z-index: 3;
             }
             .sticky-left {
                 position: sticky;
                 left: 0;
-                background: #fff;
+                background: #f1f1f1;
                 z-index: 4;
             }
             .sticky-left-2 {
                 position: sticky;
                 left: 120px;
-                background: #fff;
+                background: #f1f1f1;
                 z-index: 4;
             }
             .rag-red { color: red; font-weight: bold; }
@@ -63,7 +63,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <div class="table-container" id="staffingContainer"></div>
+                <div class="table-wrapper" id="staffingContainer"></div>
               </div>
             </div>
           </div>
