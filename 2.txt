@@ -10,9 +10,9 @@
             .table-summary table { border-collapse:collapse; width:100%; table-layout:fixed; }
             .table-summary th, .table-summary td { border:1px solid #ddd; padding:4px; white-space:nowrap; text-align:center; }
             .table-summary thead th { position:sticky; top:0; background:#f1f1f1; z-index:10; }
-            .table-summary tbody td:first-child, 
-            .table-summary tbody td:nth-child(2) { position:sticky; left:0; background:#fff; z-index:5; }
-            .table-summary tbody td:first-child { z-index:6; font-weight:bold; }
+            .table-summary tbody td.lob, 
+            .table-summary tbody td.metric { position:sticky; left:0; background:#fff; z-index:5; }
+            .table-summary tbody td.lob { z-index:6; font-weight:bold; }
         </style>`;
         $('head').append(styles);
 
@@ -55,18 +55,17 @@
         };
 
         const generateSummary = () => {
-            let html='<table><thead><tr><th>LOB</th><th>Metric</th>';
+            let html='<table><thead><tr><th>LOB / Metric</th>';
             uniqueWeeks.forEach(w=> html+=`<th>${w}</th>`); 
             html+='</tr></thead><tbody>';
 
             uniqueLOBs.forEach(lob=>{
                 staffingMetrics.forEach((metric,index)=>{
                     html+='<tr>';
-                    // Apply rowspan for LOB
                     if(index===0){
-                        html+=`<td rowspan="${staffingMetrics.length}" style="font-weight:bold;">${lob}</td>`;
+                        html+=`<td class="lob" rowspan="${staffingMetrics.length}" colspan="1">${lob}</td>`;
                     }
-                    html+=`<td>${metric}</td>`;
+                    html+=`<td class="metric">${metric}</td>`;
                     uniqueWeeks.forEach(week=>{
                         const weekData=structuredData.find(d=>d.Week===week) || {};
                         const required=Math.round(Number(weekData[`Required HC||${lob}`]||0));
