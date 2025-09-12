@@ -1,5 +1,5 @@
 (function ($) {
-    $.fn.weekAnalyticsPopup = function (options) {
+    $.fn.staffingSummaryPopup = function (options) {
         const settings = $.extend({
             data: [],
             weekStartDay: 'sunday'
@@ -22,7 +22,7 @@
                 table {
                     border-collapse: collapse;
                     width: max-content;
-                    table-layout: auto;
+                    table-layout: auto; /* Dynamic column widths */
                 }
 
                 th, td {
@@ -46,14 +46,17 @@
                     left: 0;
                     background: #f1f1f1;
                     z-index: 7;
+                    min-width: 120px;
                     white-space: nowrap;
                 }
 
                 thead th.sticky-left-2 {
                     position: sticky;
                     top: 0;
+                    left: 120px;
                     background: #f1f1f1;
                     z-index: 7;
+                    min-width: 150px;
                     white-space: nowrap;
                 }
 
@@ -63,14 +66,17 @@
                     left: 0;
                     background: #f1f1f1;
                     z-index: 5;
+                    min-width: 120px;
                     white-space: nowrap;
                 }
 
                 tbody td.sticky-left-2 {
                     position: sticky;
                     top: 0;
+                    left: 120px;
                     background: #f1f1f1;
                     z-index: 5;
+                    min-width: 150px;
                     white-space: nowrap;
                 }
 
@@ -81,7 +87,7 @@
         }
 
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;">
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
           <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
@@ -168,17 +174,6 @@
 
         html += '</tbody></table>';
         $container.html(html);
-
-        // Dynamically calculate correct left offsets
-        const firstStickyWidth = $container.find('th.sticky-left').outerWidth();
-        const secondStickyLeft = firstStickyWidth;
-        const secondStickyWidth = $container.find('th.sticky-left-2').outerWidth();
-
-        $container.find('th.sticky-left').css('left', '0');
-        $container.find('tbody td.sticky-left').css('left', '0');
-
-        $container.find('th.sticky-left-2').css('left', `${secondStickyLeft}px`);
-        $container.find('tbody td.sticky-left-2').css('left', `${secondStickyLeft}px`);
 
         const modalEl = document.getElementById('analyticsModal');
         const modal = new bootstrap.Modal(modalEl);
