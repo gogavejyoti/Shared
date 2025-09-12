@@ -147,3 +147,110 @@
             summaryHTML += '</ul>';
             $analyticsSummary.html(summaryHTML);
         };
+
+        const exportCSV = (filtered, selectedLOBs) => {
+            const headers = ['Week','LOB','Metric','Value'];
+            let csvContent = headers.join(',')+'\n';
+            filtered.forEach(row=>{
+                selectedLOBs.forEach(lob=>{
+                    uniqueHeaders.forEach(header=>{
+                        let val = row[`${header}||${lob}`]||0;
+                        if(header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')){
+                            val = (val*100).toFixed(2)+'%';
+                        }
+                        csvContent += `${row.Week},${lob},${header},${val}\n`;
+                    });
+                });
+            });
+            const blob = new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'analytics.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        const renderCharts = (filtered, selectedLOBs) => {
+            $chartsContainer.empty();
+            const labels = filtered.map(d=>d.Week);
+
+            // Define chart configurations
+            const chartConfigs = [
+                {type:'line', title:'Actual vs Forecasted Hours', metrics:['Actual Hours','Forecasted Hours'], percentage:false},
+                {type:'bar', title:'Required HC vs Available HC', metrics:['Required HC','Available HC'], percentage:false},
+                {type:'line', title:'Planned vs Actual Shrinkage (%)', metrics:['Planned Shrinkage','Actual Shrinkage'], percentage:true},
+                {type:'line', title:'Planned vs Actual Attrition (%)', metrics:['Planned Attrition','Actual Attrition'], percentage:true},
+                {type:'bar', title:'Planned vs Actual AHT', metrics:['Planned AHT','Actual AHT'], percentage:false}
+            ];
+
+            chartConfigs.forEach(cfg=>{
+                $chartsContainer.append(`
+                    <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">${cfg.title}</h6>
+                            <canvas></canvas>
+                        </div>
+                    </div>
+                `);
+
+                const datasets = cfg.metrics.flatMap(metric =>
+                    selectedLOBs.map(lob => ({
+                        label: lob+' - '+metric,
+                        data: filtered.map(d=>cfg.percentage && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')) ? ((d[`${metric}||${lob}`]||0)*100).toFixed(2) : (d[`${metric}||${lob}`]||0)),
+                        borderColor: lobColors[lob],
+                        backgroundColor: lobColors[lob]+'55',
+                        fill: cfg.type==='line' && cfg.percentage?true:false
+                    }))
+                );
+
+                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'),{
+                    type: cfg.type==='line'? 'line':cfg.type,
+                    data:{labels,datasets},
+                    options:{
+                        responsive:true,
+                        maintainAspectRatio:false,
+                        plugins:{legend:{position:'bottom'},tooltip:{mode:'index',intersect:false}},
+                        scales:{y:{beginAtZero:true}}
+                    }
+                });
+            });
+
+            // Latest week key metrics
+            const latest = filtered[filtered.length-1];
+            const metricsForLatest = ['Required HC','Available HC','Planned Shrinkage','Actual Shrinkage','Planned Attrition','Actual Attrition'];
+            $chartsContainer.append(`
+                <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
+                    <div class="card-body text-center">
+                        <h6 class="card-title fw-bold">Latest Week Key Metrics</h6>
+                        <canvas></canvas>
+                    </div>
+                </div>
+            `);
+            const latestDatasets = selectedLOBs.map(lob=>({
+                label: lob,
+                data: metricsForLatest.map(metric=>metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition') ? ((latest[`${metric}||${lob}`]||0)*100).toFixed(2) : (latest[`${metric}||${lob}`]||0)),
+                backgroundColor: lobColors[lob]
+            }));
+            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'),{
+                type:'bar',
+                data:{labels:metricsForLatest,datasets:latestDatasets},
+                options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'},tooltip:{mode:'index',intersect:false}}}
+            });
+        };
+
+        const applyFilters = () => {
+            const {filtered, selectedLOBs} = filterData();
+            renderCharts(filtered, selectedLOBs);
+            generateSummary(filtered, selectedLOBs);
+        };
+
+        $('#applyFilter').off('click').on('click', applyFilters);
+        $('#exportCsv').off('click').on('click',()=>{const {filtered, selectedLOBs}=filterData(); exportCSV(filtered,selectedLOBs);});
+
+        applyFilters();
+        $('#analyticsModal').modal('show');
+
+        return this;
+    };
+})(jQuery);
