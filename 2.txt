@@ -6,52 +6,23 @@
 
         const styles = `
         <style>
-            #chartsContainer { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; justify-items:center; }
-            #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
-            .table-summary { max-height:300px; overflow:auto; display:block; }
+            .table-summary { max-height:400px; overflow:auto; display:block; }
             .table-summary table { border-collapse:collapse; width:100%; }
-            .table-summary th, .table-summary td { border:1px solid #ddd; padding:4px; white-space:nowrap; }
+            .table-summary th, .table-summary td { border:1px solid #ddd; padding:4px; white-space:nowrap; text-align:center; }
             .table-summary thead th { position:sticky; top:0; background:#f1f1f1; z-index:10; }
-            .freeze-col { position:sticky; left:0; background:#f1f1f1; z-index:5; }
-            .freeze-col2 { position:sticky; left:100px; background:#f1f1f1; z-index:5; }
         </style>`;
         $('head').append(styles);
 
-        // Modal HTML with tabs
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title">Workforce Analytics Dashboard</h5>
+                <h5 class="modal-title">Staffing Summary</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <ul class="nav nav-tabs mb-3">
-                  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabSummary">Staffing Summary</a></li>
-                  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabCharts">Charts</a></li>
-                </ul>
-                <div class="tab-content">
-                  <div class="tab-pane fade show active" id="tabSummary">
-                      <div id="analyticsSummary" class="table-summary"></div>
-                  </div>
-                  <div class="tab-pane fade" id="tabCharts">
-                      <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
-                        <label>From Week: <select id="fromWeek" class="form-select d-inline-block w-auto"></select></label>
-                        <label>To Week: <select id="toWeek" class="form-select d-inline-block w-auto"></select></label>
-                        <label>LOB: 
-                            <div class="custom-multiselect" id="lobSelectContainer">
-                                <button type="button" class="btn btn-light dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
-                                <div class="multiselect-options"></div>
-                            </div>
-                        </label>
-                        <label class="ms-2"><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
-                        <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
-                        <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
-                      </div>
-                      <div id="chartsContainer" class="mt-3"></div>
-                  </div>
-                </div>
+                <div id="analyticsSummary" class="table-summary"></div>
               </div>
             </div>
           </div>
@@ -59,37 +30,33 @@
         $('body').append(modalHTML);
 
         const $analyticsSummary = $('#analyticsSummary');
-        const $chartsContainer = $('#chartsContainer');
 
-        // === Transform Data ===
+        // Transform Data
         const parseWeek = w=>{ const [dd, mmm, yy]=w.split('-'); return new Date(`${mmm} ${dd}, 20${yy}`); };
-        const formatWeek = d=>{ const dd=String(d.getDate()).padStart(2,'0'); const mmm=d.toLocaleString('default',{month:'short'}); const yy=String(d.getFullYear()).slice(-2); return `${dd}-${mmm}-${yy}`; };
-        const structuredData = (()=>{ const g={}; settings.data.forEach(item=>{ if(!g[item.week]) g[item.week]={Week:item.week}; g[item.week][`${item.header}||${item.sheetName}`]=item.value; }); return Object.values(g).sort((a,b)=>parseWeek(a.Week)-parseWeek(b.Week)); })();
+        const structuredData = (()=>{ 
+            const g={}; 
+            settings.data.forEach(item=>{
+                if(!g[item.week]) g[item.week]={Week:item.week}; 
+                g[item.week][`${item.header}||${item.sheetName}`]=item.value; 
+            }); 
+            return Object.values(g).sort((a,b)=>parseWeek(a.Week)-parseWeek(b.Week)); 
+        })();
         const uniqueLOBs=[...new Set(settings.data.map(d=>d.sheetName))].sort();
         const uniqueWeeks=[...new Set(settings.data.map(d=>d.week))].sort((a,b)=>parseWeek(a)-parseWeek(b));
         const staffingMetrics=['Required HC','Available HC','Delta','Staffing %'];
 
-        // === Populate LOB MultiSelect for Charts Tab ===
-        const $lobContainer=$('#lobSelectContainer'), $lobBtn=$('#lobSelectBtn'), $optionsDiv=$lobContainer.find('.multiselect-options');
-        uniqueLOBs.forEach(lob=>$optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`));
-        $lobBtn.on('click', e=>{e.stopPropagation(); $optionsDiv.toggle();});
-        $(document).on('click', ()=> $optionsDiv.hide());
-        const getSelectedLOBs=()=>{ const sel=[]; $optionsDiv.find('input:checked').each(function(){sel.push($(this).val());}); return sel.length?sel:[uniqueLOBs[0]]; };
-        $optionsDiv.find('input').first().prop('checked',true).trigger('change');
-
-        // === Populate Week Dropdowns ===
-        uniqueWeeks.forEach(week=>{ $('#fromWeek').append(`<option value="${week}">${week}</option>`); $('#toWeek').append(`<option value="${week}">${week}</option>`); });
-        const currentWeek=formatWeek(new Date()); $('#fromWeek').val(uniqueWeeks[0]); $('#toWeek').val(uniqueWeeks[uniqueWeeks.length-1]);
-
-        // === Staffing Summary Table ===
+        // Generate Staffing Summary Table
         const generateSummary=()=>{
-            let html='<table><thead><tr><th class="freeze-col">LOB</th><th class="freeze-col2">Metric</th>';
-            uniqueWeeks.forEach(w=> html+=`<th>${w}</th>`); html+='</tr></thead><tbody>';
+            let html='<table><thead><tr><th>LOB</th><th>Metric</th>';
+            uniqueWeeks.forEach(w=> html+=`<th>${w}</th>`); 
+            html+='</tr></thead><tbody>';
+
             uniqueLOBs.forEach(lob=>{
-                staffingMetrics.forEach((metric,i)=>{
+                html+=`<tr><td colspan="${staffingMetrics.length+1}" style="background:#e9ecef;font-weight:bold;text-align:center">${lob}</td></tr>`;
+                staffingMetrics.forEach(metric=>{
                     html+='<tr>';
-                    if(i===0) html+=`<td class="freeze-col" rowspan="${staffingMetrics.length}">${lob}</td>`;
-                    html+=`<td class="freeze-col2">${metric}</td>`;
+                    html+=`<td style="display:none"></td>`; // empty cell since LOB name row used colspan
+                    html+=`<td>${metric}</td>`;
                     uniqueWeeks.forEach(week=>{
                         let val=structuredData.find(d=>d.Week===week)?structuredData.find(d=>d.Week===week)[`${metric}||${lob}`]||0:0;
                         if(metric==='Staffing %'){ val=Math.round(val*100)/100+'%'; }
@@ -103,29 +70,8 @@
             $analyticsSummary.html(html);
         };
 
-        // === Charts (filters apply only here) ===
-        const filterData=()=>{ 
-            const fromWeek=$('#fromWeek').val(); 
-            const toWeek=$('#toWeek').val(); 
-            const selectedLOBs=getSelectedLOBs(); 
-            const isComparison=$('#comparisonMode').is(':checked'); 
-            const filtered=structuredData.filter(d=>parseWeek(d.Week)>=parseWeek(fromWeek)&&parseWeek(d.Week)<=parseWeek(toWeek)); 
-            return {filtered,selectedLOBs,isComparison}; 
-        };
-        const renderCharts=()=>{ 
-            const {filtered,selectedLOBs,isComparison}=filterData();
-            $chartsContainer.empty(); 
-            // call existing chart generation logic here WITHOUT changing anything
-        };
-
-        $('#applyFilter').off('click').on('click',renderCharts);
-
-        // === Show modal and generate Staffing Summary only once ===
         $('#analyticsModal').modal('show');
         generateSummary();
-
-        // Render charts after modal visible
-        $('#analyticsModal').on('shown.bs.modal',function(){ renderCharts(); });
 
         return this;
     };
