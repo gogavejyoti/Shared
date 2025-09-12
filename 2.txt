@@ -7,6 +7,23 @@
 
         $('#analyticsModal').remove();
 
+        // Inject necessary styles
+        const styles = `
+        <style>
+            #chartsContainer {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+            }
+            #chartsContainer canvas {
+                width: 100% !important;
+                max-width: 800px;
+                height: 400px !important;
+            }
+        </style>`;
+        $('head').append(styles);
+
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -174,13 +191,14 @@
             const labels = filtered.map(d => d.Week);
 
             // Line Chart: Actual vs Forecasted Hours
-            $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light">
-                <div class="card-body">
-                    <h6 class="card-title fw-bold">Actual vs Forecasted Hours</h6>
-                    <canvas id="lineChart" height="200"></canvas>
-                </div>
-            </div>`);
-            new Chart(document.getElementById('lineChart'), {
+            $chartsContainer.append(`
+                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
+                    <div class="card-body text-center">
+                        <h6 class="card-title fw-bold">Actual vs Forecasted Hours</h6>
+                        <canvas></canvas>
+                    </div>
+                </div>`);
+            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
                 type: 'line',
                 data: {
                     labels,
@@ -192,17 +210,18 @@
                         fill: false
                     }))
                 },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
 
             // Bar Chart: Required vs Available HC
-            $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light">
-                <div class="card-body">
-                    <h6 class="card-title fw-bold">Required vs Available HC</h6>
-                    <canvas id="barChart" height="200"></canvas>
-                </div>
-            </div>`);
-            new Chart(document.getElementById('barChart'), {
+            $chartsContainer.append(`
+                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
+                    <div class="card-body text-center">
+                        <h6 class="card-title fw-bold">Required HC vs Available HC</h6>
+                        <canvas></canvas>
+                    </div>
+                </div>`);
+            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels,
@@ -212,17 +231,18 @@
                         backgroundColor: metricColors[metric]
                     }))
                 },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
 
-            // Area Chart: Planned vs Actual Shrinkage (%)
-            $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light">
-                <div class="card-body">
-                    <h6 class="card-title fw-bold">Planned vs Actual Shrinkage (%)</h6>
-                    <canvas id="areaChart" height="200"></canvas>
-                </div>
-            </div>`);
-            new Chart(document.getElementById('areaChart'), {
+            // Area Chart: Shrinkage (%)
+            $chartsContainer.append(`
+                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
+                    <div class="card-body text-center">
+                        <h6 class="card-title fw-bold">Planned vs Actual Shrinkage (%)</h6>
+                        <canvas></canvas>
+                    </div>
+                </div>`);
+            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
                 type: 'line',
                 data: {
                     labels,
@@ -234,17 +254,18 @@
                         fill: true
                     }))
                 },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
 
-            // Line Chart: Planned vs Actual Attrition (%)
-            $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light">
-                <div class="card-body">
-                    <h6 class="card-title fw-bold">Planned vs Actual Attrition (%)</h6>
-                    <canvas id="attritionChart" height="200"></canvas>
-                </div>
-            </div>`);
-            new Chart(document.getElementById('attritionChart'), {
+            // Area Chart: Attrition (%)
+            $chartsContainer.append(`
+                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
+                    <div class="card-body text-center">
+                        <h6 class="card-title fw-bold">Planned vs Actual Attrition (%)</h6>
+                        <canvas></canvas>
+                    </div>
+                </div>`);
+            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
                 type: 'line',
                 data: {
                     labels,
@@ -253,10 +274,31 @@
                         data: filtered.map(d => ((d[`${metric}||${selectedLOB}`] || 0) * 100).toFixed(2)),
                         borderColor: metricColors[metric],
                         backgroundColor: metricColors[metric] + '55',
-                        fill: false
+                        fill: true
                     }))
                 },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
+            });
+
+            // Heatmap: Example Metric Distribution (can customize as needed)
+            $chartsContainer.append(`
+                <div class="card mb-4 shadow-sm border rounded bg-light" style="width: 100%; max-width: 900px;">
+                    <div class="card-body text-center">
+                        <h6 class="card-title fw-bold">Metric Heatmap</h6>
+                        <canvas></canvas>
+                    </div>
+                </div>`);
+            new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: uniqueHeaders.map((header, i) => ({
+                        label: header,
+                        data: filtered.map(d => d[`${header}||${selectedLOB}`] || 0),
+                        backgroundColor: metricColors[header] || `hsl(${(i * 30) % 360}, 70%, 50%)`
+                    }))
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } } }
             });
         };
 
