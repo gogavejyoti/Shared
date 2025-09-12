@@ -5,10 +5,9 @@
             weekStartDay: 'sunday'
         }, options);
 
-        // Remove existing modal
         $('#analyticsModal').remove();
 
-        // Add scoped CSS for this popup only
+        // Scoped CSS for popup only
         if ($('#weekAnalyticsPopupStyles').length === 0) {
             $('head').append(`
             <style id="weekAnalyticsPopupStyles">
@@ -105,14 +104,14 @@
 
         const $container = $('#staffingContainer');
 
-        // Parse week string into Date
+        // Parse week string to Date
         const parseWeek = w => {
             const [dd, mmm, yy] = w.split('-');
             const fullYear = parseInt(yy, 10) < 50 ? '20' + yy : '19' + yy;
             return new Date(`${mmm} ${dd}, ${fullYear}`);
         };
 
-        // Get unique weeks & LOBs
+        // Unique weeks & LOBs
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))]
             .sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
@@ -136,6 +135,23 @@
             });
         });
 
+        // LOB base colors
+        const lobColors = ['#2c3e50','#34495e','#16a085','#8e44ad','#d35400','#7f8c8d','#27ae60','#c0392b'];
+
+        // Lighten function for gradient
+        function lightenColor(hex, percent) {
+            const num = parseInt(hex.replace('#',''),16),
+                  amt = Math.round(2.55*percent),
+                  R = (num >> 16) + amt,
+                  G = (num >> 8 & 0x00FF) + amt,
+                  B = (num & 0x0000FF) + amt;
+            return '#' + (0x1000000 + 
+                (R<255?R<1?0:R:255)*0x10000 +
+                (G<255?G<1?0:G:255)*0x100 +
+                (B<255?B<1?0:B:255)
+            ).toString(16).slice(1);
+        }
+
         // Build table
         let html = '<table><thead><tr>';
         html += `<th class="sticky-left">LOB</th>`;
@@ -143,12 +159,14 @@
         uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
         html += '</tr></thead><tbody>';
 
-        uniqueLOBs.forEach(lob => {
+        uniqueLOBs.forEach((lob, lobIndex) => {
+            const baseColor = lobColors[lobIndex % lobColors.length];
             metrics.forEach((metric, i) => {
+                const rowColor = lightenColor(baseColor, i*10); // gradient per metric row
                 html += '<tr>';
 
-                if (i === 0) html += `<td class="sticky-left" rowspan="${metrics.length}">${lob}</td>`;
-                html += `<td class="sticky-left-2">${metric}</td>`;
+                if (i === 0) html += `<td class="sticky-left" rowspan="${metrics.length}" style="background:${baseColor}; color:#fff;">${lob}</td>`;
+                html += `<td class="sticky-left-2" style="background:${rowColor}; color:#fff;">${metric}</td>`;
 
                 uniqueWeeks.forEach(week => {
                     let val = groupedData[lob][week][metric] || 0;
@@ -165,7 +183,7 @@
                         val = new Intl.NumberFormat().format(val);
                     }
 
-                    html += `<td class="${cls}">${val}</td>`;
+                    html += `<td class="${cls}" style="background:${rowColor}; color:#fff;">${val}</td>`;
                 });
 
                 html += '</tr>';
@@ -175,7 +193,7 @@
         html += '</tbody></table>';
         $container.html(html);
 
-        // Show Bootstrap modal
+        // Show modal
         const modalEl = document.getElementById('analyticsModal');
         const modal = new bootstrap.Modal(modalEl);
         modal.show();
