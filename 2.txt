@@ -34,8 +34,8 @@
 
         const $analyticsSummary = $('#analyticsSummary');
 
-        const parseWeek = w=>{ const [dd, mmm, yy]=w.split('-'); return new Date(`${mmm} ${dd}, 20${yy}`); };
-        const structuredData = (()=>{ 
+        const parseWeek = w => { const [dd, mmm, yy]=w.split('-'); return new Date(`${mmm} ${dd}, 20${yy}`); };
+        const structuredData = (() => { 
             const g={}; 
             settings.data.forEach(item=>{
                 if(!g[item.week]) g[item.week]={Week:item.week}; 
@@ -54,15 +54,18 @@
             return 'red';
         };
 
-        const generateSummary=()=>{
+        const generateSummary = () => {
             let html='<table><thead><tr><th>LOB</th><th>Metric</th>';
             uniqueWeeks.forEach(w=> html+=`<th>${w}</th>`); 
             html+='</tr></thead><tbody>';
 
             uniqueLOBs.forEach(lob=>{
-                staffingMetrics.forEach(metric=>{
+                staffingMetrics.forEach((metric,index)=>{
                     html+='<tr>';
-                    html+=`<td>${lob}</td>`;
+                    // Apply rowspan for LOB
+                    if(index===0){
+                        html+=`<td rowspan="${staffingMetrics.length}" style="font-weight:bold;">${lob}</td>`;
+                    }
                     html+=`<td>${metric}</td>`;
                     uniqueWeeks.forEach(week=>{
                         const weekData=structuredData.find(d=>d.Week===week) || {};
@@ -87,6 +90,7 @@
                     html+='</tr>';
                 });
             });
+
             html+='</tbody></table>';
             $analyticsSummary.html(html);
         };
