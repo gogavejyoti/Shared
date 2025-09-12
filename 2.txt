@@ -1,3 +1,5 @@
+<script src="https://cdn.tailwindcss.com"></script>
+
 (function ($) {
     $.fn.weekAnalyticsPopup = function (options) {
         const settings = $.extend({
@@ -10,63 +12,65 @@
         // Styles
         const styles = `
         <style>
-            #chartsContainer { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; justify-items:center; }
-            #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
+            #chartsContainer { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; justify-items: center; }
+            #chartsContainer canvas { width: 100% !important; max-width: 450px; height: 220px !important; }
             .custom-multiselect { position: relative; display: inline-block; width: 200px; }
             .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
             .custom-multiselect .multiselect-options { 
-                display: none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; background:white; border:1px solid #ced4da; border-radius:4px; padding:5px 0; width: 100%;
-                box-shadow:0 2px 5px rgba(0,0,0,0.15);
+                display: none; max-height: 200px; overflow-y: auto; position: absolute; z-index: 50; background: white; border: 1px solid #e5e7eb; border-radius: 0.375rem; padding: 0.5rem 0; width: 100%;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
-            .custom-multiselect .multiselect-options label { display:block; padding:5px 10px; cursor:pointer; }
-            .custom-multiselect .multiselect-options label:hover { background-color:#f1f1f1; }
-            .modal-header { background: linear-gradient(90deg,#007bff,#28a745); color: #fff; }
-            .table-summary { max-height:250px; overflow-y:auto; display:block; }
-            .table-summary table { margin-bottom:0; }
-            #applyFilter, #exportCsv { transition:0.2s; }
-            #applyFilter:hover, #exportCsv:hover { opacity:0.85; }
+            .custom-multiselect .multiselect-options label { display: block; padding: 0.5rem 1rem; cursor: pointer; }
+            .custom-multiselect .multiselect-options label:hover { background-color: #f3f4f6; }
+            .table-summary { max-height: 250px; overflow-y: auto; }
         </style>`;
         $('head').append(styles);
 
-        // Modal HTML
+        // Tailwind Modal HTML
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1">
-          <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Workforce Analytics Dashboard</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div id="analyticsModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
+          <div class="bg-white rounded-lg shadow-lg w-full max-w-5xl max-h-[90vh] overflow-auto">
+            <div class="flex justify-between items-center p-4 border-b bg-gradient-to-r from-blue-600 to-green-500 text-white rounded-t-lg">
+              <h3 class="text-xl font-semibold">Workforce Analytics Dashboard</h3>
+              <button type="button" id="closeModal" class="text-white text-2xl font-bold">&times;</button>
+            </div>
+            <div class="p-4 space-y-4">
+              <div class="flex flex-wrap gap-4 items-center">
+                <label class="flex flex-col">
+                  <span class="font-medium text-gray-700">From Week</span>
+                  <select id="fromWeek" class="border rounded px-2 py-1"></select>
+                </label>
+                <label class="flex flex-col">
+                  <span class="font-medium text-gray-700">To Week</span>
+                  <select id="toWeek" class="border rounded px-2 py-1"></select>
+                </label>
+                <label class="flex flex-col">
+                  <span class="font-medium text-gray-700">LOB</span>
+                  <div class="custom-multiselect" id="lobSelectContainer">
+                    <button type="button" class="bg-white border rounded px-2 py-1 text-gray-700 w-full text-left" id="lobSelectBtn">Select LOBs</button>
+                    <div class="multiselect-options"></div>
+                  </div>
+                </label>
+                <label class="flex items-center space-x-2 text-gray-700">
+                  <input type="checkbox" id="comparisonMode" class="rounded">
+                  <span>Comparison Mode</span>
+                </label>
+                <button id="applyFilter" class="bg-blue-600 text-white rounded px-3 py-1 hover:bg-blue-700">Apply Filter</button>
+                <button id="exportCsv" class="bg-gray-600 text-white rounded px-3 py-1 hover:bg-gray-700">Export CSV</button>
               </div>
-              <div class="modal-body">
-                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
-                  <label>From Week: 
-                    <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
-                  </label>
-                  <label>To Week: 
-                    <select id="toWeek" class="form-select d-inline-block w-auto"></select>
-                  </label>
-                  <label>LOB: 
-                    <div class="custom-multiselect" id="lobSelectContainer">
-                        <button type="button" class="btn btn-light dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
-                        <div class="multiselect-options"></div>
-                    </div>
-                  </label>
-                  <label class="ms-2"><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
-                  <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
-                  <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
-                </div>
-                <div id="chartsContainer" class="mt-3"></div>
-                <div id="analyticsSummary" class="mt-4 table-summary"></div>
-              </div>
+
+              <div id="chartsContainer"></div>
+              <div id="analyticsSummary" class="table-summary bg-gray-50 p-4 rounded shadow"></div>
             </div>
           </div>
-        </div>`;
+        </div>
+        `;
         $('body').append(modalHTML);
 
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
-        // Week parsing & formatting
+        // Existing logic for week parsing, data transform, etc. (reuse your code)
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -85,8 +89,6 @@
             lastWeekDate.setDate(today.getDate() - diff);
             return formatWeek(lastWeekDate);
         };
-
-        // Data transform
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -95,12 +97,11 @@
             });
             return Object.values(grouped).sort((a, b) => parseWeek(a.Week) - parseWeek(b.Week));
         })();
-
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
         const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        // Populate weeks
+        // Populate week selects
         uniqueWeeks.forEach(week => {
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
@@ -113,28 +114,24 @@
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // Custom multi-select
+        // Custom multi-select logic (reuse your code)
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
         uniqueLOBs.forEach(lob => $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`));
-
         $lobBtn.on('click', e => { e.stopPropagation(); $optionsDiv.toggle(); });
         $(document).on('click', () => $optionsDiv.hide());
-
         const getSelectedLOBs = () => {
             const selected = [];
             $optionsDiv.find('input:checked').each(function () { selected.push($(this).val()); });
             return selected.length ? selected : [uniqueLOBs[0]];
         };
-
         $optionsDiv.find('input').on('change', function () {
             const selected = getSelectedLOBs();
             $lobBtn.text(selected.join(', '));
         });
         $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
-        // Colors
         const metricColors = {
             "Required HC": "#007bff", "Available HC": "#28a745",
             "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
@@ -146,7 +143,6 @@
         const colorPalette = ['#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997', '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#fd3955'];
         uniqueLOBs.forEach((lob, i) => lobColors[lob] = colorPalette[i % colorPalette.length]);
 
-        // Filter data
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
@@ -156,9 +152,8 @@
             return { filtered, selectedLOBs, isComparison };
         };
 
-        // Summary table with rounded numbers
         const generateSummary = (filtered, selectedLOBs) => {
-            let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Value</th></tr></thead><tbody>`;
+            let html = `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-100"><tr><th class="px-4 py-2 text-left">LOB</th><th class="px-4 py-2 text-left">Metric</th><th class="px-4 py-2 text-left">Value</th></tr></thead><tbody>`;
             selectedLOBs.forEach(lob => {
                 uniqueHeaders.forEach(header => {
                     let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
@@ -167,20 +162,19 @@
                     } else {
                         total = Math.round(total).toLocaleString();
                     }
-                    html += `<tr><td>${lob}</td><td>${header}</td><td>${total}</td></tr>`;
+                    html += `<tr><td class="px-4 py-2">${lob}</td><td class="px-4 py-2">${header}</td><td class="px-4 py-2">${total}</td></tr>`;
                 });
             });
             html += `</tbody></table></div>`;
             $analyticsSummary.html(html);
         };
 
-        // Render charts
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
             $chartsContainer.empty();
             const labels = filtered.map(d => d.Week);
 
             const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
-                $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;"><div class="card-body text-center"><h6 class="card-title fw-bold">${title}</h6><canvas></canvas></div></div>`);
+                $chartsContainer.append(`<div class="bg-white p-4 rounded shadow w-full max-w-[900px]"><h6 class="font-semibold text-center mb-3">${title}</h6><canvas></canvas></div>`);
                 const datasets = [];
                 metrics.forEach(metric => {
                     lobList.forEach(lob => {
@@ -249,10 +243,15 @@
         };
 
         $('#applyFilter').off('click').on('click', applyFilters);
-        $('#exportCsv').off('click').on('click', () => { const { filtered, selectedLOBs } = filterData(); exportCSV(filtered, selectedLOBs); });
+        $('#exportCsv').off('click').on('click', () => {
+            const { filtered, selectedLOBs } = filterData();
+            exportCSV(filtered, selectedLOBs);
+        });
 
         applyFilters();
-        $('#analyticsModal').modal('show');
+        $('#analyticsModal').removeClass('hidden');
+
+        $('#closeModal').on('click', () => $('#analyticsModal').addClass('hidden'));
 
         return this;
     };
