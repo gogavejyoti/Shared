@@ -11,8 +11,9 @@
         <style>
             .table-wrapper {
                 overflow-x: auto;
-                overflow-y: visible;
-                max-height: none;
+                overflow-y: auto;
+                max-height: 500px;
+                position: relative;
                 border: 1px solid #ccc;
             }
             table {
@@ -53,14 +54,14 @@
         $('head').append(styles);
 
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1">
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;">
           <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title">Staffing Summary</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
-              <div class="modal-body">
+              <div class="modal-body p-0">
                 <div class="table-wrapper" id="staffingContainer"></div>
               </div>
             </div>
