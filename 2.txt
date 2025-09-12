@@ -1,2 +1,18 @@
 row[`${selectedHeader}||${selectedLOB}`]
 row[`${selectedHeader}||${selectedLOB}`] ?? 0
+
+const datasets = uniqueLOBs.map((lob, idx) => ({
+    label: lob,
+    data: filtered.map(d => Number(d[`${selectedHeader}||${lob}`] || 0)),
+    fill: false,
+    borderColor: colorSet[idx],
+    backgroundColor: colorSet[idx],
+    tension: 0.3
+}));
+
+const total = filtered.reduce((sum, d) => {
+    return sum + Number(d[`${selectedHeader}||${lob}`] || 0);
+}, 0);
+
+
+const value = Number(row[`${selectedHeader}||${selectedLOB}`] || 0);
