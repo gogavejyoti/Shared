@@ -22,7 +22,7 @@
                 table {
                     border-collapse: collapse;
                     width: max-content;
-                    table-layout: fixed;
+                    table-layout: auto; /* Dynamic column widths */
                 }
 
                 th, td {
@@ -31,7 +31,6 @@
                     text-align: center;
                     white-space: nowrap;
                     background: #fff;
-                    min-width: 100px;
                 }
 
                 thead th {
