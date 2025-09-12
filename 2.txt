@@ -152,7 +152,7 @@
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
-            const selectedLOBs = getSelectedLOBs(); // use selected LOBs for comparison too
+            const selectedLOBs = getSelectedLOBs(); 
             const isComparison = $('#comparisonMode').is(':checked');
             const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek));
             return { filtered, selectedLOBs, isComparison };
@@ -161,7 +161,7 @@
         // Generate summary
         const generateSummary = (filtered, selectedLOBs, isComparison) => {
             let summaryHTML = '<h5>Summary Analytics</h5><ul>';
-            const lobsToSummarize = selectedLOBs; // always use selected LOBs
+            const lobsToSummarize = selectedLOBs; 
             uniqueHeaders.forEach(header => {
                 lobsToSummarize.forEach(lob => {
                     let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
@@ -234,13 +234,18 @@
                         datasets.push({
                             label: lob + ' - Staffing %',
                             data: staffingData,
-                            borderColor: '#ff33aa',
+                            borderColor:'#ff33aa',
                             borderDash:[5,5],
                             backgroundColor:'transparent',
                             fill:false,
                             yAxisID:'yPercent'
                         });
                     });
+                }
+
+                const scalesConfig = { y:{ beginAtZero:true, title:{ display:true, text:'HC / Value' }} };
+                if(includeStaffing){
+                    scalesConfig['yPercent'] = { beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false }};
                 }
 
                 new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'),{
@@ -250,10 +255,7 @@
                         responsive:true,
                         maintainAspectRatio:false,
                         plugins:{ legend:{ position:'bottom' }, tooltip:{ mode:'index', intersect:false }},
-                        scales:{
-                            y:{ beginAtZero:true, title:{ display:true, text:'HC / Value' }},
-                            yPercent:{ beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false }}
-                        }
+                        scales: scalesConfig
                     }
                 });
             };
