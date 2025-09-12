@@ -1,21 +1,21 @@
 (function ($) {
-    $.fn.staffingSummaryPopup = function (options) {
+    $.fn.weekAnalyticsPopup = function (options) {
         const settings = $.extend({
             data: [],             // flat JSON: { week, sheetName, header, value }
             weekStartDay: 'sunday'
         }, options);
 
-        $('#staffingModal').remove();
+        $('#analyticsModal').remove();
 
         // Styles
         const styles = `
         <style>
             .table-container { overflow:auto; max-height:400px; position:relative; }
-            table { border-collapse:collapse; width:100%; }
+            table { border-collapse:collapse; width:100%; min-width:600px; }
             th, td { border:1px solid #ccc; padding:5px; text-align:center; min-width:80px; }
             th { position:sticky; top:0; background:#f1f1f1; z-index:2; }
             .sticky-left { position:sticky; left:0; background:#fff; z-index:3; }
-            .sticky-left-2 { position:sticky; left:100px; background:#fff; z-index:3; }
+            .sticky-left-2 { position:sticky; left:120px; background:#fff; z-index:3; }
             .rag-red { color:red; font-weight:bold; }
             .rag-amber { color:orange; font-weight:bold; }
             .rag-green { color:green; font-weight:bold; }
@@ -24,7 +24,7 @@
 
         // Modal HTML
         const modalHTML = `
-        <div class="modal fade" id="staffingModal" tabindex="-1">
+        <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header">
@@ -47,12 +47,12 @@
             return new Date(`${mmm} ${dd}, 20${yy}`);
         };
 
-        // Data transformation
+        // Unique weeks and LOBs
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
         const metrics = ['Required HC','Available HC','Delta','Staffing %'];
 
-        // Compute Delta and Staffing % per LOB per week
+        // Group data
         const groupedData = {};
         settings.data.forEach(d => {
             if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
@@ -99,8 +99,7 @@
         html += '</tbody></table>';
         $container.html(html);
 
-        // Show modal
-        $('#staffingModal').modal('show');
+        $('#analyticsModal').modal('show');
         return this;
     };
 })(jQuery);
