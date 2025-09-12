@@ -6,10 +6,11 @@
 
         const styles = `
         <style>
-            .table-summary { max-height:400px; overflow:auto; display:block; }
+            .table-summary { max-height:400px; overflow:auto; display:block; position:relative; }
             .table-summary table { border-collapse:collapse; width:100%; }
             .table-summary th, .table-summary td { border:1px solid #ddd; padding:4px; white-space:nowrap; text-align:center; }
             .table-summary thead th { position:sticky; top:0; background:#f1f1f1; z-index:10; }
+            .table-summary tbody td:first-child, .table-summary tbody td:nth-child(2) { position:sticky; left:0; background:#fff; z-index:5; }
         </style>`;
         $('head').append(styles);
 
@@ -45,6 +46,13 @@
         const uniqueWeeks=[...new Set(settings.data.map(d=>d.week))].sort((a,b)=>parseWeek(a)-parseWeek(b));
         const staffingMetrics=['Required HC','Available HC','Delta','Staffing %'];
 
+        // Helper: RAG for Staffing %
+        const getRAGColor = val=>{
+            if(val>=95) return 'green';
+            if(val>=85) return 'orange';
+            return 'red';
+        };
+
         // Generate Staffing Summary Table
         const generateSummary=()=>{
             let html='<table><thead><tr><th>LOB</th><th>Metric</th>';
@@ -55,13 +63,21 @@
                 html+=`<tr><td colspan="${staffingMetrics.length+1}" style="background:#e9ecef;font-weight:bold;text-align:center">${lob}</td></tr>`;
                 staffingMetrics.forEach(metric=>{
                     html+='<tr>';
-                    html+=`<td style="display:none"></td>`; // empty cell since LOB name row used colspan
+                    html+=`<td style="display:none"></td>`; // placeholder for frozen
                     html+=`<td>${metric}</td>`;
                     uniqueWeeks.forEach(week=>{
                         let val=structuredData.find(d=>d.Week===week)?structuredData.find(d=>d.Week===week)[`${metric}||${lob}`]||0:0;
-                        if(metric==='Staffing %'){ val=Math.round(val*100)/100+'%'; }
-                        else val=Math.round(val).toLocaleString();
-                        html+=`<td>${val}</td>`;
+                        let style='';
+                        if(metric==='Staffing %'){ 
+                            val=Math.round(val*100)/100+'%'; 
+                            const numVal=Number(val.replace('%',''));
+                            style=`color:${getRAGColor(numVal)}; font-weight:bold;`;
+                        }
+                        if(metric==='Delta' && val<0){
+                            style='color:red; font-weight:bold;';
+                        }
+                        else if(metric!=='Staffing %' && metric!=='Delta'){ val=Math.round(val).toLocaleString(); }
+                        html+=`<td style="${style}">${val}</td>`;
                     });
                     html+='</tr>';
                 });
