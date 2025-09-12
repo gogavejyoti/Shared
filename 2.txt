@@ -6,13 +6,13 @@
 
         const styles = `
         <style>
-            .table-summary { max-height:400px; overflow:auto; display:block; position:relative; }
-            .table-summary table { border-collapse:collapse; width:100%; }
+            .table-summary { max-height:400px; max-width:100%; overflow:auto; display:block; }
+            .table-summary table { border-collapse:collapse; width:100%; table-layout:fixed; }
             .table-summary th, .table-summary td { border:1px solid #ddd; padding:4px; white-space:nowrap; text-align:center; }
             .table-summary thead th { position:sticky; top:0; background:#f1f1f1; z-index:10; }
             .table-summary tbody td:first-child, 
             .table-summary tbody td:nth-child(2) { position:sticky; left:0; background:#fff; z-index:5; }
-            .table-summary tbody td:first-child { z-index:6; }
+            .table-summary tbody td:first-child { z-index:6; font-weight:bold; }
         </style>`;
         $('head').append(styles);
 
@@ -34,7 +34,6 @@
 
         const $analyticsSummary = $('#analyticsSummary');
 
-        // Transform Data
         const parseWeek = w=>{ const [dd, mmm, yy]=w.split('-'); return new Date(`${mmm} ${dd}, 20${yy}`); };
         const structuredData = (()=>{ 
             const g={}; 
@@ -49,27 +48,21 @@
         const uniqueWeeks=[...new Set(settings.data.map(d=>d.week))].sort((a,b)=>parseWeek(a)-parseWeek(b));
         const staffingMetrics=['Required HC','Available HC','Delta','Staffing %'];
 
-        // Helper: RAG color for Staffing %
         const getRAGColor = val=>{
             if(val>=95) return 'green';
             if(val>=85) return 'orange';
             return 'red';
         };
 
-        // Generate Staffing Summary Table
         const generateSummary=()=>{
             let html='<table><thead><tr><th>LOB</th><th>Metric</th>';
             uniqueWeeks.forEach(w=> html+=`<th>${w}</th>`); 
             html+='</tr></thead><tbody>';
 
             uniqueLOBs.forEach(lob=>{
-                html+=`<tr><td colspan="2" style="background:#e9ecef;font-weight:bold;text-align:center">${lob}</td>`;
-                html+=uniqueWeeks.map(()=>`<td></td>`).join('');
-                html+='</tr>';
-
                 staffingMetrics.forEach(metric=>{
                     html+='<tr>';
-                    html+=`<td style="display:none"></td>`; // placeholder for sticky
+                    html+=`<td>${lob}</td>`;
                     html+=`<td>${metric}</td>`;
                     uniqueWeeks.forEach(week=>{
                         const weekData=structuredData.find(d=>d.Week===week) || {};
