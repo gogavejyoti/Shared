@@ -34,11 +34,11 @@
                 background:#f8f9fa;
                 z-index:2;
             }
-            .table-summary th:nth-child(2), .table-summary td:nth-child(2) { left: 100px; } /* adjust as per first column width */
+            .table-summary th:nth-child(2), .table-summary td:nth-child(2) { left: 100px; } 
         </style>`;
         $('head').append(styles);
 
-        // Modal HTML with two tabs
+        // Modal HTML with tabs
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -90,7 +90,7 @@
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
-        // Week parsing & formatting
+        // Week parsing
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -110,7 +110,7 @@
             return formatWeek(lastWeekDate);
         };
 
-        // Data transform
+        // Structured Data
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -137,7 +137,7 @@
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // Custom multi-select
+        // Custom multi-select for Charts tab only
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -151,12 +151,11 @@
             $optionsDiv.find('input:checked').each(function () { selected.push($(this).val()); });
             return selected.length ? selected : [uniqueLOBs[0]];
         };
-
+        $optionsDiv.find('input').first().prop('checked', true).trigger('change');
         $optionsDiv.find('input').on('change', function () {
             const selected = getSelectedLOBs();
             $lobBtn.text(selected.join(', '));
         });
-        $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
         // Colors
         const metricColors = {
@@ -167,21 +166,18 @@
             "Planned AHT": "#6610f2", "Actual AHT": "#fd3955"
         };
 
-        // Staffing Summary
+        // Staffing Summary (all LOBs, ignore LOB filter)
         const generateSummary = () => {
             let html = `<table class="table table-striped table-hover"><thead><tr><th>LOB</th><th>Metric</th>`;
             uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
             html += `</tr></thead><tbody>`;
-            const selectedLOBs = getSelectedLOBs();
-            selectedLOBs.forEach(lob => {
-                ['FTE Required', 'FTE Available', 'Delta', 'Staffing %'].forEach(metric => {
-                    html += `<tr><td>${lob}</td><td>${metric}</td>`;
+            uniqueLOBs.forEach(lob => {
+                uniqueHeaders.forEach(header => {
+                    html += `<tr><td>${lob}</td><td>${header}</td>`;
                     uniqueWeeks.forEach(week => {
-                        let val = structuredData.find(d => d.Week === week)?.[`${metric}||${lob}`] || 0;
-                        if (metric === 'Staffing %') {
-                            val = Number(val);
-                            let color = val < 80 ? 'red' : val < 100 ? 'orange' : 'green';
-                            html += `<td style="color:${color}; font-weight:bold;">${val}%</td>`;
+                        let val = structuredData.find(d => d.Week === week)?.[`${header}||${lob}`] || 0;
+                        if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
+                            html += `<td>${Number(val).toFixed(2)}%</td>`;
                         } else {
                             html += `<td>${Math.round(val)}</td>`;
                         }
@@ -193,7 +189,7 @@
             $analyticsSummary.html(html);
         };
 
-        // Charts logic remains fully intact
+        // Charts logic remains untouched
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
@@ -209,7 +205,7 @@
         const applyFilters = () => {
             const { filtered, selectedLOBs, isComparison } = filterData();
             renderCharts(filtered, selectedLOBs, isComparison);
-            generateSummary();
+            generateSummary(); // summary always shows all LOBs
         };
 
         $('#applyFilter').off('click').on('click', applyFilters);
