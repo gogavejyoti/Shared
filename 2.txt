@@ -1,4 +1,160 @@
-$(this).weekAnalyticsPopup({
-            data: flatData,
-            defaultMode: 'comparison'
+(function ($) {
+    $.fn.weekAnalyticsPopup = function (options) {
+        const settings = $.extend({
+            data: [],
+            weekStartDay: 'sunday',
+            defaultMode: 'staffing' // 'staffing' or 'charts'
+        }, options);
+
+        $('#analyticsModal').remove();
+
+        // Add modal HTML
+        const modalHTML = `
+        <div class="modal fade" id="analyticsModal" tabindex="-1">
+          <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Workforce Analytics Dashboard</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="analyticsTab" role="tablist">
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="staffing-tab" data-bs-toggle="tab" data-bs-target="#staffing" type="button" role="tab">Staffing Summary</button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts" type="button" role="tab">Charts</button>
+                  </li>
+                </ul>
+                <div class="tab-content">
+                  <div class="tab-pane fade show active" id="staffing" role="tabpanel">
+                    <div id="analyticsSummary"></div>
+                  </div>
+                  <div class="tab-pane fade" id="charts" role="tabpanel">
+                    <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
+                        <label>From Week: 
+                          <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
+                        </label>
+                        <label>To Week: 
+                          <select id="toWeek" class="form-select d-inline-block w-auto"></select>
+                        </label>
+                        <label>LOB: 
+                          <div class="custom-multiselect" id="lobSelectContainer">
+                              <button type="button" class="btn btn-light dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
+                              <div class="multiselect-options"></div>
+                          </div>
+                        </label>
+                        <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
+                    </div>
+                    <div id="chartsContainer"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+        $('body').append(modalHTML);
+
+        const $analyticsSummary = $('#analyticsSummary');
+        const $chartsContainer = $('#chartsContainer');
+
+        // Helper: parse week string
+        const parseWeek = (weekStr) => {
+            const [dd, mmm, yy] = weekStr.split('-');
+            return new Date(`${mmm} ${dd}, 20${yy}`);
+        };
+
+        // Helper: get unique values
+        const unique = (arr) => [...new Set(arr)];
+
+        // Prepare structured data
+        const structuredData = (() => {
+            const grouped = {};
+            settings.data.forEach(item => {
+                if (!grouped[item.week]) grouped[item.week] = { Week: item.week };
+                grouped[item.week][`${item.header}||${item.sheetName}`] = item.value;
+            });
+            return Object.values(grouped).sort((a, b) => parseWeek(a.Week) - parseWeek(b.Week));
+        })();
+
+        const uniqueWeeks = structuredData.map(d => d.Week);
+        const uniqueLOBs = unique(settings.data.map(d => d.sheetName));
+        const uniqueHeaders = ['Required HC', 'Available HC'];
+
+        // Populate week filters
+        uniqueWeeks.forEach(w => { 
+            $('#fromWeek, #toWeek').append(`<option value="${w}">${w}</option>`); 
         });
+        $('#fromWeek').val(uniqueWeeks[0]);
+        $('#toWeek').val(uniqueWeeks[uniqueWeeks.length - 1]);
+
+        // Populate LOB multiselect
+        const $optionsDiv = $('#lobSelectContainer .multiselect-options');
+        uniqueLOBs.forEach(lob => $optionsDiv.append(`<label><input type="checkbox" value="${lob}" checked> ${lob}</label>`));
+
+        const getSelectedLOBs = () => {
+            const selected = [];
+            $optionsDiv.find('input:checked').each(function () { selected.push($(this).val()); });
+            return selected.length ? selected : [uniqueLOBs[0]];
+        };
+
+        $('#lobSelectBtn').on('click', e => { e.stopPropagation(); $optionsDiv.toggle(); });
+        $(document).on('click', () => $optionsDiv.hide());
+        $optionsDiv.find('input').on('change', () => {
+            const sel = getSelectedLOBs();
+            $('#lobSelectBtn').text(sel.join(', '));
+        });
+
+        // Generate Staffing Summary
+        const generateSummary = () => {
+            let html = `<div class="table-responsive"><table class="table table-bordered" id="lobStaffingTable"><thead><tr><th>LOB</th><th>Metric</th>`;
+            structuredData.forEach(d => html += `<th>${d.Week}</th>`);
+            html += `</tr></thead><tbody>`;
+            getSelectedLOBs().forEach(lob => {
+                // FTE Required
+                html += `<tr><td rowspan="4">${lob}</td><td>FTE Required</td>`;
+                structuredData.forEach(d => html += `<td>${Math.round(d[`Required HC||${lob}`] || 0)}</td>`); html += `</tr>`;
+                // FTE Available
+                html += `<tr><td>FTE Available</td>`; structuredData.forEach(d => html += `<td>${Math.round(d[`Available HC||${lob}`] || 0)}</td>`); html += `</tr>`;
+                // Delta
+                html += `<tr><td>Delta</td>`; structuredData.forEach(d => { const delta = (Number(d[`Available HC||${lob}`] || 0) - Number(d[`Required HC||${lob}`] || 0)); html += `<td>${delta}</td>`; }); html += `</tr>`;
+                // Staffing %
+                html += `<tr><td>Staffing %</td>`; structuredData.forEach(d => { 
+                    const required = Number(d[`Required HC||${lob}`] || 0);
+                    const available = Number(d[`Available HC||${lob}`] || 0);
+                    const pct = required === 0 ? 0 : ((available / required) * 100).toFixed(2);
+                    let color = 'bg-success'; if (pct < 80) color = 'bg-danger'; else if (pct < 100) color = 'bg-warning';
+                    html += `<td class="${color}" style="color:white;text-align:center;">${pct}%</td>`;
+                }); html += `</tr>`;
+            });
+            html += `</tbody></table></div>`;
+            $analyticsSummary.html(html);
+
+            // Freeze first row and first 2 columns
+            $('#lobStaffingTable th, #lobStaffingTable td').css({'text-align':'center'});
+            $('#lobStaffingTable th:nth-child(1), #lobStaffingTable td:nth-child(1), #lobStaffingTable th:nth-child(2), #lobStaffingTable td:nth-child(2)').css({
+                'position':'sticky','left':'0','background-color':'#fff','z-index':'2'
+            });
+            $('#lobStaffingTable thead').css({'position':'sticky','top':'0','background-color':'#fff','z-index':'3'});
+        };
+
+        // Charts rendering (stubbed, replace with your Chart.js logic)
+        const renderCharts = () => {
+            $chartsContainer.html('<p>Charts will render here (replace with Chart.js code)</p>');
+        };
+
+        // Apply filters button
+        $('#applyFilter').on('click', function () {
+            generateSummary();
+            renderCharts();
+        });
+
+        // Open modal and generate default tab
+        $('#analyticsModal').modal('show');
+        if (settings.defaultMode === 'staffing') generateSummary();
+        else renderCharts();
+
+        return this;
+    };
+})(jQuery);
