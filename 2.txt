@@ -1,7 +1,7 @@
 (function ($) {
     $.fn.weekAnalyticsPopup = function (options) {
         const settings = $.extend({
-            data: [], // Array of objects: {week, sheetName, header, value}
+            data: [],
             weekStartDay: 'sunday'
         }, options);
 
@@ -10,15 +10,46 @@
         // Styles
         const styles = `
         <style>
-            .table-container { overflow:auto; max-height:500px; max-width:100%; position:relative; border:1px solid #ccc; }
-            table { border-collapse: collapse; width:100%; min-width:700px; table-layout: fixed; }
-            th, td { border:1px solid #ccc; padding:5px; text-align:center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            thead th { position: sticky; top:0; background:#f1f1f1; z-index:2; }
-            .sticky-left { position: sticky; left:0; background:#fff; z-index:3; width:120px; min-width:120px; }
-            .sticky-left-2 { position: sticky; left:120px; background:#fff; z-index:3; width:120px; min-width:120px; }
-            .rag-red { color:red; font-weight:bold; }
-            .rag-amber { color:orange; font-weight:bold; }
-            .rag-green { color:green; font-weight:bold; }
+            .table-container {
+                overflow-x: auto;
+                overflow-y: auto;
+                max-height: 500px;
+                position: relative;
+                border: 1px solid #ccc;
+            }
+            table {
+                border-collapse: collapse;
+                min-width: 800px;
+                width: max-content;
+                table-layout: fixed;
+            }
+            th, td {
+                border: 1px solid #ccc;
+                padding: 8px;
+                text-align: center;
+                white-space: nowrap;
+            }
+            thead th {
+                position: sticky;
+                top: 0;
+                background: #f1f1f1;
+                z-index: 5;
+            }
+            .sticky-left {
+                position: sticky;
+                left: 0;
+                background: #fff;
+                z-index: 4;
+            }
+            .sticky-left-2 {
+                position: sticky;
+                left: 120px;
+                background: #fff;
+                z-index: 4;
+            }
+            .rag-red { color: red; font-weight: bold; }
+            .rag-amber { color: orange; font-weight: bold; }
+            .rag-green { color: green; font-weight: bold; }
         </style>`;
         $('head').append(styles);
 
@@ -41,17 +72,15 @@
 
         const $container = $('#staffingContainer');
 
-        // Parse weeks and get unique weeks & LOBs
         const parseWeek = w => {
             const [dd, mmm, yy] = w.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
         };
 
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a,b)=>parseWeek(a)-parseWeek(b));
+        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const metrics = ['Required HC','Available HC','Delta','Staffing %'];
+        const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
 
-        // Group data
         const groupedData = {};
         settings.data.forEach(d => {
             if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
@@ -59,35 +88,37 @@
             groupedData[d.sheetName][d.week][d.header] = Number(d.value);
         });
 
-        // Calculate Delta and Staffing %
-        uniqueLOBs.forEach(lob=>{
-            uniqueWeeks.forEach(week=>{
+        uniqueLOBs.forEach(lob => {
+            uniqueWeeks.forEach(week => {
                 const req = groupedData[lob][week]?.['Required HC'] || 0;
                 const avail = groupedData[lob][week]?.['Available HC'] || 0;
                 groupedData[lob][week]['Delta'] = avail - req;
-                groupedData[lob][week]['Staffing %'] = req===0?0:Math.round((avail/req)*100);
+                groupedData[lob][week]['Staffing %'] = req === 0 ? 0 : Math.round((avail / req) * 100);
             });
         });
 
-        // Build table HTML
-        let html = '<table><thead><tr><th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>';
+        let html = '<table><thead><tr>';
+        html += `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
         uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
         html += '</tr></thead><tbody>';
 
-        uniqueLOBs.forEach(lob=>{
-            metrics.forEach((metric,i)=>{
+        uniqueLOBs.forEach(lob => {
+            metrics.forEach((metric, i) => {
                 html += '<tr>';
-                if(i===0) html += `<td class="sticky-left" rowspan="${metrics.length}">${lob}</td>`;
+                if (i === 0) {
+                    html += `<td class="sticky-left" rowspan="${metrics.length}">${lob}</td>`;
+                }
                 html += `<td class="sticky-left-2">${metric}</td>`;
-                uniqueWeeks.forEach(week=>{
+                uniqueWeeks.forEach(week => {
                     let val = groupedData[lob][week][metric] || 0;
                     val = Math.round(val);
-                    let cls='';
-                    if(metric==='Delta' && val<0) cls='rag-red';
-                    if(metric==='Staffing %'){
-                        if(val<80) cls='rag-red';
-                        else if(val<100) cls='rag-amber';
-                        else cls='rag-green';
+                    let cls = '';
+                    if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                    if (metric === 'Staffing %') {
+                        if (val < 80) cls = 'rag-red';
+                        else if (val < 100) cls = 'rag-amber';
+                        else cls = 'rag-green';
+                        val = val + '%';
                     }
                     html += `<td class="${cls}">${val}</td>`;
                 });
