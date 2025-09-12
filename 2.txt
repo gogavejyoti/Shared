@@ -90,7 +90,6 @@
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
 
-        // Week parsing
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -110,7 +109,6 @@
             return formatWeek(lastWeekDate);
         };
 
-        // Structured Data
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -121,10 +119,9 @@
         })();
 
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        // Populate weeks
+        // Populate week filters
         uniqueWeeks.forEach(week => {
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
@@ -137,7 +134,7 @@
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // Custom multi-select for Charts tab only
+        // Multi-select LOBs
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -150,26 +147,36 @@
             return selected.length ? selected : [uniqueLOBs[0]];
         };
         $optionsDiv.find('input').first().prop('checked', true).trigger('change');
-        $optionsDiv.find('input').on('change', function () {
-            const selected = getSelectedLOBs();
-            $lobBtn.text(selected.join(', '));
-        });
+        $optionsDiv.find('input').on('change', function () { $lobBtn.text(getSelectedLOBs().join(', ')); });
 
-        // Staffing Summary with LOB col span for metrics
+        // RAG color logic
+        const getRAGColor = (header, value) => {
+            if (header === 'Staffing %') {
+                if (value >= 100) return '#28a745';
+                else if (value >= 90) return '#ffc107';
+                else return '#dc3545';
+            }
+            if (header === 'Delta') {
+                if (value >= 0) return '#28a745';
+                else return '#dc3545';
+            }
+            return '';
+        };
+
+        // Generate Staffing Summary (FTE metrics only)
         const generateSummary = () => {
+            const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
             let html = `<table class="table table-striped table-hover"><thead><tr><th rowspan="2">LOB</th><th rowspan="2">Metric</th>`;
             uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
             html += `</tr></thead><tbody>`;
             uniqueLOBs.forEach(lob => {
-                uniqueHeaders.forEach(header => {
+                metrics.forEach(header => {
                     html += `<tr><td>${lob}</td><td>${header}</td>`;
                     uniqueWeeks.forEach(week => {
                         let val = structuredData.find(d => d.Week === week)?.[`${header}||${lob}`] || 0;
-                        if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
-                            html += `<td>${Number(val).toFixed(2)}%</td>`;
-                        } else {
-                            html += `<td>${Math.round(val)}</td>`;
-                        }
+                        if (header === 'Staffing %') val = ((structuredData.find(d => d.Week === week)?.[`Available HC||${lob}`] || 0) / (structuredData.find(d => d.Week === week)?.[`Required HC||${lob}`] || 1) * 100).toFixed(2);
+                        const color = getRAGColor(header, val);
+                        html += `<td style="background:${color};">${val}${header === 'Staffing %' ? '%' : ''}</td>`;
                     });
                     html += `</tr>`;
                 });
@@ -178,7 +185,7 @@
             $analyticsSummary.html(html);
         };
 
-        // Charts filter logic
+        // Filtered data for charts
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
@@ -187,12 +194,13 @@
             const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek));
             return { filtered, selectedLOBs, isComparison };
         };
+
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
             $chartsContainer.empty();
-            /* keep your existing chart rendering logic untouched */
+            /* Keep your existing chart rendering logic intact here */
         };
 
-        // Render charts when tab shown
+        // Render charts on tab shown
         $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
             if ($(e.target).attr('id') === 'charts-tab') {
                 const { filtered, selectedLOBs, isComparison } = filterData();
@@ -201,7 +209,7 @@
         });
 
         $('#applyFilter').off('click').on('click', () => {
-            generateSummary(); // Staffing summary unaffected by LOB filter
+            generateSummary(); // Staffing summary shows all LOBs
             const { filtered, selectedLOBs, isComparison } = filterData();
             renderCharts(filtered, selectedLOBs, isComparison);
         });
