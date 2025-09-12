@@ -214,48 +214,65 @@
                 const labels = filtered.map(d => d.Week);
                 const datasets = [];
 
-                metrics.forEach(metric=>{
-                    lobList.forEach(lob=>{
-                        datasets.push({
-                            label: lob + ' - ' + metric,
-                            data: filtered.map(d=> {
-                                let val = d[`${metric}||${lob}`]||0;
-                                if(isPercentage && (metric.toLowerCase().includes('shrinkage')||metric.toLowerCase().includes('attrition'))) val = (val*100).toFixed(2);
-                                return val;
-                            }),
-                            borderColor: metricColors[metric] || lobColors[lob],
-                            backgroundColor: (metricColors[metric] || lobColors[lob])+'55',
-                            fill: type==='area'?true:false,
-                            yAxisID:'y'
+                if(isComparison){
+                    // Comparison mode: different color per LOB
+                    metrics.forEach(metric=>{
+                        lobList.forEach(lob=>{
+                            datasets.push({
+                                label: lob + ' - ' + metric,
+                                data: filtered.map(d => {
+                                    let val = d[`${metric}||${lob}`] || 0;
+                                    if(isPercentage && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition'))) val = (val*100).toFixed(2);
+                                    return val;
+                                }),
+                                borderColor: lobColors[lob],
+                                backgroundColor: lobColors[lob]+'55',
+                                fill: type==='area'?true:false,
+                                yAxisID:'y'
+                            });
                         });
                     });
-                });
-
-                if(includeStaffing){
-                    lobList.forEach(lob=>{
-                        const staffingData = filtered.map(d=>{
-                            const req = d[`Required HC||${lob}`]||0;
-                            const ava = d[`Available HC||${lob}`]||0;
-                            return req===0?0:((ava/req)*100).toFixed(2);
-                        });
-                        datasets.push({
-                            label: lob + ' - Staffing %',
-                            data: staffingData,
-                            borderColor:'#ff33aa',
-                            borderDash:[5,5],
-                            backgroundColor:'transparent',
-                            fill:false,
-                            yAxisID:'yPercent'
+                } else {
+                    // Non-comparison: metric-specific colors
+                    metrics.forEach(metric=>{
+                        lobList.forEach(lob=>{
+                            datasets.push({
+                                label: lob + ' - ' + metric,
+                                data: filtered.map(d => {
+                                    let val = d[`${metric}||${lob}`] || 0;
+                                    if(isPercentage && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition'))) val = (val*100).toFixed(2);
+                                    return val;
+                                }),
+                                borderColor: metricColors[metric] || lobColors[lob],
+                                backgroundColor: (metricColors[metric] || lobColors[lob])+'55',
+                                fill: type==='area'?true:false,
+                                yAxisID:'y'
+                            });
                         });
                     });
+                    // Staffing % only in Required vs Available HC chart
+                    if(includeStaffing){
+                        lobList.forEach(lob=>{
+                            const staffingData = filtered.map(d=>{
+                                const req = d[`Required HC||${lob}`]||0;
+                                const ava = d[`Available HC||${lob}`]||0;
+                                return req===0?0:((ava/req)*100).toFixed(2);
+                            });
+                            datasets.push({
+                                label: lob + ' - Staffing %',
+                                data: staffingData,
+                                borderColor:'#ff33aa',
+                                borderDash:[5,5],
+                                backgroundColor:'transparent',
+                                fill:false,
+                                yAxisID:'yPercent'
+                            });
+                        });
+                    }
                 }
 
-                const scalesConfig = {
-                    y:{ beginAtZero:true, title:{ display:true, text:'Value / HC' }},
-                };
-                if(includeStaffing){
-                    scalesConfig['yPercent'] = { beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false } };
-                }
+                const scalesConfig = { y:{ beginAtZero:true, title:{ display:true, text:'Value / HC' }} };
+                if(includeStaffing) scalesConfig['yPercent'] = { beginAtZero:true, position:'right', ticks:{ callback: val=>val+'%' }, title:{ display:true, text:'Staffing %' }, grid:{ drawOnChartArea:false } };
 
                 new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'),{
                     type:type==='area'?'line':type,
