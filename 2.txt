@@ -5,12 +5,14 @@
             weekStartDay: 'sunday'
         }, options);
 
+        // Remove existing modal
         $('#analyticsModal').remove();
 
+        // Add scoped CSS for this popup only
         if ($('#weekAnalyticsPopupStyles').length === 0) {
             $('head').append(`
             <style id="weekAnalyticsPopupStyles">
-                .table-wrapper {
+                #analyticsModal .table-wrapper {
                     overflow-x: auto;
                     overflow-y: auto;
                     max-height: 500px;
@@ -19,75 +21,74 @@
                     background: #fff;
                 }
 
-                table {
+                #analyticsModal table {
                     border-collapse: collapse;
                     width: max-content;
-                    table-layout: auto; /* Dynamic column widths */
+                    table-layout: auto;
                 }
 
-                th, td {
+                #analyticsModal th,
+                #analyticsModal td {
                     border: 1px solid #ccc;
                     padding: 8px;
                     text-align: center;
                     white-space: nowrap;
                     background: #fff;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                 }
 
-                thead th {
+                #analyticsModal thead th {
                     position: sticky;
                     top: 0;
                     background: #f1f1f1;
                     z-index: 6;
                 }
 
-                thead th.sticky-left {
+                #analyticsModal thead th.sticky-left {
                     position: sticky;
                     top: 0;
                     left: 0;
                     background: #f1f1f1;
                     z-index: 7;
                     min-width: 120px;
-                    white-space: nowrap;
                 }
 
-                thead th.sticky-left-2 {
+                #analyticsModal thead th.sticky-left-2 {
                     position: sticky;
                     top: 0;
                     left: 120px;
                     background: #f1f1f1;
                     z-index: 7;
                     min-width: 150px;
-                    white-space: nowrap;
                 }
 
-                tbody td.sticky-left {
+                #analyticsModal tbody td.sticky-left {
                     position: sticky;
-                    top: 0;
                     left: 0;
                     background: #f1f1f1;
                     z-index: 5;
                     min-width: 120px;
-                    white-space: nowrap;
                 }
 
-                tbody td.sticky-left-2 {
+                #analyticsModal tbody td.sticky-left-2 {
                     position: sticky;
-                    top: 0;
                     left: 120px;
                     background: #f1f1f1;
                     z-index: 5;
                     min-width: 150px;
-                    white-space: nowrap;
                 }
 
-                .rag-red { color: red; font-weight: bold; }
-                .rag-amber { color: orange; font-weight: bold; }
-                .rag-green { color: green; font-weight: bold; }
-            </style>`);
+                #analyticsModal .rag-red { color: red; font-weight: bold; }
+                #analyticsModal .rag-amber { color: orange; font-weight: bold; }
+                #analyticsModal .rag-green { color: green; font-weight: bold; }
+            </style>
+            `);
         }
 
+        // Modal HTML
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;">
           <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
@@ -100,22 +101,24 @@
             </div>
           </div>
         </div>`;
-
         $('body').append(modalHTML);
 
         const $container = $('#staffingContainer');
 
+        // Parse week string into Date
         const parseWeek = w => {
             const [dd, mmm, yy] = w.split('-');
-            return new Date(`${mmm} ${dd}, 20${yy}`);
+            const fullYear = parseInt(yy, 10) < 50 ? '20' + yy : '19' + yy;
+            return new Date(`${mmm} ${dd}, ${fullYear}`);
         };
 
+        // Get unique weeks & LOBs
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))]
             .sort((a, b) => parseWeek(a) - parseWeek(b));
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))]
-            .sort();
+        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
         const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
 
+        // Group data by LOB -> week -> metric
         const groupedData = {};
         settings.data.forEach(d => {
             if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
@@ -123,6 +126,7 @@
             groupedData[d.sheetName][d.week][d.header] = Number(d.value);
         });
 
+        // Calculate Delta & Staffing %
         uniqueLOBs.forEach(lob => {
             uniqueWeeks.forEach(week => {
                 const req = groupedData[lob][week]?.['Required HC'] || 0;
@@ -132,22 +136,18 @@
             });
         });
 
+        // Build table
         let html = '<table><thead><tr>';
         html += `<th class="sticky-left">LOB</th>`;
         html += `<th class="sticky-left-2">Metric</th>`;
-        uniqueWeeks.forEach(week => {
-            html += `<th>${week}</th>`;
-        });
+        uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
         html += '</tr></thead><tbody>';
 
         uniqueLOBs.forEach(lob => {
             metrics.forEach((metric, i) => {
                 html += '<tr>';
 
-                if (i === 0) {
-                    html += `<td class="sticky-left" rowspan="${metrics.length}">${lob}</td>`;
-                }
-
+                if (i === 0) html += `<td class="sticky-left" rowspan="${metrics.length}">${lob}</td>`;
                 html += `<td class="sticky-left-2">${metric}</td>`;
 
                 uniqueWeeks.forEach(week => {
@@ -162,7 +162,7 @@
                         else cls = 'rag-green';
                         val = `${val}%`;
                     } else {
-                        val = Number(val).toLocaleString();
+                        val = new Intl.NumberFormat().format(val);
                     }
 
                     html += `<td class="${cls}">${val}</td>`;
@@ -175,6 +175,7 @@
         html += '</tbody></table>';
         $container.html(html);
 
+        // Show Bootstrap modal
         const modalEl = document.getElementById('analyticsModal');
         const modal = new bootstrap.Modal(modalEl);
         modal.show();
