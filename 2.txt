@@ -14,6 +14,7 @@
 
                 #analyticsModal {
                     font-family: 'Inter', sans-serif;
+                    zoom: 90%;
                 }
                 #analyticsModal .modal-content {
                     border-radius: 12px;
@@ -45,14 +46,43 @@
                 }
                 #analyticsModal .filter-container {
                     background: #fff;
-                    padding: 1rem;
-                    border-radius: 8px;
-                    margin-bottom: 1rem;
-                    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+                    padding: 1.5rem;
+                    border-radius: 10px;
+                    margin-bottom: 1.5rem;
+                    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 1rem;
+                    align-items: flex-end;
                 }
                 #analyticsModal .filter-container label {
                     font-weight: 500;
                     color: #555;
+                    margin-bottom: 0.25rem;
+                    display: block;
+                }
+                #analyticsModal .filter-container .dropdown {
+                    min-width: 200px;
+                }
+                #analyticsModal .filter-container .btn-sm {
+                    padding: 0.375rem 0.75rem;
+                    border-radius: 6px;
+                    border: 1px solid #ddd;
+                    background: #fff;
+                    color: #333;
+                }
+                #analyticsModal .filter-container .btn-sm:hover {
+                    border-color: #b497fc;
+                    background: #f5f0ff;
+                    color: #333;
+                }
+                #analyticsModal .btn-primary {
+                    background-color: #b497fc;
+                    border: none;
+                    font-weight: 600;
+                }
+                #analyticsModal .btn-primary:hover {
+                    background-color: #a07efc;
                 }
                 #analyticsModal .dropdown-checkbox {
                     max-height: 200px;
@@ -100,19 +130,12 @@
                 #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
                 #analyticsModal .rag-amber { color: #f39c12; font-weight: bold; }
                 #analyticsModal .rag-green { color: #2ecc71; font-weight: bold; }
-                #analyticsModal .btn-primary {
-                    background-color: #b497fc;
-                    border: none;
-                }
-                #analyticsModal .btn-primary:hover {
-                    background-color: #a07efc;
-                }
             </style>
             `);
         }
 
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:90%">
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999">
           <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
@@ -122,50 +145,48 @@
               </div>
               <div class="modal-body p-0">
                 <div class="filter-container">
-                    <div class="row g-3 align-items-center">
-                        <div class="col-auto">
-                            <label><b>LOB:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown">
-                                    Select LOBs
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
-                            </div>
+                    <div class="filter-item">
+                        <label><b>LOB</b></label>
+                        <div class="dropdown">
+                            <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown">
+                                Select LOBs
+                            </button>
+                            <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
                         </div>
+                    </div>
 
-                        <div class="col-auto">
-                            <label><b>Metrics:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown">
-                                    Select Metrics
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
-                            </div>
+                    <div class="filter-item">
+                        <label><b>Metrics</b></label>
+                        <div class="dropdown">
+                            <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown">
+                                Select Metrics
+                            </button>
+                            <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
                         </div>
+                    </div>
 
-                        <div class="col-auto">
-                            <label><b>Week From:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown">
-                                    Select From Week
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
-                            </div>
+                    <div class="filter-item">
+                        <label><b>Week From</b></label>
+                        <div class="dropdown">
+                            <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown">
+                                Select From Week
+                            </button>
+                            <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
                         </div>
+                    </div>
 
-                        <div class="col-auto">
-                            <label><b>Week To:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown">
-                                    Select To Week
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
-                            </div>
+                    <div class="filter-item">
+                        <label><b>Week To</b></label>
+                        <div class="dropdown">
+                            <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown">
+                                Select To Week
+                            </button>
+                            <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
                         </div>
+                    </div>
 
-                        <div class="col-auto">
-                            <button id="applyFilterBtn" class="btn btn-primary btn-sm mt-3">Apply Filter</button>
-                        </div>
+                    <div class="filter-item">
+                        <button id="applyFilterBtn" class="btn btn-primary btn-sm">Apply Filter</button>
                     </div>
                 </div>
                 <div class="table-wrapper" id="staffingContainer"></div>
@@ -176,7 +197,7 @@
 
         $('body').append(modalHTML);
 
-        // --- Data manipulation and interaction logic unchanged ---
+        // ---- Data manipulation logic unchanged (parseWeek, uniqueWeeks, etc.) ----
         const $container = $('#staffingContainer');
         const parseWeek = w => {
             const [dd, mmm, yy] = w.split('-');
