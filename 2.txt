@@ -2,21 +2,93 @@
     $.fn.sheetConfigurator = function (options) {
         const settings = $.extend({
             luckysheetInstances: [],
-            existingConfigs: {},     // saved configs
+            existingConfigs: {},
             activeSheet: null,
             saveCallback: function (config, sheetName) { },
             getSheetDataFn: function (sheetName) { return []; }
         }, options);
 
-        let tempConfigs = {};  // live while dialog open only
+        let tempConfigs = {}; 
 
         // Inject modal once
         if (!$('#sheetConfigModal').length) {
+            $('head').append(`
+                <style id="sheetConfigModalStyles">
+                    /* Font & base colors */
+                    #sheetConfigModal * { font-family: 'Inter', sans-serif; }
+                    #sheetConfigModal .modal-content {
+                        border-radius: 12px;
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+                        border: none;
+                    }
+                    #sheetConfigModal .modal-header {
+                        background-color: #D7C4F0; /* soft digital lavender */
+                        color: #1a1a1a;
+                        border-bottom: none;
+                        border-top-left-radius: 12px;
+                        border-top-right-radius: 12px;
+                        padding: 1rem 1.5rem;
+                    }
+                    #sheetConfigModal .modal-title {
+                        font-weight: 600;
+                        font-size: 1.25rem;
+                    }
+                    #sheetConfigModal .btn-close {
+                        background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="gray"><path d="M2 2l12 12M14 2L2 14"/></svg>') no-repeat center center;
+                        opacity: 0.7;
+                        border: none;
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        transition: background-color 0.2s, opacity 0.2s;
+                    }
+                    #sheetConfigModal .btn-close:hover {
+                        background-color: rgba(0,0,0,0.05);
+                        opacity: 1;
+                    }
+                    #sheetConfigModal .modal-body {
+                        padding: 1.5rem;
+                        background-color: #f9f9f9;
+                    }
+                    #sheetConfigModal .modal-footer {
+                        border-top: none;
+                        padding: 1rem 1.5rem;
+                        justify-content: flex-end;
+                        gap: 0.75rem;
+                    }
+                    #sheetConfigModal .btn-primary {
+                        background-color: #A084F7; 
+                        border: none;
+                        padding: 0.5rem 1rem;
+                        border-radius: 8px;
+                        transition: background 0.2s;
+                    }
+                    #sheetConfigModal .btn-primary:hover { background-color: #8E61F0; }
+                    #sheetConfigModal .btn-secondary {
+                        background-color: #e0e0e0;
+                        color: #333;
+                        border-radius: 8px;
+                        padding: 0.5rem 1rem;
+                        border: none;
+                    }
+                    #sheetConfigModal .btn-secondary:hover { background-color: #d1d1d1; }
+                    #sheetConfigModal label { font-weight: 500; color: #333; }
+                    #sheetConfigModal .form-control, #sheetConfigModal .form-select {
+                        border-radius: 8px;
+                        border: 1px solid #ccc;
+                        padding: 0.5rem;
+                        height: 38px;
+                    }
+                    #sheetConfigModal .form-text { color: #666; }
+                    #sheetConfigModal .row.mb-3 { margin-bottom: 1rem; }
+                </style>
+            `);
+
             $('body').append(`
-              <div class="modal fade" id="sheetConfigModal" tabindex="-1" style="z-index:9999;zoom:75%">
-                <div class="modal-dialog modal-lg">
+              <div class="modal fade" id="sheetConfigModal" tabindex="-1" style="z-index:9999">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
                   <div class="modal-content">
-                    <div class="modal-header bg-primary text-white">
+                    <div class="modal-header">
                       <h5 class="modal-title">Sheet Configuration</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
@@ -64,7 +136,7 @@
                               </select>
                             </div>
                           </div>
-                         <div class="row mb-3"> 
+                          <div class="row mb-3"> 
                             <div class="col-md-6">   
                                 <label class="form-label">Site</label>    
                                 <input type="text" class="form-control" id="configSite" />  
@@ -73,7 +145,7 @@
                                 <label class="form-label">ProjectId</label>    
                                 <input type="text" class="form-control" id="configProjectId" />  
                             </div> 
-                            </div>
+                          </div>
                           <div class="row mb-3">
                             <div class="col-md-6">
                               <label class="form-label">Week Header Row</label>
@@ -102,6 +174,7 @@
             `);
         }
 
+        // --- rest of your plugin code remains unchanged ---
         const $sheetSelect = $('#configSheetSelect');
         const $sheetType = $('#configSheetType');
         const $lobInputs = $('#lobInputs');
@@ -112,12 +185,10 @@
         const $mappingContainer = $('#headerMappingContainer');
         const $weekLabel = $('#weekDateLabel');
 
-        // Reset on modal close (discard temp)
         $('#sheetConfigModal').off('hidden.bs.modal').on('hidden.bs.modal', function () {
             tempConfigs = {};
         });
 
-        // === Helpers ===
         function getFormConfig(sheetName) {
             const cfg = {
                 sheetName,
@@ -139,7 +210,6 @@
         }
 
         function bindConfig(config) {
-            // reset first
             $sheetType.val('').trigger('change');
             $lobInputs.hide();
             $site.val('');
@@ -148,19 +218,16 @@
             $headerCol.val('');
             $mappingContainer.empty();
             $weekLabel.text('');
-
             if (!config) return;
 
             $sheetType.val(config.type || '').trigger('change');
             if (config.type === 'lob') $lobInputs.show();
-
             $('#configLobType').val(config.lobType || 'fte');
             $('#configLocation').val(config.location || 'us');
             $site.val(config.site || '');
             $projectId.val(config.projectId || '');
             $weekRow.val(config.weekRow || '');
             $headerCol.val(config.headerCol || '');
-
             if (config.headerCol) {
                 const sheetData = settings.getSheetDataFn(config.sheetName);
                 buildHeaderMapping(sheetData, config.headerCol, config.headerMappings || {});
@@ -220,7 +287,6 @@
             });
         }
 
-        // === Populate sheet dropdown ===
         $sheetSelect.empty();
         settings.luckysheetInstances.forEach(name => {
             $sheetSelect.append(`<option value="${name}">${name}</option>`);
@@ -232,7 +298,6 @@
             $sheetSelect.data('lastSheet', settings.activeSheet);
         }
 
-        // Switch sheets inside dialog
         $sheetSelect.off('change').on('change', function () {
             const prevSheet = $(this).data('lastSheet');
             const newSheet = $(this).val();
@@ -244,7 +309,6 @@
             $(this).data('lastSheet', newSheet);
         });
 
-        // Week row validation
         $weekRow.off('blur').on('blur', function () {
             const sheetName = $sheetSelect.val();
             const sheetData = settings.getSheetDataFn(sheetName) || [];
@@ -256,42 +320,20 @@
             }
         });
 
-        // Header col input
         $headerCol.off('blur').on('blur', function () {
             const sheetName = $sheetSelect.val();
             const sheetData = settings.getSheetDataFn(sheetName) || [];
             buildHeaderMapping(sheetData, $(this).val(), {});
         });
 
-        // Save button
         $('#saveConfigBtn').off('click').on('click', function () {
             const sheetName = $sheetSelect.val();
             const config = getFormConfig(sheetName);
-
-            //if (config.type === "lob") {
-            //    const sheetData = settings.getSheetDataFn(sheetName) || [];
-            //    const weekCheck = validateWeekRow({ data: sheetData }, parseInt(config.weekRow));
-            //    if (!weekCheck.valid) {
-            //        alert("Week header row must contain at least one valid date.");
-            //        return;
-            //    }
-            //    config.weekRange = { start: weekCheck.start, end: weekCheck.end };
-
-            //    for (const std of ["FTE Required", "FTE Available", "Transactions", "Productivity"]) {
-            //        if (!config.headerMappings[std]) {
-            //            alert(`Please map header for ${std}`);
-            //            return;
-            //        }
-            //    }
-            //}
-
-            settings.existingConfigs[sheetName] = config; // persist
+            settings.existingConfigs[sheetName] = config;
             delete tempConfigs[sheetName];
             settings.saveCallback(config, sheetName);
-           /* $('#sheetConfigModal').modal('hide');*/
         });
 
-        // Toggle LOB inputs
         $sheetType.off('change').on('change', function () {
             if ($(this).val() === 'lob') $lobInputs.show();
             else {
