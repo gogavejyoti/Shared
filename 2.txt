@@ -32,11 +32,13 @@
                 
                 /* Sticky header and first two columns */
                 #analyticsModal thead th { position: sticky; top: 0; background: #f1f1f1; z-index: 6; }
-                #analyticsModal thead th.sticky-left, #analyticsModal tbody td.sticky-left {
-                    position: sticky; left: 0; background: #f7f7f7; z-index: 8; min-width: 120px;
+                #analyticsModal thead th.sticky-left,
+                #analyticsModal tbody td.sticky-left {
+                    position: sticky; top: 0; left: 0; background: #f7f7f7; z-index: 9; min-width: 120px;
                 }
-                #analyticsModal thead th.sticky-left-2, #analyticsModal tbody td.sticky-left-2 {
-                    position: sticky; left: 120px; background: #f7f7f7; z-index: 8; min-width: 150px;
+                #analyticsModal thead th.sticky-left-2,
+                #analyticsModal tbody td.sticky-left-2 {
+                    position: sticky; top: 0; left: 120px; background: #f7f7f7; z-index: 9; min-width: 150px;
                 }
 
                 #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
@@ -142,8 +144,7 @@
             uniqueLOBs.forEach(lob => {
                 const label = document.createElement('label');
                 label.innerHTML = `<input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}`;
-                lobContainer.appendChild(label);
-                lobContainer.appendChild(document.createElement('br'));
+                lobContainer.appendChild(label); lobContainer.appendChild(document.createElement('br'));
             });
             $('#lobDropdown').append(lobContainer);
 
@@ -152,26 +153,25 @@
             metrics.forEach(metric => {
                 const label = document.createElement('label');
                 label.innerHTML = `<input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}`;
-                metricContainer.appendChild(label);
-                metricContainer.appendChild(document.createElement('br'));
+                metricContainer.appendChild(label); metricContainer.appendChild(document.createElement('br'));
             });
             $('#metricDropdown').append(metricContainer);
 
             uniqueWeeks.forEach(week => {
-                $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === uniqueWeeks[0] ? 'checked' : ''}> ${week}</label><br/>`);
-                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length - 1] ? 'checked' : ''}> ${week}</label><br/>`);
+                $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week===uniqueWeeks[0]?'checked':''}> ${week}</label><br/>`);
+                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week===uniqueWeeks[uniqueWeeks.length-1]?'checked':''}> ${week}</label><br/>`);
             });
 
             updateDropdownLabel('lobDropdown', uniqueLOBs, 'Select LOBs');
             updateDropdownLabel('metricDropdown', metrics, 'Select Metrics');
             updateRadioDropdownLabel('weekFromDropdownBtn', uniqueWeeks[0], 'From');
-            updateRadioDropdownLabel('weekToDropdownBtn', uniqueWeeks[uniqueWeeks.length - 1], 'To');
+            updateRadioDropdownLabel('weekToDropdownBtn', uniqueWeeks[uniqueWeeks.length-1], 'To');
         }
 
         function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo) {
             const fromIndex = uniqueWeeks.indexOf(weekFrom);
             const toIndex = uniqueWeeks.indexOf(weekTo);
-            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex,toIndex), Math.max(fromIndex,toIndex)+1);
 
             const table = document.createElement('table');
             const thead = document.createElement('thead');
@@ -180,119 +180,93 @@
             const headerRow = document.createElement('tr');
             headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
             weeksInRange.forEach(week => {
-                const th = document.createElement('th');
-                th.textContent = week;
-                headerRow.appendChild(th);
+                const th = document.createElement('th'); th.textContent = week; headerRow.appendChild(th);
             });
             thead.appendChild(headerRow);
 
-            selectedLOBs.forEach((lob, lobIndex) => {
+            selectedLOBs.forEach((lob,lobIndex)=>{
                 const lobColor = lobColors[lobIndex % lobColors.length];
-                selectedMetrics.forEach((metric, i) => {
+                selectedMetrics.forEach((metric,i)=>{
                     const row = document.createElement('tr');
-                    if (i === 0) {
+                    if(i===0){
                         const tdLOB = document.createElement('td');
-                        tdLOB.className = 'sticky-left';
-                        tdLOB.setAttribute('rowspan', selectedMetrics.length);
-                        tdLOB.style.background = lobColor;
-                        tdLOB.style.color = '#fff';
-                        tdLOB.textContent = lob;
-                        row.appendChild(tdLOB);
+                        tdLOB.className='sticky-left';
+                        tdLOB.setAttribute('rowspan',selectedMetrics.length);
+                        tdLOB.style.background=lobColor; tdLOB.style.color='#fff';
+                        tdLOB.textContent=lob; row.appendChild(tdLOB);
                     }
-                    const tdMetric = document.createElement('td');
-                    tdMetric.className = 'sticky-left-2';
-                    tdMetric.textContent = metric;
+                    const tdMetric=document.createElement('td');
+                    tdMetric.className='sticky-left-2'; tdMetric.textContent=metric;
                     row.appendChild(tdMetric);
 
-                    weeksInRange.forEach(week => {
-                        const td = document.createElement('td');
-                        let val = (groupedData[lob][week] && groupedData[lob][week][metric]) || 0;
-                        val = Math.round(val);
-
-                        let cls = '';
-                        if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                        if (metric === 'Staffing %') {
-                            if (val < 80) cls = 'rag-red';
-                            else if (val < 100) cls = 'rag-amber';
-                            else cls = 'rag-green';
-                            val = `${val}%`;
-                        } else {
-                            val = new Intl.NumberFormat().format(val);
-                        }
-
-                        td.className = cls;
-                        td.title = val;
-                        td.textContent = val;
-                        row.appendChild(td);
+                    weeksInRange.forEach(week=>{
+                        const td=document.createElement('td');
+                        let val=(groupedData[lob][week] && groupedData[lob][week][metric]) || 0;
+                        val=Math.round(val);
+                        let cls='';
+                        if(metric==='Delta' && val<0) cls='rag-red';
+                        if(metric==='Staffing %'){
+                            if(val<80) cls='rag-red';
+                            else if(val<100) cls='rag-amber';
+                            else cls='rag-green';
+                            val=`${val}%`;
+                        } else val=new Intl.NumberFormat().format(val);
+                        td.className=cls; td.title=val; td.textContent=val; row.appendChild(td);
                     });
-
                     tbody.appendChild(row);
                 });
             });
 
-            table.appendChild(thead);
-            table.appendChild(tbody);
+            table.appendChild(thead); table.appendChild(tbody);
             $container.empty().append(table);
         }
 
         populateFilters();
 
-        $('#analyticsModal').on('hidden.bs.modal', function () {
-            $('#analyticsModal').remove();
-            $('#weekAnalyticsPopupStyles').remove();
+        $('#analyticsModal').on('hidden.bs.modal',function(){
+            $('#analyticsModal').remove(); $('#weekAnalyticsPopupStyles').remove();
         });
 
-        // Select All / Unselect All Logic
-        $('#lobDropdown').on('change', '.lobSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.lobCheckbox').prop('checked', checked);
-            const selectedLOBs = checked ? uniqueLOBs.slice() : [];
-            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
+        $('#lobDropdown').on('change','.lobSelectAll',function(){
+            const checked=$(this).is(':checked'); $('.lobCheckbox').prop('checked',checked);
+            updateDropdownLabel('lobDropdown', checked?uniqueLOBs.slice():[], 'Select LOBs');
         });
 
-        $('#metricDropdown').on('change', '.metricSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.metricCheckbox').prop('checked', checked);
-            const selectedMetrics = checked ? metrics.slice() : [];
-            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
+        $('#metricDropdown').on('change','.metricSelectAll',function(){
+            const checked=$(this).is(':checked'); $('.metricCheckbox').prop('checked',checked);
+            updateDropdownLabel('metricDropdown', checked?metrics.slice():[], 'Select Metrics');
         });
 
-        $('#lobDropdown').on('change', '.lobCheckbox', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
-            $('.lobSelectAll').prop('checked', selectedLOBs.length === uniqueLOBs.length);
+        $('#lobDropdown').on('change','.lobCheckbox',function(){
+            const selectedLOBs=$('.lobCheckbox:checked').map(function(){return this.value;}).get();
+            updateDropdownLabel('lobDropdown',selectedLOBs,'Select LOBs');
+            $('.lobSelectAll').prop('checked',selectedLOBs.length===uniqueLOBs.length);
         });
 
-        $('#metricDropdown').on('change', '.metricCheckbox', function () {
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
-            $('.metricSelectAll').prop('checked', selectedMetrics.length === metrics.length);
+        $('#metricDropdown').on('change','.metricCheckbox',function(){
+            const selectedMetrics=$('.metricCheckbox:checked').map(function(){return this.value;}).get();
+            updateDropdownLabel('metricDropdown',selectedMetrics,'Select Metrics');
+            $('.metricSelectAll').prop('checked',selectedMetrics.length===metrics.length);
         });
 
-        $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
+        $('#weekFromDropdown').on('change','input[type=radio]',function(){
+            updateRadioDropdownLabel('weekFromDropdownBtn',$('#weekFromDropdown input[type=radio]:checked').val(),'From');
+        });
+        $('#weekToDropdown').on('change','input[type=radio]',function(){
+            updateRadioDropdownLabel('weekToDropdownBtn',$('#weekToDropdown input[type=radio]:checked').val(),'To');
         });
 
-        $('#weekToDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
+        $('#applyFilterBtn').on('click',function(){
+            const selectedLOBs=$('.lobCheckbox:checked').map(function(){return this.value;}).get();
+            const selectedMetrics=$('.metricCheckbox:checked').map(function(){return this.value;}).get();
+            const weekFrom=$('#weekFromDropdown input[type=radio]:checked').val();
+            const weekTo=$('#weekToDropdown input[type=radio]:checked').val();
+            buildTable(selectedLOBs,selectedMetrics,weekFrom,weekTo);
         });
 
-        $('#applyFilterBtn').on('click', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
-            const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
+        buildTable(uniqueLOBs,metrics,uniqueWeeks[0],uniqueWeeks[uniqueWeeks.length-1]);
 
-            buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo);
-        });
-
-        buildTable(uniqueLOBs, metrics, uniqueWeeks[0], uniqueWeeks[uniqueWeeks.length - 1]);
-
-        const modalEl = document.getElementById('analyticsModal');
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        new bootstrap.Modal(document.getElementById('analyticsModal')).show();
 
         return this;
     };
