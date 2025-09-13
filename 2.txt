@@ -7,7 +7,7 @@
 
         $('#analyticsModal').remove();
 
-        // Arrays to keep track of Chart.js instances
+        // Track Chart.js instances
         let chartInstances = [];
         let kpiChartInstances = [];
 
@@ -100,7 +100,7 @@
         const $analyticsSummary = $('#analyticsSummary');
         const $kpiContainer = $('#kpiContainer');
 
-        // Chart.js instance tracking
+        // Week parsing & formatting
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -120,7 +120,7 @@
             return formatWeek(lastWeekDate);
         };
 
-        // Data structuring
+        // Data transform
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -147,7 +147,7 @@
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // LOB multi-select
+        // Custom multi-select
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -185,39 +185,158 @@
             return { filtered, selectedLOBs, isComparison };
         };
 
-        // The functions renderKPIs, renderCharts, generateSummary remain same as previous code
-        // Ensure before rendering charts and KPIs you destroy previous Chart.js instances
+        // ======================
+        // KPI Rendering Function
+        // ======================
+        function renderKPIs(filtered, selectedLOBs) {
+            $kpiContainer.empty();
+            kpiChartInstances.forEach(c => c.destroy());
+            kpiChartInstances = [];
 
+            selectedLOBs.forEach(lob => {
+                const required = filtered.reduce((sum, d) => sum + Number(d[`Required HC||${lob}`] || 0), 0);
+                const available = filtered.reduce((sum, d) => sum + Number(d[`Available HC||${lob}`] || 0), 0);
+                const staffing = required ? ((available / required) * 100).toFixed(2) : 0;
+
+                const cardHtml = `
+                    <div class="card text-center">
+                        <div class="fw-bold mb-1">${lob}</div>
+                        <div class="small">Required HC: ${required}</div>
+                        <div class="small">Available HC: ${available}</div>
+                        <div class="small">Staffing %: ${staffing}%</div>
+                        <canvas></canvas>
+                    </div>`;
+                const $card = $(cardHtml);
+                $kpiContainer.append($card);
+
+                // Sparkline for staffing %
+                const ctx = $card.find('canvas')[0].getContext('2d');
+                const sparklineData = filtered.map(d => {
+                    const req = Number(d[`Required HC||${lob}`] || 0);
+                    const ava = Number(d[`Available HC||${lob}`] || 0);
+                    return req ? ((ava / req) * 100).toFixed(2) : 0;
+                });
+                const sparklineChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: filtered.map(d => d.Week), datasets: [{ data: sparklineData, borderColor: '#007bff', fill: false, tension: 0.3 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+                });
+                kpiChartInstances.push(sparklineChart);
+            });
+        }
+
+        // ======================
+        // Summary Table Function
+        // ======================
+        function generateSummary(filtered, selectedLOBs) {
+            let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Value</th></tr></thead><tbody>`;
+            selectedLOBs.forEach(lob => {
+                uniqueHeaders.forEach(header => {
+                    let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
+                    if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
+                        total = total.toFixed(2) + '%';
+                    } else {
+                        total = Math.round(total).toLocaleString();
+                    }
+                    html += `<tr><td>${lob}</td><td>${header}</td><td>${total}</td></tr>`;
+                });
+            });
+            html += `</tbody></table></div>`;
+            $analyticsSummary.html(html);
+        }
+
+        // ======================
+        // Chart Rendering Function
+        // ======================
+        function renderCharts(filtered, selectedLOBs, isComparison) {
+            $chartsContainer.empty();
+            chartInstances.forEach(c => c.destroy());
+            chartInstances = [];
+
+            const labels = filtered.map(d => d.Week);
+            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
+                $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;"><div class="card-body text-center"><h6 class="card-title fw-bold">${title}</h6><canvas></canvas></div></div>`);
+                const datasets = [];
+                metrics.forEach(metric => {
+                    lobList.forEach(lob => {
+                        datasets.push({
+                            label: (metric === 'Staffing %') ? 'Staffing %' : `${lob} - ${metric}`,
+                            data: filtered.map(d => {
+                                if (metric === 'Staffing %') return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
+                                if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
+                                    return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
+                                return d[`${metric}||${lob}`] || 0;
+                            }),
+                            borderColor: (metric === 'Staffing %') ? '#000000' : (isComparison ? '#007bff' : '#28a745'),
+                            backgroundColor: (metric === 'Staffing %') ? 'rgba(0,0,0,0.1)' : 'rgba(0,123,255,0.15)',
+                            fill: type === 'area' ? true : false,
+                            borderDash: (metric === 'Staffing %') ? [5, 5] : [],
+                            yAxisID: (metric === 'Staffing %') ? 'y1' : 'y'
+                        });
+                    });
+                });
+
+                const ctx = $chartsContainer.find('canvas').last()[0].getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: type === 'area' ? 'line' : type,
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function (context) {
+                                        let val = context.raw;
+                                        if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
+                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
+                                        }
+                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Value' } },
+                            y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
+                        }
+                    }
+                });
+                chartInstances.push(chart);
+            };
+
+            if (isComparison) {
+                uniqueHeaders.forEach(header => createChart('bar', `${header} Comparison`, [header], selectedLOBs, true));
+            } else {
+                createChart('line', 'Required vs Available HC + Staffing %', ['Required HC', 'Available HC', 'Staffing %'], selectedLOBs, false, true);
+                createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
+                createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
+                createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
+                createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], selectedLOBs, false);
+            }
+        }
+
+        // ======================
+        // Apply Filters
+        // ======================
         const applyFilters = () => {
             const { filtered, selectedLOBs, isComparison } = filterData();
-            renderKPIs(filtered, selectedLOBs); // KPI row
+            renderKPIs(filtered, selectedLOBs);
             renderCharts(filtered, selectedLOBs, isComparison);
             generateSummary(filtered, selectedLOBs);
         };
 
-        $('#applyFilter').on('click', applyFilters);
-        applyFilters();
-
-        $('#exportCsv').on('click', () => {
+        $('#applyFilter').off('click').on('click', applyFilters);
+        $('#exportCsv').off('click').on('click', () => {
             const { filtered, selectedLOBs } = filterData();
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += ['Week', 'LOB', ...uniqueHeaders].join(",") + "\r\n";
-            filtered.forEach(d => {
-                selectedLOBs.forEach(lob => {
-                    const row = [d.Week, lob, ...uniqueHeaders.map(h => d[`${h}||${lob}`] || 0)];
-                    csvContent += row.join(",") + "\r\n";
-                });
-            });
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "week_analytics.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            exportCSV(filtered, selectedLOBs);
         });
 
-        // Show modal
+        applyFilters();
+
         const modal = new bootstrap.Modal(document.getElementById('analyticsModal'), {});
         modal.show();
 
