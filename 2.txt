@@ -7,121 +7,46 @@
 
         $('#analyticsModal').remove();
 
-        // --- Styles ---
+        // Arrays to keep track of Chart.js instances
+        let chartInstances = [];
+        let kpiChartInstances = [];
+
+        // Styles
         const styles = `
         <style>
-            #analyticsModal .modal-content {
-                border-radius: 12px;
-                font-family: 'Inter', 'Poppins', sans-serif;
+            body { font-family: 'Inter', sans-serif; }
+            #chartsContainer { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; justify-items:center; }
+            #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
+            #kpiContainer { display:flex; flex-wrap:wrap; gap:15px; margin-bottom:20px; }
+            #kpiContainer .card { flex: 1 1 150px; min-width:120px; background:#fefefe; border-radius:8px; padding:8px; box-shadow:0 2px 5px rgba(0,0,0,0.08); }
+            .custom-multiselect { position: relative; display: inline-block; width: 200px; }
+            .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            .custom-multiselect .multiselect-options { 
+                display: none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; background:white; border:1px solid #ced4da; border-radius:4px; padding:5px 0; width: 100%;
+                box-shadow:0 2px 5px rgba(0,0,0,0.15);
             }
-            #chartsContainer {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 20px;
-                justify-items: center;
-            }
-            #chartsContainer canvas {
-                width: 100% !important;
-                max-width: 450px;
-                height: 220px !important;
-            }
-            .custom-multiselect {
-                position: relative;
-                display: inline-block;
-                width: 200px;
-            }
-            .custom-multiselect button {
-                width: 100%;
-                text-align: left;
-                overflow: hidden;
-                white-space: nowrap;
-                text-overflow: ellipsis;
-                background: #f9f9f9;
-                border: 1px solid #ced4da;
-                border-radius: 6px;
-                padding: 6px 10px;
-                color: #495057;
-                font-size: 0.9rem;
-            }
-            .custom-multiselect .multiselect-options {
-                display: none;
-                max-height: 200px;
-                overflow-y: auto;
-                position: absolute;
-                z-index: 1000;
-                background: #ffffff;
-                border: 1px solid #ced4da;
-                border-radius: 6px;
-                padding: 5px 0;
-                width: 100%;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-            }
-            .custom-multiselect .multiselect-options label {
-                display: block;
-                padding: 6px 12px;
-                cursor: pointer;
-                font-size: 0.875rem;
-                color: #495057;
-            }
-            .custom-multiselect .multiselect-options label:hover {
-                background-color: #f1f3f5;
-            }
-            .modal-header {
-                background: #f8f9fa;
-                border-bottom: none;
-                color: #212529;
-                font-weight: 600;
-            }
-            .modal-body {
-                background: #ffffff;
-            }
-            .filters {
-                background: #f9f9f9;
-            }
-            #applyFilter, #exportCsv {
-                transition: 0.2s;
-                font-weight: 500;
-            }
-            #applyFilter:hover, #exportCsv:hover {
-                opacity: 0.85;
-            }
-            .table-summary {
-                max-height: 250px;
-                overflow-y: auto;
-                display: block;
-            }
-            .table-summary table {
-                margin-bottom: 0;
-                font-size: 0.875rem;
-            }
-            .card {
-                border-radius: 10px;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-            }
-            .card-title {
-                font-size: 0.95rem;
-                color: #495057;
-                margin-bottom: 8px;
-            }
-            #kpiContainer .card {
-                min-width: 160px;
-                max-width: 180px;
-                padding: 0.5rem;
-            }
+            .custom-multiselect .multiselect-options label { display:block; padding:5px 10px; cursor:pointer; }
+            .custom-multiselect .multiselect-options label:hover { background-color:#f1f1f1; }
+            .modal-header { background: #e0e0e0; color: #212529; border-bottom:none; }
+            .table-summary { max-height:250px; overflow-y:auto; display:block; background:#fefefe; border-radius:6px; padding:10px; }
+            .table-summary table { margin-bottom:0; }
+            #applyFilter, #exportCsv { transition:0.2s; }
+            #applyFilter:hover, #exportCsv:hover { opacity:0.85; }
+            .btn-close { background:transparent; border:none; font-size:1.2rem; }
         </style>`;
         $('head').append(styles);
 
-        // --- Modal HTML ---
+        // Modal HTML
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999">
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999; zoom:85%">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title">Workforce Analytics Dashboard</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal">&times;</button>
               </div>
-              <div class="modal-body">
-                <div class="filters mb-3 p-3 border rounded d-flex flex-wrap align-items-center gap-2">
+              <div class="modal-body" style="background: #f8f9fa;">
+                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
                   <label>From Week: 
                     <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
                   </label>
@@ -138,9 +63,7 @@
                   <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
                   <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
                 </div>
-                <!-- KPI Cards -->
-                <div id="kpiContainer" class="d-flex flex-wrap gap-3 mb-3"></div>
-                <!-- Main Charts -->
+                <div id="kpiContainer"></div>
                 <div id="chartsContainer" class="mt-3"></div>
                 <div id="analyticsSummary" class="mt-4 table-summary"></div>
               </div>
@@ -151,8 +74,9 @@
 
         const $chartsContainer = $('#chartsContainer');
         const $analyticsSummary = $('#analyticsSummary');
+        const $kpiContainer = $('#kpiContainer');
 
-        // --- Week parsing & formatting ---
+        // Week parsing & formatting
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -172,7 +96,7 @@
             return formatWeek(lastWeekDate);
         };
 
-        // --- Data transform ---
+        // Data transform
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -186,7 +110,7 @@
         const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        // --- Populate weeks ---
+        // Populate weeks
         uniqueWeeks.forEach(week => {
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
@@ -199,7 +123,7 @@
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // --- Custom multi-select ---
+        // Custom multi-select
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -220,7 +144,19 @@
         });
         $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
-        // --- Filter data ---
+        // Colors
+        const metricColors = {
+            "Required HC": "#007bff", "Available HC": "#28a745",
+            "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
+            "Planned Shrinkage": "#6f42c1", "Actual Shrinkage": "#fd7e14",
+            "Planned Attrition": "#e83e8c", "Actual Attrition": "#20c997",
+            "Planned AHT": "#6610f2", "Actual AHT": "#fd3955"
+        };
+        const lobColors = {};
+        const colorPalette = ['#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997', '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#fd3955'];
+        uniqueLOBs.forEach((lob, i) => lobColors[lob] = colorPalette[i % colorPalette.length]);
+
+        // Filter data
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
@@ -230,54 +166,7 @@
             return { filtered, selectedLOBs, isComparison };
         };
 
-        // --- KPI Cards ---
-        const renderKPIs = (filtered, selectedLOBs) => {
-            const $kpiContainer = $('#kpiContainer');
-            $kpiContainer.empty();
-            const kpiMetrics = ['Required HC', 'Available HC', 'Staffing %'];
-
-            const pastelColors = ['#a2d2ff','#bde0fe','#ffc6ff','#ffb5a7','#caffbf','#ffd6a5','#fdffb6','#9bf6ff','#f0c9ff'];
-
-            kpiMetrics.forEach((metric, metricIdx) => {
-                selectedLOBs.forEach((lob, lobIdx) => {
-                    let latestVal = 0;
-                    if (metric === 'Staffing %') {
-                        const last = filtered[filtered.length - 1];
-                        latestVal = ((last['Available HC||' + lob] || 0) / (last['Required HC||' + lob] || 1) * 100).toFixed(2);
-                    } else {
-                        latestVal = filtered[filtered.length - 1][`${metric}||${lob}`] || 0;
-                    }
-
-                    const sparkData = filtered.map(d => {
-                        if (metric === 'Staffing %') {
-                            return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
-                        }
-                        return d[`${metric}||${lob}`] || 0;
-                    });
-
-                    const color = pastelColors[(metricIdx * selectedLOBs.length + lobIdx) % pastelColors.length];
-
-                    const cardHTML = `
-                        <div class="card flex-fill shadow-sm p-2">
-                            <div class="fw-bold text-center mb-1" style="font-size:0.85rem; color:#495057">${lob} - ${metric}</div>
-                            <div class="d-flex justify-content-center align-items-center mb-1">
-                                <span class="fw-bold" style="font-size:1.2rem; color:#212529">${metric === 'Staffing %' ? latestVal + '%' : Number(latestVal).toLocaleString()}</span>
-                            </div>
-                            <canvas style="height:50px;"></canvas>
-                        </div>`;
-                    $kpiContainer.append(cardHTML);
-
-                    const ctx = $kpiContainer.find('canvas').last()[0].getContext('2d');
-                    new Chart(ctx, {
-                        type: 'line',
-                        data: { labels: filtered.map(d => d.Week), datasets: [{ data: sparkData, borderColor: color, backgroundColor: color + '33', fill: true, tension: 0.35, pointRadius: 0 }] },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
-                    });
-                });
-            });
-        };
-
-        // --- Summary Table ---
+        // Generate summary table
         const generateSummary = (filtered, selectedLOBs) => {
             let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Value</th></tr></thead><tbody>`;
             selectedLOBs.forEach(lob => {
@@ -295,11 +184,60 @@
             $analyticsSummary.html(html);
         };
 
-        // --- Charts ---
+        // Render KPI cards with sparklines
+        const renderKPIs = (filtered, selectedLOBs) => {
+            $kpiContainer.empty();
+            kpiChartInstances.forEach(c => c.destroy());
+            kpiChartInstances = [];
+
+            const kpiMetrics = ['Required HC', 'Available HC', 'Staffing %'];
+            const pastelColors = ['#a2d2ff','#bde0fe','#ffc6ff','#ffb5a7','#caffbf','#ffd6a5','#fdffb6','#9bf6ff','#f0c9ff'];
+
+            kpiMetrics.forEach((metric, metricIdx) => {
+                selectedLOBs.forEach((lob, lobIdx) => {
+                    let latestVal = 0;
+                    if (metric === 'Staffing %') {
+                        const last = filtered[filtered.length - 1];
+                        latestVal = ((last['Available HC||' + lob] || 0) / (last['Required HC||' + lob] || 1) * 100).toFixed(2);
+                    } else {
+                        latestVal = filtered[filtered.length - 1][`${metric}||${lob}`] || 0;
+                    }
+
+                    const sparkData = filtered.map(d => {
+                        if (metric === 'Staffing %') return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
+                        return d[`${metric}||${lob}`] || 0;
+                    });
+
+                    const color = pastelColors[(metricIdx * selectedLOBs.length + lobIdx) % pastelColors.length];
+
+                    const cardHTML = `
+                        <div class="card flex-fill shadow-sm p-2">
+                            <div class="fw-bold text-center mb-1" style="font-size:0.85rem; color:#495057">${lob} - ${metric}</div>
+                            <div class="d-flex justify-content-center align-items-center mb-1">
+                                <span class="fw-bold" style="font-size:1.2rem; color:#212529">${metric === 'Staffing %' ? latestVal + '%' : Number(latestVal).toLocaleString()}</span>
+                            </div>
+                            <canvas style="height:50px;"></canvas>
+                        </div>`;
+                    $kpiContainer.append(cardHTML);
+
+                    const ctx = $kpiContainer.find('canvas').last()[0].getContext('2d');
+                    const chart = new Chart(ctx, {
+                        type: 'line',
+                        data: { labels: filtered.map(d => d.Week), datasets: [{ data: sparkData, borderColor: color, backgroundColor: color + '33', fill: true, tension: 0.35, pointRadius: 0 }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+                    });
+                    kpiChartInstances.push(chart);
+                });
+            });
+        };
+
+        // Render charts
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
+            chartInstances.forEach(c => c.destroy());
+            chartInstances = [];
+
             $chartsContainer.empty();
             const labels = filtered.map(d => d.Week);
-
             const pastelColors = ['#a2d2ff','#bde0fe','#ffc6ff','#ffb5a7','#caffbf','#ffd6a5','#fdffb6','#9bf6ff','#f0c9ff'];
 
             const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
@@ -325,7 +263,8 @@
                     });
                 });
 
-                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                const ctx = $chartsContainer.find('canvas').last()[0].getContext('2d');
+                const chart = new Chart(ctx, {
                     type: type === 'area' ? 'line' : type,
                     data: { labels, datasets },
                     options: {
@@ -353,6 +292,7 @@
                         }
                     }
                 });
+                chartInstances.push(chart);
             };
 
             if (isComparison) {
@@ -366,7 +306,7 @@
             }
         };
 
-        // --- Apply Filters ---
+        // Apply filters
         const applyFilters = () => {
             const { filtered, selectedLOBs, isComparison } = filterData();
             renderKPIs(filtered, selectedLOBs);
@@ -374,14 +314,32 @@
             generateSummary(filtered, selectedLOBs);
         };
 
-        $('#applyFilter').off('click').on('click', applyFilters);
-        $('#exportCsv').off('click').on('click', () => {
+        $('#applyFilter').on('click', applyFilters);
+        applyFilters();
+
+        // Export CSV
+        $('#exportCsv').on('click', () => {
             const { filtered, selectedLOBs } = filterData();
-            exportCSV(filtered, selectedLOBs);
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += ['Week', 'LOB', ...uniqueHeaders].join(",") + "\r\n";
+            filtered.forEach(d => {
+                selectedLOBs.forEach(lob => {
+                    const row = [d.Week, lob, ...uniqueHeaders.map(h => d[`${h}||${lob}`] || 0)];
+                    csvContent += row.join(",") + "\r\n";
+                });
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "week_analytics.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         });
 
-        applyFilters();
-        $('#analyticsModal').modal('show');
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('analyticsModal'), {});
+        modal.show();
 
         return this;
     };
