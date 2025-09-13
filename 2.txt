@@ -1,41 +1,208 @@
-uniqueLOBs.forEach((lob, lobIndex) => {
-    const lobColor = lobColors[lobIndex % lobColors.length]; // LOB color
-    metrics.forEach((metric, i) => {
-        html += '<tr>';
+(function ($) {
+    $.fn.staffingSummaryPopup = function (options) {
+        const settings = $.extend({
+            data: [],
+            weekStartDay: 'sunday'
+        }, options);
 
-        // Sticky LOB column
-        if (i === 0) {
-            html += `<td class="sticky-left" rowspan="${metrics.length}" style="background:${lobColor}; color:#fff;">${lob}</td>`;
+        $('#analyticsModal').remove();
+
+        // Scoped CSS for popup only
+        if ($('#weekAnalyticsPopupStyles').length === 0) {
+            $('head').append(`
+            <style id="weekAnalyticsPopupStyles">
+                #analyticsModal .table-wrapper {
+                    overflow-x: auto;
+                    overflow-y: auto;
+                    max-height: 500px;
+                    position: relative;
+                    border: 1px solid #ccc;
+                    background: #fff;
+                }
+
+                #analyticsModal table {
+                    border-collapse: collapse;
+                    width: max-content;
+                    table-layout: auto;
+                }
+
+                #analyticsModal th,
+                #analyticsModal td {
+                    border-top: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: center;
+                    white-space: nowrap;
+                    background: #fff;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                #analyticsModal thead th {
+                    position: sticky;
+                    top: 0;
+                    background: #f1f1f1;
+                    z-index: 6;
+                }
+
+                #analyticsModal thead th.sticky-left {
+                    position: sticky;
+                    top: 0;
+                    left: 0;
+                    background: #f1f1f1;
+                    z-index: 7;
+                    min-width: 120px;
+                }
+
+                #analyticsModal thead th.sticky-left-2 {
+                    position: sticky;
+                    top: 0;
+                    left: 120px;
+                    background: #f1f1f1;
+                    z-index: 7;
+                    min-width: 150px;
+                }
+
+                #analyticsModal tbody td.sticky-left {
+                    position: sticky;
+                    left: 0;
+                    background: #f1f1f1;
+                    z-index: 5;
+                    min-width: 120px;
+                }
+
+                #analyticsModal tbody td.sticky-left-2 {
+                    position: sticky;
+                    left: 120px;
+                    background: #f1f1f1;
+                    z-index: 5;
+                    min-width: 150px;
+                }
+
+                #analyticsModal .rag-red { color: red; font-weight: bold; }
+                #analyticsModal .rag-amber { color: orange; font-weight: bold; }
+                #analyticsModal .rag-green { color: green; font-weight: bold; }
+            </style>
+            `);
         }
 
-        // Sticky Metric column with text color per metric, background white
-        let metricColor = '';
-        if (metric === 'Required HC') metricColor = '#1f4e79';       // dark blue
-        else if (metric === 'Available HC') metricColor = '#2e7d32';  // dark green
-        else if (metric === 'Delta') metricColor = '#c0392b';         // dark red
-        else if (metric === 'Staffing %') metricColor = '#2874a6';    // dark blue
+        // Modal HTML
+        const modalHTML = `
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
+          <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Staffing Summary</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body p-0">
+                <div class="table-wrapper" id="staffingContainer"></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+        $('body').append(modalHTML);
 
-        html += `<td class="sticky-left-2" style="color:${metricColor}; font-weight:bold; background:#fff;">${metric}</td>`;
+        const $container = $('#staffingContainer');
 
-        // Metric values
-        uniqueWeeks.forEach(week => {
-            let val = groupedData[lob][week][metric] || 0;
-            val = Math.round(val);
+        // Parse week string to Date
+        const parseWeek = w => {
+            const [dd, mmm, yy] = w.split('-');
+            const fullYear = parseInt(yy, 10) < 50 ? '20' + yy : '19' + yy;
+            return new Date(`${mmm} ${dd}, ${fullYear}`);
+        };
 
-            let cls = '';
-            if (metric === 'Delta' && val < 0) cls = 'rag-red';
-            if (metric === 'Staffing %') {
-                if (val < 80) cls = 'rag-red';
-                else if (val < 100) cls = 'rag-amber';
-                else cls = 'rag-green';
-                val = `${val}%`;
-            } else {
-                val = new Intl.NumberFormat().format(val);
-            }
+        // Unique weeks & LOBs
+        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))]
+            .sort((a, b) => parseWeek(a) - parseWeek(b));
+        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
+        const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
 
-            html += `<td class="${cls}" style="background:#fff;">${val}</td>`;
+        // Group data by LOB -> week -> metric
+        const groupedData = {};
+        settings.data.forEach(d => {
+            if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
+            if (!groupedData[d.sheetName][d.week]) groupedData[d.sheetName][d.week] = {};
+            groupedData[d.sheetName][d.week][d.header] = Number(d.value);
         });
 
-        html += '</tr>';
-    });
-});
+        // Calculate Delta & Staffing %
+        uniqueLOBs.forEach(lob => {
+            uniqueWeeks.forEach(week => {
+                const req = groupedData[lob][week]?.['Required HC'] || 0;
+                const avail = groupedData[lob][week]?.['Available HC'] || 0;
+                groupedData[lob][week]['Delta'] = avail - req;
+                groupedData[lob][week]['Staffing %'] = req === 0 ? 0 : Math.round((avail / req) * 100);
+            });
+        });
+
+        // LOB base colors
+        const lobColors = ['#2c3e50', '#34495e', '#16a085', '#8e44ad', '#d35400', '#7f8c8d', '#27ae60', '#c0392b'];
+
+        // Lighten function for gradient
+        function lightenColor(hex, percent) {
+            const num = parseInt(hex.replace('#', ''), 16),
+                amt = Math.round(2.55 * percent),
+                R = (num >> 16) + amt,
+                G = (num >> 8 & 0x00FF) + amt,
+                B = (num & 0x0000FF) + amt;
+            return '#' + (0x1000000 +
+                (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+                (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+                (B < 255 ? B < 1 ? 0 : B : 255)
+            ).toString(16).slice(1);
+        }
+
+        // Build table
+        let html = '<table><thead><tr>';
+        html += `<th class="sticky-left">LOB</th>`;
+        html += `<th class="sticky-left-2">Metric</th>`;
+        uniqueWeeks.forEach(week => html += `<th>${week}</th>`);
+        html += '</tr></thead><tbody>';
+
+        uniqueLOBs.forEach((lob, lobIndex) => {
+            const lobColor = lobColors[lobIndex % lobColors.length]; // pick color per LOB
+            metrics.forEach((metric, i) => {
+                html += '<tr>';
+
+                // Sticky LOB column (first metric row only)
+                if (i === 0) {
+                    html += `<td class="sticky-left" rowspan="${metrics.length}" style="background:${lobColor}; color:#fff;">${lob}</td>`;
+                }
+
+                // Sticky Metric column (keep default styling)
+                html += `<td class="sticky-left-2">${metric}</td>`;
+
+                // Metric values
+                uniqueWeeks.forEach(week => {
+                    let val = groupedData[lob][week][metric] || 0;
+                    val = Math.round(val);
+
+                    let cls = '';
+                    if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                    if (metric === 'Staffing %') {
+                        if (val < 80) cls = 'rag-red';
+                        else if (val < 100) cls = 'rag-amber';
+                        else cls = 'rag-green';
+                        val = `${val}%`;
+                    } else {
+                        val = new Intl.NumberFormat().format(val);
+                    }
+
+                    html += `<td class="${cls}">${val}</td>`;
+                });
+
+                html += '</tr>';
+            });
+        });
+
+        html += '</tbody></table>';
+        $container.html(html);
+
+        // Show modal
+        const modalEl = document.getElementById('analyticsModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        return this;
+    };
+})(jQuery);
