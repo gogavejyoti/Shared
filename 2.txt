@@ -101,9 +101,7 @@
                                 <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown">
                                     Select LOBs
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown">
-                                    <!-- Checkboxes inserted dynamically -->
-                                </div>
+                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
                             </div>
                         </div>
 
@@ -113,12 +111,7 @@
                                 <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown">
                                     Select Metrics
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown">
-                                    <label><input type="checkbox" value="Required HC" checked> Required HC</label><br/>
-                                    <label><input type="checkbox" value="Available HC" checked> Available HC</label><br/>
-                                    <label><input type="checkbox" value="Delta" checked> Delta</label><br/>
-                                    <label><input type="checkbox" value="Staffing %" checked> Staffing %</label><br/>
-                                </div>
+                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
                             </div>
                         </div>
 
@@ -128,9 +121,7 @@
                                 <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown">
                                     Select From Week
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown">
-                                    <!-- Weeks inserted dynamically -->
-                                </div>
+                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
                             </div>
                         </div>
 
@@ -140,9 +131,7 @@
                                 <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown">
                                     Select To Week
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown">
-                                    <!-- Weeks inserted dynamically -->
-                                </div>
+                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
                             </div>
                         </div>
 
@@ -188,15 +177,32 @@
 
         const lobColors = ['#2c3e50', '#34495e', '#16a085', '#8e44ad', '#d35400', '#7f8c8d', '#27ae60', '#c0392b'];
 
+        function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
+            const btn = $(`#${dropdownId}Btn`);
+            if (selectedItems.length === 0) {
+                btn.text(placeholder);
+            } else {
+                btn.text(`${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
+            }
+        }
+
         function populateFilters() {
             uniqueLOBs.forEach(lob => {
                 $('#lobDropdown').append(`<label><input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}</label><br/>`);
             });
 
-            uniqueWeeks.forEach(week => {
-                $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" checked> ${week}</label><br/>`);
-                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" checked> ${week}</label><br/>`);
+            metrics.forEach(metric => {
+                $('#metricDropdown').append(`<label><input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}</label><br/>`);
             });
+
+            uniqueWeeks.forEach(week => {
+                $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === uniqueWeeks[0] ? 'checked' : ''}> ${week}</label><br/>`);
+                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length -1] ? 'checked' : ''}> ${week}</label><br/>`);
+            });
+
+            // Initial label update
+            updateDropdownLabel('lobDropdown', uniqueLOBs, 'Select LOBs');
+            updateDropdownLabel('metricDropdown', metrics, 'Select Metrics');
         }
 
         function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo) {
@@ -252,9 +258,20 @@
 
         populateFilters();
 
+        // Update dropdown labels when checkboxes change
+        $('#lobDropdown').on('change', 'input.lobCheckbox', function () {
+            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
+            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
+        });
+
+        $('#metricDropdown').on('change', 'input.metricCheckbox', function () {
+            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
+            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
+        });
+
         $('#applyFilterBtn').on('click', function () {
             const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            const selectedMetrics = $('#metricDropdown input[type=checkbox]:checked').map(function () { return this.value; }).get();
+            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
             const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
             const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
 
