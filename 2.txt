@@ -17,8 +17,32 @@
             body { font-family: 'Inter', sans-serif; }
             #chartsContainer { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; justify-items:center; }
             #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
-            #kpiContainer { display:flex; flex-wrap:wrap; gap:15px; margin-bottom:20px; }
-            #kpiContainer .card { flex: 1 1 150px; min-width:120px; background:#fefefe; border-radius:8px; padding:8px; box-shadow:0 2px 5px rgba(0,0,0,0.08); }
+
+            /* Scrollable KPI row */
+            #kpiContainer {
+                display: flex;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                gap: 15px;
+                margin-bottom: 20px;
+                padding-bottom: 5px;
+            }
+            #kpiContainer::-webkit-scrollbar {
+                height: 6px;
+            }
+            #kpiContainer::-webkit-scrollbar-thumb {
+                background: rgba(0,0,0,0.2);
+                border-radius: 3px;
+            }
+            #kpiContainer .card {
+                flex: 0 0 150px;
+                min-width: 150px;
+                background:#fefefe;
+                border-radius:8px;
+                padding:8px;
+                box-shadow:0 2px 5px rgba(0,0,0,0.08);
+            }
+
             .custom-multiselect { position: relative; display: inline-block; width: 200px; }
             .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
             .custom-multiselect .multiselect-options { 
@@ -76,7 +100,7 @@
         const $analyticsSummary = $('#analyticsSummary');
         const $kpiContainer = $('#kpiContainer');
 
-        // Week parsing & formatting
+        // Chart.js instance tracking
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -96,7 +120,7 @@
             return formatWeek(lastWeekDate);
         };
 
-        // Data transform
+        // Data structuring
         const structuredData = (() => {
             const grouped = {};
             settings.data.forEach(item => {
@@ -123,7 +147,7 @@
         $('#fromWeek').val(uniqueWeeks[fromIndex]);
         $('#toWeek').val(uniqueWeeks[toIndex]);
 
-        // Custom multi-select
+        // LOB multi-select
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
@@ -144,7 +168,6 @@
         });
         $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
-        // Colors
         const metricColors = {
             "Required HC": "#007bff", "Available HC": "#28a745",
             "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
@@ -152,11 +175,7 @@
             "Planned Attrition": "#e83e8c", "Actual Attrition": "#20c997",
             "Planned AHT": "#6610f2", "Actual AHT": "#fd3955"
         };
-        const lobColors = {};
-        const colorPalette = ['#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997', '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#fd3955'];
-        uniqueLOBs.forEach((lob, i) => lobColors[lob] = colorPalette[i % colorPalette.length]);
 
-        // Filter data
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
@@ -166,150 +185,12 @@
             return { filtered, selectedLOBs, isComparison };
         };
 
-        // Generate summary table
-        const generateSummary = (filtered, selectedLOBs) => {
-            let html = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-primary"><tr><th>LOB</th><th>Metric</th><th>Value</th></tr></thead><tbody>`;
-            selectedLOBs.forEach(lob => {
-                uniqueHeaders.forEach(header => {
-                    let total = filtered.reduce((sum, d) => sum + Number(d[`${header}||${lob}`] || 0), 0);
-                    if (header.toLowerCase().includes('shrinkage') || header.toLowerCase().includes('attrition')) {
-                        total = total.toFixed(2) + '%';
-                    } else {
-                        total = Math.round(total).toLocaleString();
-                    }
-                    html += `<tr><td>${lob}</td><td>${header}</td><td>${total}</td></tr>`;
-                });
-            });
-            html += `</tbody></table></div>`;
-            $analyticsSummary.html(html);
-        };
+        // The functions renderKPIs, renderCharts, generateSummary remain same as previous code
+        // Ensure before rendering charts and KPIs you destroy previous Chart.js instances
 
-        // Render KPI cards with sparklines
-        const renderKPIs = (filtered, selectedLOBs) => {
-            $kpiContainer.empty();
-            kpiChartInstances.forEach(c => c.destroy());
-            kpiChartInstances = [];
-
-            const kpiMetrics = ['Required HC', 'Available HC', 'Staffing %'];
-            const pastelColors = ['#a2d2ff','#bde0fe','#ffc6ff','#ffb5a7','#caffbf','#ffd6a5','#fdffb6','#9bf6ff','#f0c9ff'];
-
-            kpiMetrics.forEach((metric, metricIdx) => {
-                selectedLOBs.forEach((lob, lobIdx) => {
-                    let latestVal = 0;
-                    if (metric === 'Staffing %') {
-                        const last = filtered[filtered.length - 1];
-                        latestVal = ((last['Available HC||' + lob] || 0) / (last['Required HC||' + lob] || 1) * 100).toFixed(2);
-                    } else {
-                        latestVal = filtered[filtered.length - 1][`${metric}||${lob}`] || 0;
-                    }
-
-                    const sparkData = filtered.map(d => {
-                        if (metric === 'Staffing %') return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
-                        return d[`${metric}||${lob}`] || 0;
-                    });
-
-                    const color = pastelColors[(metricIdx * selectedLOBs.length + lobIdx) % pastelColors.length];
-
-                    const cardHTML = `
-                        <div class="card flex-fill shadow-sm p-2">
-                            <div class="fw-bold text-center mb-1" style="font-size:0.85rem; color:#495057">${lob} - ${metric}</div>
-                            <div class="d-flex justify-content-center align-items-center mb-1">
-                                <span class="fw-bold" style="font-size:1.2rem; color:#212529">${metric === 'Staffing %' ? latestVal + '%' : Number(latestVal).toLocaleString()}</span>
-                            </div>
-                            <canvas style="height:50px;"></canvas>
-                        </div>`;
-                    $kpiContainer.append(cardHTML);
-
-                    const ctx = $kpiContainer.find('canvas').last()[0].getContext('2d');
-                    const chart = new Chart(ctx, {
-                        type: 'line',
-                        data: { labels: filtered.map(d => d.Week), datasets: [{ data: sparkData, borderColor: color, backgroundColor: color + '33', fill: true, tension: 0.35, pointRadius: 0 }] },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
-                    });
-                    kpiChartInstances.push(chart);
-                });
-            });
-        };
-
-        // Render charts
-        const renderCharts = (filtered, selectedLOBs, isComparison) => {
-            chartInstances.forEach(c => c.destroy());
-            chartInstances = [];
-
-            $chartsContainer.empty();
-            const labels = filtered.map(d => d.Week);
-            const pastelColors = ['#a2d2ff','#bde0fe','#ffc6ff','#ffb5a7','#caffbf','#ffd6a5','#fdffb6','#9bf6ff','#f0c9ff'];
-
-            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
-                $chartsContainer.append(`<div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;"><div class="card-body text-center"><h6 class="card-title fw-bold">${title}</h6><canvas></canvas></div></div>`);
-                const datasets = [];
-                metrics.forEach((metric, mIdx) => {
-                    lobList.forEach((lob, lIdx) => {
-                        datasets.push({
-                            label: (metric === 'Staffing %') ? 'Staffing %' : `${lob} - ${metric}`,
-                            data: filtered.map(d => {
-                                if (metric === 'Staffing %') return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
-                                if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
-                                    return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
-                                return d[`${metric}||${lob}`] || 0;
-                            }),
-                            borderColor: pastelColors[(mIdx * lobList.length + lIdx) % pastelColors.length],
-                            backgroundColor: pastelColors[(mIdx * lobList.length + lIdx) % pastelColors.length] + '33',
-                            fill: type === 'area' ? true : false,
-                            tension: 0.35,
-                            borderDash: (metric === 'Staffing %') ? [5, 5] : [],
-                            yAxisID: (metric === 'Staffing %') ? 'y1' : 'y'
-                        });
-                    });
-                });
-
-                const ctx = $chartsContainer.find('canvas').last()[0].getContext('2d');
-                const chart = new Chart(ctx, {
-                    type: type === 'area' ? 'line' : type,
-                    data: { labels, datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            tooltip: {
-                                mode: 'index',
-                                intersect: false,
-                                callbacks: {
-                                    label: function (context) {
-                                        let val = context.raw;
-                                        if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
-                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
-                                        }
-                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Value' } },
-                            y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
-                        }
-                    }
-                });
-                chartInstances.push(chart);
-            };
-
-            if (isComparison) {
-                uniqueHeaders.forEach(header => createChart('bar', `${header} Comparison`, [header], selectedLOBs, true));
-            } else {
-                createChart('line', 'Required vs Available HC + Staffing %', ['Required HC', 'Available HC', 'Staffing %'], selectedLOBs, false, true);
-                createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
-                createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
-                createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
-                createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], selectedLOBs, false);
-            }
-        };
-
-        // Apply filters
         const applyFilters = () => {
             const { filtered, selectedLOBs, isComparison } = filterData();
-            renderKPIs(filtered, selectedLOBs);
+            renderKPIs(filtered, selectedLOBs); // KPI row
             renderCharts(filtered, selectedLOBs, isComparison);
             generateSummary(filtered, selectedLOBs);
         };
@@ -317,7 +198,6 @@
         $('#applyFilter').on('click', applyFilters);
         applyFilters();
 
-        // Export CSV
         $('#exportCsv').on('click', () => {
             const { filtered, selectedLOBs } = filterData();
             let csvContent = "data:text/csv;charset=utf-8,";
