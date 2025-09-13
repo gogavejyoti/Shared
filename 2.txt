@@ -10,23 +10,75 @@
         if ($('#weekAnalyticsPopupStyles').length === 0) {
             $('head').append(`
             <style id="weekAnalyticsPopupStyles">
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+                #analyticsModal {
+                    font-family: 'Inter', sans-serif;
+                }
+                #analyticsModal .modal-content {
+                    border-radius: 12px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                    border: none;
+                    background: #f9f9f9;
+                }
+                #analyticsModal .modal-header {
+                    border-bottom: none;
+                    background: #fff;
+                    padding: 1rem 1.5rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    font-weight: 600;
+                    font-size: 1.25rem;
+                    color: #333;
+                }
+                #analyticsModal .btn-close {
+                    background: url('data:image/svg+xml;utf8,<svg fill="gray" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2l12 12m0-12L2 14" stroke="gray" stroke-width="2"/></svg>') no-repeat center;
+                    opacity: 0.8;
+                }
+                #analyticsModal .btn-close:hover {
+                    opacity: 1;
+                }
+                #analyticsModal .modal-body {
+                    padding: 1.5rem;
+                    background: #f9f9f9;
+                }
+                #analyticsModal .filter-container {
+                    background: #fff;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    margin-bottom: 1rem;
+                    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+                }
+                #analyticsModal .filter-container label {
+                    font-weight: 500;
+                    color: #555;
+                }
+                #analyticsModal .dropdown-checkbox {
+                    max-height: 200px;
+                    overflow-y: auto;
+                    padding: 10px;
+                }
                 #analyticsModal .table-wrapper {
                     overflow-x: auto;
                     overflow-y: auto;
                     max-height: 500px;
                     position: relative;
-                    border: 1px solid #ccc;
+                    border: 1px solid #ddd;
                     background: #fff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                 }
                 #analyticsModal table {
                     border-collapse: collapse;
                     width: max-content;
                     table-layout: auto;
+                    font-size: 0.95rem;
                 }
                 #analyticsModal th,
                 #analyticsModal td {
-                    border-top: 1px solid #ddd;
-                    padding: 8px;
+                    border-top: 1px solid #e0e0e0;
+                    padding: 10px;
                     text-align: center;
                     white-space: nowrap;
                     background: #fff;
@@ -39,66 +91,42 @@
                     background: #f1f1f1;
                     z-index: 6;
                 }
-                #analyticsModal thead th.sticky-left {
-                    position: sticky;
-                    top: 0;
-                    left: 0;
-                    background: #f1f1f1;
-                    z-index: 7;
-                    min-width: 120px;
-                }
-                #analyticsModal thead th.sticky-left-2 {
-                    position: sticky;
-                    top: 0;
-                    left: 120px;
-                    background: #f1f1f1;
-                    z-index: 7;
-                    min-width: 150px;
-                }
-                #analyticsModal tbody td.sticky-left {
-                    position: sticky;
-                    left: 0;
-                    background: #f1f1f1;
-                    z-index: 5;
-                    min-width: 120px;
-                }
+                #analyticsModal thead th.sticky-left,
+                #analyticsModal thead th.sticky-left-2,
+                #analyticsModal tbody td.sticky-left,
                 #analyticsModal tbody td.sticky-left-2 {
-                    position: sticky;
-                    left: 120px;
-                    background: #f1f1f1;
-                    z-index: 5;
-                    min-width: 150px;
+                    background: #f7f7f7;
                 }
-                #analyticsModal .rag-red { color: red; font-weight: bold; }
-                #analyticsModal .rag-amber { color: orange; font-weight: bold; }
-                #analyticsModal .rag-green { color: green; font-weight: bold; }
-                #analyticsModal .filter-container {
-                    margin: 10px;
+                #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
+                #analyticsModal .rag-amber { color: #f39c12; font-weight: bold; }
+                #analyticsModal .rag-green { color: #2ecc71; font-weight: bold; }
+                #analyticsModal .btn-primary {
+                    background-color: #b497fc;
+                    border: none;
                 }
-                .dropdown-checkbox {
-                    max-height: 250px;
-                    overflow-y: auto;
-                    padding: 10px;
+                #analyticsModal .btn-primary:hover {
+                    background-color: #a07efc;
                 }
             </style>
             `);
         }
 
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:90%">
           <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
+                <span><svg width="24" height="24" fill="none" stroke="#b497fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg></span>
                 <h5 class="modal-title">Staffing Summary</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body p-0">
                 <div class="filter-container">
-                    <div class="row g-2 align-items-center">
+                    <div class="row g-3 align-items-center">
                         <div class="col-auto">
                             <label><b>LOB:</b></label><br/>
                             <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
+                                <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown">
                                     Select LOBs
                                 </button>
                                 <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
@@ -108,7 +136,7 @@
                         <div class="col-auto">
                             <label><b>Metrics:</b></label><br/>
                             <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
+                                <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown">
                                     Select Metrics
                                 </button>
                                 <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
@@ -118,7 +146,7 @@
                         <div class="col-auto">
                             <label><b>Week From:</b></label><br/>
                             <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
+                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown">
                                     Select From Week
                                 </button>
                                 <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
@@ -128,7 +156,7 @@
                         <div class="col-auto">
                             <label><b>Week To:</b></label><br/>
                             <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
+                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown">
                                     Select To Week
                                 </button>
                                 <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
@@ -148,6 +176,7 @@
 
         $('body').append(modalHTML);
 
+        // --- Data manipulation and interaction logic unchanged ---
         const $container = $('#staffingContainer');
         const parseWeek = w => {
             const [dd, mmm, yy] = w.split('-');
@@ -180,11 +209,7 @@
 
         function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
             const btn = $(`#${dropdownId}Btn`);
-            if (selectedItems.length === 0) {
-                btn.text(placeholder);
-            } else {
-                btn.text(`${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
-            }
+            btn.text(selectedItems.length === 0 ? placeholder : `${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
         }
 
         function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
@@ -193,9 +218,7 @@
 
         function populateFilters() {
             const lobContainer = document.createDocumentFragment();
-            lobContainer.appendChild(document.createElement('label')).innerHTML = `
-                <label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>
-            `;
+            lobContainer.appendChild(document.createElement('label')).innerHTML = `<label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>`;
             uniqueLOBs.forEach(lob => {
                 const label = document.createElement('label');
                 label.innerHTML = `<input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}`;
@@ -205,9 +228,7 @@
             $('#lobDropdown').append(lobContainer);
 
             const metricContainer = document.createDocumentFragment();
-            metricContainer.appendChild(document.createElement('label')).innerHTML = `
-                <label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>
-            `;
+            metricContainer.appendChild(document.createElement('label')).innerHTML = `<label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>`;
             metrics.forEach(metric => {
                 const label = document.createElement('label');
                 label.innerHTML = `<input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}`;
@@ -306,7 +327,6 @@
             $('#weekAnalyticsPopupStyles').remove();
         });
 
-        // Select All / Unselect All Logic
         $('#lobDropdown').on('change', '.lobSelectAll', function () {
             const checked = $(this).is(':checked');
             $('.lobCheckbox').prop('checked', checked);
