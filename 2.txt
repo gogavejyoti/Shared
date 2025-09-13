@@ -1,421 +1,304 @@
 (function ($) {
-    $.fn.staffingSummaryPopup = function (options) {
+    $.fn.sheetConfigurator = function (options) {
         const settings = $.extend({
-            data: [],
-            weekStartDay: 'sunday'
+            luckysheetInstances: [],
+            existingConfigs: {},     // saved configs
+            activeSheet: null,
+            saveCallback: function (config, sheetName) { },
+            getSheetDataFn: function (sheetName) { return []; }
         }, options);
 
-        $('#analyticsModal').remove();
+        let tempConfigs = {};  // live while dialog open only
 
-        if ($('#weekAnalyticsPopupStyles').length === 0) {
-            $('head').append(`
-            <style id="weekAnalyticsPopupStyles">
-                /* Modal Content Styling */
-                #analyticsModal .modal-content {
-                    border-radius: 12px;
-                    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-                    font-family: 'Inter', sans-serif;
-                    background: #fafafa;
-                }
+        // Inject modal once
+        if (!$('#sheetConfigModal').length) {
+            $('body').append(`
+              <div class="modal fade" id="sheetConfigModal" tabindex="-1" style="z-index:9999;zoom:75%">
+                <div class="modal-dialog modal-lg">
+                  <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                      <h5 class="modal-title">Sheet Configuration</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      <form id="sheetConfigForm" class="container-fluid">
+                        <div class="row mb-3">
+                          <div class="col-md-6">
+                            <label class="form-label">Sheet</label>
+                            <select class="form-select" id="configSheetSelect"></select>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label">Sheet Type</label>
+                            <select class="form-select" id="configSheetType">
+                              <option value="">--Select--</option>
+                              <option value="custom">Custom</option>
+                              <option value="lob">LOB</option>
+                            </select>
+                          </div>
+                        </div>
 
-                #analyticsModal .modal-header {
-                    border-bottom: 1px solid #e0e0e0;
-                    background: #fff;
-                    color: #2c2c2c;
-                }
+                        <div id="lobInputs" style="display:none;">
+                          <div class="row mb-3">
+                            <div class="col-md-6">
+                              <label class="form-label">LOB Type</label>
+                              <select class="form-select" id="configLobType">
+                                <option value="FTE">FTE</option>
+                                <option value="Transaction">Transaction</option>
+                              </select>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label">Location</label>
+                              <select class="form-select" id="configLocation">
+                                <option value="Bulgaria">Bulgaria</option>
+                                <option value="Canada">Canada</option>
+                                <option value="China">China</option>
+                                <option value="Colombia">Colombia</option>
+                                <option value="Egypt">Egypt</option>
+                                <option value="India">India</option>
+                                <option value="Jamaica">Jamaica</option>
+                                <option value="Kosovo">Kosovo</option>
+                                <option value="Malaysia">Malaysia</option>
+                                <option value="Mexico">Mexico</option>
+                                <option value="Philippines">Philippines</option>
+                                <option value="USA">USA</option>
+                              </select>
+                            </div>
+                          </div>
+                         <div class="row mb-3"> 
+                            <div class="col-md-6">   
+                                <label class="form-label">Site</label>    
+                                <input type="text" class="form-control" id="configSite" />  
+                            </div>
+                            <div class="col-md-6">   
+                                <label class="form-label">ProjectId</label>    
+                                <input type="text" class="form-control" id="configProjectId" />  
+                            </div> 
+                            </div>
+                          <div class="row mb-3">
+                            <div class="col-md-6">
+                              <label class="form-label">Week Header Row</label>
+                              <input type="number" min="1" class="form-control" id="configWeekRow" />
+                              <div class="form-text">Row number that contains dates.</div>
+                              <small class="text-muted" id="weekDateLabel"></small>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label">Header Column</label>
+                              <input type="text" class="form-control" id="configHeaderCol" />
+                              <div class="form-text">Column with headers.</div>
+                            </div>
+                          </div>
+                        </div>
 
-                #analyticsModal .modal-title {
-                    font-weight: 600;
-                    color: #2c2c2c;
-                }
-
-                #analyticsModal .btn-close {
-                    filter: invert(30%);
-                }
-
-                /* Table Wrapper */
-                #analyticsModal .table-wrapper {
-                    overflow-x: auto;
-                    overflow-y: auto;
-                    max-height: 500px;
-                    position: relative;
-                    border: 1px solid #dcdcdc;
-                    background: #fff;
-                    border-radius: 8px;
-                    margin: 10px;
-                }
-
-                /* Table Styling */
-                #analyticsModal table {
-                    border-collapse: collapse;
-                    width: max-content;
-                    table-layout: auto;
-                }
-
-                #analyticsModal th,
-                #analyticsModal td {
-                    padding: 8px;
-                    text-align: center;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    border-top: 1px solid #eaeaea;
-                    background: #fff;
-                }
-
-                /* Header Sticky */
-                #analyticsModal thead th {
-                    position: sticky;
-                    top: 0;
-                    background: #f5f5f5;
-                    z-index: 6;
-                }
-
-                /* First two header columns sticky both top and left */
-                #analyticsModal thead th.sticky-left {
-                    position: sticky;
-                    top: 0;
-                    left: 0;
-                    background: #f5f5f5;
-                    z-index: 9;
-                    min-width: 120px;
-                }
-
-                #analyticsModal thead th.sticky-left-2 {
-                    position: sticky;
-                    top: 0;
-                    left: 120px;
-                    background: #f5f5f5;
-                    z-index: 9;
-                    min-width: 150px;
-                }
-
-                /* Body Sticky Columns */
-                #analyticsModal tbody td.sticky-left {
-                    position: sticky;
-                    left: 0;
-                    background: #f0f0f0;
-                    z-index: 7;
-                    min-width: 120px;
-                }
-
-                #analyticsModal tbody td.sticky-left-2 {
-                    position: sticky;
-                    left: 120px;
-                    background: #f0f0f0;
-                    z-index: 7;
-                    min-width: 150px;
-                }
-
-                /* Conditional Coloring */
-                #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
-                #analyticsModal .rag-amber { color: #f39c12; font-weight: bold; }
-                #analyticsModal .rag-green { color: #27ae60; font-weight: bold; }
-
-                /* Filter Container */
-                #analyticsModal .filter-container {
-                    margin: 10px;
-                    font-size: 0.875rem;
-                }
-
-                .dropdown-checkbox {
-                    max-height: 250px;
-                    overflow-y: auto;
-                    padding: 10px;
-                }
-
-                /* Buttons */
-                #analyticsModal .btn-sm {
-                    border-radius: 6px;
-                    font-size: 0.875rem;
-                }
-
-                #applyFilterBtn {
-                    background: #9b59b6; /* Digital lavender accent */
-                    border-color: #9b59b6;
-                }
-
-                #applyFilterBtn:hover {
-                    background: #8e44ad;
-                    border-color: #8e44ad;
-                }
-            </style>
+                        <div id="headerMappingContainer" class="mt-3"></div>
+                      </form>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      <button type="button" class="btn btn-primary" id="saveConfigBtn">Save</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             `);
         }
 
-        const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
-          <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Staffing Summary</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body p-0">
-                <div class="filter-container">
-                    <div class="row g-2 align-items-center">
-                        <div class="col-auto">
-                            <label><b>LOB:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
-                                    Select LOBs
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
-                            </div>
-                        </div>
+        const $sheetSelect = $('#configSheetSelect');
+        const $sheetType = $('#configSheetType');
+        const $lobInputs = $('#lobInputs');
+        const $site = $('#configSite');
+        const $projectId = $('#configProjectId');
+        const $weekRow = $('#configWeekRow');
+        const $headerCol = $('#configHeaderCol');
+        const $mappingContainer = $('#headerMappingContainer');
+        const $weekLabel = $('#weekDateLabel');
 
-                        <div class="col-auto">
-                            <label><b>Metrics:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
-                                    Select Metrics
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
-                            </div>
-                        </div>
+        // Reset on modal close (discard temp)
+        $('#sheetConfigModal').off('hidden.bs.modal').on('hidden.bs.modal', function () {
+            tempConfigs = {};
+        });
 
-                        <div class="col-auto">
-                            <label><b>Week From:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
-                                    Select From Week
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
-                            </div>
-                        </div>
+        // === Helpers ===
+        function getFormConfig(sheetName) {
+            const cfg = {
+                sheetName,
+                type: $sheetType.val(),
+                lobType: $('#configLobType').val(),
+                location: $('#configLocation').val(),
+                site: $site.val(),
+                projectId: $projectId.val(),
+                weekRow: $weekRow.val(),
+                headerCol: $headerCol.val(),
+                headerMappings: {}
+            };
+            $('.mapping-dropdown').each(function () {
+                const std = $(this).data('std');
+                const val = $(this).val();
+                if (val) cfg.headerMappings[std] = val;
+            });
+            return cfg;
+        }
 
-                        <div class="col-auto">
-                            <label><b>Week To:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
-                                    Select To Week
-                                </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
-                            </div>
-                        </div>
+        function bindConfig(config) {
+            // reset first
+            $sheetType.val('').trigger('change');
+            $lobInputs.hide();
+            $site.val('');
+            $projectId.val('');
+            $weekRow.val('');
+            $headerCol.val('');
+            $mappingContainer.empty();
+            $weekLabel.text('');
 
-                        <div class="col-auto">
-                            <button id="applyFilterBtn" class="btn btn-primary btn-sm mt-3">Apply Filter</button>
-                        </div>
+            if (!config) return;
+
+            $sheetType.val(config.type || '').trigger('change');
+            if (config.type === 'lob') $lobInputs.show();
+
+            $('#configLobType').val(config.lobType || 'fte');
+            $('#configLocation').val(config.location || 'us');
+            $site.val(config.site || '');
+            $projectId.val(config.projectId || '');
+            $weekRow.val(config.weekRow || '');
+            $headerCol.val(config.headerCol || '');
+
+            if (config.headerCol) {
+                const sheetData = settings.getSheetDataFn(config.sheetName);
+                buildHeaderMapping(sheetData, config.headerCol, config.headerMappings || {});
+            }
+        }
+
+        function validateWeekRow(sheet, rowNum) {
+            const row = sheet.data ? sheet.data[rowNum - 1] : sheet[rowNum - 1];
+            if (!row) return { valid: false };
+            let start = null, end = null;
+            row.forEach(cell => {
+                const val = cell && (cell.m || cell.v);
+                if (val && !isNaN(Date.parse(val))) {
+                    if (start === null) start = val;
+                    end = val;
+                }
+            });
+            return { valid: start !== null, start, end };
+        }
+
+        function buildHeaderMapping(sheetData, colInput, existingMappings) {
+            if (!colInput) return;
+            let colIdx = isNaN(colInput)
+                ? colInput.toUpperCase().charCodeAt(0) - 65
+                : parseInt(colInput) - 1;
+
+            const headers = [];
+            for (let r = 0; r < sheetData.length; r++) {
+                const cell = sheetData[r][colIdx];
+                if (cell) {
+                    const val = cell.m || cell.v || "";
+                    if (val) headers.push(val);
+                }
+            }
+            headers.push("Not Applicable");
+            const uniqueHeaders = [...new Set(headers.filter(h => h.trim() !== ""))];
+
+            $mappingContainer.empty();
+            if (!uniqueHeaders.length) return;
+
+            const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT"];
+            standardHeaders.forEach(std => {
+                let options = uniqueHeaders.map(h =>
+                    `<option value="${h}" ${existingMappings && existingMappings[std] === h ? "selected" : ""}>${h}</option>`
+                ).join("");
+                $mappingContainer.append(`
+                  <div class="row mb-2">
+                    <div class="col-md-6"><label class="form-label">${std}</label></div>
+                    <div class="col-md-6">
+                      <select class="form-select mapping-dropdown" data-std="${std}">
+                        <option value="">--Select--</option>
+                        ${options}
+                      </select>
                     </div>
-                </div>
-                <div class="table-wrapper" id="staffingContainer"></div>
-              </div>
-            </div>
-          </div>
-        </div>`;
-
-        $('body').append(modalHTML);
-
-        const $container = $('#staffingContainer');
-        const parseWeek = w => {
-            const [dd, mmm, yy] = w.split('-');
-            const fullYear = yy.length === 2 ? (parseInt(yy, 10) < 50 ? '20' + yy : '19' + yy) : yy;
-            return new Date(`${mmm} ${dd}, ${fullYear}`);
-        };
-
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))]
-            .sort((a, b) => parseWeek(a) - parseWeek(b));
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
-
-        const groupedData = {};
-        settings.data.forEach(d => {
-            if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
-            if (!groupedData[d.sheetName][d.week]) groupedData[d.sheetName][d.week] = {};
-            groupedData[d.sheetName][d.week][d.header] = Number(d.value);
-        });
-
-        for (const lob in groupedData) {
-            for (const week in groupedData[lob]) {
-                const req = groupedData[lob][week]?.['Required HC'] || 0;
-                const avail = groupedData[lob][week]?.['Available HC'] || 0;
-                groupedData[lob][week]['Delta'] = avail - req;
-                groupedData[lob][week]['Staffing %'] = req === 0 ? 0 : Math.round((avail / req) * 100);
-            }
+                  </div>
+                `);
+            });
         }
 
-        const lobColors = ['#2c3e50', '#34495e', '#16a085', '#8e44ad', '#d35400', '#7f8c8d', '#27ae60', '#c0392b'];
+        // === Populate sheet dropdown ===
+        $sheetSelect.empty();
+        settings.luckysheetInstances.forEach(name => {
+            $sheetSelect.append(`<option value="${name}">${name}</option>`);
+        });
 
-        function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
-            const btn = $(`#${dropdownId}Btn`);
-            if (selectedItems.length === 0) {
-                btn.text(placeholder);
+        if (settings.activeSheet) {
+            $sheetSelect.val(settings.activeSheet);
+            bindConfig(settings.existingConfigs[settings.activeSheet] || null);
+            $sheetSelect.data('lastSheet', settings.activeSheet);
+        }
+
+        // Switch sheets inside dialog
+        $sheetSelect.off('change').on('change', function () {
+            const prevSheet = $(this).data('lastSheet');
+            const newSheet = $(this).val();
+            if (prevSheet) {
+                tempConfigs[prevSheet] = getFormConfig(prevSheet);
+            }
+            const config = tempConfigs[newSheet] || settings.existingConfigs[newSheet] || null;
+            bindConfig(config);
+            $(this).data('lastSheet', newSheet);
+        });
+
+        // Week row validation
+        $weekRow.off('blur').on('blur', function () {
+            const sheetName = $sheetSelect.val();
+            const sheetData = settings.getSheetDataFn(sheetName) || [];
+            const weekCheck = validateWeekRow({ data: sheetData }, parseInt($(this).val()));
+            if (weekCheck.valid) {
+                $weekLabel.text(`Start: ${weekCheck.start} → End: ${weekCheck.end}`);
             } else {
-                btn.text(`${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
+                $weekLabel.text("Invalid week row (no dates found).");
             }
-        }
-
-        function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
-            $(`#${dropdownBtnId}`).text(`${prefix}: ${selectedValue}`);
-        }
-
-        function populateFilters() {
-            const lobContainer = document.createDocumentFragment();
-            lobContainer.appendChild(document.createElement('label')).innerHTML = `
-                <label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>
-            `;
-            uniqueLOBs.forEach(lob => {
-                const label = document.createElement('label');
-                label.innerHTML = `<input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}`;
-                lobContainer.appendChild(label);
-                lobContainer.appendChild(document.createElement('br'));
-            });
-            $('#lobDropdown').append(lobContainer);
-
-            const metricContainer = document.createDocumentFragment();
-            metricContainer.appendChild(document.createElement('label')).innerHTML = `
-                <label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>
-            `;
-            metrics.forEach(metric => {
-                const label = document.createElement('label');
-                label.innerHTML = `<input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}`;
-                metricContainer.appendChild(label);
-                metricContainer.appendChild(document.createElement('br'));
-            });
-            $('#metricDropdown').append(metricContainer);
-
-            uniqueWeeks.forEach(week => {
-                $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === uniqueWeeks[0] ? 'checked' : ''}> ${week}</label><br/>`);
-                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length - 1] ? 'checked' : ''}> ${week}</label><br/>`);
-            });
-
-            updateDropdownLabel('lobDropdown', uniqueLOBs, 'Select LOBs');
-            updateDropdownLabel('metricDropdown', metrics, 'Select Metrics');
-            updateRadioDropdownLabel('weekFromDropdownBtn', uniqueWeeks[0], 'From');
-            updateRadioDropdownLabel('weekToDropdownBtn', uniqueWeeks[uniqueWeeks.length - 1], 'To');
-        }
-
-        function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo) {
-            const fromIndex = uniqueWeeks.indexOf(weekFrom);
-            const toIndex = uniqueWeeks.indexOf(weekTo);
-            const weeksInRange = uniqueWeeks.slice(
-                Math.min(fromIndex, toIndex),
-                Math.max(fromIndex, toIndex) + 1
-            );
-
-            const table = document.createElement('table');
-            const thead = document.createElement('thead');
-            const tbody = document.createElement('tbody');
-
-            const headerRow = document.createElement('tr');
-            headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
-            weeksInRange.forEach(week => {
-                const th = document.createElement('th');
-                th.textContent = week;
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
-
-            selectedLOBs.forEach((lob, lobIndex) => {
-                const lobColor = lobColors[lobIndex % lobColors.length];
-                selectedMetrics.forEach((metric, i) => {
-                    const row = document.createElement('tr');
-
-                    if (i === 0) {
-                        const tdLOB = document.createElement('td');
-                        tdLOB.className = 'sticky-left';
-                        tdLOB.setAttribute('rowspan', selectedMetrics.length);
-                        tdLOB.style.background = lobColor;
-                        tdLOB.style.color = '#fff';
-                        tdLOB.textContent = lob;
-                        row.appendChild(tdLOB);
-                    }
-
-                    const tdMetric = document.createElement('td');
-                    tdMetric.className = 'sticky-left-2';
-                    tdMetric.textContent = metric;
-                    row.appendChild(tdMetric);
-
-                    weeksInRange.forEach(week => {
-                        const td = document.createElement('td');
-                        let val = (groupedData[lob][week] && groupedData[lob][week][metric]) || 0;
-                        val = Math.round(val);
-
-                        let cls = '';
-                        if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                        if (metric === 'Staffing %') {
-                            if (val < 80) cls = 'rag-red';
-                            else if (val < 100) cls = 'rag-amber';
-                            else cls = 'rag-green';
-                            val = `${val}%`;
-                        } else {
-                            val = new Intl.NumberFormat().format(val);
-                        }
-
-                        td.className = cls;
-                        td.title = val;
-                        td.textContent = val;
-                        row.appendChild(td);
-                    });
-
-                    tbody.appendChild(row);
-                });
-            });
-
-            table.appendChild(thead);
-            table.appendChild(tbody);
-            $container.empty().append(table);
-        }
-
-        populateFilters();
-
-        $('#analyticsModal').on('hidden.bs.modal', function () {
-            $('#analyticsModal').remove();
-            $('#weekAnalyticsPopupStyles').remove();
         });
 
-        // Select All / Unselect All Logic
-        $('#lobDropdown').on('change', '.lobSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.lobCheckbox').prop('checked', checked);
-            const selectedLOBs = checked ? uniqueLOBs.slice() : [];
-            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
+        // Header col input
+        $headerCol.off('blur').on('blur', function () {
+            const sheetName = $sheetSelect.val();
+            const sheetData = settings.getSheetDataFn(sheetName) || [];
+            buildHeaderMapping(sheetData, $(this).val(), {});
         });
 
-        $('#metricDropdown').on('change', '.metricSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.metricCheckbox').prop('checked', checked);
-            const selectedMetrics = checked ? metrics.slice() : [];
-            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
+        // Save button
+        $('#saveConfigBtn').off('click').on('click', function () {
+            const sheetName = $sheetSelect.val();
+            const config = getFormConfig(sheetName);
+
+            //if (config.type === "lob") {
+            //    const sheetData = settings.getSheetDataFn(sheetName) || [];
+            //    const weekCheck = validateWeekRow({ data: sheetData }, parseInt(config.weekRow));
+            //    if (!weekCheck.valid) {
+            //        alert("Week header row must contain at least one valid date.");
+            //        return;
+            //    }
+            //    config.weekRange = { start: weekCheck.start, end: weekCheck.end };
+
+            //    for (const std of ["FTE Required", "FTE Available", "Transactions", "Productivity"]) {
+            //        if (!config.headerMappings[std]) {
+            //            alert(`Please map header for ${std}`);
+            //            return;
+            //        }
+            //    }
+            //}
+
+            settings.existingConfigs[sheetName] = config; // persist
+            delete tempConfigs[sheetName];
+            settings.saveCallback(config, sheetName);
+           /* $('#sheetConfigModal').modal('hide');*/
         });
 
-        $('#lobDropdown').on('change', '.lobCheckbox', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
-            $('.lobSelectAll').prop('checked', selectedLOBs.length === uniqueLOBs.length);
+        // Toggle LOB inputs
+        $sheetType.off('change').on('change', function () {
+            if ($(this).val() === 'lob') $lobInputs.show();
+            else {
+                $lobInputs.hide();
+                $mappingContainer.empty();
+            }
         });
-
-        $('#metricDropdown').on('change', '.metricCheckbox', function () {
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
-            $('.metricSelectAll').prop('checked', selectedMetrics.length === metrics.length);
-        });
-
-        $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
-        });
-
-        $('#weekToDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
-        });
-
-        $('#applyFilterBtn').on('click', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
-            const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
-
-            buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo);
-        });
-
-        buildTable(uniqueLOBs, metrics, uniqueWeeks[0], uniqueWeeks[uniqueWeeks.length - 1]);
-
-        const modalEl = document.getElementById('analyticsModal');
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
 
         return this;
     };
