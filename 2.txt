@@ -12,131 +12,33 @@
             <style id="weekAnalyticsPopupStyles">
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
-                #analyticsModal {
-                    font-family: 'Inter', sans-serif;
-                    zoom: 90%;
+                #analyticsModal { font-family: 'Inter', sans-serif; zoom: 90%; }
+                #analyticsModal .modal-content { border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); border: none; background: #f9f9f9; }
+                #analyticsModal .modal-header { border-bottom: none; background: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 1.25rem; color: #333; }
+                #analyticsModal .btn-close { background: url('data:image/svg+xml;utf8,<svg fill="gray" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2l12 12m0-12L2 14" stroke="gray" stroke-width="2"/></svg>') no-repeat center; opacity: 0.8; }
+                #analyticsModal .btn-close:hover { opacity: 1; }
+                #analyticsModal .modal-body { padding: 1.5rem; background: #f9f9f9; }
+                #analyticsModal .filter-container { background: #fff; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; box-shadow: 0 1px 6px rgba(0,0,0,0.05); display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
+                #analyticsModal .filter-container label { font-weight: 500; color: #555; margin-bottom: 0.25rem; display: block; }
+                #analyticsModal .filter-container .dropdown { min-width: 200px; }
+                #analyticsModal .filter-container .btn-sm { padding: 0.375rem 0.75rem; border-radius: 6px; border: 1px solid #ddd; background: #fff; color: #333; }
+                #analyticsModal .filter-container .btn-sm:hover { border-color: #b497fc; background: #f5f0ff; color: #333; }
+                #analyticsModal .btn-primary { background-color: #b497fc; border: none; font-weight: 600; }
+                #analyticsModal .btn-primary:hover { background-color: #a07efc; }
+                #analyticsModal .dropdown-checkbox { max-height: 200px; overflow-y: auto; padding: 10px; }
+                #analyticsModal .table-wrapper { overflow-x: auto; overflow-y: auto; max-height: 500px; position: relative; border: 1px solid #ddd; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+                #analyticsModal table { border-collapse: collapse; width: max-content; table-layout: auto; font-size: 0.95rem; }
+                #analyticsModal th, #analyticsModal td { border-top: 1px solid #e0e0e0; padding: 10px; text-align: center; white-space: nowrap; background: #fff; overflow: hidden; text-overflow: ellipsis; }
+                
+                /* Sticky header and first two columns */
+                #analyticsModal thead th { position: sticky; top: 0; background: #f1f1f1; z-index: 6; }
+                #analyticsModal thead th.sticky-left, #analyticsModal tbody td.sticky-left {
+                    position: sticky; left: 0; background: #f7f7f7; z-index: 8; min-width: 120px;
                 }
-                #analyticsModal .modal-content {
-                    border-radius: 12px;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                    border: none;
-                    background: #f9f9f9;
+                #analyticsModal thead th.sticky-left-2, #analyticsModal tbody td.sticky-left-2 {
+                    position: sticky; left: 120px; background: #f7f7f7; z-index: 8; min-width: 150px;
                 }
-                #analyticsModal .modal-header {
-                    border-bottom: none;
-                    background: #fff;
-                    padding: 1rem 1.5rem;
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    font-weight: 600;
-                    font-size: 1.25rem;
-                    color: #333;
-                }
-                #analyticsModal .btn-close {
-                    background: url('data:image/svg+xml;utf8,<svg fill="gray" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2l12 12m0-12L2 14" stroke="gray" stroke-width="2"/></svg>') no-repeat center;
-                    opacity: 0.8;
-                }
-                #analyticsModal .btn-close:hover {
-                    opacity: 1;
-                }
-                #analyticsModal .modal-body {
-                    padding: 1.5rem;
-                    background: #f9f9f9;
-                }
-                #analyticsModal .filter-container {
-                    background: #fff;
-                    padding: 1.5rem;
-                    border-radius: 10px;
-                    margin-bottom: 1.5rem;
-                    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 1rem;
-                    align-items: flex-end;
-                }
-                #analyticsModal .filter-container label {
-                    font-weight: 500;
-                    color: #555;
-                    margin-bottom: 0.25rem;
-                    display: block;
-                }
-                #analyticsModal .filter-container .dropdown {
-                    min-width: 200px;
-                }
-                #analyticsModal .filter-container .btn-sm {
-                    padding: 0.375rem 0.75rem;
-                    border-radius: 6px;
-                    border: 1px solid #ddd;
-                    background: #fff;
-                    color: #333;
-                }
-                #analyticsModal .filter-container .btn-sm:hover {
-                    border-color: #b497fc;
-                    background: #f5f0ff;
-                    color: #333;
-                }
-                #analyticsModal .btn-primary {
-                    background-color: #b497fc;
-                    border: none;
-                    font-weight: 600;
-                }
-                #analyticsModal .btn-primary:hover {
-                    background-color: #a07efc;
-                }
-                #analyticsModal .dropdown-checkbox {
-                    max-height: 200px;
-                    overflow-y: auto;
-                    padding: 10px;
-                }
-                #analyticsModal .table-wrapper {
-                    overflow-x: auto;
-                    overflow-y: auto;
-                    max-height: 500px;
-                    position: relative;
-                    border: 1px solid #ddd;
-                    background: #fff;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                }
-                #analyticsModal table {
-                    border-collapse: collapse;
-                    width: max-content;
-                    table-layout: auto;
-                    font-size: 0.95rem;
-                }
-                #analyticsModal th,
-                #analyticsModal td {
-                    border-top: 1px solid #e0e0e0;
-                    padding: 10px;
-                    text-align: center;
-                    white-space: nowrap;
-                    background: #fff;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-                #analyticsModal thead th {
-                    position: sticky;
-                    top: 0;
-                    background: #f1f1f1;
-                    z-index: 6;
-                }
-                #analyticsModal thead th.sticky-left,
-                #analyticsModal tbody td.sticky-left {
-                    position: sticky;
-                    left: 0;
-                    background: #f7f7f7;
-                    z-index: 7;
-                    min-width: 120px;
-                }
-                #analyticsModal thead th.sticky-left-2,
-                #analyticsModal tbody td.sticky-left-2 {
-                    position: sticky;
-                    left: 120px;
-                    background: #f7f7f7;
-                    z-index: 6;
-                    min-width: 150px;
-                }
+
                 #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
                 #analyticsModal .rag-amber { color: #f39c12; font-weight: bold; }
                 #analyticsModal .rag-green { color: #2ecc71; font-weight: bold; }
@@ -161,7 +63,6 @@
                             <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
                         </div>
                     </div>
-
                     <div>
                         <label><b>Metrics:</b></label>
                         <div class="dropdown">
@@ -169,7 +70,6 @@
                             <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
                         </div>
                     </div>
-
                     <div>
                         <label><b>Week From:</b></label>
                         <div class="dropdown">
@@ -177,7 +77,6 @@
                             <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
                         </div>
                     </div>
-
                     <div>
                         <label><b>Week To:</b></label>
                         <div class="dropdown">
@@ -185,7 +84,6 @@
                             <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
                         </div>
                     </div>
-
                     <div>
                         <button id="applyFilterBtn" class="btn btn-primary btn-sm">Apply Filter</button>
                     </div>
@@ -230,11 +128,8 @@
 
         function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
             const btn = $(`#${dropdownId}Btn`);
-            if (selectedItems.length === 0) {
-                btn.text(placeholder);
-            } else {
-                btn.text(`${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
-            }
+            if (selectedItems.length === 0) btn.text(placeholder);
+            else btn.text(`${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
         }
 
         function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
@@ -276,10 +171,7 @@
         function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo) {
             const fromIndex = uniqueWeeks.indexOf(weekFrom);
             const toIndex = uniqueWeeks.indexOf(weekTo);
-            const weeksInRange = uniqueWeeks.slice(
-                Math.min(fromIndex, toIndex),
-                Math.max(fromIndex, toIndex) + 1
-            );
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
 
             const table = document.createElement('table');
             const thead = document.createElement('thead');
@@ -298,7 +190,6 @@
                 const lobColor = lobColors[lobIndex % lobColors.length];
                 selectedMetrics.forEach((metric, i) => {
                     const row = document.createElement('tr');
-
                     if (i === 0) {
                         const tdLOB = document.createElement('td');
                         tdLOB.className = 'sticky-left';
@@ -308,7 +199,6 @@
                         tdLOB.textContent = lob;
                         row.appendChild(tdLOB);
                     }
-
                     const tdMetric = document.createElement('td');
                     tdMetric.className = 'sticky-left-2';
                     tdMetric.textContent = metric;
@@ -352,6 +242,7 @@
             $('#weekAnalyticsPopupStyles').remove();
         });
 
+        // Select All / Unselect All Logic
         $('#lobDropdown').on('change', '.lobSelectAll', function () {
             const checked = $(this).is(':checked');
             $('.lobCheckbox').prop('checked', checked);
