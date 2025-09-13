@@ -145,6 +145,7 @@
             </div>
           </div>
         </div>`;
+
         $('body').append(modalHTML);
 
         const $container = $('#staffingContainer');
@@ -166,14 +167,14 @@
             groupedData[d.sheetName][d.week][d.header] = Number(d.value);
         });
 
-        uniqueLOBs.forEach(lob => {
-            uniqueWeeks.forEach(week => {
+        for (const lob in groupedData) {
+            for (const week in groupedData[lob]) {
                 const req = groupedData[lob][week]?.['Required HC'] || 0;
                 const avail = groupedData[lob][week]?.['Available HC'] || 0;
                 groupedData[lob][week]['Delta'] = avail - req;
                 groupedData[lob][week]['Staffing %'] = req === 0 ? 0 : Math.round((avail / req) * 100);
-            });
-        });
+            }
+        }
 
         const lobColors = ['#2c3e50', '#34495e', '#16a085', '#8e44ad', '#d35400', '#7f8c8d', '#27ae60', '#c0392b'];
 
@@ -191,26 +192,39 @@
         }
 
         function populateFilters() {
+            const lobContainer = document.createDocumentFragment();
+            lobContainer.appendChild(document.createElement('label')).innerHTML = `
+                <label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>
+            `;
             uniqueLOBs.forEach(lob => {
-                $('#lobDropdown').append(`<label><input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}</label><br/>`);
+                const label = document.createElement('label');
+                label.innerHTML = `<input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}`;
+                lobContainer.appendChild(label);
+                lobContainer.appendChild(document.createElement('br'));
             });
+            $('#lobDropdown').append(lobContainer);
 
+            const metricContainer = document.createDocumentFragment();
+            metricContainer.appendChild(document.createElement('label')).innerHTML = `
+                <label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>
+            `;
             metrics.forEach(metric => {
-                $('#metricDropdown').append(`<label><input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}</label><br/>`);
+                const label = document.createElement('label');
+                label.innerHTML = `<input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}`;
+                metricContainer.appendChild(label);
+                metricContainer.appendChild(document.createElement('br'));
             });
+            $('#metricDropdown').append(metricContainer);
 
             uniqueWeeks.forEach(week => {
                 $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === uniqueWeeks[0] ? 'checked' : ''}> ${week}</label><br/>`);
                 $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length - 1] ? 'checked' : ''}> ${week}</label><br/>`);
             });
 
-            // Initialize dropdown button text
-            const initialFrom = uniqueWeeks[0];
-            const initialTo = uniqueWeeks[uniqueWeeks.length - 1];
             updateDropdownLabel('lobDropdown', uniqueLOBs, 'Select LOBs');
             updateDropdownLabel('metricDropdown', metrics, 'Select Metrics');
-            updateRadioDropdownLabel('weekFromDropdownBtn', initialFrom, 'From');
-            updateRadioDropdownLabel('weekToDropdownBtn', initialTo, 'To');
+            updateRadioDropdownLabel('weekFromDropdownBtn', uniqueWeeks[0], 'From');
+            updateRadioDropdownLabel('weekToDropdownBtn', uniqueWeeks[uniqueWeeks.length - 1], 'To');
         }
 
         function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo) {
@@ -221,24 +235,41 @@
                 Math.max(fromIndex, toIndex) + 1
             );
 
-            let html = '<table><thead><tr>';
-            html += `<th class="sticky-left">LOB</th>`;
-            html += `<th class="sticky-left-2">Metric</th>`;
-            weeksInRange.forEach(week => html += `<th>${week}</th>`);
-            html += '</tr></thead><tbody>';
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const tbody = document.createElement('tbody');
+
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
+            weeksInRange.forEach(week => {
+                const th = document.createElement('th');
+                th.textContent = week;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
 
             selectedLOBs.forEach((lob, lobIndex) => {
                 const lobColor = lobColors[lobIndex % lobColors.length];
                 selectedMetrics.forEach((metric, i) => {
-                    html += '<tr>';
+                    const row = document.createElement('tr');
 
                     if (i === 0) {
-                        html += `<td class="sticky-left" rowspan="${selectedMetrics.length}" style="background:${lobColor}; color:#fff;">${lob}</td>`;
+                        const tdLOB = document.createElement('td');
+                        tdLOB.className = 'sticky-left';
+                        tdLOB.setAttribute('rowspan', selectedMetrics.length);
+                        tdLOB.style.background = lobColor;
+                        tdLOB.style.color = '#fff';
+                        tdLOB.textContent = lob;
+                        row.appendChild(tdLOB);
                     }
 
-                    html += `<td class="sticky-left-2">${metric}</td>`;
+                    const tdMetric = document.createElement('td');
+                    tdMetric.className = 'sticky-left-2';
+                    tdMetric.textContent = metric;
+                    row.appendChild(tdMetric);
 
                     weeksInRange.forEach(week => {
+                        const td = document.createElement('td');
                         let val = (groupedData[lob][week] && groupedData[lob][week][metric]) || 0;
                         val = Math.round(val);
 
@@ -253,15 +284,19 @@
                             val = new Intl.NumberFormat().format(val);
                         }
 
-                        html += `<td class="${cls}" title="${val}">${val}</td>`;
+                        td.className = cls;
+                        td.title = val;
+                        td.textContent = val;
+                        row.appendChild(td);
                     });
 
-                    html += '</tr>';
+                    tbody.appendChild(row);
                 });
             });
 
-            html += '</tbody></table>';
-            $container.html(html);
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            $container.empty().append(table);
         }
 
         populateFilters();
@@ -271,14 +306,31 @@
             $('#weekAnalyticsPopupStyles').remove();
         });
 
-        $('#lobDropdown').on('change', 'input.lobCheckbox', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
+        // Select All / Unselect All Logic
+        $('#lobDropdown').on('change', '.lobSelectAll', function () {
+            const checked = $(this).is(':checked');
+            $('.lobCheckbox').prop('checked', checked);
+            const selectedLOBs = checked ? uniqueLOBs.slice() : [];
             updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
         });
 
-        $('#metricDropdown').on('change', 'input.metricCheckbox', function () {
+        $('#metricDropdown').on('change', '.metricSelectAll', function () {
+            const checked = $(this).is(':checked');
+            $('.metricCheckbox').prop('checked', checked);
+            const selectedMetrics = checked ? metrics.slice() : [];
+            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
+        });
+
+        $('#lobDropdown').on('change', '.lobCheckbox', function () {
+            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
+            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
+            $('.lobSelectAll').prop('checked', selectedLOBs.length === uniqueLOBs.length);
+        });
+
+        $('#metricDropdown').on('change', '.metricCheckbox', function () {
             const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
             updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
+            $('.metricSelectAll').prop('checked', selectedMetrics.length === metrics.length);
         });
 
         $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
