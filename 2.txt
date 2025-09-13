@@ -186,6 +186,10 @@
             }
         }
 
+        function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
+            $(`#${dropdownBtnId}`).text(`${prefix}: ${selectedValue}`);
+        }
+
         function populateFilters() {
             uniqueLOBs.forEach(lob => {
                 $('#lobDropdown').append(`<label><input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}</label><br/>`);
@@ -197,12 +201,16 @@
 
             uniqueWeeks.forEach(week => {
                 $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === uniqueWeeks[0] ? 'checked' : ''}> ${week}</label><br/>`);
-                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length -1] ? 'checked' : ''}> ${week}</label><br/>`);
+                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length - 1] ? 'checked' : ''}> ${week}</label><br/>`);
             });
 
-            // Initial label update
+            // Initialize dropdown button text
+            const initialFrom = uniqueWeeks[0];
+            const initialTo = uniqueWeeks[uniqueWeeks.length - 1];
             updateDropdownLabel('lobDropdown', uniqueLOBs, 'Select LOBs');
             updateDropdownLabel('metricDropdown', metrics, 'Select Metrics');
+            updateRadioDropdownLabel('weekFromDropdownBtn', initialFrom, 'From');
+            updateRadioDropdownLabel('weekToDropdownBtn', initialTo, 'To');
         }
 
         function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo) {
@@ -258,7 +266,6 @@
 
         populateFilters();
 
-        // Update dropdown labels when checkboxes change
         $('#lobDropdown').on('change', 'input.lobCheckbox', function () {
             const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
             updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
@@ -267,6 +274,16 @@
         $('#metricDropdown').on('change', 'input.metricCheckbox', function () {
             const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
             updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
+        });
+
+        $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
+            const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
+            updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
+        });
+
+        $('#weekToDropdown').on('change', 'input[type=radio]', function () {
+            const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
+            updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
         });
 
         $('#applyFilterBtn').on('click', function () {
