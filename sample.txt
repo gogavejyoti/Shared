@@ -172,23 +172,23 @@
                     </div>`);
 
                 const datasets = [];
-
                 metrics.forEach(metric => {
                     lobList.forEach(lob => {
                         const isStaffing = metric === 'Staffing %';
+                        let chartType = isStaffing ? 'line' : type;
                         datasets.push({
                             label: isStaffing ? 'Staffing %' : `${lob} - ${metric}`,
-                            type: isStaffing ? 'line' : 'bar',
+                            type: chartType,
                             data: filtered.map(d => {
                                 if (isStaffing) return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
                                 if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
                                     return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
                                 return d[`${metric}||${lob}`] || 0;
                             }),
-                            backgroundColor: !isStaffing ? (metricColors[metric] || '#6c757d') + 'AA' : undefined,
                             borderColor: isStaffing ? '#fd7e14' : (metricColors[metric] || '#6c757d'),
-                            borderWidth: 2,
-                            fill: false,
+                            backgroundColor: (!isStaffing && type === 'area') ? (metricColors[metric] || '#6c757d') + '33' : undefined,
+                            fill: (!isStaffing && type === 'area') ? true : false,
+                            tension: 0.4,
                             yAxisID: isStaffing ? 'y1' : 'y',
                             order: isStaffing ? 1 : 0
                         });
@@ -218,7 +218,7 @@
                         },
                         scales: {
                             x: { stacked: false },
-                            y: { stacked: false, beginAtZero: true, title: { display: true, text: 'Headcount' } },
+                            y: { stacked: false, beginAtZero: true, title: { display: true, text: 'Value' } },
                             y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
                         }
                     }
