@@ -5,18 +5,17 @@
             weekStartDay: 'sunday'
         }, options);
 
-        $('#analyticsDashboard').remove();
+        $('#analyticsModal').remove();
 
-        // Styles
         const styles = `
         <style>
-            body { font-family: 'Inter', sans-serif; background: #f8f9fa; color: #333; }
-            #analyticsDashboard { display: flex; min-height: 100vh; }
+            #analyticsModal .modal-body { background: #f8f9fa; }
             #analyticsSidebar {
                 background: #ffffff;
                 width: 250px;
                 padding: 1rem;
                 border-right: 1px solid #ddd;
+                height: 100%;
             }
             #analyticsSidebar a {
                 display: block;
@@ -32,7 +31,7 @@
             }
             #analyticsMain {
                 flex: 1;
-                padding: 2rem;
+                padding: 1rem;
             }
             #filters {
                 background: #fff;
@@ -102,43 +101,53 @@
             }
         </style>
         `;
-
         $('head').append(styles);
 
-        // HTML Structure
-        const html = `
-        <div id="analyticsDashboard">
-            <div id="analyticsSidebar">
-                <h2>Analytics Dashboard</h2>
-                <a href="#">Home</a>
-                <a href="#">Analytics</a>
-                <a href="#">Reports</a>
-                <a href="#">Settings</a>
-            </div>
-            <div id="analyticsMain">
-                <h1>Workforce Analytics Overview</h1>
-                <div id="filters">
-                    <label>From Week:
-                        <select id="fromWeek" class="form-select form-select-sm"></select>
-                    </label>
-                    <label>To Week:
-                        <select id="toWeek" class="form-select form-select-sm"></select>
-                    </label>
-                    <label>LOB:
-                        <div class="custom-multiselect" id="lobSelectContainer">
-                            <button type="button" class="btn btn-light btn-sm dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
-                            <div class="multiselect-options"></div>
+        const modalHTML = `
+        <div class="modal fade" id="analyticsModal" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">Workforce Analytics Dashboard</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="min-height: 80vh;">
+                        <div id="analyticsDashboard" style="display: flex; gap: 1rem;">
+                            <div id="analyticsSidebar">
+                                <h5>Navigation</h5>
+                                <a href="#">Home</a>
+                                <a href="#">Analytics</a>
+                                <a href="#">Reports</a>
+                                <a href="#">Settings</a>
+                            </div>
+                            <div id="analyticsMain">
+                                <h1 class="h4 mb-3">Workforce Analytics Overview</h1>
+                                <div id="filters">
+                                    <label>From Week:
+                                        <select id="fromWeek" class="form-select form-select-sm"></select>
+                                    </label>
+                                    <label>To Week:
+                                        <select id="toWeek" class="form-select form-select-sm"></select>
+                                    </label>
+                                    <label>LOB:
+                                        <div class="custom-multiselect" id="lobSelectContainer">
+                                            <button type="button" class="btn btn-light btn-sm dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
+                                            <div class="multiselect-options"></div>
+                                        </div>
+                                    </label>
+                                    <label><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
+                                    <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
+                                    <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
+                                </div>
+                                <div id="chartsContainer"></div>
+                            </div>
                         </div>
-                    </label>
-                    <label><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
-                    <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
-                    <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
+                    </div>
                 </div>
-                <div id="chartsContainer"></div>
             </div>
         </div>`;
 
-        $('body').append(html);
+        $('body').append(modalHTML);
 
         const $chartsContainer = $('#chartsContainer');
 
@@ -304,11 +313,31 @@
             renderCharts(filtered, selectedLOBs, isComparison);
         };
 
+        const exportCSV = (filtered, selectedLOBs) => {
+            let csvContent = 'Week,' + selectedLOBs.join(',') + '\n';
+            filtered.forEach(row => {
+                const rowData = [row.Week];
+                selectedLOBs.forEach(lob => rowData.push(row[`Required HC||${lob}`] || 0));
+                csvContent += rowData.join(',') + '\n';
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'workforce_analytics.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
         $('#applyFilter').off('click').on('click', applyFilters);
         $('#exportCsv').off('click').on('click', () => {
             const { filtered, selectedLOBs } = filterData();
             exportCSV(filtered, selectedLOBs);
         });
+
+        // Show modal
+        const bootstrapModal = new bootstrap.Modal(document.getElementById('analyticsModal'));
+        bootstrapModal.show();
 
         applyFilters();
 
