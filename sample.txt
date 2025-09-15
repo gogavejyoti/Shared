@@ -152,6 +152,66 @@
             $chartsContainer.empty();
             const labels = filtered.map(d => d.Week);
 
+            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
+                $chartsContainer.append(`
+                    <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">${title}</h6>
+                            <canvas></canvas>
+                        </div>
+                    </div>
+                `);
+
+                const datasets = [];
+                metrics.forEach(metric => {
+                    lobList.forEach(lob => {
+                        datasets.push({
+                            label: (metric === 'Staffing %') ? 'Staffing %' : `${lob} - ${metric}`,
+                            data: filtered.map(d => {
+                                if (metric === 'Staffing %') return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
+                                if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
+                                    return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
+                                return d[`${metric}||${lob}`] || 0;
+                            }),
+                            borderColor: (metric === 'Staffing %') ? '#000000' : (isComparison ? lobColors[lob] : metricColors[metric]),
+                            backgroundColor: (metric === 'Staffing %') ? 'rgba(0,0,0,0.1)' : (isComparison ? lobColors[lob] + '55' : metricColors[metric] + '55'),
+                            fill: type === 'area' ? true : false,
+                            borderDash: (metric === 'Staffing %') ? [5, 5] : [],
+                            yAxisID: (metric === 'Staffing %') ? 'y1' : 'y'
+                        });
+                    });
+                });
+
+                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                    type: type === 'area' ? 'line' : type,
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function (context) {
+                                        let val = context.raw;
+                                        if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
+                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
+                                        }
+                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Value' } },
+                            y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
+                        }
+                    }
+                });
+            };
+
             const createComboChart = (lob) => {
                 $chartsContainer.append(`
                     <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
@@ -216,17 +276,8 @@
                             }
                         },
                         scales: {
-                            y: { 
-                                beginAtZero: true, 
-                                title: { display: true, text: 'HC Count' } 
-                            },
-                            y1: {
-                                position: 'right',
-                                beginAtZero: true,
-                                max: 120,
-                                title: { display: true, text: 'Staffing %' },
-                                grid: { drawOnChartArea: false }
-                            }
+                            y: { beginAtZero: true, title: { display: true, text: 'HC Count' } },
+                            y1: { position: 'right', beginAtZero: true, max: 120, title: { display: true, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
                         }
                     }
                 });
@@ -239,7 +290,6 @@
                 createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
                 createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
                 createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
-                //createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], selectedLOBs, false);
             }
         };
 
@@ -254,6 +304,7 @@
             $('#analyticsModal').remove();
             $('#weekAnalyticsPopupStyles').remove();
         });
+
         applyFilters();
         $('#analyticsModal').modal('show');
 
