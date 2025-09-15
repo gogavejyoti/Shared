@@ -7,26 +7,28 @@
 
         $('#analyticsModal').remove();
 
-        if ($('#weekAnalyticsPopupStyles').length === 0) {
-            const styles = `
-            <style id="weekAnalyticsPopupStyles">
-                #chartsContainer { display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:20px; justify-items:center; }
-                #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
-                .custom-multiselect { position: relative; display: inline-block; width: 200px; }
-                .custom-multiselect button { width: 100%; text-align: left; }
-                .custom-multiselect .multiselect-options { display: none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; background:white; border:1px solid #ced4da; padding:5px 0; width: 100%; box-shadow:0 2px 5px rgba(0,0,0,0.15); }
-                .custom-multiselect .multiselect-options label { display:block; padding:5px 10px; cursor:pointer; }
-                .custom-multiselect .multiselect-options label:hover { background-color:#f1f1f1; }
-                #analyticsModal .modal-header { background-color: #D7C4F0; }
-                .table-summary { max-height:250px; overflow-y:auto; display:block; }
-                #applyFilter, #exportCsv { transition:0.2s; }
-                #applyFilter:hover, #exportCsv:hover { opacity:0.85; }
-            </style>`;
-            $('head').append(styles);
-        }
+        const styles = `
+        <style>
+            #chartsContainer { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; justify-items:center; }
+            #chartsContainer canvas { width:100% !important; max-width:450px; height:220px !important; }
+            .custom-multiselect { position: relative; display: inline-block; width: 200px; }
+            .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            .custom-multiselect .multiselect-options { 
+                display: none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; background:white; border:1px solid #ced4da; border-radius:4px; padding:5px 0; width: 100%;
+                box-shadow:0 2px 5px rgba(0,0,0,0.15);
+            }
+            .custom-multiselect .multiselect-options label { display:block; padding:5px 10px; cursor:pointer; }
+            .custom-multiselect .multiselect-options label:hover { background-color:#f1f1f1; }
+            #analyticsModal .modal-header { background-color: #D7C4F0; }
+            .table-summary { max-height:250px; overflow-y:auto; display:block; }
+            .table-summary table { margin-bottom:0; }
+            #applyFilter, #exportCsv { transition:0.2s; }
+            #applyFilter:hover, #exportCsv:hover { opacity:0.85; }
+        </style>`;
+        $('head').append(styles);
 
         const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;">
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
           <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header">
@@ -47,7 +49,7 @@
                         <div class="multiselect-options"></div>
                     </div>
                   </label>
-                  <label><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
+                  <label class="ms-2"><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
                   <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
                   <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
                 </div>
@@ -58,6 +60,9 @@
           </div>
         </div>`;
         $('body').append(modalHTML);
+
+        const $chartsContainer = $('#chartsContainer');
+        const $analyticsSummary = $('#analyticsSummary');
 
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
@@ -95,7 +100,6 @@
             $('#fromWeek').append(`<option value="${week}">${week}</option>`);
             $('#toWeek').append(`<option value="${week}">${week}</option>`);
         });
-
         const currentWeek = getCurrentWeek();
         const currentIndex = uniqueWeeks.indexOf(currentWeek);
         const fallbackIndex = currentIndex >= 0 ? currentIndex : uniqueWeeks.length - 1;
@@ -124,6 +128,17 @@
         });
         $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
+        const metricColors = {
+            "Required HC": "#007bff", "Available HC": "#28a745",
+            "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
+            "Planned Shrinkage": "#6f42c1", "Actual Shrinkage": "#fd7e14",
+            "Planned Attrition": "#e83e8c", "Actual Attrition": "#20c997",
+            "Planned AHT": "#6610f2", "Actual AHT": "#fd3955"
+        };
+        const lobColors = {};
+        const colorPalette = ['#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997', '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#fd3955'];
+        uniqueLOBs.forEach((lob, i) => lobColors[lob] = colorPalette[i % colorPalette.length]);
+
         const filterData = () => {
             const fromWeek = $('#fromWeek').val();
             const toWeek = $('#toWeek').val();
@@ -133,102 +148,98 @@
             return { filtered, selectedLOBs, isComparison };
         };
 
-        const exportCSV = (filtered, selectedLOBs) => {
-            if (!filtered.length) return alert('No data to export');
-            const headers = ['Week', 'LOB', ...uniqueHeaders];
-            const rows = [];
-            filtered.forEach(row => {
-                selectedLOBs.forEach(lob => {
-                    const dataRow = [row.Week, lob];
-                    uniqueHeaders.forEach(header => dataRow.push(row[`${header}||${lob}`] || ''));
-                    rows.push(dataRow.join(','));
-                });
-            });
-
-            const csvContent = [headers.join(','), ...rows].join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'workforce_analytics.csv';
-            link.click();
-            URL.revokeObjectURL(url);
-        };
-
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
-            $('#chartsContainer').empty();
-            if (!filtered.length) {
-                $('#chartsContainer').html('<div class="text-center p-5">No data available for selected filters.</div>');
-                return;
-            }
-
+            $chartsContainer.empty();
             const labels = filtered.map(d => d.Week);
 
-            // Line Chart: Required vs Available HC
-            $('#chartsContainer').append('<canvas></canvas>');
-            new Chart($('#chartsContainer canvas').last()[0].getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: selectedLOBs.map((lob, i) => ({
-                        label: `Required HC - ${lob}`,
-                        data: filtered.map(d => d[`Required HC||${lob}`] || 0),
-                        borderColor: `hsl(${(i * 60) % 360}, 70%, 50%)`,
-                        backgroundColor: `hsl(${(i * 60) % 360}, 70%, 80%)`,
-                        fill: false
-                    }))
-                },
-                options: { responsive: true }
-            });
+            const createComboChart = (lob) => {
+                $chartsContainer.append(`
+                    <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">Required vs Available HC + Staffing % (${lob})</h6>
+                            <canvas></canvas>
+                        </div>
+                    </div>
+                `);
 
-            // Bar Chart: Actual vs Forecasted Hours
-            $('#chartsContainer').append('<canvas></canvas>');
-            new Chart($('#chartsContainer canvas').last()[0].getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: selectedLOBs.map((lob, i) => ({
-                        label: `Actual Hours - ${lob}`,
-                        data: filtered.map(d => d[`Actual Hours||${lob}`] || 0),
-                        backgroundColor: `hsl(${(i * 60 + 180) % 360}, 70%, 50%)`
-                    }))
-                },
-                options: { responsive: true }
-            });
+                const dataRequired = filtered.map(d => d[`Required HC||${lob}`] || 0);
+                const dataAvailable = filtered.map(d => d[`Available HC||${lob}`] || 0);
+                const dataStaffingPercent = filtered.map(d => 
+                    ((d[`Available HC||${lob}`] || 0) / (d[`Required HC||${lob}`] || 1) * 100).toFixed(2)
+                );
 
-            // Area Chart: Planned vs Actual Shrinkage
-            $('#chartsContainer').append('<canvas></canvas>');
-            new Chart($('#chartsContainer canvas').last()[0].getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: selectedLOBs.map((lob, i) => ({
-                        label: `Planned Shrinkage - ${lob}`,
-                        data: filtered.map(d => (d[`Planned Shrinkage||${lob}`] || 0) * 100),
-                        borderColor: `hsl(${(i * 90 + 120) % 360}, 70%, 50%)`,
-                        backgroundColor: `hsl(${(i * 90 + 120) % 360}, 70%, 80%)`,
-                        fill: true
-                    }))
-                },
-                options: { responsive: true }
-            });
-
-            // Pie Chart: Snapshot of Latest Actual Hours
-            const latest = filtered[filtered.length - 1];
-            if (latest) {
-                $('#chartsContainer').append('<canvas></canvas>');
-                new Chart($('#chartsContainer canvas').last()[0].getContext('2d'), {
-                    type: 'pie',
+                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                    type: 'bar',
                     data: {
-                        labels: selectedLOBs,
-                        datasets: [{
-                            data: selectedLOBs.map(lob => latest[`Actual Hours||${lob}`] || 0),
-                            backgroundColor: selectedLOBs.map((_, i) => `hsl(${(i * 60) % 360}, 70%, 60%)`)
-                        }]
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Required HC',
+                                data: dataRequired,
+                                type: 'bar',
+                                backgroundColor: '#007bff',
+                            },
+                            {
+                                label: 'Available HC',
+                                data: dataAvailable,
+                                type: 'bar',
+                                backgroundColor: '#28a745',
+                            },
+                            {
+                                label: 'Staffing %',
+                                data: dataStaffingPercent,
+                                type: 'line',
+                                yAxisID: 'y1',
+                                borderColor: '#000000',
+                                backgroundColor: 'rgba(0,0,0,0.1)',
+                                fill: false,
+                                borderDash: [5, 5],
+                            }
+                        ]
                     },
-                    options: { responsive: true }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        if (context.dataset.label === 'Staffing %') {
+                                            return `${context.dataset.label}: ${context.raw}%`;
+                                        }
+                                        return `${context.dataset.label}: ${Number(context.raw).toLocaleString()}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                title: { display: true, text: 'HC Count' } 
+                            },
+                            y1: {
+                                position: 'right',
+                                beginAtZero: true,
+                                max: 120,
+                                title: { display: true, text: 'Staffing %' },
+                                grid: { drawOnChartArea: false }
+                            }
+                        }
+                    }
                 });
+            };
+
+            if (isComparison) {
+                uniqueHeaders.forEach(header => createChart('bar', `${header} Comparison`, [header], selectedLOBs, true));
+            } else {
+                selectedLOBs.forEach(lob => createComboChart(lob));
+                createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
+                createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
+                createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
+                //createChart('bar', 'Planned vs Actual AHT', ['Planned AHT', 'Actual AHT'], selectedLOBs, false);
             }
         };
 
@@ -243,9 +254,9 @@
             $('#analyticsModal').remove();
             $('#weekAnalyticsPopupStyles').remove();
         });
-
         applyFilters();
         $('#analyticsModal').modal('show');
+
         return this;
     };
 })(jQuery);
