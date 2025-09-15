@@ -209,4 +209,46 @@
                                     label: function (context) {
                                         let val = context.raw;
                                         if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
-                                            return context.dataset.label + ': ' + Number(val).toFixed(2) +
+                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
+                                        }
+                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { stacked: false },
+                            y: { stacked: false, beginAtZero: true, title: { display: true, text: 'Headcount' } },
+                            y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
+                        }
+                    }
+                });
+            };
+
+            if (isComparison) {
+                uniqueHeaders.forEach(header => createChart('bar', `${header} Comparison`, [header], selectedLOBs, true));
+            } else {
+                createChart('bar', 'Required vs Available HC + Staffing %', ['Required HC', 'Available HC', 'Staffing %'], selectedLOBs, false, true);
+                createChart('line', 'Actual vs Forecasted Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
+                createChart('area', 'Planned vs Actual Shrinkage (%)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
+                createChart('area', 'Planned vs Actual Attrition (%)', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
+            }
+        };
+
+        const applyFilters = () => {
+            const { filtered, selectedLOBs, isComparison } = filterData();
+            renderCharts(filtered, selectedLOBs, isComparison);
+        };
+
+        $('#applyFilter').off('click').on('click', applyFilters);
+        $('#exportCsv').off('click').on('click', () => { const { filtered, selectedLOBs } = filterData(); exportCSV(filtered, selectedLOBs); });
+        $('#analyticsModal').on('hidden.bs.modal', function () {
+            $('#analyticsModal').remove();
+            $('#weekAnalyticsPopupStyles').remove();
+        });
+        applyFilters();
+        $('#analyticsModal').modal('show');
+
+        return this;
+    };
+})(jQuery);
