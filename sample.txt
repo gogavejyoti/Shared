@@ -1,62 +1,74 @@
-            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
-                $chartsContainer.append(`
-                    <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
-                        <div class="card-body text-center">
-                            <h6 class="card-title fw-bold">${title}</h6>
-                            <canvas></canvas>
-                        </div>
-                    </div>`);
+const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
+    $chartsContainer.append(`
+        <div class="card mb-4 shadow-sm border rounded bg-light" style="width:100%; max-width:900px;">
+            <div class="card-body text-center">
+                <h6 class="card-title fw-bold">${title}</h6>
+                <canvas></canvas>
+            </div>
+        </div>`);
 
-                const datasets = [];
+    const datasets = [];
+    const colorPalette = [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+    ]; // add more if needed
+    let colorIndex = 0;
 
-                metrics.forEach(metric => {
-                    lobList.forEach(lob => {
-                        const isStaffing = metric === 'Staffing %';
-                        datasets.push({
-                            label: isStaffing ? 'Staffing %' : `${lob} - ${metric}`,
-                            type: isStaffing || type === 'line' ? 'line' : 'bar',
-                            data: filtered.map(d => {
-                                if (isStaffing) return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
-                                if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
-                                    return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
-                                return d[`${metric}||${lob}`] || 0;
-                            }),
-                            backgroundColor: !isStaffing ? (metricColors[metric] || '#6c757d') + 'AA' : undefined,
-                            borderColor: isStaffing ? '#fd7e14' : (metricColors[metric] || '#6c757d'),
-                            borderWidth: 2,
-                            fill: false,
-                            yAxisID: isStaffing ? 'y1' : 'y',
-                            order: isStaffing ? 1 : 0
-                        });
-                    });
-                });
+    metrics.forEach(metric => {
+        lobList.forEach(lob => {
+            const isStaffing = metric === 'Staffing %';
+            let chartType = 'bar';
+            if (isStaffing || type === 'area') chartType = 'line';
 
-                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
-                    data: { labels, datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            tooltip: {
-                                mode: 'index',
-                                intersect: false,
-                                callbacks: {
-                                    label: function (context) {
-                                        let val = context.raw;
-                                        if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
-                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
-                                        }
-                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
-                                    }
-                                }
+            const datasetColor = colorPalette[colorIndex % colorPalette.length];
+            colorIndex++;
+
+            datasets.push({
+                label: isStaffing ? 'Staffing %' : `${lob} - ${metric}`,
+                type: chartType,
+                data: filtered.map(d => {
+                    if (isStaffing) return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
+                    if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
+                        return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
+                    return d[`${metric}||${lob}`] || 0;
+                }),
+                backgroundColor: chartType === 'bar' ? datasetColor + 'AA' : datasetColor,
+                borderColor: datasetColor,
+                borderWidth: 2,
+                fill: chartType === 'line', 
+                tension: chartType === 'line' ? 0.4 : 0,
+                yAxisID: isStaffing ? 'y1' : 'y',
+                order: isStaffing ? 1 : 0
+            });
+        });
+    });
+
+    new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function (context) {
+                            let val = context.raw;
+                            if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
+                                return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
                             }
-                        },
-                        scales: {
-                            x: { stacked: false },
-                            y: { stacked: false, beginAtZero: true, title: { display: true, text: 'Headcount' } },
-                            y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
+                            return context.dataset.label + ': ' + Number(val).toLocaleString();
                         }
                     }
-                });
-            };
+                }
+            },
+            scales: {
+                x: { stacked: false },
+                y: { stacked: false, beginAtZero: true, title: { display: true, text: 'Headcount' } },
+                y1: { position: 'right', beginAtZero: true, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+};
