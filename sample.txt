@@ -7,102 +7,33 @@
 
         $('#analyticsModal').remove();
 
+        // Inject Styles
         const styles = `
         <style>
-            #analyticsModal .modal-body { background: #f8f9fa; }
-            #analyticsSidebar {
-                background: #ffffff;
-                width: 250px;
-                padding: 1rem;
-                border-right: 1px solid #ddd;
-                height: 100%;
-            }
-            #analyticsSidebar a {
-                display: block;
-                padding: 10px;
-                text-decoration: none;
-                color: #333;
-                border-radius: 4px;
-                margin-bottom: 5px;
-            }
-            #analyticsSidebar a:hover {
-                background-color: #D7C4F0;
-                color: #000;
-            }
-            #analyticsMain {
-                flex: 1;
-                padding: 1rem;
-            }
-            #filters {
-                background: #fff;
-                border-radius: 10px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                padding: 1rem;
-                margin-bottom: 1.5rem;
-            }
-            #chartsContainer {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 20px;
-            }
-            .chart-card {
-                background: #fff;
-                border-radius: 10px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                padding: 1rem;
-            }
-            .chart-card h6 {
-                font-weight: 600;
-                margin-bottom: 1rem;
-                font-size: 1.1rem;
-                text-align: center;
-            }
-            canvas {
-                width: 100% !important;
-                height: 220px !important;
-            }
-            .custom-multiselect {
-                position: relative;
-                display: inline-block;
-                width: 200px;
-            }
-            .custom-multiselect button {
-                width: 100%;
-                text-align: left;
-                overflow: hidden;
-                white-space: nowrap;
-                text-overflow: ellipsis;
-            }
-            .custom-multiselect .multiselect-options { 
+            .filters { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+            #chartsContainer { display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; }
+            .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 1rem; background: #fff; border-radius: 10px; }
+            .card-title { font-weight: bold; text-align: center; margin-bottom: 1rem; }
+            canvas { width: 100% !important; height: 220px !important; }
+            .custom-multiselect { position: relative; display: inline-block; width: 200px; }
+            .custom-multiselect button { width: 100%; text-align: left; }
+            .custom-multiselect .multiselect-options {
                 display: none;
+                position: absolute;
+                background: #fff;
+                border: 1px solid #ddd;
                 max-height: 200px;
                 overflow-y: auto;
-                position: absolute;
-                z-index: 1000;
-                background: white;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                padding: 5px 0;
                 width: 100%;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                z-index: 1000;
             }
-            .custom-multiselect .multiselect-options label {
-                display: block;
-                padding: 5px 10px;
-                cursor: pointer;
-            }
-            .custom-multiselect .multiselect-options label:hover {
-                background-color: #f1f1f1;
-            }
-            @media (max-width: 768px) {
-                #analyticsDashboard { flex-direction: column; }
-                #analyticsSidebar { width: 100%; border-right: none; border-bottom: 1px solid #ddd; }
-                #chartsContainer { grid-template-columns: 1fr !important; }
-            }
-        </style>
-        `;
+            .custom-multiselect .multiselect-options label { display: block; padding: 5px 10px; cursor: pointer; }
+            .custom-multiselect .multiselect-options label:hover { background-color: #f1f1f1; }
+        </style>`;
         $('head').append(styles);
 
+        // Modal HTML
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
             <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -111,37 +42,19 @@
                         <h5 class="modal-title">Workforce Analytics Dashboard</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body" style="min-height: 80vh;">
-                        <div id="analyticsDashboard" style="display: flex; gap: 1rem;">
-                            <div id="analyticsSidebar">
-                                <h5>Navigation</h5>
-                                <a href="#">Home</a>
-                                <a href="#">Analytics</a>
-                                <a href="#">Reports</a>
-                                <a href="#">Settings</a>
+                    <div class="modal-body p-4 bg-light">
+                        <div class="filters">
+                            <select id="fromWeek" class="form-select form-select-sm"></select>
+                            <select id="toWeek" class="form-select form-select-sm"></select>
+                            <div class="custom-multiselect" id="lobSelectContainer">
+                                <button type="button" class="btn btn-light btn-sm dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
+                                <div class="multiselect-options"></div>
                             </div>
-                            <div id="analyticsMain">
-                                <h1 class="h4 mb-3">Workforce Analytics Overview</h1>
-                                <div id="filters">
-                                    <label>From Week:
-                                        <select id="fromWeek" class="form-select form-select-sm"></select>
-                                    </label>
-                                    <label>To Week:
-                                        <select id="toWeek" class="form-select form-select-sm"></select>
-                                    </label>
-                                    <label>LOB:
-                                        <div class="custom-multiselect" id="lobSelectContainer">
-                                            <button type="button" class="btn btn-light btn-sm dropdown-toggle" id="lobSelectBtn">Select LOBs</button>
-                                            <div class="multiselect-options"></div>
-                                        </div>
-                                    </label>
-                                    <label><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
-                                    <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
-                                    <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
-                                </div>
-                                <div id="chartsContainer"></div>
-                            </div>
+                            <input type="checkbox" id="comparisonMode"> Comparison Mode
+                            <button id="applyFilter" class="btn btn-primary btn-sm">Apply Filter</button>
+                            <button id="exportCsv" class="btn btn-secondary btn-sm">Export CSV</button>
                         </div>
+                        <div id="chartsContainer"></div>
                     </div>
                 </div>
             </div>
@@ -151,6 +64,7 @@
 
         const $chartsContainer = $('#chartsContainer');
 
+        // Date Helpers
         const parseWeek = (weekStr) => {
             const [dd, mmm, yy] = weekStr.split('-');
             return new Date(`${mmm} ${dd}, 20${yy}`);
@@ -199,7 +113,6 @@
         const $lobContainer = $('#lobSelectContainer');
         const $lobBtn = $('#lobSelectBtn');
         const $optionsDiv = $lobContainer.find('.multiselect-options');
-
         uniqueLOBs.forEach(lob => $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`));
 
         $lobBtn.on('click', e => { e.stopPropagation(); $optionsDiv.toggle(); });
@@ -243,9 +156,11 @@
 
             const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
                 $chartsContainer.append(`
-                    <div class="chart-card">
-                        <h6>${title}</h6>
-                        <canvas></canvas>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <h6 class="card-title">${title}</h6>
+                            <canvas></canvas>
+                        </div>
                     </div>`);
 
                 const datasets = [];
@@ -308,11 +223,6 @@
             }
         };
 
-        const applyFilters = () => {
-            const { filtered, selectedLOBs, isComparison } = filterData();
-            renderCharts(filtered, selectedLOBs, isComparison);
-        };
-
         const exportCSV = (filtered, selectedLOBs) => {
             let csvContent = 'Week,' + selectedLOBs.join(',') + '\n';
             filtered.forEach(row => {
@@ -329,18 +239,26 @@
             document.body.removeChild(link);
         };
 
-        $('#applyFilter').off('click').on('click', applyFilters);
+        $('#applyFilter').off('click').on('click', () => {
+            const { filtered, selectedLOBs, isComparison } = filterData();
+            renderCharts(filtered, selectedLOBs, isComparison);
+        });
+
         $('#exportCsv').off('click').on('click', () => {
             const { filtered, selectedLOBs } = filterData();
             exportCSV(filtered, selectedLOBs);
         });
 
-        // Show modal
-        const bootstrapModal = new bootstrap.Modal(document.getElementById('analyticsModal'));
-        bootstrapModal.show();
+        $('#analyticsModal').on('hidden.bs.modal', function () {
+            $('#analyticsModal').remove();
+            $('#weekAnalyticsPopupStyles').remove();
+        });
 
-        applyFilters();
+        // Initial render
+        const { filtered, selectedLOBs, isComparison } = filterData();
+        renderCharts(filtered, selectedLOBs, isComparison);
 
+        $('#analyticsModal').modal('show');
         return this;
     };
 })(jQuery);
