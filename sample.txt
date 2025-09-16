@@ -1,101 +1,182 @@
-        function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType) {
-            const fromIndex = uniqueWeeks.indexOf(weekFrom);
-            const toIndex = uniqueWeeks.indexOf(weekTo);
-            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
+function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType) {
+    const fromIndex = uniqueWeeks.indexOf(weekFrom);
+    const toIndex = uniqueWeeks.indexOf(weekTo);
+    const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
 
-            let displayKeys = [];
-            let groupedByMonth = {};
+    let displayKeys = [];
+    let groupedByMonth = {};
 
-            if (summaryType === 'monthly') {
-                weeksInRange.forEach(week => {
-                    const [dd, mmm, yy] = week.split('-');
-                    const monthKey = `${mmm}-${yy}`;
-                    if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
-                    groupedByMonth[monthKey].push(week);
-                });
-                displayKeys = Object.keys(groupedByMonth).sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
-            } else displayKeys = weeksInRange;
+    if (summaryType === 'monthly') {
+        weeksInRange.forEach(week => {
+            const [dd, mmm, yy] = week.split('-');
+            const monthKey = `${mmm}-${yy}`;
+            if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+            groupedByMonth[monthKey].push(week);
+        });
+        displayKeys = Object.keys(groupedByMonth).sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
+    } else {
+        displayKeys = weeksInRange;
+    }
 
-            const table = document.createElement('table');
-            const thead = document.createElement('thead');
-            const tbody = document.createElement('tbody');
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const tbody = document.createElement('tbody');
 
-            const headerRow = document.createElement('tr');
-            headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
-            displayKeys.forEach(key => { const th = document.createElement('th'); th.textContent = key; headerRow.appendChild(th); });
-            thead.appendChild(headerRow);
+    const headerRow = document.createElement('tr');
+    headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
+    displayKeys.forEach(key => {
+        const th = document.createElement('th');
+        th.textContent = key;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
 
-            const overallData = {};
-            selectedMetrics.forEach(metric => {
-                overallData[metric] = {};
-                displayKeys.forEach(key => {
-                    const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
-                    overallData[metric][key] = selectedLOBs.reduce((sum, lob) => sum + weeksArray.reduce((subSum, week) => subSum + (groupedData[lob][week]?.[metric] || 0), 0), 0);
-                    if (metric === 'Staffing %') {
-                        let totalReq = selectedLOBs.reduce((sum, lob) => sum + weeksArray.reduce((subSum, week) => subSum + (groupedData[lob][week]?.['Required HC'] || 0), 0), 0);
-                        let totalAvail = selectedLOBs.reduce((sum, lob) => sum + weeksArray.reduce((subSum, week) => subSum + (groupedData[lob][week]?.['Available HC'] || 0), 0), 0);
-                        overallData[metric][key] = totalReq === 0 ? 0 : Math.round((totalAvail / totalReq) * 100);
-                    }
-                });
-            });
+    const overallData = {};
+    selectedMetrics.forEach(metric => {
+        overallData[metric] = {};
+        displayKeys.forEach(key => {
+            if (summaryType === 'monthly' && (metric === 'Staffing %' || metric === 'Delta')) {
+                let totalReq = 0, totalAvail = 0, totalWeeks = 0;
 
-            // Overall Summary
-            selectedMetrics.forEach((metric, i) => {
-                const row = document.createElement('tr');
-                if (i === 0) { const tdLOB = document.createElement('td'); tdLOB.className = 'sticky-left'; tdLOB.setAttribute('rowspan', selectedMetrics.length); tdLOB.style.background = '#fff'; tdLOB.style.color = '#000'; tdLOB.textContent = 'Overall Summary'; row.appendChild(tdLOB); }
-                const tdMetric = document.createElement('td'); tdMetric.className = 'sticky-left-2'; tdMetric.textContent = metric; row.appendChild(tdMetric);
-
-                displayKeys.forEach(key => {
-                    const td = document.createElement('td');
-                    let val = overallData[metric][key]; val = Math.round(val);
-                    let cls = '';
-                    if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                    if (metric === 'Staffing %') {
-                        if (val < 80) cls = 'rag-red';
-                        else if (val < 100) cls = 'rag-amber';
-                        else cls = 'rag-green';
-                        val = `${val}%`;
-                    } else val = new Intl.NumberFormat().format(val);
-                    td.className = cls; td.title = val; td.textContent = val; td.style.background = '#F5FAE1';
-                    row.appendChild(td);
+                selectedLOBs.forEach(lob => {
+                    const weeksArray = groupedByMonth[key];
+                    totalReq += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                    totalAvail += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                    totalWeeks += weeksArray.length;
                 });
 
-                tbody.appendChild(row);
-            });
+                const avgReq = totalWeeks === 0 ? 0 : totalReq / totalWeeks;
+                const avgAvail = totalWeeks === 0 ? 0 : totalAvail / totalWeeks;
 
-            // Individual LOBs
-            selectedLOBs.forEach((lob, lobIndex) => {
-                const lobColor = lobColors[lobIndex % lobColors.length];
-                selectedMetrics.forEach((metric, i) => {
-                    const row = document.createElement('tr');
-                    if (i === 0) { const tdLOB = document.createElement('td'); tdLOB.className = 'sticky-left'; tdLOB.setAttribute('rowspan', selectedMetrics.length); tdLOB.style.background = lobColor; tdLOB.style.color = '#fff'; tdLOB.textContent = lob; row.appendChild(tdLOB); }
-                    const tdMetric = document.createElement('td'); tdMetric.className = 'sticky-left-2'; tdMetric.textContent = metric; row.appendChild(tdMetric);
+                if (metric === 'Staffing %') {
+                    overallData[metric][key] = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
+                } else { // Delta
+                    overallData[metric][key] = Math.round(avgAvail - avgReq);
+                }
 
-                    displayKeys.forEach(key => {
-                        const td = document.createElement('td');
-                        const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
-                        let val = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.[metric] || 0), 0);
-                        if (metric === 'Staffing %') {
-                            let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
-                            let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
-                            val = totalReq === 0 ? 0 : Math.round((totalAvail / totalReq) * 100);
-                        }
-                        let cls = '';
-                        if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                        if (metric === 'Staffing %') {
-                            if (val < 80) cls = 'rag-red';
-                            else if (val < 100) cls = 'rag-amber';
-                            else cls = 'rag-green';
-                            val = `${val}%`;
-                        } else val = Math.round(val);
-                        td.className = cls; td.title = val; td.textContent = val; row.appendChild(td);
-                    });
+            } else {
+                overallData[metric][key] = selectedLOBs.reduce((sum, lob) =>
+                    sum + (summaryType === 'monthly'
+                        ? groupedByMonth[key].reduce((subSum, week) => subSum + (groupedData[lob][week]?.[metric] || 0), 0)
+                        : (groupedData[lob][key]?.[metric] || 0)
+                    )
+                , 0);
+            }
+        });
+    });
 
-                    tbody.appendChild(row);
-                });
-            });
-
-            table.appendChild(thead);
-            table.appendChild(tbody);
-            $container.empty().append(table);
+    // Overall Summary Rows
+    selectedMetrics.forEach((metric, i) => {
+        const row = document.createElement('tr');
+        if (i === 0) {
+            const tdLOB = document.createElement('td');
+            tdLOB.className = 'sticky-left';
+            tdLOB.setAttribute('rowspan', selectedMetrics.length);
+            tdLOB.style.background = '#fff';
+            tdLOB.style.color = '#000';
+            tdLOB.textContent = 'Overall Summary';
+            row.appendChild(tdLOB);
         }
+
+        const tdMetric = document.createElement('td');
+        tdMetric.className = 'sticky-left-2';
+        tdMetric.textContent = metric;
+        row.appendChild(tdMetric);
+
+        displayKeys.forEach(key => {
+            const td = document.createElement('td');
+            let val = overallData[metric][key];
+
+            let cls = '';
+            if (metric === 'Delta' && val < 0) cls = 'rag-red';
+            if (metric === 'Staffing %') {
+                if (val < 80) cls = 'rag-red';
+                else if (val < 100) cls = 'rag-amber';
+                else cls = 'rag-green';
+                val = `${val}%`;
+            } else {
+                val = Math.round(val);
+                val = new Intl.NumberFormat().format(val);
+            }
+
+            td.className = cls;
+            td.title = val;
+            td.textContent = val;
+            td.style.background = '#F5FAE1';
+            row.appendChild(td);
+        });
+
+        tbody.appendChild(row);
+    });
+
+    // Individual LOB Rows (Unchanged)
+    selectedLOBs.forEach((lob, lobIndex) => {
+        const lobColor = lobColors[lobIndex % lobColors.length];
+
+        selectedMetrics.forEach((metric, i) => {
+            const row = document.createElement('tr');
+            if (i === 0) {
+                const tdLOB = document.createElement('td');
+                tdLOB.className = 'sticky-left';
+                tdLOB.setAttribute('rowspan', selectedMetrics.length);
+                tdLOB.style.background = lobColor;
+                tdLOB.style.color = '#fff';
+                tdLOB.textContent = lob;
+                row.appendChild(tdLOB);
+            }
+
+            const tdMetric = document.createElement('td');
+            tdMetric.className = 'sticky-left-2';
+            tdMetric.textContent = metric;
+            row.appendChild(tdMetric);
+
+            displayKeys.forEach(key => {
+                const td = document.createElement('td');
+                const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
+
+                let val;
+                if (metric === 'Staffing %') {
+                    let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                    let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                    let weekCount = weeksArray.length;
+
+                    const avgReq = weekCount === 0 ? 0 : totalReq / weekCount;
+                    const avgAvail = weekCount === 0 ? 0 : totalAvail / weekCount;
+
+                    val = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
+                } else if (metric === 'Delta') {
+                    let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                    let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                    let weekCount = weeksArray.length;
+
+                    const avgReq = weekCount === 0 ? 0 : totalReq / weekCount;
+                    const avgAvail = weekCount === 0 ? 0 : totalAvail / weekCount;
+
+                    val = Math.round(avgAvail - avgReq);
+                } else {
+                    val = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.[metric] || 0), 0);
+                }
+
+                let cls = '';
+                if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                if (metric === 'Staffing %') {
+                    if (val < 80) cls = 'rag-red';
+                    else if (val < 100) cls = 'rag-amber';
+                    else cls = 'rag-green';
+                    val = `${val}%`;
+                }
+
+                td.className = cls;
+                td.title = val;
+                td.textContent = val;
+                row.appendChild(td);
+            });
+
+            tbody.appendChild(row);
+        });
+    });
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    $container.empty().append(table);
+}
