@@ -10,29 +10,19 @@
         if ($('#weekAnalyticsPopupStyles').length === 0) {
             $('head').append(`
             <style id="weekAnalyticsPopupStyles">
-                /* Modal Content Styling */
                 #analyticsModal .modal-content {
                     border-radius: 12px;
                     box-shadow: 0 8px 20px rgba(0,0,0,0.12);
                     font-family: 'Inter', sans-serif;
                     background: #fafafa;
                 }
-
                 #analyticsModal .modal-header {
                     border-bottom: 1px solid #e0e0e0;
-                    background: #fff;
-                    color: #2c2c2c;
                     background-color: #D7C4F0;
-                }
-
-                #analyticsModal .modal-title {
-                    font-weight: 600;
                     color: #2c2c2c;
                 }
-
-                #analyticsModal .btn-close {
-                    filter: invert(30%);
-                }
+                #analyticsModal .modal-title { font-weight: 600; }
+                #analyticsModal .btn-close { filter: invert(30%); }
 
                 /* Table Wrapper */
                 #analyticsModal .table-wrapper {
@@ -45,101 +35,66 @@
                     border-radius: 8px;
                     margin: 10px;
                 }
-
-                /* Table Styling */
                 #analyticsModal table {
                     border-collapse: collapse;
                     width: max-content;
-                    table-layout: auto;
                 }
-
                 #analyticsModal th,
                 #analyticsModal td {
                     padding: 8px;
                     text-align: center;
                     white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
                     border-top: 1px solid #eaeaea;
-                    background: #fff;
                 }
 
-                /* Header Sticky */
+                /* Sticky Headers & Columns */
                 #analyticsModal thead th {
                     position: sticky;
                     top: 0;
                     background: #f5f5f5;
                     z-index: 6;
                 }
-
-                /* First two header columns sticky both top and left */
-                #analyticsModal thead th.sticky-left {
-                    position: sticky;
-                    top: 0;
-                    left: 0;
-                    background: #f5f5f5;
-                    z-index: 9;
-                    min-width: 140px;
-                }
-
-                #analyticsModal thead th.sticky-left-2 {
-                    position: sticky;
-                    top: 0;
-                    left: 140px;
-                    background: #f5f5f5;
-                    z-index: 9;
-                    min-width: 150px;
-                }
-
-                /* Body Sticky Columns */
+                #analyticsModal thead th.sticky-left,
                 #analyticsModal tbody td.sticky-left {
-                    position: sticky;
-                    left: 0;
-                    background: #f0f0f0;
-                    z-index: 7;
-                    min-width: 140px;
+                    position: sticky; left: 0; min-width: 140px;
                 }
-
+                #analyticsModal thead th.sticky-left-2,
                 #analyticsModal tbody td.sticky-left-2 {
-                    position: sticky;
-                    left: 140px;
-                    background: #f0f0f0;
-                    z-index: 7;
-                    min-width: 150px;
+                    position: sticky; left: 140px; min-width: 150px;
+                }
+                #analyticsModal tbody td.sticky-left,
+                #analyticsModal tbody td.sticky-left-2 {
+                    background: #f0f0f0; z-index: 7;
+                }
+                #analyticsModal thead th.sticky-left,
+                #analyticsModal thead th.sticky-left-2 {
+                    background: #f5f5f5; z-index: 9;
                 }
 
-                /* Conditional Coloring */
+                /* RAG Coloring */
                 #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
                 #analyticsModal .rag-amber { color: #f39c12; font-weight: bold; }
                 #analyticsModal .rag-green { color: #27ae60; font-weight: bold; }
 
-                /* Filter Container */
-                #analyticsModal .filter-container {
-                    margin: 10px;
-                    font-size: 0.875rem;
-                }
-
-                .dropdown-checkbox {
-                    max-height: 250px;
-                    overflow-y: auto;
-                    padding: 10px;
-                }
-
-                /* Buttons */
-                #analyticsModal .btn-sm {
-                    border-radius: 6px;
-                    font-size: 0.875rem;
-                }
-
+                /* Filter & Buttons */
+                #analyticsModal .filter-container { margin: 10px; font-size: 0.875rem; }
+                .dropdown-checkbox { max-height: 250px; overflow-y: auto; padding: 10px; }
+                #analyticsModal .btn-sm { border-radius: 6px; font-size: 0.875rem; }
                 #applyFilterBtn {
-                    background: #9b59b6; /* Digital lavender accent */
-                    border-color: #9b59b6;
+                    background: #9b59b6; border-color: #9b59b6;
+                }
+                #applyFilterBtn:hover {
+                    background: #8e44ad; border-color: #8e44ad;
                 }
 
-                #applyFilterBtn:hover {
-                    background: #8e44ad;
-                    border-color: #8e44ad;
+                /* Summary Styling */
+                #summaryContainer {
+                    margin: 10px;
+                    padding: 10px;
+                    background: #f8f8f8;
+                    border-radius: 8px;
                 }
+                #summaryContainer h6 { font-weight: 600; margin-bottom: 8px; }
             </style>
             `);
         }
@@ -161,45 +116,42 @@
                                 <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
                                     Select LOBs
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
+                                <div class="dropdown-menu dropdown-checkbox" id="lobDropdown"></div>
                             </div>
                         </div>
-
                         <div class="col-auto">
                             <label><b>Metrics:</b></label><br/>
                             <div class="dropdown">
                                 <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
                                     Select Metrics
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
+                                <div class="dropdown-menu dropdown-checkbox" id="metricDropdown"></div>
                             </div>
                         </div>
-
                         <div class="col-auto">
                             <label><b>Week From:</b></label><br/>
                             <div class="dropdown">
                                 <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
                                     Select From Week
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
+                                <div class="dropdown-menu dropdown-checkbox" id="weekFromDropdown"></div>
                             </div>
                         </div>
-
                         <div class="col-auto">
                             <label><b>Week To:</b></label><br/>
                             <div class="dropdown">
                                 <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">
                                     Select To Week
                                 </button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
+                                <div class="dropdown-menu dropdown-checkbox" id="weekToDropdown"></div>
                             </div>
                         </div>
-
                         <div class="col-auto">
                             <button id="applyFilterBtn" class="btn btn-primary btn-sm mt-3">Apply Filter</button>
                         </div>
                     </div>
                 </div>
+                <div id="summaryContainer"></div>
                 <div class="table-wrapper" id="staffingContainer"></div>
               </div>
             </div>
@@ -236,7 +188,7 @@
             }
         }
 
-        const lobColors = ['#2c3e50', '#34495e', '#16a085', '#8e44ad', '#d35400', '#7f8c8d', '#27ae60', '#c0392b'];
+        const lobColors = ['#2c3e50','#34495e','#16a085','#8e44ad','#d35400','#7f8c8d','#27ae60','#c0392b'];
 
         function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
             const btn = $(`#${dropdownId}Btn`);
@@ -246,33 +198,22 @@
                 btn.text(`${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
             }
         }
-
         function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
             $(`#${dropdownBtnId}`).text(`${prefix}: ${selectedValue}`);
         }
 
         function populateFilters() {
             const lobContainer = document.createDocumentFragment();
-            lobContainer.appendChild(document.createElement('label')).innerHTML = `
-                <label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>
-            `;
+            $(lobContainer).append(`<label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>`);
             uniqueLOBs.forEach(lob => {
-                const label = document.createElement('label');
-                label.innerHTML = `<input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}`;
-                lobContainer.appendChild(label);
-                lobContainer.appendChild(document.createElement('br'));
+                $(lobContainer).append(`<label><input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}</label><br/>`);
             });
             $('#lobDropdown').append(lobContainer);
 
             const metricContainer = document.createDocumentFragment();
-            metricContainer.appendChild(document.createElement('label')).innerHTML = `
-                <label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>
-            `;
+            $(metricContainer).append(`<label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>`);
             metrics.forEach(metric => {
-                const label = document.createElement('label');
-                label.innerHTML = `<input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}`;
-                metricContainer.appendChild(label);
-                metricContainer.appendChild(document.createElement('br'));
+                $(metricContainer).append(`<label><input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}</label><br/>`);
             });
             $('#metricDropdown').append(metricContainer);
 
@@ -290,11 +231,41 @@
         function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo) {
             const fromIndex = uniqueWeeks.indexOf(weekFrom);
             const toIndex = uniqueWeeks.indexOf(weekTo);
-            const weeksInRange = uniqueWeeks.slice(
-                Math.min(fromIndex, toIndex),
-                Math.max(fromIndex, toIndex) + 1
-            );
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
 
+            // === Calculate Overall Summary ===
+            let totalRequired = 0, totalAvailable = 0, totalDelta = 0;
+            let staffingPercentages = [];
+
+            selectedLOBs.forEach(lob => {
+                weeksInRange.forEach(week => {
+                    const req = groupedData[lob][week]?.['Required HC'] || 0;
+                    const avail = groupedData[lob][week]?.['Available HC'] || 0;
+                    const delta = avail - req;
+                    const staffingPercent = req === 0 ? 0 : (avail / req) * 100;
+
+                    totalRequired += req;
+                    totalAvailable += avail;
+                    totalDelta += delta;
+                    staffingPercentages.push(staffingPercent);
+                });
+            });
+
+            const avgStaffing = staffingPercentages.length
+                ? Math.round(staffingPercentages.reduce((a, b) => a + b, 0) / staffingPercentages.length)
+                : 0;
+
+            $('#summaryContainer').html(`
+                <h6>Overall Summary</h6>
+                <div class="row">
+                    <div class="col-auto"><b>Total Required HC:</b> ${new Intl.NumberFormat().format(totalRequired)}</div>
+                    <div class="col-auto"><b>Total Available HC:</b> ${new Intl.NumberFormat().format(totalAvailable)}</div>
+                    <div class="col-auto"><b>Overall Delta:</b> ${totalDelta}</div>
+                    <div class="col-auto"><b>Avg Staffing %:</b> ${avgStaffing}%</div>
+                </div>
+            `);
+
+            // === Build Table ===
             const table = document.createElement('table');
             const thead = document.createElement('thead');
             const tbody = document.createElement('tbody');
@@ -366,41 +337,32 @@
             $('#weekAnalyticsPopupStyles').remove();
         });
 
-        // Select All / Unselect All Logic
+        // Filter Event Handlers
         $('#lobDropdown').on('change', '.lobSelectAll', function () {
             const checked = $(this).is(':checked');
             $('.lobCheckbox').prop('checked', checked);
-            const selectedLOBs = checked ? uniqueLOBs.slice() : [];
-            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
+            updateDropdownLabel('lobDropdown', checked ? uniqueLOBs : [], 'Select LOBs');
         });
-
         $('#metricDropdown').on('change', '.metricSelectAll', function () {
             const checked = $(this).is(':checked');
             $('.metricCheckbox').prop('checked', checked);
-            const selectedMetrics = checked ? metrics.slice() : [];
-            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
+            updateDropdownLabel('metricDropdown', checked ? metrics : [], 'Select Metrics');
         });
-
         $('#lobDropdown').on('change', '.lobCheckbox', function () {
             const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
             updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
             $('.lobSelectAll').prop('checked', selectedLOBs.length === uniqueLOBs.length);
         });
-
         $('#metricDropdown').on('change', '.metricCheckbox', function () {
             const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
             updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
             $('.metricSelectAll').prop('checked', selectedMetrics.length === metrics.length);
         });
-
         $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
+            updateRadioDropdownLabel('weekFromDropdownBtn', this.value, 'From');
         });
-
         $('#weekToDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
+            updateRadioDropdownLabel('weekToDropdownBtn', this.value, 'To');
         });
 
         $('#applyFilterBtn').on('click', function () {
@@ -408,14 +370,13 @@
             const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
             const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
             const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
-
             buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo);
         });
 
+        // Default Table + Summary
         buildTable(uniqueLOBs, metrics, uniqueWeeks[0], uniqueWeeks[uniqueWeeks.length - 1]);
 
-        const modalEl = document.getElementById('analyticsModal');
-        const modal = new bootstrap.Modal(modalEl);
+        const modal = new bootstrap.Modal(document.getElementById('analyticsModal'));
         modal.show();
 
         return this;
