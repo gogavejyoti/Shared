@@ -1,68 +1,62 @@
-    function showValidationSummary(sheetNames, results) {
-        // Remove old modal if exists
-        $('#validationSummaryModal').remove();
+function showValidationSummary(sheetNames, results) {
+    // Remove old modal if exists
+    $('#validationSummaryModal').remove();
 
-        // Build modal dynamically
-        let modalHtml = `
-    <div class="modal fade" id="validationSummaryModal" tabindex="-1" style="z-index:9999;zoom:75%">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title">Configuration Validation Summary</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <table class="table table-bordered table-hover align-middle">
-              <thead class="table-light">
-                <tr>
-                  <th>Sheet Name</th>
-                  <th>Status</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody id="validationSummaryBody">`;
+    // Build modal dynamically
+    let modalHtml = `
+    <div id="validationSummaryModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center;">
+      <div style="background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; width: 90%; max-width: 800px; color: #333;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h5 style="font-family: 'Playfair Display', serif; font-size: 1.5em; color: #00BFFF;">Configuration Validation Summary</h5>
+          <button onclick="$('#validationSummaryModal').remove()" style="background: none; border: none; color: #333; font-size: 1.5em; cursor: pointer;">&times;</button>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif;">
+            <thead>
+              <tr style="background: rgba(0, 191, 255, 0.1);">
+                <th style="padding: 12px; text-align: left; color: #00BFFF;">Sheet Name</th>
+                <th style="padding: 12px; text-align: left; color: #00BFFF;">Status</th>
+                <th style="padding: 12px; text-align: left; color: #00BFFF;">Details</th>
+              </tr>
+            </thead>
+            <tbody id="validationSummaryBody">`;
 
-        sheetNames.forEach(sheet => {
-            const r = results[sheet];
+    sheetNames.forEach(sheet => {
+        const r = results[sheet];
 
-            let statusBadge = r.valid
-                ? '<span class="badge bg-success">Valid</span>'
-                : '<span class="badge bg-danger">Invalid</span>';
+        let statusBadge = r.valid
+            ? `<span style="display:inline-block; padding: 5px 10px; background-color: #4CAF50; color: #ffffff; border-radius: 12px;">Valid</span>`
+            : `<span style="display:inline-block; padding: 5px 10px; background-color: #FF5252; color: #ffffff; border-radius: 12px;">Invalid</span>`;
 
-            let details = "";
-            if (r.valid) {
-                details = '<span class="text-success">All checks passed</span>';
-            } else {
-                details = '<ul class="mb-0">';
-                r.errors.forEach(e => {
-                    details += `<li class="text-danger">${e}</li>`;
-                });
-                details += '</ul>';
-            }
-
-            modalHtml += `
-          <tr>
-            <td><strong>${sheet}</strong></td>
-            <td>${statusBadge}</td>
-            <td>${details}</td>
-          </tr>`;
-        });
+        let details = "";
+        if (r.valid) {
+            details = `<span style="color: #4CAF50;">All checks passed</span>`;
+        } else {
+            details = '<ul style="margin: 0; padding-left: 20px;">';
+            r.errors.forEach(e => {
+                details += `<li style="color: #FF5252;">${e}</li>`;
+            });
+            details += '</ul>';
+        }
 
         modalHtml += `
-              </tbody>
-            </table>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          </div>
+              <tr style="border-bottom: 1px solid rgba(0, 0, 0, 0.1);">
+                <td style="padding: 12px; font-weight: bold;">${sheet}</td>
+                <td style="padding: 12px;">${statusBadge}</td>
+                <td style="padding: 12px;">${details}</td>
+              </tr>`;
+    });
+
+    modalHtml += `
+            </tbody>
+          </table>
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+          <button onclick="$('#validationSummaryModal').remove()" style="padding: 10px 20px; background-color: #00BFFF; color: #ffffff; border: none; border-radius: 6px; cursor: pointer;">Close</button>
         </div>
       </div>
     </div>`;
 
-        // Append and show modal
-        $('body').append(modalHtml);
-        $('#validationSummaryModal').modal({
-            backdrop: 'static',
-            keyboard: false
-        }).modal('show');
-    }
+    // Append and show modal
+    $('body').append(modalHtml);
+}
