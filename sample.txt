@@ -1,19 +1,100 @@
-    function showValidationSummary(sheetNames, results) {
-        // Remove old modal if exists
-        $('#validationSummaryModal').remove();
+function showValidationSummary(sheetNames, results) {
+    // Remove old modal if exists
+    $('#validationSummaryModal').remove();
 
-        // Build modal dynamically
-        let modalHtml = `
-    <div class="modal fade" id="validationSummaryModal" tabindex="-1" style="z-index:9999;zoom:75%">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header bg-primary text-white">
+    // Inject custom styles for Glassmorphism and cinematic effects
+    if ($('#validationSummaryStyles').length === 0) {
+        $('head').append(`
+            <style id="validationSummaryStyles">
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@700&display=swap');
+
+                body {
+                    font-family: 'Inter', sans-serif;
+                    background: #0a0f1a;
+                }
+
+                .glass-card {
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(15px);
+                    border-radius: 16px;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+                    color: #ffffff;
+                    padding: 1.5rem;
+                }
+
+                .modal-header {
+                    background: linear-gradient(135deg, #00BFFF, #112d4e);
+                    font-family: 'Playfair Display', serif;
+                    font-weight: bold;
+                    font-size: 1.5rem;
+                }
+
+                .table {
+                    background: rgba(255, 255, 255, 0.05);
+                    border-radius: 12px;
+                    overflow: hidden;
+                }
+
+                .table th {
+                    background: rgba(255, 255, 255, 0.1);
+                    color: #00BFFF;
+                    font-weight: 600;
+                }
+
+                .table td {
+                    vertical-align: middle;
+                }
+
+                .badge {
+                    font-weight: bold;
+                    box-shadow: 0 4px 20px rgba(0, 191, 255, 0.6);
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                }
+
+                .badge:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 30px rgba(0, 191, 255, 0.9);
+                }
+
+                .btn {
+                    background: #00BFFF;
+                    border: none;
+                    font-weight: 600;
+                    box-shadow: 0 4px 15px rgba(0, 191, 255, 0.5);
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                }
+
+                .btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(0, 191, 255, 0.9);
+                }
+
+                .modal-content {
+                    background: transparent;
+                    border: none;
+                }
+
+                .modal-body {
+                    max-height: 60vh;
+                    overflow-y: auto;
+                }
+            </style>
+        `);
+    }
+
+    // Build modal dynamically
+    let modalHtml = `
+    <div class="modal fade" id="validationSummaryModal" tabindex="-1" style="z-index:9999">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content glass-card">
+          <div class="modal-header">
             <h5 class="modal-title">Configuration Validation Summary</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <table class="table table-bordered table-hover align-middle">
-              <thead class="table-light">
+              <thead>
                 <tr>
                   <th>Sheet Name</th>
                   <th>Status</th>
@@ -22,33 +103,33 @@
               </thead>
               <tbody id="validationSummaryBody">`;
 
-        sheetNames.forEach(sheet => {
-            const r = results[sheet];
+    sheetNames.forEach(sheet => {
+        const r = results[sheet];
 
-            let statusBadge = r.valid
-                ? '<span class="badge bg-success">Valid</span>'
-                : '<span class="badge bg-danger">Invalid</span>';
+        let statusBadge = r.valid
+            ? '<span class="badge bg-success">Valid</span>'
+            : '<span class="badge bg-danger">Invalid</span>';
 
-            let details = "";
-            if (r.valid) {
-                details = '<span class="text-success">All checks passed</span>';
-            } else {
-                details = '<ul class="mb-0">';
-                r.errors.forEach(e => {
-                    details += `<li class="text-danger">${e}</li>`;
-                });
-                details += '</ul>';
-            }
+        let details = "";
+        if (r.valid) {
+            details = '<span class="text-success">All checks passed</span>';
+        } else {
+            details = '<ul class="mb-0">';
+            r.errors.forEach(e => {
+                details += `<li class="text-danger">${e}</li>`;
+            });
+            details += '</ul>';
+        }
 
-            modalHtml += `
+        modalHtml += `
           <tr>
             <td><strong>${sheet}</strong></td>
             <td>${statusBadge}</td>
             <td>${details}</td>
           </tr>`;
-        });
+    });
 
-        modalHtml += `
+    modalHtml += `
               </tbody>
             </table>
           </div>
@@ -59,10 +140,10 @@
       </div>
     </div>`;
 
-        // Append and show modal
-        $('body').append(modalHtml);
-        $('#validationSummaryModal').modal({
-            backdrop: 'static',
-            keyboard: false
-        }).modal('show');
-    }
+    // Append and show modal
+    $('body').append(modalHtml);
+    $('#validationSummaryModal').modal({
+        backdrop: 'static',
+        keyboard: false
+    }).modal('show');
+}
