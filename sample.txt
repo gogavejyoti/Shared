@@ -1,412 +1,187 @@
-(function ($) {
-    $.fn.staffingSummaryPopup = function (options) {
-        const settings = $.extend({
-            data: [],
-            weekStartDay: 'sunday'
-        }, options);
+function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType) {
+    const fromIndex = uniqueWeeks.indexOf(weekFrom);
+    const toIndex = uniqueWeeks.indexOf(weekTo);
+    const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
 
-        $('#analyticsModal').remove();
+    let displayKeys = [];
+    let groupedByMonth = {};
 
-        if ($('#weekAnalyticsPopupStyles').length === 0) {
-            $('head').append(`
-            <style id="weekAnalyticsPopupStyles">
-                /* Modal Content Styling */
-                #analyticsModal .modal-content { border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.12); font-family: 'Inter', sans-serif; background: #fafafa; }
-                #analyticsModal .modal-header { border-bottom: 1px solid #e0e0e0; background-color: #D7C4F0; color: #2c2c2c; }
-                #analyticsModal .modal-title { font-weight: 600; color: #2c2c2c; }
-                #analyticsModal .btn-close { filter: invert(30%); }
+    if (summaryType === 'monthly') {
+        weeksInRange.forEach(week => {
+            const [dd, mmm, yy] = week.split('-');
+            const monthKey = `${mmm}-${yy}`;
+            if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+            groupedByMonth[monthKey].push(week);
+        });
+        displayKeys = Object.keys(groupedByMonth).sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
+    } else {
+        displayKeys = weeksInRange;
+    }
 
-                /* Table Wrapper */
-                #analyticsModal .table-wrapper { overflow-x: auto; overflow-y: auto; max-height: 500px; position: relative; border: 1px solid #dcdcdc; background: #fff; border-radius: 8px; margin: 10px; }
-                #analyticsModal table { border-collapse: collapse; width: max-content; table-layout: auto; }
-                #analyticsModal th, #analyticsModal td { padding: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid #eaeaea; background: #fff; }
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const tbody = document.createElement('tbody');
 
-                /* Sticky Headers */
-                #analyticsModal thead th { position: sticky; top: 0; background: #f5f5f5; z-index: 6; }
-                #analyticsModal thead th.sticky-left { position: sticky; top: 0; left: 0; background: #f5f5f5; z-index: 9; min-width: 140px; }
-                #analyticsModal thead th.sticky-left-2 { position: sticky; top: 0; left: 140px; background: #f5f5f5; z-index: 9; min-width: 150px; }
+    // ---- HEADER ROW ----
+    const headerRow = document.createElement('tr');
+    headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
+    displayKeys.forEach(key => {
+        const th = document.createElement('th');
+        th.textContent = key;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
 
-                #analyticsModal tbody td.sticky-left { position: sticky; left: 0; background: #f0f0f0; z-index: 7; min-width: 140px; }
-                #analyticsModal tbody td.sticky-left-2 { position: sticky; left: 140px; background: #f0f0f0; z-index: 7; min-width: 150px; }
+    // ---- OVERALL SUMMARY ----
+    const overallData = {};
+    selectedMetrics.forEach(metric => {
+        overallData[metric] = {};
+        displayKeys.forEach(key => {
+            if (summaryType === 'monthly') {
+                let totalReq = 0, totalAvail = 0, totalWeeks = 0;
 
-                /* Conditional Coloring */
-                #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
-                #analyticsModal .rag-amber { color: #f39c12; font-weight: bold; }
-                #analyticsModal .rag-green { color: #27ae60; font-weight: bold; }
+                selectedLOBs.forEach(lob => {
+                    const weeksArray = groupedByMonth[key];
+                    totalReq += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                    totalAvail += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                    totalWeeks += weeksArray.length;
+                });
 
-                /* Filter Container */
-                #analyticsModal .filter-container { margin: 10px; font-size: 0.875rem; }
-                .dropdown-checkbox { max-height: 250px; overflow-y: auto; padding: 10px; }
+                const avgReq = totalWeeks === 0 ? 0 : totalReq / totalWeeks;
+                const avgAvail = totalWeeks === 0 ? 0 : totalAvail / totalWeeks;
 
-                /* Buttons */
-                #analyticsModal .btn-sm { border-radius: 6px; font-size: 0.875rem; }
-                #applyFilterBtn { background: #9b59b6; border-color: #9b59b6; }
-                #applyFilterBtn:hover { background: #8e44ad; border-color: #8e44ad; }
-            </style>
-            `);
+                if (metric === 'Required HC') {
+                    overallData[metric][key] = Math.round(avgReq);
+                } else if (metric === 'Available HC') {
+                    overallData[metric][key] = Math.round(avgAvail);
+                } else if (metric === 'Delta') {
+                    overallData[metric][key] = Math.round(avgAvail - avgReq);
+                } else if (metric === 'Staffing %') {
+                    overallData[metric][key] = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
+                }
+            } else {
+                // Weekly view (unchanged)
+                overallData[metric][key] = selectedLOBs.reduce((sum, lob) =>
+                    sum + (groupedData[lob][key]?.[metric] || 0), 0
+                );
+            }
+        });
+    });
+
+    selectedMetrics.forEach((metric, i) => {
+        const row = document.createElement('tr');
+        if (i === 0) {
+            const tdLOB = document.createElement('td');
+            tdLOB.className = 'sticky-left';
+            tdLOB.setAttribute('rowspan', selectedMetrics.length);
+            tdLOB.style.background = '#fff';
+            tdLOB.style.color = '#000';
+            tdLOB.textContent = 'Overall Summary';
+            row.appendChild(tdLOB);
         }
 
-        const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
-          <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Staffing Summary</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body p-0">
-                <div class="filter-container">
-                    <div class="row g-2 align-items-center">
-                        <div class="col-auto">
-                            <label><b>LOB:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select LOBs</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
-                            </div>
-                        </div>
+        const tdMetric = document.createElement('td');
+        tdMetric.className = 'sticky-left-2';
+        tdMetric.textContent = metric;
+        row.appendChild(tdMetric);
 
-                        <div class="col-auto">
-                            <label><b>Metrics:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select Metrics</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
-                            </div>
-                        </div>
+        displayKeys.forEach(key => {
+            const td = document.createElement('td');
+            let val = overallData[metric][key];
 
-                        <div class="col-auto">
-                            <label><b>Week From:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select From Week</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
-                            </div>
-                        </div>
+            let cls = '';
+            if (metric === 'Delta' && val < 0) cls = 'rag-red';
+            if (metric === 'Staffing %') {
+                if (val < 80) cls = 'rag-red';
+                else if (val < 100) cls = 'rag-amber';
+                else cls = 'rag-green';
+                val = `${val}%`;
+            } else {
+                val = Math.round(val);
+                val = new Intl.NumberFormat().format(val);
+            }
 
-                        <div class="col-auto">
-                            <label><b>Week To:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select To Week</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
-                            </div>
-                        </div>
-
-                        <div class="col-auto">
-                            <label><b>Summary Type:</b></label><br/>
-                            <select class="form-select form-select-sm" id="summaryTypeSelect" style="border:1px solid; border-radius:5px;">
-                                <option value="weekly" selected>Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
-                        </div>
-
-                        <div class="col-auto">
-                            <button id="applyFilterBtn" class="btn btn-primary btn-sm mt-3">Apply Filter</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="table-wrapper" id="staffingContainer"></div>
-              </div>
-            </div>
-          </div>
-        </div>`;
-
-        $('body').append(modalHTML);
-
-        const $container = $('#staffingContainer');
-        const parseWeek = w => {
-            const [dd, mmm, yy] = w.split('-');
-            const fullYear = yy.length === 2 ? (parseInt(yy, 10) < 50 ? '20' + yy : '19' + yy) : yy;
-            return new Date(`${mmm} ${dd}, ${fullYear}`);
-        };
-
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
-
-        const groupedData = {};
-        settings.data.forEach(d => {
-            if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
-            if (!groupedData[d.sheetName][d.week]) groupedData[d.sheetName][d.week] = {};
-            groupedData[d.sheetName][d.week][d.header] = Number(d.value);
+            td.className = cls;
+            td.title = val;
+            td.textContent = val;
+            td.style.background = '#F5FAE1';
+            row.appendChild(td);
         });
 
-        for (const lob in groupedData) {
-            for (const week in groupedData[lob]) {
-                const req = groupedData[lob][week]?.['Required HC'] || 0;
-                const avail = groupedData[lob][week]?.['Available HC'] || 0;
-                groupedData[lob][week]['Delta'] = avail - req;
-                groupedData[lob][week]['Staffing %'] = req === 0 ? 0 : Math.round((avail / req) * 100);
-            }
-        }
+        tbody.appendChild(row);
+    });
 
-        const lobColors = ['#2c3e50', '#34495e', '#16a085', '#8e44ad', '#d35400', '#7f8c8d', '#27ae60', '#c0392b'];
+    // ---- INDIVIDUAL LOB ROWS ----
+    selectedLOBs.forEach((lob, lobIndex) => {
+        const lobColor = lobColors[lobIndex % lobColors.length];
 
-        function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
-            const btn = $(`#${dropdownId}Btn`);
-            btn.text(selectedItems.length === 0 ? placeholder : `${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
-        }
-        function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
-            $(`#${dropdownBtnId}`).text(`${prefix}: ${selectedValue}`);
-        }
-
-        function populateFilters() {
-            // LOB
-            const lobContainer = document.createDocumentFragment();
-            lobContainer.appendChild(document.createElement('label')).innerHTML = `<label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>`;
-            uniqueLOBs.forEach(lob => { const label = document.createElement('label'); label.innerHTML = `<input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}`; lobContainer.appendChild(label); lobContainer.appendChild(document.createElement('br')); });
-            $('#lobDropdown').append(lobContainer);
-
-            // Metrics
-            const metricContainer = document.createDocumentFragment();
-            metricContainer.appendChild(document.createElement('label')).innerHTML = `<label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>`;
-            metrics.forEach(metric => { const label = document.createElement('label'); label.innerHTML = `<input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}`; metricContainer.appendChild(label); metricContainer.appendChild(document.createElement('br')); });
-            $('#metricDropdown').append(metricContainer);
-
-            // Weeks
-            uniqueWeeks.forEach(week => {
-                $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === uniqueWeeks[0] ? 'checked' : ''}> ${week}</label><br/>`);
-                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length - 1] ? 'checked' : ''}> ${week}</label><br/>`);
-            });
-
-            updateDropdownLabel('lobDropdown', uniqueLOBs, 'Select LOBs');
-            updateDropdownLabel('metricDropdown', metrics, 'Select Metrics');
-            updateRadioDropdownLabel('weekFromDropdownBtn', uniqueWeeks[0], 'From');
-            updateRadioDropdownLabel('weekToDropdownBtn', uniqueWeeks[uniqueWeeks.length - 1], 'To');
-        }
-
-        function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType) {
-            const fromIndex = uniqueWeeks.indexOf(weekFrom);
-            const toIndex = uniqueWeeks.indexOf(weekTo);
-            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
-
-            let displayKeys = [];
-            let groupedByMonth = {};
-
-            if (summaryType === 'monthly') {
-                weeksInRange.forEach(week => {
-                    const [dd, mmm, yy] = week.split('-');
-                    const monthKey = `${mmm}-${yy}`;
-                    if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
-                    groupedByMonth[monthKey].push(week);
-                });
-                displayKeys = Object.keys(groupedByMonth).sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
-            } else {
-                displayKeys = weeksInRange;
+        selectedMetrics.forEach((metric, i) => {
+            const row = document.createElement('tr');
+            if (i === 0) {
+                const tdLOB = document.createElement('td');
+                tdLOB.className = 'sticky-left';
+                tdLOB.setAttribute('rowspan', selectedMetrics.length);
+                tdLOB.style.background = lobColor;
+                tdLOB.style.color = '#fff';
+                tdLOB.textContent = lob;
+                row.appendChild(tdLOB);
             }
 
-            const table = document.createElement('table');
-            const thead = document.createElement('thead');
-            const tbody = document.createElement('tbody');
+            const tdMetric = document.createElement('td');
+            tdMetric.className = 'sticky-left-2';
+            tdMetric.textContent = metric;
+            row.appendChild(tdMetric);
 
-            const headerRow = document.createElement('tr');
-            headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
             displayKeys.forEach(key => {
-                const th = document.createElement('th');
-                th.textContent = key;
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
+                const td = document.createElement('td');
+                const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
 
-            const overallData = {};
-            selectedMetrics.forEach(metric => {
-                overallData[metric] = {};
-                displayKeys.forEach(key => {
-                    if (summaryType === 'monthly' && (metric === 'Staffing %' || metric === 'Delta')) {
-                        let totalReq = 0, totalAvail = 0, totalWeeks = 0;
+                let val = 0;
+                if (summaryType === 'monthly') {
+                    let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                    let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                    let weekCount = weeksArray.length;
 
-                        selectedLOBs.forEach(lob => {
-                            const weeksArray = groupedByMonth[key];
-                            totalReq += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
-                            totalAvail += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
-                            totalWeeks += weeksArray.length;
-                        });
+                    const avgReq = weekCount === 0 ? 0 : totalReq / weekCount;
+                    const avgAvail = weekCount === 0 ? 0 : totalAvail / weekCount;
 
-                        const avgReq = totalWeeks === 0 ? 0 : totalReq / totalWeeks;
-                        const avgAvail = totalWeeks === 0 ? 0 : totalAvail / totalWeeks;
-
-                        if (metric === 'Staffing %') {
-                            overallData[metric][key] = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
-                        } else { // Delta
-                            overallData[metric][key] = Math.round(avgAvail - avgReq);
-                        }
-
-                    } else {
-                        overallData[metric][key] = selectedLOBs.reduce((sum, lob) =>
-                            sum + (summaryType === 'monthly'
-                                ? groupedByMonth[key].reduce((subSum, week) => subSum + (groupedData[lob][week]?.[metric] || 0), 0)
-                                : (groupedData[lob][key]?.[metric] || 0)
-                            )
-                            , 0);
+                    if (metric === 'Required HC') {
+                        val = Math.round(avgReq);
+                    } else if (metric === 'Available HC') {
+                        val = Math.round(avgAvail);
+                    } else if (metric === 'Delta') {
+                        val = Math.round(avgAvail - avgReq);
+                    } else if (metric === 'Staffing %') {
+                        val = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
                     }
-                });
-            });
-
-            // Overall Summary Rows
-            selectedMetrics.forEach((metric, i) => {
-                const row = document.createElement('tr');
-                if (i === 0) {
-                    const tdLOB = document.createElement('td');
-                    tdLOB.className = 'sticky-left';
-                    tdLOB.setAttribute('rowspan', selectedMetrics.length);
-                    tdLOB.style.background = '#fff';
-                    tdLOB.style.color = '#000';
-                    tdLOB.textContent = 'Overall Summary';
-                    row.appendChild(tdLOB);
+                } else {
+                    // Weekly view (unchanged)
+                    val = groupedData[lob][key]?.[metric] || 0;
                 }
 
-                const tdMetric = document.createElement('td');
-                tdMetric.className = 'sticky-left-2';
-                tdMetric.textContent = metric;
-                row.appendChild(tdMetric);
+                let cls = '';
+                if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                if (metric === 'Staffing %') {
+                    if (val < 80) cls = 'rag-red';
+                    else if (val < 100) cls = 'rag-amber';
+                    else cls = 'rag-green';
+                    val = `${val}%`;
+                } else {
+                    val = Math.round(val);
+                    val = new Intl.NumberFormat().format(val);
+                }
 
-                displayKeys.forEach(key => {
-                    const td = document.createElement('td');
-                    let val = overallData[metric][key];
-
-                    let cls = '';
-                    if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                    if (metric === 'Staffing %') {
-                        if (val < 80) cls = 'rag-red';
-                        else if (val < 100) cls = 'rag-amber';
-                        else cls = 'rag-green';
-                        val = `${val}%`;
-                    } else {
-                        val = Math.round(val);
-                        val = new Intl.NumberFormat().format(val);
-                    }
-
-                    td.className = cls;
-                    td.title = val;
-                    td.textContent = val;
-                    td.style.background = '#F5FAE1';
-                    row.appendChild(td);
-                });
-
-                tbody.appendChild(row);
+                td.className = cls;
+                td.title = val;
+                td.textContent = val;
+                row.appendChild(td);
             });
 
-            // Individual LOB Rows (Unchanged)
-            selectedLOBs.forEach((lob, lobIndex) => {
-                const lobColor = lobColors[lobIndex % lobColors.length];
-
-                selectedMetrics.forEach((metric, i) => {
-                    const row = document.createElement('tr');
-                    if (i === 0) {
-                        const tdLOB = document.createElement('td');
-                        tdLOB.className = 'sticky-left';
-                        tdLOB.setAttribute('rowspan', selectedMetrics.length);
-                        tdLOB.style.background = lobColor;
-                        tdLOB.style.color = '#fff';
-                        tdLOB.textContent = lob;
-                        row.appendChild(tdLOB);
-                    }
-
-                    const tdMetric = document.createElement('td');
-                    tdMetric.className = 'sticky-left-2';
-                    tdMetric.textContent = metric;
-                    row.appendChild(tdMetric);
-
-                    displayKeys.forEach(key => {
-                        const td = document.createElement('td');
-                        const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
-
-                        let val;
-                        if (metric === 'Staffing %') {
-                            let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
-                            let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
-                            let weekCount = weeksArray.length;
-
-                            const avgReq = weekCount === 0 ? 0 : totalReq / weekCount;
-                            const avgAvail = weekCount === 0 ? 0 : totalAvail / weekCount;
-
-                            val = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
-                        } else if (metric === 'Delta') {
-                            let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
-                            let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
-                            let weekCount = weeksArray.length;
-
-                            const avgReq = weekCount === 0 ? 0 : totalReq / weekCount;
-                            const avgAvail = weekCount === 0 ? 0 : totalAvail / weekCount;
-
-                            val = Math.round(avgAvail - avgReq);
-                        } else {
-                            val = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.[metric] || 0), 0);
-                        }
-
-                        let cls = '';
-                        if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                        if (metric === 'Staffing %') {
-                            if (val < 80) cls = 'rag-red';
-                            else if (val < 100) cls = 'rag-amber';
-                            else cls = 'rag-green';
-                            val = `${val}%`;
-                        }
-
-                        td.className = cls;
-                        td.title = val;
-                        td.textContent = val;
-                        row.appendChild(td);
-                    });
-
-                    tbody.appendChild(row);
-                });
-            });
-
-            table.appendChild(thead);
-            table.appendChild(tbody);
-            $container.empty().append(table);
-        }
-
-        populateFilters();
-
-        $('#analyticsModal').on('hidden.bs.modal', function () {
-            $('#analyticsModal').remove();
-            $('#weekAnalyticsPopupStyles').remove();
+            tbody.appendChild(row);
         });
+    });
 
-        // Select All / Unselect All Logic
-        $('#lobDropdown').on('change', '.lobSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.lobCheckbox').prop('checked', checked);
-            updateDropdownLabel('lobDropdown', checked ? uniqueLOBs.slice() : [], 'Select LOBs');
-        });
-        $('#metricDropdown').on('change', '.metricSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.metricCheckbox').prop('checked', checked);
-            updateDropdownLabel('metricDropdown', checked ? metrics.slice() : [], 'Select Metrics');
-        });
-        $('#lobDropdown').on('change', '.lobCheckbox', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
-            $('.lobSelectAll').prop('checked', selectedLOBs.length === uniqueLOBs.length);
-        });
-        $('#metricDropdown').on('change', '.metricCheckbox', function () {
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
-            $('.metricSelectAll').prop('checked', selectedMetrics.length === metrics.length);
-        });
-        $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
-        });
-        $('#weekToDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
-        });
-
-        $('#applyFilterBtn').on('click', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
-            const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
-            const summaryType = $('#summaryTypeSelect').val();
-
-            buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType);
-        });
-
-        // Initial Build
-        buildTable(uniqueLOBs, metrics, uniqueWeeks[0], uniqueWeeks[uniqueWeeks.length - 1], 'weekly');
-
-        // Show Modal
-        const analyticsModal = new bootstrap.Modal(document.getElementById('analyticsModal'));
-        analyticsModal.show();
-    };
-})(jQuery);
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    $container.empty().append(table);
+}
