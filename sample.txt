@@ -1,63 +1,101 @@
-function showValidationSummary(sheetNames, results) {
-    // Remove old modal if exists
-    $('#validationSummaryModal').remove();
+        function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType) {
+            const fromIndex = uniqueWeeks.indexOf(weekFrom);
+            const toIndex = uniqueWeeks.indexOf(weekTo);
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
 
-    // Build modal dynamically
-    let modalHtml = `
-    <div class="modal fade" id="validationSummaryModal" tabindex="-1" style="z-index:9999;">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content" style="border:1px solid #d3d3d3; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-family: 'Inter', sans-serif; background-color:#ffffff; color:#000;">
-          <div class="modal-header" style="border-bottom:1px solid #d3d3d3; font-weight:bold; font-size:1.25rem;">
-            <h5 class="modal-title" style="font-weight:bold; color:#000;">User Details</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: invert(30%);"></button>
-          </div>
-          <div class="modal-body">
-            <div style="overflow-x:auto;">
-              <table style="width:100%; border-collapse:collapse; font-weight:normal;">
-                <thead>
-                  <tr style="background:#f8f8f8;">
-                    <th style="font-weight:bold; text-align:left; padding:10px;">Sheet Name</th>
-                    <th style="font-weight:bold; text-align:left; padding:10px;">Status</th>
-                    <th style="font-weight:bold; text-align:left; padding:10px;">Details</th>
-                  </tr>
-                </thead>
-                <tbody id="validationSummaryBody">`;
+            let displayKeys = [];
+            let groupedByMonth = {};
 
-    sheetNames.forEach(sheet => {
-        const r = results[sheet];
+            if (summaryType === 'monthly') {
+                weeksInRange.forEach(week => {
+                    const [dd, mmm, yy] = week.split('-');
+                    const monthKey = `${mmm}-${yy}`;
+                    if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+                    groupedByMonth[monthKey].push(week);
+                });
+                displayKeys = Object.keys(groupedByMonth).sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
+            } else displayKeys = weeksInRange;
 
-        let statusBadge = r.valid
-            ? `<span style="color:#007AFF; font-weight:bold;">Valid</span>`
-            : `<span style="color:#e74c3c; font-weight:bold;">Invalid</span>`;
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const tbody = document.createElement('tbody');
 
-        let details = r.valid
-            ? `<span style="color:#007AFF;">All checks passed</span>`
-            : `<ul style="margin:0; padding-left:20px;">` + r.errors.map(e => `<li style="color:#e74c3c;">${e}</li>`).join('') + `</ul>`;
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
+            displayKeys.forEach(key => { const th = document.createElement('th'); th.textContent = key; headerRow.appendChild(th); });
+            thead.appendChild(headerRow);
 
-        modalHtml += `
-          <tr style="border-bottom:1px solid #e0e0e0;" onmouseover="this.style.backgroundColor='#f1f1f1';" onmouseout="this.style.backgroundColor='';">
-            <td style="padding:10px;"><strong>${sheet}</strong></td>
-            <td style="padding:10px;">${statusBadge}</td>
-            <td style="padding:10px;">${details}</td>
-          </tr>`;
-    });
+            const overallData = {};
+            selectedMetrics.forEach(metric => {
+                overallData[metric] = {};
+                displayKeys.forEach(key => {
+                    const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
+                    overallData[metric][key] = selectedLOBs.reduce((sum, lob) => sum + weeksArray.reduce((subSum, week) => subSum + (groupedData[lob][week]?.[metric] || 0), 0), 0);
+                    if (metric === 'Staffing %') {
+                        let totalReq = selectedLOBs.reduce((sum, lob) => sum + weeksArray.reduce((subSum, week) => subSum + (groupedData[lob][week]?.['Required HC'] || 0), 0), 0);
+                        let totalAvail = selectedLOBs.reduce((sum, lob) => sum + weeksArray.reduce((subSum, week) => subSum + (groupedData[lob][week]?.['Available HC'] || 0), 0), 0);
+                        overallData[metric][key] = totalReq === 0 ? 0 : Math.round((totalAvail / totalReq) * 100);
+                    }
+                });
+            });
 
-    modalHtml += `
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer" style="border-top:1px solid #d3d3d3;">
-            <button type="button" data-bs-dismiss="modal" style="background:#007AFF; color:#fff; border:none; padding:0.5rem 1rem; border-radius:6px; font-size:0.9rem;">Close</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
+            // Overall Summary
+            selectedMetrics.forEach((metric, i) => {
+                const row = document.createElement('tr');
+                if (i === 0) { const tdLOB = document.createElement('td'); tdLOB.className = 'sticky-left'; tdLOB.setAttribute('rowspan', selectedMetrics.length); tdLOB.style.background = '#fff'; tdLOB.style.color = '#000'; tdLOB.textContent = 'Overall Summary'; row.appendChild(tdLOB); }
+                const tdMetric = document.createElement('td'); tdMetric.className = 'sticky-left-2'; tdMetric.textContent = metric; row.appendChild(tdMetric);
 
-    // Append and show modal
-    $('body').append(modalHtml);
-    $('#validationSummaryModal').modal({
-        backdrop: 'static',
-        keyboard: false
-    }).modal('show');
-};
+                displayKeys.forEach(key => {
+                    const td = document.createElement('td');
+                    let val = overallData[metric][key]; val = Math.round(val);
+                    let cls = '';
+                    if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                    if (metric === 'Staffing %') {
+                        if (val < 80) cls = 'rag-red';
+                        else if (val < 100) cls = 'rag-amber';
+                        else cls = 'rag-green';
+                        val = `${val}%`;
+                    } else val = new Intl.NumberFormat().format(val);
+                    td.className = cls; td.title = val; td.textContent = val; td.style.background = '#F5FAE1';
+                    row.appendChild(td);
+                });
+
+                tbody.appendChild(row);
+            });
+
+            // Individual LOBs
+            selectedLOBs.forEach((lob, lobIndex) => {
+                const lobColor = lobColors[lobIndex % lobColors.length];
+                selectedMetrics.forEach((metric, i) => {
+                    const row = document.createElement('tr');
+                    if (i === 0) { const tdLOB = document.createElement('td'); tdLOB.className = 'sticky-left'; tdLOB.setAttribute('rowspan', selectedMetrics.length); tdLOB.style.background = lobColor; tdLOB.style.color = '#fff'; tdLOB.textContent = lob; row.appendChild(tdLOB); }
+                    const tdMetric = document.createElement('td'); tdMetric.className = 'sticky-left-2'; tdMetric.textContent = metric; row.appendChild(tdMetric);
+
+                    displayKeys.forEach(key => {
+                        const td = document.createElement('td');
+                        const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
+                        let val = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.[metric] || 0), 0);
+                        if (metric === 'Staffing %') {
+                            let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                            let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                            val = totalReq === 0 ? 0 : Math.round((totalAvail / totalReq) * 100);
+                        }
+                        let cls = '';
+                        if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                        if (metric === 'Staffing %') {
+                            if (val < 80) cls = 'rag-red';
+                            else if (val < 100) cls = 'rag-amber';
+                            else cls = 'rag-green';
+                            val = `${val}%`;
+                        } else val = Math.round(val);
+                        td.className = cls; td.title = val; td.textContent = val; row.appendChild(td);
+                    });
+
+                    tbody.appendChild(row);
+                });
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            $container.empty().append(table);
+        }
