@@ -38,18 +38,26 @@ function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType
         overallData[metric] = {};
         displayKeys.forEach(key => {
             if (summaryType === 'monthly') {
-                let totalReq = 0, totalAvail = 0, totalWeeks = 0;
+                const weeksArray = groupedByMonth[key] || [];
+
+                // Collect non-zero values across all selected LOBs for Required & Available
+                const reqValues = [];
+                const availValues = [];
 
                 selectedLOBs.forEach(lob => {
-                    const weeksArray = groupedByMonth[key];
-                    totalReq += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
-                    totalAvail += weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
-                    totalWeeks += weeksArray.length;
+                    weeksArray.forEach(week => {
+                        const req = groupedData[lob]?.[week]?.['Required HC'] ?? 0;
+                        const avail = groupedData[lob]?.[week]?.['Available HC'] ?? 0;
+                        if (req !== 0) reqValues.push(req);
+                        if (avail !== 0) availValues.push(avail);
+                    });
                 });
 
-                const avgReq = totalWeeks === 0 ? 0 : totalReq / totalWeeks;
-                const avgAvail = totalWeeks === 0 ? 0 : totalAvail / totalWeeks;
+                const sumArr = arr => arr.reduce((s, v) => s + v, 0);
+                const avgReq = reqValues.length ? (sumArr(reqValues) / reqValues.length) : 0;
+                const avgAvail = availValues.length ? (sumArr(availValues) / availValues.length) : 0;
 
+                // Metrics
                 if (metric === 'Required HC') {
                     overallData[metric][key] = Math.round(avgReq);
                 } else if (metric === 'Available HC') {
@@ -58,9 +66,14 @@ function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType
                     overallData[metric][key] = Math.round(avgAvail - avgReq);
                 } else if (metric === 'Staffing %') {
                     overallData[metric][key] = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
+                } else {
+                    // Other metrics: sum across selected LOBs & weeks (monthly)
+                    overallData[metric][key] = selectedLOBs.reduce((sumL, lob) =>
+                        sumL + weeksArray.reduce((subSum, week) => subSum + (groupedData[lob][week]?.[metric] || 0), 0)
+                    , 0);
                 }
             } else {
-                // Weekly view (unchanged)
+                // Weekly view (unchanged) - sum across selected LOBs
                 overallData[metric][key] = selectedLOBs.reduce((sum, lob) =>
                     sum + (groupedData[lob][key]?.[metric] || 0), 0
                 );
@@ -68,6 +81,7 @@ function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType
         });
     });
 
+    // Render overall summary rows
     selectedMetrics.forEach((metric, i) => {
         const row = document.createElement('tr');
         if (i === 0) {
@@ -153,6 +167,9 @@ function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType
                         val = Math.round(avgAvail - avgReq);
                     } else if (metric === 'Staffing %') {
                         val = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
+                    } else {
+                        // Other metrics aggregated monthly by sum
+                        val = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.[metric] || 0), 0);
                     }
                 } else {
                     // Weekly view (unchanged)
