@@ -1,98 +1,197 @@
-CREATE TYPE dbo.SheetValuesType AS TABLE
-(
-    PlanId INT,
-    SheetName NVARCHAR(255),
-    Week NVARCHAR(50),
-    Header NVARCHAR(255),
-    Value NVARCHAR(MAX)
-);
 
+        function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType) {
+            const fromIndex = uniqueWeeks.indexOf(weekFrom);
+            const toIndex = uniqueWeeks.indexOf(weekTo);
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
 
-using (var connection = new SqlConnection(connectionString))
-using (var command = new SqlCommand("dbo.ReplacePlanSheetValues_Dynamic", connection))
-{
-    command.CommandType = CommandType.StoredProcedure;
+            let displayKeys = [];
+            let groupedByMonth = {};
 
-    command.Parameters.AddWithValue("@VerticalName", "SheetValues_Vertical1");
-    command.Parameters.AddWithValue("@PlanId", planId);
-
-    var tvpParam = new SqlParameter("@Values", SqlDbType.Structured)
-    {
-        TypeName = "dbo.SheetValuesType",
-        Value = dataTable
-    };
-    command.Parameters.Add(tvpParam);
-
-    connection.Open();
-    command.ExecuteNonQuery();
-}
-
-
-
-CREATE PROCEDURE dbo.ReplacePlanSheetValues_Dynamic
-    @VerticalName NVARCHAR(128),  -- E.g., 'SheetValues_Vertical1'
-    @PlanId INT,
-    @Values dbo.SheetValuesType READONLY
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    -- Validate VerticalName to prevent SQL Injection
-    IF @VerticalName NOT IN ('SheetValues_Vertical1', 'SheetValues_Vertical2', 'SheetValues_Vertical3', 'SheetValues_Vertical4', 'SheetValues_Vertical5', 'SheetValues_Vertical6')
-    BEGIN
-        RAISERROR('Invalid VerticalName.', 16, 1);
-        RETURN;
-    END
-
-    DECLARE @Sql NVARCHAR(MAX);
-
-    BEGIN TRANSACTION;
-
-    -- Step 1: Delete existing records in batch
-    SET @Sql = '
-        WHILE 1 = 1
-        BEGIN
-            DELETE TOP (10000) FROM ' + QUOTENAME(@VerticalName) + ' WHERE PlanId = @PlanId;
-            IF @@ROWCOUNT = 0 BREAK;
-        END
-    ';
-    EXEC sp_executesql @Sql, N'@PlanId INT', @PlanId = @PlanId;
-
-    -- Step 2: Insert new records
-    SET @Sql = '
-        INSERT INTO ' + QUOTENAME(@VerticalName) + ' (PlanId, SheetName, Week, Header, Value)
-        SELECT PlanId, SheetName, Week, Header, Value FROM @Values
-    ';
-    EXEC sp_executesql @Sql, N'@Values dbo.SheetValuesType READONLY', @Values = @Values;
-
-    COMMIT TRANSACTION;
-END
-
-
-
-            public async Task<bool> SaveExtractedValues(List<SheetValueDto> values)
-            {
-                if (_connection.State != ConnectionState.Open)
-                    await ((SqlConnection)_connection).OpenAsync();
-
-                // Use table-valued parameter for bulk merge
-                var dt = new DataTable();
-                dt.Columns.Add("PlanId", typeof(int));
-                dt.Columns.Add("SheetName", typeof(string));
-                dt.Columns.Add("Week", typeof(DateTime));
-                dt.Columns.Add("Header", typeof(string));
-                dt.Columns.Add("Value", typeof(decimal)); // adjust type
-
-                foreach (var v in values)
-                {
-                    dt.Rows.Add(v.PlanId, v.SheetName, DateTime.Parse(v.Week), v.Header, (object?)v.Value ?? DBNull.Value);
-                }
-                await _connection.ExecuteAsync(
-                    "dbo.MergeSheetValues",
-                    new { Values = dt.AsTableValuedParameter("dbo.SheetValueType") },
-                    commandType: CommandType.StoredProcedure
-                );
-
-                return true;
+            if (summaryType === 'monthly') {
+                weeksInRange.forEach(week => {
+                    const [dd, mmm, yy] = week.split('-');
+                    const monthKey = `${mmm}-${yy}`;
+                    if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
+                    groupedByMonth[monthKey].push(week);
+                });
+                displayKeys = Object.keys(groupedByMonth).sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
+            } else {
+                displayKeys = weeksInRange;
             }
 
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const tbody = document.createElement('tbody');
+
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
+            displayKeys.forEach(key => {
+                const th = document.createElement('th');
+                th.textContent = key;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+
+            // ---- OVERALL SUMMARY ----
+            const overallData = {};
+            selectedMetrics.forEach(metric => {
+                overallData[metric] = {};
+                displayKeys.forEach(key => {
+                    if (summaryType === 'monthly') {
+                        // Step 1: compute LOB-level monthly averages
+                        const lobMonthly = selectedLOBs.map(lob => {
+                            const weeksArray = groupedByMonth[key] || [];
+                            const totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                            const totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                            const weekCount = weeksArray.length;
+
+                            return {
+                                avgReq: weekCount === 0 ? 0 : totalReq / weekCount,
+                                avgAvail: weekCount === 0 ? 0 : totalAvail / weekCount
+                            };
+                        });
+
+                        // Step 2: sum across LOBs
+                        const sumReq = lobMonthly.reduce((s, x) => s + x.avgReq, 0);
+                        const sumAvail = lobMonthly.reduce((s, x) => s + x.avgAvail, 0);
+
+                        // Step 3: assign values
+                        if (metric === 'Required HC') {
+                            overallData[metric][key] = Math.round(sumReq);
+                        } else if (metric === 'Available HC') {
+                            overallData[metric][key] = Math.round(sumAvail);
+                        } else if (metric === 'Delta') {
+                            overallData[metric][key] = Math.round(sumAvail - sumReq);
+                        } else if (metric === 'Staffing %') {
+                            overallData[metric][key] = sumReq === 0 ? 0 : Math.round((sumAvail / sumReq) * 100);
+                        } else {
+                            overallData[metric][key] = selectedLOBs.reduce((sumL, lob) =>
+                                sumL + (groupedByMonth[key] || []).reduce((subSum, week) => subSum + (groupedData[lob][week]?.[metric] || 0), 0)
+                                , 0);
+                        }
+                    } else {
+                        // Weekly view (unchanged)
+                        overallData[metric][key] = selectedLOBs.reduce((sum, lob) =>
+                            sum + (groupedData[lob][key]?.[metric] || 0), 0
+                        );
+                    }
+                });
+            });
+
+            // Overall Summary Rows
+            selectedMetrics.forEach((metric, i) => {
+                const row = document.createElement('tr');
+                if (i === 0) {
+                    const tdLOB = document.createElement('td');
+                    tdLOB.className = 'sticky-left';
+                    tdLOB.setAttribute('rowspan', selectedMetrics.length);
+                    tdLOB.style.background = '#fff';
+                    tdLOB.style.color = '#000';
+                    tdLOB.textContent = 'Overall Summary';
+                    row.appendChild(tdLOB);
+                }
+
+                const tdMetric = document.createElement('td');
+                tdMetric.className = 'sticky-left-2';
+                tdMetric.textContent = metric;
+                row.appendChild(tdMetric);
+
+                displayKeys.forEach(key => {
+                    const td = document.createElement('td');
+                    let val = overallData[metric][key];
+
+                    let cls = '';
+                    if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                    if (metric === 'Staffing %') {
+                        if (val < 80) cls = 'rag-red';
+                        else if (val < 100) cls = 'rag-amber';
+                        else cls = 'rag-green';
+                        val = `${val}%`;
+                    } else {
+                        val = Math.round(val);
+                        val = new Intl.NumberFormat().format(val);
+                    }
+
+                    td.className = cls;
+                    td.title = val;
+                    td.textContent = val;
+                    td.style.background = '#F5FAE1';
+                    row.appendChild(td);
+                });
+
+                tbody.appendChild(row);
+            });
+
+            // ---- LOB LEVEL ROWS ----
+            selectedLOBs.forEach((lob, lobIndex) => {
+                const lobColor = lobColors[lobIndex % lobColors.length];
+
+                selectedMetrics.forEach((metric, i) => {
+                    const row = document.createElement('tr');
+                    if (i === 0) {
+                        const tdLOB = document.createElement('td');
+                        tdLOB.className = 'sticky-left';
+                        tdLOB.setAttribute('rowspan', selectedMetrics.length);
+                        tdLOB.style.background = lobColor;
+                        tdLOB.style.color = '#fff';
+                        tdLOB.textContent = lob;
+                        row.appendChild(tdLOB);
+                    }
+
+                    const tdMetric = document.createElement('td');
+                    tdMetric.className = 'sticky-left-2';
+                    tdMetric.textContent = metric;
+                    row.appendChild(tdMetric);
+
+                    displayKeys.forEach(key => {
+                        const td = document.createElement('td');
+                        const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
+
+                        let val;
+                        if (summaryType === 'monthly') {
+                            let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
+                            let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
+                            let weekCount = weeksArray.length;
+
+                            const avgReq = weekCount === 0 ? 0 : totalReq / weekCount;
+                            const avgAvail = weekCount === 0 ? 0 : totalAvail / weekCount;
+
+                            if (metric === 'Required HC') {
+                                val = Math.round(avgReq);
+                            } else if (metric === 'Available HC') {
+                                val = Math.round(avgAvail);
+                            } else if (metric === 'Delta') {
+                                val = Math.round(avgAvail - avgReq);
+                            } else if (metric === 'Staffing %') {
+                                val = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
+                            } else {
+                                val = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.[metric] || 0), 0);
+                            }
+                        } else {
+                            val = groupedData[lob][key]?.[metric] || 0;
+                            val = val === 0 ? 0 : Math.round(val);
+                        }
+
+                        let cls = '';
+                        if (metric === 'Delta' && val < 0) cls = 'rag-red';
+                        if (metric === 'Staffing %') {
+                            if (val < 80) cls = 'rag-red';
+                            else if (val < 100) cls = 'rag-amber';
+                            else cls = 'rag-green';
+                            val = `${val}%`;
+                        }
+
+                        td.className = cls;
+                        td.title = val;
+                        td.textContent = val;
+                        row.appendChild(td);
+                    });
+
+                    tbody.appendChild(row);
+                });
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            $container.empty().append(table);
+        }
