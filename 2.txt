@@ -67,3 +67,32 @@ BEGIN
 
     COMMIT TRANSACTION;
 END
+
+
+
+            public async Task<bool> SaveExtractedValues(List<SheetValueDto> values)
+            {
+                if (_connection.State != ConnectionState.Open)
+                    await ((SqlConnection)_connection).OpenAsync();
+
+                // Use table-valued parameter for bulk merge
+                var dt = new DataTable();
+                dt.Columns.Add("PlanId", typeof(int));
+                dt.Columns.Add("SheetName", typeof(string));
+                dt.Columns.Add("Week", typeof(DateTime));
+                dt.Columns.Add("Header", typeof(string));
+                dt.Columns.Add("Value", typeof(decimal)); // adjust type
+
+                foreach (var v in values)
+                {
+                    dt.Rows.Add(v.PlanId, v.SheetName, DateTime.Parse(v.Week), v.Header, (object?)v.Value ?? DBNull.Value);
+                }
+                await _connection.ExecuteAsync(
+                    "dbo.MergeSheetValues",
+                    new { Values = dt.AsTableValuedParameter("dbo.SheetValueType") },
+                    commandType: CommandType.StoredProcedure
+                );
+
+                return true;
+            }
+
