@@ -1,239 +1,36 @@
-(function ($) {
-    $.fn.staffingSummaryContainer = function (options) {
-        const settings = $.extend({
-            data: [],
-            containerId: null // pass the div id where it should render
-        }, options);
-
-        if (!settings.containerId) {
-            console.error("Container ID is required");
-            return;
-        }
-
-        const $container = $("#" + settings.containerId);
-        if ($container.length === 0) {
-            console.error("Container not found: " + settings.containerId);
-            return;
-        }
-
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.LOB))];
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.Week))];
-        const uniqueGeos = [...new Set(settings.data.map(d => d.Geo))];
-        const uniqueSites = [...new Set(settings.data.map(d => d.Site))];
-        const uniqueProjects = [...new Set(settings.data.map(d => d.ProjectId))];
-
-        const metrics = ["Required HC", "Available HC", "Delta", "Staffing %"];
-
-        // inject CSS (container style instead of modal)
-        if (!document.getElementById("staffing-summary-styles")) {
-            $("<style id='staffing-summary-styles'>").text(`
-                .staffing-summary-container { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-                .staffing-summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-                .staffing-summary-title { font-size: 18px; font-weight: bold; }
-                .staffing-summary-body { max-height: 70vh; overflow-y: auto; }
-                .staffing-summary-table-wrapper { overflow-x: auto; }
-                .staffing-summary-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                .staffing-summary-table th, .staffing-summary-table td { border: 1px solid #ddd; padding: 5px; text-align: center; font-size: 12px; }
-                .staffing-summary-table th { background: #f4f4f4; position: sticky; top: 0; z-index: 2; }
-                .staffing-summary-table td.sticky-col, .staffing-summary-table th.sticky-col { position: sticky; left: 0; background: #fff; z-index: 1; }
-                .staffing-summary-table tr.summary-row td { font-weight: bold; background: #F5FAE1; }
-                .staffing-summary-table tr.lob-row td { background: #F0F8FF; font-weight: bold; }
-                .rag-red { background-color: #F8D7DA !important; color: #721C24; }
-                .rag-amber { background-color: #FFF3CD !important; color: #856404; }
-                .rag-green { background-color: #D4EDDA !important; color: #155724; }
-                .staffing-summary-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
-                .filter-group { position: relative; }
-                .filter-dropdown { display: none; position: absolute; background: #fff; border: 1px solid #ddd; padding: 5px; z-index: 100; max-height: 200px; overflow-y: auto; }
-                .filter-group.open .filter-dropdown { display: block; }
-            `).appendTo("head");
-        }
-
-        // reusable filter rendering
-        function renderMultiSelect(label, options, key) {
-            const html = `
-                <div class="filter-group" data-key="${key}">
-                    <button type="button" class="btn btn-sm btn-outline-primary">${label}: Select All</button>
-                    <div class="filter-dropdown">
-                        <label><input type="checkbox" value="all" checked> Select All</label><br/>
-                        ${options.map(opt => `<label><input type="checkbox" value="${opt}" checked> ${opt}</label><br/>`).join("")}
-                    </div>
-                </div>
-            `;
-            return html;
-        }
-
-        function renderRadioSelect(label, options, key, defaultVal) {
-            const html = `
-                <div class="filter-group" data-key="${key}">
-                    <button type="button" class="btn btn-sm btn-outline-primary">${label}: ${defaultVal}</button>
-                    <div class="filter-dropdown">
-                        ${options.map(opt => `<label><input type="radio" name="${key}" value="${opt}" ${opt === defaultVal ? "checked" : ""}> ${opt}</label><br/>`).join("")}
-                    </div>
-                </div>
-            `;
-            return html;
-        }
-
-        // build UI
-        $container.html(`
-            <div class="staffing-summary-container">
-                <div class="staffing-summary-header">
-                    <span class="staffing-summary-title">Staffing Summary</span>
-                </div>
-                <div class="staffing-summary-filters">
-                    ${renderMultiSelect("LOB", uniqueLOBs, "lob")}
-                    ${renderMultiSelect("Geo", uniqueGeos, "geo")}
-                    ${renderMultiSelect("Site", uniqueSites, "site")}
-                    ${renderMultiSelect("Project", uniqueProjects, "project")}
-                    ${renderMultiSelect("Metrics", metrics, "metrics")}
-                    ${renderRadioSelect("Week From", uniqueWeeks, "week-from", uniqueWeeks[0])}
-                    ${renderRadioSelect("Week To", uniqueWeeks, "week-to", uniqueWeeks[uniqueWeeks.length - 1])}
-                    ${renderRadioSelect("Summary Type", ["weekly", "monthly"], "summary-type", "weekly")}
-                </div>
-                <div class="staffing-summary-body">
-                    <div class="staffing-summary-table-wrapper">
-                        <table class="staffing-summary-table">
-                            <thead></thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        `);
-
-        // filter handling
-        let filters = {
-            lob: [...uniqueLOBs],
-            geo: [...uniqueGeos],
-            site: [...uniqueSites],
-            project: [...uniqueProjects],
-            metrics: [...metrics],
-            weekFrom: uniqueWeeks[0],
-            weekTo: uniqueWeeks[uniqueWeeks.length - 1],
-            summaryType: "weekly"
-        };
-
-        $container.on("click", ".filter-group > button", function () {
-            const $group = $(this).closest(".filter-group");
-            $(".filter-group").not($group).removeClass("open");
-            $group.toggleClass("open");
-        });
-
-        $(document).on("click", function (e) {
-            if (!$(e.target).closest(".filter-group").length) {
-                $(".filter-group").removeClass("open");
-            }
-        });
-
-        // checkboxes
-        $container.on("change", ".filter-group input[type=checkbox]", function () {
-            const $group = $(this).closest(".filter-group");
-            const key = $group.data("key");
-            const $btn = $group.find("button");
-            if ($(this).val() === "all") {
-                const checked = $(this).prop("checked");
-                $group.find("input[type=checkbox]").not(this).prop("checked", checked);
-                filters[key] = checked ? [...(key === "metrics" ? metrics : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s"))] : [];
-            } else {
-                const selected = $group.find("input[type=checkbox]:checked").map((_, el) => $(el).val()).get().filter(v => v !== "all");
-                filters[key] = selected;
-                $group.find("input[value=all]").prop("checked", selected.length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length));
-            }
-            $btn.text(`${$btn.text().split(":")[0]}: ${filters[key].length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length) ? "Select All" : filters[key].length + " Selected"}`);
-            buildTable();
-        });
-
-        // radios
-        $container.on("change", ".filter-group input[type=radio]", function () {
-            const $group = $(this).closest(".filter-group");
-            const key = $group.data("key");
-            filters[key.replace("-", "")] = $(this).val();
-            $group.find("button").text(`${$group.find("button").text().split(":")[0]}: ${$(this).val()}`);
-            buildTable();
-        });
-
-        function calcMetrics(req, avail, metric) {
-            if (metric === "Required HC") return Math.round(req);
-            if (metric === "Available HC") return Math.round(avail);
-            if (metric === "Delta") return Math.round(avail - req);
-            if (metric === "Staffing %") return req === 0 ? 0 : Math.round((avail / req) * 100);
-            return 0;
-        }
-
-        function buildTable() {
-            const fromIndex = uniqueWeeks.indexOf(filters.weekFrom);
-            const toIndex = uniqueWeeks.indexOf(filters.weekTo);
-            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
-
-            const $thead = $container.find(".staffing-summary-table thead");
-            const $tbody = $container.find(".staffing-summary-table tbody");
-            $thead.empty();
-            $tbody.empty();
-
-            if (filters.metrics.length === 0) return;
-
-            let periods = weeksInRange;
-            if (filters.summaryType === "monthly") {
-                periods = [...new Set(weeksInRange.map(w => w.substring(0, 7)))]; // YYYY-MM
-            }
-
-            const headerRow = `<tr><th class="sticky-col">LOB</th>${periods.map(p => `<th colspan="${filters.metrics.length}">${p}</th>`).join("")}</tr>`;
-            const subHeaderRow = `<tr><th class="sticky-col"></th>${periods.map(() => filters.metrics.map(m => `<th>${m}</th>`).join("")).join("")}</tr>`;
-            $thead.append(headerRow).append(subHeaderRow);
-
-            // filter data
-            const filteredData = settings.data.filter(d =>
-                filters.lob.includes(d.LOB) &&
-                filters.geo.includes(d.Geo) &&
-                filters.site.includes(d.Site) &&
-                filters.project.includes(d.ProjectId)
-            );
-
-            // overall summary
-            const overallRow = `<tr class="summary-row"><td class="sticky-col">Overall Summary</td>${
-                periods.map(p =>
-                    filters.metrics.map(m => {
-                        let periodData;
-                        if (filters.summaryType === "weekly") {
-                            periodData = filteredData.filter(d => d.Week === p);
-                        } else {
-                            periodData = filteredData.filter(d => d.Week.startsWith(p));
-                        }
-                        const req = periodData.reduce((a, b) => a + b.RequiredHC, 0);
-                        const avail = periodData.reduce((a, b) => a + b.AvailableHC, 0);
-                        const val = calcMetrics(req, avail, m);
-                        let ragClass = "";
-                        if (m === "Staffing %") ragClass = val < 90 ? "rag-red" : val < 100 ? "rag-amber" : "rag-green";
-                        return `<td class="${ragClass}">${val}</td>`;
-                    }).join("")
-                ).join("")
-            }</tr>`;
-            $tbody.append(overallRow);
-
-            // per LOB
-            filters.lob.forEach(lob => {
-                const lobRow = `<tr class="lob-row"><td class="sticky-col">${lob}</td>${
-                    periods.map(p =>
-                        filters.metrics.map(m => {
-                            let periodData;
-                            if (filters.summaryType === "weekly") {
-                                periodData = filteredData.filter(d => d.Week === p && d.LOB === lob);
-                            } else {
-                                periodData = filteredData.filter(d => d.Week.startsWith(p) && d.LOB === lob);
-                            }
-                            const req = periodData.reduce((a, b) => a + b.RequiredHC, 0);
-                            const avail = periodData.reduce((a, b) => a + b.AvailableHC, 0);
-                            const val = calcMetrics(req, avail, m);
-                            let ragClass = "";
-                            if (m === "Staffing %") ragClass = val < 90 ? "rag-red" : val < 100 ? "rag-amber" : "rag-green";
-                            return `<td class="${ragClass}">${val}</td>`;
-                        }).join("")
-                    ).join("")
-                }</tr>`;
-                $tbody.append(lobRow);
-            });
-        }
-
-        buildTable();
-    };
-})(jQuery);
+0
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+1
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+2
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+3
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+4
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+5
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+6
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+7
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+8
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+9
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+10
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
+11
+: 
+{vertical: '', planId: 0, geo: 'India', site: 'Hyderabad', projectId: '10789', …}
