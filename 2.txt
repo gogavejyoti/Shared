@@ -1,223 +1,166 @@
-(function ($) {
-    $.fn.sleekReportingDashboard = function (options) {
-        var settings = $.extend({
-            data: [], // JSON Array: Geo, Site, ProjectId, LOB, Week, Month, Header, Value
-            maxWeeks: 12
-        }, options);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>jQuery Dashboard Plugin</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background:#f5f6fa; }
+    .dashboard-container { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 20px; }
+    .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .dashboard-logo { font-weight: bold; font-size: 18px; color:#3f51b5; }
+    .filters { display: flex; gap: 10px; }
+    .filters select, .filters button { padding: 6px 10px; border:1px solid #ccc; border-radius: 6px; }
+    .tiles { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tile { flex: 1; min-width: 150px; background: #fafafa; border-radius: 10px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); text-align:center; }
+    .tile-value { font-size: 20px; font-weight: bold; color:#3f51b5; }
+    .tile-label { font-size: 12px; color:#666; }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; grid-gap: 20px; }
+    .chart-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 10px; }
+    .chart-card canvas { width:100% !important; height:220px !important; }
+    .mode-toggle { margin-left: 15px; cursor: pointer; padding:6px 12px; border-radius:6px; background:#e0e7ff; border:1px solid #c7d2fe; }
+  </style>
+</head>
+<body>
+  <div id="myDashboard"></div>
 
-        var $dashboardContainer = this;
+  <script>
+  (function($){
+    $.fn.dashboardPlugin = function(options){
+      let settings = $.extend({ data: [] }, options);
+      let container = $(this);
+      let charts = [];
+      let comparisonMode = false;
 
-        var dashboard = {
-            init: function () {
-                $dashboardContainer.addClass('sleek-dashboard-container');
-                dashboard.renderHeader();
-                dashboard.renderKeyMetrics();
-                dashboard.renderCharts();
-                dashboard.applyStyles();
-                dashboard.bindEvents();
-            },
-
-            renderHeader: function () {
-                var headerHtml = `
-                    <div class="dashboard-header">
-                        <div class="logo">Fundraising Hex</div>
-                        <div class="filters">
-                            <select class="filter-dropdown" data-filter-type="project"><option value="">All Projects</option></select>
-                            <select class="filter-dropdown" data-filter-type="lob"><option value="">All LOBs</option></select>
-                            <select class="filter-dropdown" data-filter-type="month"><option value="">All Months</option></select>
-                            <select class="filter-dropdown" data-filter-type="week"><option value="">Last ${settings.maxWeeks} Weeks</option></select>
-                            <select class="filter-dropdown" data-filter-type="geo"><option value="">All Geos</option></select>
-                            <select class="filter-dropdown" data-filter-type="site"><option value="">All Sites</option></select>
-                        </div>
-                    </div>
-                `;
-                $dashboardContainer.append(headerHtml);
-                dashboard.populateFilters();
-            },
-
-            populateFilters: function () {
-                let projects = [...new Set(settings.data.map(d => d.ProjectId))];
-                let lobs = [...new Set(settings.data.map(d => d.LOB))];
-                let months = [...new Set(settings.data.map(d => d.Month))];
-                let weeks = [...new Set(settings.data.map(d => d.Week))];
-                let geos = [...new Set(settings.data.map(d => d.Geo))];
-                let sites = [...new Set(settings.data.map(d => d.Site))];
-
-                function formatMonth(m) {
-                    return moment(m, ["YYYY-MM", "MMM-yy", "MM-YY"]).format("MMM-yy");
-                }
-                function formatWeek(w) {
-                    return moment(w, ["YYYY-MM-DD", "DD-MMM-YY"]).format("DD-MMM-YY");
-                }
-
-                projects.forEach(v => $('.filter-dropdown[data-filter-type="project"]').append(`<option value="${v}">${v}</option>`));
-                lobs.forEach(v => $('.filter-dropdown[data-filter-type="lob"]').append(`<option value="${v}">${v}</option>`));
-                months.forEach(v => $('.filter-dropdown[data-filter-type="month"]').append(`<option value="${v}">${formatMonth(v)}</option>`));
-                weeks.forEach(v => $('.filter-dropdown[data-filter-type="week"]').append(`<option value="${v}">${formatWeek(v)}</option>`));
-                geos.forEach(v => $('.filter-dropdown[data-filter-type="geo"]').append(`<option value="${v}">${v}</option>`));
-                sites.forEach(v => $('.filter-dropdown[data-filter-type="site"]').append(`<option value="${v}">${v}</option>`));
-            },
-
-            renderKeyMetrics: function () {
-                var metricsHtml = `
-                    <div class="key-metrics-grid">
-                        <div class="metric-card"><div class="metric-value">0.00</div><div class="metric-label">Forecasted Hours</div></div>
-                        <div class="metric-card"><div class="metric-value">0.00</div><div class="metric-label">Actual Hours</div></div>
-                        <div class="metric-card"><div class="metric-value">0</div><div class="metric-label">Required HC</div></div>
-                        <div class="metric-card"><div class="metric-value">0</div><div class="metric-label">Available HC</div></div>
-                    </div>
-                `;
-                $dashboardContainer.append(metricsHtml);
-                dashboard.updateKeyMetrics();
-            },
-
-            updateKeyMetrics: function (filteredData) {
-                var dataToUse = filteredData || settings.data;
-                function sumByHeader(header) {
-                    return dataToUse
-                        .filter(d => d.Header === header)
-                        .reduce((acc, curr) => acc + parseFloat(curr.Value || 0), 0);
-                }
-                var forecasted = sumByHeader("Forecasted Hours");
-                var actual = sumByHeader("Actual Hours");
-                var required = sumByHeader("Required HC");
-                var available = sumByHeader("Available HC");
-
-                var cards = $dashboardContainer.find('.metric-card');
-                $(cards[0]).find('.metric-value').text(forecasted.toFixed(2));
-                $(cards[1]).find('.metric-value').text(actual.toFixed(2));
-                $(cards[2]).find('.metric-value').text(required);
-                $(cards[3]).find('.metric-value').text(available);
-            },
-
-            renderCharts: function () {
-                var chartsHtml = `
-                    <div class="charts-grid">
-                        <div class="chart-card"><h3>Hours Trend</h3><canvas id="hoursTrendChart"></canvas></div>
-                        <div class="chart-card"><h3>Headcount Trend</h3><canvas id="headcountTrendChart"></canvas></div>
-                        <div class="chart-card"><h3>Attrition Trend</h3><canvas id="attritionTrendChart"></canvas></div>
-                        <div class="chart-card"><h3>Shrinkage Trend</h3><canvas id="shrinkageTrendChart"></canvas></div>
-                    </div>
-                `;
-                $dashboardContainer.append(chartsHtml);
-                dashboard.drawCharts();
-            },
-
-            drawCharts: function (filteredData) {
-                var dataToUse = filteredData || settings.data;
-                var weeks = [...new Set(dataToUse.map(d => d.Week))].sort((a, b) => new Date(a) - new Date(b));
-
-                function formatWeek(w) {
-                    return moment(w, ["YYYY-MM-DD", "DD-MMM-YY"]).format("DD-MMM-YY");
-                }
-                var labels = weeks.map(w => formatWeek(w));
-
-                function getTrend(header) {
-                    return weeks.map(w => {
-                        var val = dataToUse.find(d => d.Week === w && d.Header === header);
-                        return val ? parseFloat(val.Value) : 0;
-                    });
-                }
-
-                var ctx1 = document.getElementById('hoursTrendChart').getContext('2d');
-                new Chart(ctx1, {
-                    type: 'line',
-                    data: { labels, datasets: [
-                        { label: 'Forecasted Hours', data: getTrend("Forecasted Hours"), borderColor: '#007bff', fill: false },
-                        { label: 'Actual Hours', data: getTrend("Actual Hours"), borderColor: '#28a745', fill: false }
-                    ]},
-                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-                });
-
-                var ctx2 = document.getElementById('headcountTrendChart').getContext('2d');
-                new Chart(ctx2, {
-                    type: 'line',
-                    data: { labels, datasets: [
-                        { label: 'Required HC', data: getTrend("Required HC"), borderColor: '#ff5722', fill: false },
-                        { label: 'Available HC', data: getTrend("Available HC"), borderColor: '#ffc107', fill: false }
-                    ]},
-                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-                });
-
-                var ctx3 = document.getElementById('attritionTrendChart').getContext('2d');
-                new Chart(ctx3, {
-                    type: 'line',
-                    data: { labels, datasets: [
-                        { label: 'Planned Attrition', data: getTrend("Planned Attrition"), borderColor: '#9c27b0', fill: false },
-                        { label: 'Actual Attrition', data: getTrend("Actual Attrition"), borderColor: '#f44336', fill: false }
-                    ]},
-                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-                });
-
-                var ctx4 = document.getElementById('shrinkageTrendChart').getContext('2d');
-                new Chart(ctx4, {
-                    type: 'line',
-                    data: { labels, datasets: [
-                        { label: 'Planned Shrinkage', data: getTrend("Planned Shrinkage"), borderColor: '#3f51b5', fill: false },
-                        { label: 'Actual Shrinkage', data: getTrend("Actual Shrinkage"), borderColor: '#009688', fill: false }
-                    ]},
-                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-                });
-            },
-
-            applyStyles: function () {
-                var styles = `
-                    .sleek-dashboard-container { font-family: 'Inter', sans-serif; background: #f9fafb; padding: 20px; border-radius: 15px; }
-                    .dashboard-header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
-                    .dashboard-header .logo { font-size: 24px; font-weight: bold; color: #333; }
-                    .dashboard-header .filters select { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-left: 10px; font-size: 14px; }
-                    .key-metrics-grid, .charts-grid { display: grid; gap: 20px; }
-                    .key-metrics-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 20px; }
-                    .charts-grid { grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); }
-                    .metric-card, .chart-card { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-                    .metric-card .metric-value { font-size: 34px; font-weight: bold; color: #333; margin-bottom: 5px; }
-                    .metric-card .metric-label { font-size: 15px; color: #777; }
-                    .chart-card h3 { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 15px; }
-                `;
-                $dashboardContainer.append('<style>' + styles + '</style>');
-            },
-
-            bindEvents: function () {
-                $dashboardContainer.on('change', '.filter-dropdown', function () {
-                    var filters = {};
-                    $dashboardContainer.find('.filter-dropdown').each(function() {
-                        var type = $(this).data('filter-type');
-                        var value = $(this).val();
-                        if (value) filters[type] = value;
-                    });
-                    var filteredData = dashboard.filterData(settings.data, filters);
-                    dashboard.updateKeyMetrics(filteredData);
-                    dashboard.drawCharts(filteredData);
-                });
-            },
-
-            filterData: function (data, filters) {
-                return data.filter(item => {
-                    for (let key in filters) {
-                        if (filters[key] && item[key] != filters[key]) return false;
-                    }
-                    return true;
-                });
-            }
-        };
-
-        dashboard.init();
-        return this;
+      // Helpers
+      function getUniqueValues(field){
+        return [...new Set(settings.data.map(d => d[field]))].filter(v=>v);
+      }
+      function getWeeksSorted(){
+        return [...new Set(settings.data.map(d=>d.Week))].sort((a,b)=> new Date(a)-new Date(b));
+      }
+      function buildFilters(){
+        let html = `
+          <div class="dashboard-header">
+            <div class="dashboard-logo">📊 My Dashboard</div>
+            <div class="filters">
+              <select id="filter-geo"><option value="">Geo</option></select>
+              <select id="filter-site"><option value="">Site</option></select>
+              <select id="filter-lob" multiple><option value="">LOB</option></select>
+              <select id="filter-fromweek"><option value="">From Week</option></select>
+              <select id="filter-toweek"><option value="">To Week</option></select>
+              <button id="btn-refresh">🔄 Refresh</button>
+              <button id="btn-mode" class="mode-toggle">Comparison: Off</button>
+            </div>
+          </div>`;
+        container.append(html);
+        // populate dropdowns
+        getUniqueValues("Geo").forEach(v=>$("#filter-geo").append(`<option>${v}</option>`));
+        getUniqueValues("Site").forEach(v=>$("#filter-site").append(`<option>${v}</option>`));
+        getUniqueValues("LOB").forEach(v=>$("#filter-lob").append(`<option>${v}</option>`));
+        getWeeksSorted().forEach(v=>{
+          $("#filter-fromweek").append(`<option>${v}</option>`);
+          $("#filter-toweek").append(`<option>${v}</option>`);
+        });
+      }
+      function buildTiles(metrics){
+        let html = `<div class="tiles">`;
+        Object.keys(metrics).forEach(k=>{
+          html += `<div class="tile"><div class="tile-value">${metrics[k]}</div><div class="tile-label">${k}</div></div>`;
+        });
+        html += `</div>`;
+        container.append(html);
+      }
+      function buildCharts(filtered){
+        let headers = Object.keys(filtered[0]||{}).filter(k=>!["Geo","Site","LOB","Week","Month"].includes(k));
+        let chartContainer = $('<div class="charts-grid"></div>');
+        headers.slice(0,6).forEach((metric,i)=>{
+          let card = $('<div class="chart-card"><canvas id="chart'+i+'"></canvas></div>');
+          chartContainer.append(card);
+          setTimeout(()=> renderChart("chart"+i, filtered, metric), 100);
+        });
+        container.append(chartContainer);
+      }
+      function renderChart(id, data, metric){
+        let ctx = document.getElementById(id).getContext('2d');
+        if(charts[id]) charts[id].destroy();
+        let weeks = [...new Set(data.map(d=>d.Week))];
+        let datasets = [];
+        if(comparisonMode){
+          let lobs = getUniqueValues("LOB");
+          lobs.forEach(lob=>{
+            let lobData = data.filter(d=>d.LOB==lob);
+            datasets.push({
+              label: lob,
+              data: weeks.map(w=> (lobData.find(d=>d.Week==w)||{})[metric] || 0),
+              borderWidth:2, fill:false
+            });
+          });
+        } else {
+          datasets.push({
+            label: metric,
+            data: weeks.map(w=> (data.find(d=>d.Week==w)||{})[metric] || 0),
+            borderWidth:2, backgroundColor:'rgba(63,81,181,0.4)', borderColor:'#3f51b5', fill:true
+          });
+        }
+        charts[id] = new Chart(ctx, {
+          type: comparisonMode ? 'line':'bar',
+          data: { labels: weeks, datasets: datasets },
+          options: { responsive:true, plugins:{ legend:{ position:'top' }}, scales:{ y:{ beginAtZero:true } } }
+        });
+      }
+      function refresh(){
+        container.find(".tiles, .charts-grid").remove();
+        let geo=$("#filter-geo").val(), site=$("#filter-site").val(), lobs=$("#filter-lob").val()||[], from=$("#filter-fromweek").val(), to=$("#filter-toweek").val();
+        let filtered = settings.data.filter(d=>{
+          return (!geo||d.Geo==geo) && (!site||d.Site==site) && (!lobs.length||lobs.includes(d.LOB));
+        });
+        if(from && to){
+          let weeks=getWeeksSorted();
+          let fromIdx=weeks.indexOf(from), toIdx=weeks.indexOf(to);
+          let allowed=weeks.slice(Math.min(fromIdx,toIdx), Math.max(fromIdx,toIdx)+1);
+          filtered=filtered.filter(d=>allowed.includes(d.Week));
+        }
+        // aggregate metrics for tiles
+        let sample=filtered[0]||{};
+        let metrics={};
+        Object.keys(sample).forEach(k=>{
+          if(!["Geo","Site","LOB","Week","Month"].includes(k)){
+            metrics[k]= filtered.reduce((a,b)=>a+(+b[k]||0),0);
+          }
+        });
+        buildTiles(metrics);
+        buildCharts(filtered);
+      }
+      // init
+      container.addClass("dashboard-container");
+      buildFilters();
+      refresh();
+      // events
+      $("#btn-refresh").on("click", refresh);
+      $("#btn-mode").on("click", function(){
+        comparisonMode=!comparisonMode;
+        $(this).text("Comparison: " + (comparisonMode?"On":"Off"));
+        refresh();
+      });
     };
-})(jQuery);
+  })(jQuery);
 
-// Dummy Data Example
-$(function () {
-    var dummyData = [
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Forecasted Hours", Value: 1200 },
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Actual Hours", Value: 1100 },
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Required HC", Value: 40 },
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Available HC", Value: 38 },
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Forecasted Hours", Value: 1300 },
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Actual Hours", Value: 1250 },
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Required HC", Value: 42 },
-        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Available HC", Value: 41 },
-    ];
+  // ===== Sample Data =====
+  const sampleData = [
+    {Geo:"US",Site:"NY",LOB:"Sales",Week:"01-Sep-25",ForecastedHours:1200,ActualHours:1100,Attrition:5,Shrinkage:8},
+    {Geo:"US",Site:"NY",LOB:"Sales",Week:"08-Sep-25",ForecastedHours:1300,ActualHours:1250,Attrition:6,Shrinkage:9},
+    {Geo:"US",Site:"NY",LOB:"Support",Week:"01-Sep-25",ForecastedHours:800,ActualHours:750,Attrition:4,Shrinkage:7},
+    {Geo:"US",Site:"NY",LOB:"Support",Week:"08-Sep-25",ForecastedHours:850,ActualHours:820,Attrition:5,Shrinkage:6},
+    {Geo:"India",Site:"Mumbai",LOB:"Sales",Week:"01-Sep-25",ForecastedHours:900,ActualHours:880,Attrition:7,Shrinkage:10},
+    {Geo:"India",Site:"Mumbai",LOB:"Sales",Week:"08-Sep-25",ForecastedHours:950,ActualHours:920,Attrition:6,Shrinkage:9}
+  ];
 
-    $('#dashboard').sleekReportingDashboard({ data: dummyData });
-});
+  // Init plugin
+  $(function(){
+    $("#myDashboard").dashboardPlugin({ data: sampleData });
+  });
+  </script>
+</body>
+</html>
