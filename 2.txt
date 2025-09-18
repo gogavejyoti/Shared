@@ -1,41 +1,198 @@
-<div class="card plan-card border border-1 border-theme">
-                    <div class="card-body">
-                        <div class="row mb-1">
-                            <div class="col-lg-12 position-relative">
-                                <h3 class="mb-1 d-flex align-items-center text-theme">
-                                    Plan Specialties tiers Jul 23 - Jun 26_v1
-                                </h3>
-                                <div class="small">
-                                    <span class="bg-opacity-15 text-theme py-2 me-1 fs-9px" style="font-weight: 700;">Vertical:</span><span> Travel</span>
-                                </div>
-                                <div class="small">
-                                    <span class="bg-opacity-15 text-theme py-2 me-1 fs-9px" style="font-weight: 700;">Account:</span><span>Airbnb Inc</span>
-                                </div>
-                                <div class="small">
-                                    <span class="bg-opacity-15 text-theme py-2 me-1 fs-9px" style="font-weight: 700;">Duration:</span><span> 01 Jun 2023 →  30 Jun 2026</span>
-                                </div>
-                                <i class="fab fa-google-wallet display-3 lh-1 text-body text-opacity-20 me-3 position-absolute end-0 top-0"></i>
-                            </div>
-                        </div>
-                        <div class="mt-3 fs-9px fw-semibold text-body text-opacity-50">
-                            <div class="meta-row">
-                                <div class="meta">
-                                    <div class="text-body text-opacity-75">LAST UPDATED ON:</div>
-                                    <div class="text-body text-opacity-75 value"> 17 Sep 2025</div>
-                                </div>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Plugin</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+</head>
+<body>
+  <div class="container-fluid mt-4">
+    <button id="renderDashboard" class="btn btn-primary mb-3">Render Dashboard</button>
+    <div id="dashboardContainer"></div>
+  </div>
 
-                                <div class="meta">
-                                    <div class="text-body text-opacity-75">LAST UPDATED BY:</div>
-                                    <div class="text-body text-opacity-75 value">chianils</div>
-                                </div>
-                            </div>
+<script>
+(function($){
+  $.fn.reportingDashboard = function(data, options){
+    const settings = $.extend({
+      maxWeeks: 12,
+      logoUrl: null,       // <--- optional logo
+      title: "Analytics Dashboard"
+    }, options);
 
-                        </div>
-                        <hr class="mt-4 mb-3">
-                        <div class="d-flex justify-content-end gap-2">
-                            <a href="/ResourcePlanner/ViewPlanSheet?planId=34" class="btn btn-sm btn btn-info"><i class="fas fa-lg fa-fw me-2 fa-eye"></i>View</a>
-                            <button type="button" class="btn btn-sm btn-success copy-plan-btn" data-plan-id="34" data-plan-name="Plan Specialties tiers Jul 23 - Jun 26_v1"><i class="fas fa-lg fa-fw me-2 fa-copy"></i>Create Copy</button>
-                        </div>
+    let container = $(this);
+    container.empty();
 
-                    </div>
-                </div>
+    // ---- HEADER with logo + title ----
+    let headerHtml = `
+      <div class="d-flex align-items-center mb-4 p-3 bg-light rounded-4 shadow-sm">
+        ${settings.logoUrl ? `<img src="${settings.logoUrl}" alt="Logo" style="height:40px;width:auto;margin-right:12px;">` : ""}
+        <h4 class="fw-bold flex-grow-1 mb-0 text-center">${settings.title}</h4>
+      </div>
+    `;
+
+    // ---- Filter Row ----
+    let filterHtml = `
+      <div class="card shadow-sm rounded-4 p-3 mb-4">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Geo</label>
+            <select id="filterGeo" class="form-select"><option value="">All</option></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Site</label>
+            <select id="filterSite" class="form-select"><option value="">All</option></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">LOB</label>
+            <select id="filterLOB" class="form-select"><option value="">All</option></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Project</label>
+            <select id="filterProject" class="form-select"><option value="">All</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="row" id="tilesContainer"></div>
+      <div class="row" id="chartsContainer"></div>
+    `;
+
+    container.append(headerHtml + filterHtml);
+
+    // ---- Populate filters ----
+    function populateFilters(){
+      ["Geo","Site","LOB","ProjectId"].forEach(f=>{
+        let vals=[...new Set(data.map(d=>d[f]))].sort();
+        vals.forEach(v=>{
+          if(v) $(`#filter${f}`).append(`<option value="${v}">${v}</option>`);
+        });
+      });
+    }
+
+    // ---- Apply filters ----
+    function getFiltered(){
+      let geo=$("#filterGeo").val();
+      let site=$("#filterSite").val();
+      let lob=$("#filterLOB").val();
+      let project=$("#filterProject").val();
+      return data.filter(d=>
+        (geo==""||d.Geo==geo) &&
+        (site==""||d.Site==site) &&
+        (lob==""||d.LOB==lob) &&
+        (project==""||d.ProjectId==project)
+      );
+    }
+
+    // ---- Tiles ----
+    function buildTiles(filtered){
+      $("#tilesContainer").empty();
+      const metrics=[
+        {label:"Forecasted Hours", header:"Forecasted Hours"},
+        {label:"Actual Hours", header:"Actual Hours"},
+        {label:"Required HC", header:"Required HC"},
+        {label:"Available HC", header:"Available HC"},
+        {label:"Actual Attrition", header:"Actual Attrition"},
+        {label:"Actual Shrinkage", header:"Actual Shrinkage"}
+      ];
+      metrics.forEach(m=>{
+        let total=filtered.filter(d=>d.Header===m.header).reduce((s,v)=>s+Number(v.Value),0);
+        $("#tilesContainer").append(`
+          <div class="col-md-2">
+            <div class="card text-center shadow-sm rounded-4 p-3 mb-3">
+              <h6 class="fw-bold">${m.label}</h6>
+              <p class="fs-5 text-primary mb-0">${total.toLocaleString()}</p>
+            </div>
+          </div>
+        `);
+      });
+    }
+
+    // ---- Charts ----
+    function buildCharts(filtered){
+      $("#chartsContainer").empty();
+      let weeks=[...new Set(filtered.map(d=>d.Week))].sort().slice(-settings.maxWeeks);
+
+      function extract(header){
+        return weeks.map(w=>{
+          let val=filtered.find(d=>d.Week===w && d.Header===header);
+          return val?Number(val.Value):0;
+        });
+      }
+
+      let chartDefs=[
+        {id:"hours",title:"Forecasted vs Actual Hours",type:"line",
+          datasets:[
+            {label:"Forecasted",data:extract("Forecasted Hours"),borderColor:"#007AFF",fill:false,tension:0.3},
+            {label:"Actual",data:extract("Actual Hours"),borderColor:"#FF3B30",fill:false,tension:0.3}
+          ]},
+        {id:"hc",title:"Required vs Available HC",type:"bar",
+          datasets:[
+            {label:"Required HC",data:extract("Required HC"),backgroundColor:"#007AFF"},
+            {label:"Available HC",data:extract("Available HC"),backgroundColor:"#34C759"}
+          ]},
+        {id:"attrition",title:"Attrition %",type:"line",
+          datasets:[
+            {label:"Planned Attrition",data:extract("Planned Attrition"),borderColor:"#FF9500",fill:false},
+            {label:"Actual Attrition",data:extract("Actual Attrition"),borderColor:"#FF3B30",fill:false}
+          ]},
+        {id:"shrinkage",title:"Shrinkage %",type:"line",
+          datasets:[
+            {label:"Planned Shrinkage",data:extract("Planned Shrinkage"),borderColor:"#5856D6",fill:false},
+            {label:"Actual Shrinkage",data:extract("Actual Shrinkage"),borderColor:"#FF2D55",fill:false}
+          ]}
+      ];
+
+      chartDefs.forEach(c=>{
+        $("#chartsContainer").append(`
+          <div class="col-md-6 mb-4">
+            <div class="card shadow-sm rounded-4 p-3">
+              <h6 class="fw-bold mb-3">${c.title}</h6>
+              <canvas id="${c.id}"></canvas>
+            </div>
+          </div>
+        `);
+        new Chart(document.getElementById(c.id), {
+          type:c.type,
+          data:{labels:weeks,datasets:c.datasets},
+          options:{responsive:true,plugins:{tooltip:{enabled:true}}}
+        });
+      });
+    }
+
+    function refresh(){
+      let f=getFiltered();
+      buildTiles(f);
+      buildCharts(f);
+    }
+
+    populateFilters();
+    refresh();
+
+    $("#filterGeo, #filterSite, #filterLOB, #filterProject").on("change",refresh);
+  };
+})(jQuery);
+
+// -------- Sample Data + Usage --------
+let sampleData=[
+  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Forecasted Hours",Value:500},
+  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Actual Hours",Value:480},
+  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Required HC",Value:50},
+  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Available HC",Value:48},
+  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Actual Attrition",Value:5},
+  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Actual Shrinkage",Value:8},
+  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Forecasted Hours",Value:600},
+  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Actual Hours",Value:620},
+  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Required HC",Value:70},
+  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Available HC",Value:72},
+];
+
+$("#renderDashboard").on("click",function(){
+  $("#dashboardContainer").reportingDashboard(sampleData,{
+    logoUrl:"https://dummyimage.com/120x40/007aff/ffffff&text=My+Logo", // <--- sample logo
+    title:"WFM Analytics Dashboard"
+  });
+});
+</script>
+</body>
+</html>
