@@ -1,38 +1,23 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Dashboard Plugin</title>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
-</head>
-<body>
-  <div class="container-fluid mt-4">
-    <button id="renderDashboard" class="btn btn-primary mb-3">Render Dashboard</button>
-    <div id="dashboardContainer"></div>
-  </div>
-
-<script>
 (function($){
   $.fn.reportingDashboard = function(data, options){
     const settings = $.extend({
       maxWeeks: 12,
-      logoUrl: null,       // <--- optional logo
+      logoUrl: null,
       title: "Analytics Dashboard"
     }, options);
 
     let container = $(this);
     container.empty();
 
-    // ---- HEADER with logo + title ----
+    // ---- HEADER ----
     let headerHtml = `
-      <div class="d-flex align-items-center mb-4 p-3 bg-light rounded-4 shadow-sm">
-        ${settings.logoUrl ? `<img src="${settings.logoUrl}" alt="Logo" style="height:40px;width:auto;margin-right:12px;">` : ""}
-        <h4 class="fw-bold flex-grow-1 mb-0 text-center">${settings.title}</h4>
+      <div class="dashboard-header d-flex align-items-center">
+        ${settings.logoUrl ? `<img src="${settings.logoUrl}" alt="Logo" style="height:40px;width:auto;margin-right:16px;">` : ""}
+        <h4 class="flex-grow-1 mb-0 text-center">${settings.title}</h4>
       </div>
     `;
 
-    // ---- Filter Row ----
+    // ---- FILTERS ----
     let filterHtml = `
       <div class="card shadow-sm rounded-4 p-3 mb-4">
         <div class="row g-3">
@@ -99,8 +84,8 @@
         let total=filtered.filter(d=>d.Header===m.header).reduce((s,v)=>s+Number(v.Value),0);
         $("#tilesContainer").append(`
           <div class="col-md-2">
-            <div class="card text-center shadow-sm rounded-4 p-3 mb-3">
-              <h6 class="fw-bold">${m.label}</h6>
+            <div class="card tile-card text-center shadow-sm rounded-4 p-3 mb-3">
+              <h6 class="fw-bold mb-1">${m.label}</h6>
               <p class="fs-5 text-primary mb-0">${total.toLocaleString()}</p>
             </div>
           </div>
@@ -123,8 +108,8 @@
       let chartDefs=[
         {id:"hours",title:"Forecasted vs Actual Hours",type:"line",
           datasets:[
-            {label:"Forecasted",data:extract("Forecasted Hours"),borderColor:"#007AFF",fill:false,tension:0.3},
-            {label:"Actual",data:extract("Actual Hours"),borderColor:"#FF3B30",fill:false,tension:0.3}
+            {label:"Forecasted",data:extract("Forecasted Hours"),borderColor:"#007AFF",backgroundColor:"#007AFF",fill:false,tension:0.3},
+            {label:"Actual",data:extract("Actual Hours"),borderColor:"#FF3B30",backgroundColor:"#FF3B30",fill:false,tension:0.3}
           ]},
         {id:"hc",title:"Required vs Available HC",type:"bar",
           datasets:[
@@ -133,29 +118,29 @@
           ]},
         {id:"attrition",title:"Attrition %",type:"line",
           datasets:[
-            {label:"Planned Attrition",data:extract("Planned Attrition"),borderColor:"#FF9500",fill:false},
-            {label:"Actual Attrition",data:extract("Actual Attrition"),borderColor:"#FF3B30",fill:false}
+            {label:"Planned Attrition",data:extract("Planned Attrition"),borderColor:"#FF9500",backgroundColor:"#FF9500",fill:false,tension:0.3},
+            {label:"Actual Attrition",data:extract("Actual Attrition"),borderColor:"#FF3B30",backgroundColor:"#FF3B30",fill:false,tension:0.3}
           ]},
         {id:"shrinkage",title:"Shrinkage %",type:"line",
           datasets:[
-            {label:"Planned Shrinkage",data:extract("Planned Shrinkage"),borderColor:"#5856D6",fill:false},
-            {label:"Actual Shrinkage",data:extract("Actual Shrinkage"),borderColor:"#FF2D55",fill:false}
+            {label:"Planned Shrinkage",data:extract("Planned Shrinkage"),borderColor:"#5856D6",backgroundColor:"#5856D6",fill:false,tension:0.3},
+            {label:"Actual Shrinkage",data:extract("Actual Shrinkage"),borderColor:"#FF2D55",backgroundColor:"#FF2D55",fill:false,tension:0.3}
           ]}
       ];
 
       chartDefs.forEach(c=>{
         $("#chartsContainer").append(`
           <div class="col-md-6 mb-4">
-            <div class="card shadow-sm rounded-4 p-3">
+            <div class="card chart-card shadow-sm rounded-4 p-3">
               <h6 class="fw-bold mb-3">${c.title}</h6>
               <canvas id="${c.id}"></canvas>
             </div>
           </div>
         `);
-        new Chart(document.getElementById(c.id), {
+        new Chart(document.getElementById(c.id).getContext("2d"), {
           type:c.type,
           data:{labels:weeks,datasets:c.datasets},
-          options:{responsive:true,plugins:{tooltip:{enabled:true}}}
+          options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{enabled:true}}}
         });
       });
     }
@@ -168,31 +153,6 @@
 
     populateFilters();
     refresh();
-
     $("#filterGeo, #filterSite, #filterLOB, #filterProject").on("change",refresh);
   };
 })(jQuery);
-
-// -------- Sample Data + Usage --------
-let sampleData=[
-  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Forecasted Hours",Value:500},
-  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Actual Hours",Value:480},
-  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Required HC",Value:50},
-  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Available HC",Value:48},
-  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Actual Attrition",Value:5},
-  {Geo:"US",Site:"NY",ProjectId:"P1",LOB:"Sales",Week:"01-Sep-25",Header:"Actual Shrinkage",Value:8},
-  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Forecasted Hours",Value:600},
-  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Actual Hours",Value:620},
-  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Required HC",Value:70},
-  {Geo:"IN",Site:"BLR",ProjectId:"P2",LOB:"Support",Week:"01-Sep-25",Header:"Available HC",Value:72},
-];
-
-$("#renderDashboard").on("click",function(){
-  $("#dashboardContainer").reportingDashboard(sampleData,{
-    logoUrl:"https://dummyimage.com/120x40/007aff/ffffff&text=My+Logo", // <--- sample logo
-    title:"WFM Analytics Dashboard"
-  });
-});
-</script>
-</body>
-</html>
