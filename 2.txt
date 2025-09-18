@@ -1,158 +1,251 @@
-(function($){
-  $.fn.reportingDashboard = function(data, options){
-    const settings = $.extend({
-      maxWeeks: 12,
-      logoUrl: null,
-      title: "Analytics Dashboard"
-    }, options);
+(function ($) {
+    $.fn.sleekReportingDashboard = function (options) {
+        var settings = $.extend({
+            data: [], // Your JSON array data
+            maxWeeks: 12,
+            // You can add more options for colors, chart types, etc.
+        }, options);
 
-    let container = $(this);
-    container.empty();
+        var $dashboardContainer = this; // The element where the dashboard will be rendered
 
-    // ---- HEADER ----
-    let headerHtml = `
-      <div class="dashboard-header d-flex align-items-center">
-        ${settings.logoUrl ? `<img src="${settings.logoUrl}" alt="Logo" style="height:40px;width:auto;margin-right:16px;">` : ""}
-        <h4 class="flex-grow-1 mb-0 text-center">${settings.title}</h4>
-      </div>
-    `;
+        var dashboard = {
+            init: function () {
+                $dashboardContainer.addClass('sleek-dashboard-container');
+                dashboard.renderHeader();
+                dashboard.renderKeyMetrics();
+                dashboard.renderCharts();
+                dashboard.applyStyles();
+                dashboard.bindEvents();
+            },
 
-    // ---- FILTERS ----
-    let filterHtml = `
-      <div class="card shadow-sm rounded-4 p-3 mb-4">
-        <div class="row g-3">
-          <div class="col-md-3">
-            <label class="form-label">Geo</label>
-            <select id="filterGeo" class="form-select"><option value="">All</option></select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Site</label>
-            <select id="filterSite" class="form-select"><option value="">All</option></select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">LOB</label>
-            <select id="filterLOB" class="form-select"><option value="">All</option></select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Project</label>
-            <select id="filterProject" class="form-select"><option value="">All</option></select>
-          </div>
-        </div>
-      </div>
-      <div class="row" id="tilesContainer"></div>
-      <div class="row" id="chartsContainer"></div>
-    `;
+            renderHeader: function () {
+                var headerHtml = `
+                    <div class="dashboard-header">
+                        <div class="logo">Fundraising Hex</div> <!-- Or your project name -->
+                        <div class="filters">
+                            <select class="filter-dropdown" data-filter-type="project">
+                                <option value="">All Projects</option>
+                                <!-- Populate dynamically -->
+                            </select>
+                            <select class="filter-dropdown" data-filter-type="lob">
+                                <option value="">All LOBs</option>
+                                <!-- Populate dynamically -->
+                            </select>
+                            <select class="filter-dropdown" data-filter-type="month">
+                                <option value="">All Months</option>
+                                <!-- Populate dynamically -->
+                            </select>
+                            <select class="filter-dropdown" data-filter-type="week">
+                                <option value="">Last ${settings.maxWeeks} Weeks</option>
+                                <!-- Populate dynamically for week range -->
+                            </select>
+                            <select class="filter-dropdown" data-filter-type="geo">
+                                <option value="">All Geos</option>
+                                <!-- Populate dynamically -->
+                            </select>
+                             <select class="filter-dropdown" data-filter-type="site">
+                                <option value="">All Sites</option>
+                                <!-- Populate dynamically -->
+                            </select>
+                        </div>
+                        <div class="actions">
+                            <button class="action-button edit-project"><i class="fas fa-edit"></i> Edit Project</button>
+                            <button class="action-button primary"><i class="fas fa-plus"></i> Actions</button>
+                        </div>
+                    </div>
+                `;
+                $dashboardContainer.append(headerHtml);
+                dashboard.populateFilters();
+            },
 
-    container.append(headerHtml + filterHtml);
+            populateFilters: function() {
+                // Logic to extract unique values from settings.data for ProjectId, LOB, Month, Week, Geo, Site
+                // and append them as <option> tags to the respective filter-dropdowns.
+                // For 'Week', you'd likely want to generate a range or specific week numbers.
+            },
 
-    // ---- Populate filters ----
-    function populateFilters(){
-      ["Geo","Site","LOB","ProjectId"].forEach(f=>{
-        let vals=[...new Set(data.map(d=>d[f]))].sort();
-        vals.forEach(v=>{
-          if(v) $(`#filter${f}`).append(`<option value="${v}">${v}</option>`);
-        });
-      });
-    }
+            renderKeyMetrics: function () {
+                var metricsHtml = `
+                    <div class="key-metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">0.00</div>
+                            <div class="metric-label">Forecasted Hours</div>
+                            <div class="metric-comparison"></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">0.00</div>
+                            <div class="metric-label">Actual Hours</div>
+                            <div class="metric-comparison"></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">0</div>
+                            <div class="metric-label">Required HC</div>
+                            <div class="metric-comparison"></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">0</div>
+                            <div class="metric-label">Available HC</div>
+                            <div class="metric-comparison"></div>
+                        </div>
+                    </div>
+                `;
+                $dashboardContainer.append(metricsHtml);
+                dashboard.updateKeyMetrics(); // Initial update with all data
+            },
 
-    // ---- Apply filters ----
-    function getFiltered(){
-      let geo=$("#filterGeo").val();
-      let site=$("#filterSite").val();
-      let lob=$("#filterLOB").val();
-      let project=$("#filterProject").val();
-      return data.filter(d=>
-        (geo==""||d.Geo==geo) &&
-        (site==""||d.Site==site) &&
-        (lob==""||d.LOB==lob) &&
-        (project==""||d.ProjectId==project)
-      );
-    }
+            updateKeyMetrics: function (filteredData) {
+                var dataToUse = filteredData || settings.data;
+                // Aggregate data based on 'dataToUse' and update the '.metric-value' and '.metric-comparison' elements
+                // Example: Sum 'Forecasted Hours', 'Actual Hours', 'Required HC', 'Available HC'
+                // Calculate comparisons (e.g., (Actual - Forecasted) / Forecasted)
+            },
 
-    // ---- Tiles ----
-    function buildTiles(filtered){
-      $("#tilesContainer").empty();
-      const metrics=[
-        {label:"Forecasted Hours", header:"Forecasted Hours"},
-        {label:"Actual Hours", header:"Actual Hours"},
-        {label:"Required HC", header:"Required HC"},
-        {label:"Available HC", header:"Available HC"},
-        {label:"Actual Attrition", header:"Actual Attrition"},
-        {label:"Actual Shrinkage", header:"Actual Shrinkage"}
-      ];
-      metrics.forEach(m=>{
-        let total=filtered.filter(d=>d.Header===m.header).reduce((s,v)=>s+Number(v.Value),0);
-        $("#tilesContainer").append(`
-          <div class="col-md-2">
-            <div class="card tile-card text-center shadow-sm rounded-4 p-3 mb-3">
-              <h6 class="fw-bold mb-1">${m.label}</h6>
-              <p class="fs-5 text-primary mb-0">${total.toLocaleString()}</p>
-            </div>
-          </div>
-        `);
-      });
-    }
+            renderCharts: function () {
+                var chartsHtml = `
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Hours Trend</h3>
+                            <canvas id="hoursTrendChart"></canvas>
+                            <div class="chart-controls">
+                                <button class="compare-toggle" data-chart="hours">Show % Change</button>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Headcount Trend</h3>
+                            <canvas id="headcountTrendChart"></canvas>
+                            <div class="chart-controls">
+                                <button class="compare-toggle" data-chart="headcount">Show % Change</button>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Attrition Trend</h3>
+                            <canvas id="attritionTrendChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Shrinkage Trend</h3>
+                            <canvas id="shrinkageTrendChart"></canvas>
+                        </div>
+                    </div>
+                `;
+                $dashboardContainer.append(chartsHtml);
+                dashboard.drawCharts(); // Initial draw
+            },
 
-    // ---- Charts ----
-    function buildCharts(filtered){
-      $("#chartsContainer").empty();
-      let weeks=[...new Set(filtered.map(d=>d.Week))].sort().slice(-settings.maxWeeks);
+            drawCharts: function (filteredData) {
+                var dataToUse = filteredData || settings.data;
+                // Use a charting library (e.g., Chart.js) to draw charts
+                // Aggregate data for each chart (week-on-week for up to maxWeeks)
+                // Ensure smooth hover effects and tooltips are configured in the chart options
+                // Handle comparison mode logic based on the 'compare-toggle' state
+            },
 
-      function extract(header){
-        return weeks.map(w=>{
-          let val=filtered.find(d=>d.Week===w && d.Header===header);
-          return val?Number(val.Value):0;
-        });
-      }
+            applyStyles: function () {
+                // Inject CSS directly or link a stylesheet
+                // This would contain all the styling for .dashboard-header, .filter-dropdown, .metric-card, .chart-card, etc.
+                var styles = `
+                    .sleek-dashboard-container { font-family: 'Inter', sans-serif; background: #f9fafb; padding: 20px; border-radius: 15px; }
+                    .dashboard-header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+                    .dashboard-header .logo { font-size: 24px; font-weight: bold; color: #333; }
+                    .dashboard-header .filters select { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-left: 10px; font-size: 14px; }
+                    .dashboard-header .actions button { background: #6200EE; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-left: 10px; transition: background 0.3s ease; }
+                    .dashboard-header .actions button:hover { background: #7B1FA2; }
+                    .key-metrics-grid, .charts-grid { display: grid; gap: 20px; }
+                    .key-metrics-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 20px; }
+                    .charts-grid { grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); }
+                    .metric-card, .chart-card { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+                    .metric-card .metric-value { font-size: 38px; font-weight: bold; color: #333; margin-bottom: 5px; }
+                    .metric-card .metric-label { font-size: 15px; color: #777; }
+                    .metric-card .metric-comparison { font-size: 14px; margin-top: 10px; color: #28a745; } /* Green for positive, red for negative */
+                    .chart-card h3 { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 15px; }
+                    .chart-controls { text-align: right; margin-top: 15px; }
+                    .compare-toggle { background: #e0e0e0; color: #555; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.3s ease; }
+                    .compare-toggle:hover { background: #d0d0d0; }
+                    /* Add styles for tooltips and hover effects (often handled by charting library) */
+                `;
+                $dashboardContainer.append('<style>' + styles + '</style>');
+                 // Ensure Font Awesome is loaded for icons if used
+                 if ($('head').find('link[href*="font-awesome"]').length === 0) {
+                     $('head').append('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">');
+                 }
+            },
 
-      let chartDefs=[
-        {id:"hours",title:"Forecasted vs Actual Hours",type:"line",
-          datasets:[
-            {label:"Forecasted",data:extract("Forecasted Hours"),borderColor:"#007AFF",backgroundColor:"#007AFF",fill:false,tension:0.3},
-            {label:"Actual",data:extract("Actual Hours"),borderColor:"#FF3B30",backgroundColor:"#FF3B30",fill:false,tension:0.3}
-          ]},
-        {id:"hc",title:"Required vs Available HC",type:"bar",
-          datasets:[
-            {label:"Required HC",data:extract("Required HC"),backgroundColor:"#007AFF"},
-            {label:"Available HC",data:extract("Available HC"),backgroundColor:"#34C759"}
-          ]},
-        {id:"attrition",title:"Attrition %",type:"line",
-          datasets:[
-            {label:"Planned Attrition",data:extract("Planned Attrition"),borderColor:"#FF9500",backgroundColor:"#FF9500",fill:false,tension:0.3},
-            {label:"Actual Attrition",data:extract("Actual Attrition"),borderColor:"#FF3B30",backgroundColor:"#FF3B30",fill:false,tension:0.3}
-          ]},
-        {id:"shrinkage",title:"Shrinkage %",type:"line",
-          datasets:[
-            {label:"Planned Shrinkage",data:extract("Planned Shrinkage"),borderColor:"#5856D6",backgroundColor:"#5856D6",fill:false,tension:0.3},
-            {label:"Actual Shrinkage",data:extract("Actual Shrinkage"),borderColor:"#FF2D55",backgroundColor:"#FF2D55",fill:false,tension:0.3}
-          ]}
-      ];
+            bindEvents: function () {
+                // Event listener for filter changes
+                $dashboardContainer.on('change', '.filter-dropdown', function () {
+                    var filters = {};
+                    $dashboardContainer.find('.filter-dropdown').each(function() {
+                        var type = $(this).data('filter-type');
+                        var value = $(this).val();
+                        if (value) {
+                            filters[type] = value;
+                        }
+                    });
+                    var filteredData = dashboard.filterData(settings.data, filters);
+                    dashboard.updateKeyMetrics(filteredData);
+                    dashboard.drawCharts(filteredData);
+                });
 
-      chartDefs.forEach(c=>{
-        $("#chartsContainer").append(`
-          <div class="col-md-6 mb-4">
-            <div class="card chart-card shadow-sm rounded-4 p-3">
-              <h6 class="fw-bold mb-3">${c.title}</h6>
-              <canvas id="${c.id}"></canvas>
-            </div>
-          </div>
-        `);
-        new Chart(document.getElementById(c.id).getContext("2d"), {
-          type:c.type,
-          data:{labels:weeks,datasets:c.datasets},
-          options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{enabled:true}}}
-        });
-      });
-    }
+                // Event listener for comparison toggles
+                $dashboardContainer.on('click', '.compare-toggle', function() {
+                    var chartId = $(this).data('chart');
+                    // Toggle a class or a data attribute to indicate comparison mode
+                    // Redraw the specific chart in comparison mode
+                    dashboard.drawCharts(); // Or a more specific redraw
+                });
 
-    function refresh(){
-      let f=getFiltered();
-      buildTiles(f);
-      buildCharts(f);
-    }
+                // Event listeners for drill-down (conceptual)
+                // $dashboardContainer.on('click', 'canvas', function(event) {
+                //     var activePoints = myChart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, true);
+                //     if (activePoints.length > 0) {
+                //         var firstPoint = activePoints[0];
+                //         var week = myChart.data.labels[firstPoint.index];
+                //         dashboard.showDrillDown(week);
+                //     }
+                // });
+            },
 
-    populateFilters();
-    refresh();
-    $("#filterGeo, #filterSite, #filterLOB, #filterProject").on("change",refresh);
-  };
+            filterData: function (data, filters) {
+                return data.filter(item => {
+                    for (let key in filters) {
+                        if (filters[key] && item[key] != filters[key]) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+                // More complex filtering logic would be needed for 'Week' range, etc.
+            },
+
+            // Placeholder for drill-down function
+            showDrillDown: function (week) {
+                // Logic to display detailed data for the selected week
+                // Could be a modal, or a new section on the dashboard
+                console.log("Drill down into week:", week);
+            }
+        };
+
+        dashboard.init();
+        return this; // Allows for chaining
+    };
 })(jQuery);
+
+// How to use the plugin:
+// $(document).ready(function() {
+//     var myData = [
+//         // Your JSON array data here
+//         {
+//             "Geo": "North America", "Site": "Dallas", "ProjectId": "PROJ001", "LOB": "Sales", "Week": "W1", "Month": "June",
+//             "Header": "Forecasted Hours", "Value": 100
+//         },
+//         {
+//             "Geo": "North America", "Site": "Dallas", "ProjectId": "PROJ001", "LOB": "Sales", "Week": "W1", "Month": "June",
+//             "Header": "Actual Hours", "Value": 95
+//         },
+//         // ... more data points for different headers, weeks, etc.
+//     ];
+
+//     $('#dashboard-root').sleekReportingDashboard({
+//         data: myData,
+//         maxWeeks: 12
+//     });
+// });
