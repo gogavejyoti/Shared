@@ -1,32 +1,191 @@
-0
-: 
-geo
-: 
-"India"
-header
-: 
-"Available HC"
-lob
-: 
-"IND R1 Lanco"
-month
-: 
-"Jun-25"
-planId
-: 
-0
-projectId
-: 
-"10789"
-site
-: 
-"Hyderabad"
-value
-: 
-115
-vertical
-: 
-""
-week
-: 
-"01-Jun-25"
+(function ($) {
+    $.fn.staffingSummaryContainer = function (data) {
+        const $container = $(this);
+        $container.empty().addClass("staffing-summary-container");
+
+        // ==============================
+        // 1. Collect unique filter values
+        // ==============================
+        const uniqueLOBs = [...new Set(data.map(d => d.lob))];
+        const uniqueGeos = [...new Set(data.map(d => d.geo))];
+        const uniqueSites = [...new Set(data.map(d => d.site))];
+        const uniqueProjects = [...new Set(data.map(d => d.projectid))];
+        const uniqueMetrics = [...new Set(data.map(d => d.header.toLowerCase()))];
+        const uniqueWeeks = [...new Set(data.map(d => d.week))];
+        const uniqueMonths = [...new Set(data.map(d => d.month))];
+
+        // ==============================
+        // 2. Create Filter UI
+        // ==============================
+        const filterHtml = `
+            <div class="filters">
+                <div class="filter-section">
+                    <label>Geo:</label>
+                    <div id="geoFilter"></div>
+                </div>
+                <div class="filter-section">
+                    <label>Site:</label>
+                    <div id="siteFilter"></div>
+                </div>
+                <div class="filter-section">
+                    <label>Project:</label>
+                    <div id="projectFilter"></div>
+                </div>
+                <div class="filter-section">
+                    <label>LOB:</label>
+                    <div id="lobFilter"></div>
+                </div>
+                <div class="filter-section">
+                    <label>Metrics:</label>
+                    <div id="metricFilter"></div>
+                </div>
+                <div class="filter-section">
+                    <label>From:</label>
+                    <select id="weekFrom">${uniqueWeeks.map(w => `<option>${w}</option>`).join('')}</select>
+                </div>
+                <div class="filter-section">
+                    <label>To:</label>
+                    <select id="weekTo">${uniqueWeeks.map(w => `<option>${w}</option>`).join('')}</select>
+                </div>
+                <div class="filter-section">
+                    <label>Summary:</label>
+                    <label><input type="radio" name="summaryType" value="weekly" checked> Weekly</label>
+                    <label><input type="radio" name="summaryType" value="monthly"> Monthly</label>
+                </div>
+                <div class="filter-section">
+                    <button id="applyFilters" class="btn btn-primary">Apply</button>
+                </div>
+            </div>
+        `;
+
+        $container.append(filterHtml);
+
+        // Reusable function to create multi-select checkboxes
+        function createCheckboxFilter(containerId, items) {
+            const html = items.map(item =>
+                `<label><input type="checkbox" value="${item}" checked> ${item}</label>`
+            ).join('');
+            $(`#${containerId}`).html(html);
+        }
+
+        // Build filters
+        createCheckboxFilter("geoFilter", uniqueGeos);
+        createCheckboxFilter("siteFilter", uniqueSites);
+        createCheckboxFilter("projectFilter", uniqueProjects);
+        createCheckboxFilter("lobFilter", uniqueLOBs);
+
+        // Metrics (radio buttons, only one)
+        const metricHtml = uniqueMetrics.map(m =>
+            `<label><input type="radio" name="metric" value="${m}" ${m === uniqueMetrics[0] ? "checked" : ""}> ${m}</label>`
+        ).join('');
+        $("#metricFilter").html(metricHtml);
+
+        // ==============================
+        // 3. Build Table
+        // ==============================
+        const $tableWrapper = $('<div class="table-wrapper"><table id="summaryTable" class="summary-table"></table></div>');
+        $container.append($tableWrapper);
+
+        function calcMetrics(req, avail, metric) {
+            if (metric === "required hc") return Math.round(req);
+            if (metric === "available hc") return Math.round(avail);
+            if (metric === "delta") return Math.round(avail - req);
+            if (metric === "staffing %") return req === 0 ? 0 : Math.round((avail / req) * 100);
+            return 0;
+        }
+
+        function buildTable(selectedGeos, selectedSites, selectedProjects, selectedLOBs, selectedMetric, weekFrom, weekTo, summaryType) {
+            const fromIndex = uniqueWeeks.indexOf(weekFrom);
+            const toIndex = uniqueWeeks.indexOf(weekTo);
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
+
+            const $table = $("#summaryTable");
+            $table.empty();
+
+            // Header row
+            let headerRow = `<tr><th>LOB</th>`;
+            if (summaryType === "weekly") {
+                weeksInRange.forEach(week => {
+                    headerRow += `<th>${week}</th>`;
+                });
+            } else {
+                uniqueMonths.forEach(month => {
+                    headerRow += `<th>${month}</th>`;
+                });
+            }
+            headerRow += `</tr>`;
+            $table.append(headerRow);
+
+            // Filter data
+            let filtered = data.filter(d =>
+                selectedGeos.includes(d.geo) &&
+                selectedSites.includes(d.site) &&
+                selectedProjects.includes(d.projectid) &&
+                selectedLOBs.includes(d.lob)
+            );
+
+            // Group & Aggregate
+            const grouped = {};
+            filtered.forEach(d => {
+                const key = summaryType === "weekly" ? d.week : d.month;
+                grouped[d.lob] = grouped[d.lob] || {};
+                grouped[d.lob][key] = grouped[d.lob][key] || { req: 0, avail: 0 };
+                if (d.header.toLowerCase() === "required hc") grouped[d.lob][key].req += d.value;
+                if (d.header.toLowerCase() === "available hc") grouped[d.lob][key].avail += d.value;
+            });
+
+            // Build rows
+            Object.keys(grouped).forEach(lob => {
+                let row = `<tr><td>${lob}</td>`;
+                if (summaryType === "weekly") {
+                    weeksInRange.forEach(week => {
+                        const cell = grouped[lob][week] || { req: 0, avail: 0 };
+                        row += `<td>${calcMetrics(cell.req, cell.avail, selectedMetric)}</td>`;
+                    });
+                } else {
+                    uniqueMonths.forEach(month => {
+                        const cell = grouped[lob][month] || { req: 0, avail: 0 };
+                        row += `<td>${calcMetrics(cell.req, cell.avail, selectedMetric)}</td>`;
+                    });
+                }
+                row += `</tr>`;
+                $table.append(row);
+            });
+        }
+
+        // ==============================
+        // 4. Event Handlers
+        // ==============================
+        $("#applyFilters").on("click", function () {
+            const selectedGeos = $("#geoFilter input:checked").map((i, el) => $(el).val()).get();
+            const selectedSites = $("#siteFilter input:checked").map((i, el) => $(el).val()).get();
+            const selectedProjects = $("#projectFilter input:checked").map((i, el) => $(el).val()).get();
+            const selectedLOBs = $("#lobFilter input:checked").map((i, el) => $(el).val()).get();
+            const selectedMetric = $("input[name='metric']:checked").val();
+            const weekFrom = $("#weekFrom").val();
+            const weekTo = $("#weekTo").val();
+            const summaryType = $("input[name='summaryType']:checked").val();
+
+            buildTable(selectedGeos, selectedSites, selectedProjects, selectedLOBs, selectedMetric, weekFrom, weekTo, summaryType);
+        });
+
+        // Auto apply on load
+        $("#applyFilters").trigger("click");
+
+        // ==============================
+        // 5. Styles
+        // ==============================
+        const styles = `
+            .staffing-summary-container { font-family: Arial, sans-serif; padding: 10px; }
+            .filters { display: flex; flex-wrap: wrap; margin-bottom: 10px; gap: 10px; }
+            .filter-section { margin-right: 15px; }
+            .summary-table { border-collapse: collapse; width: 100%; }
+            .summary-table th, .summary-table td { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
+            .summary-table th { background: #f1f1f1; position: sticky; top: 0; z-index: 2; }
+            .table-wrapper { max-height: 400px; overflow: auto; border: 1px solid #ccc; }
+        `;
+        if (!document.getElementById("staffingSummaryStyles")) {
+            $("<style id='staffingSummaryStyles'>").text(styles).appendTo("head");
+        }
+    };
+})(jQuery);
