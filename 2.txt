@@ -1,12 +1,11 @@
 (function ($) {
     $.fn.sleekReportingDashboard = function (options) {
         var settings = $.extend({
-            data: [], // Your JSON array data
-            maxWeeks: 12,
-            // You can add more options for colors, chart types, etc.
+            data: [], // JSON Array: Geo, Site, ProjectId, LOB, Week, Month, Header, Value
+            maxWeeks: 12
         }, options);
 
-        var $dashboardContainer = this; // The element where the dashboard will be rendered
+        var $dashboardContainer = this;
 
         var dashboard = {
             init: function () {
@@ -21,36 +20,14 @@
             renderHeader: function () {
                 var headerHtml = `
                     <div class="dashboard-header">
-                        <div class="logo">Fundraising Hex</div> <!-- Or your project name -->
+                        <div class="logo">Fundraising Hex</div>
                         <div class="filters">
-                            <select class="filter-dropdown" data-filter-type="project">
-                                <option value="">All Projects</option>
-                                <!-- Populate dynamically -->
-                            </select>
-                            <select class="filter-dropdown" data-filter-type="lob">
-                                <option value="">All LOBs</option>
-                                <!-- Populate dynamically -->
-                            </select>
-                            <select class="filter-dropdown" data-filter-type="month">
-                                <option value="">All Months</option>
-                                <!-- Populate dynamically -->
-                            </select>
-                            <select class="filter-dropdown" data-filter-type="week">
-                                <option value="">Last ${settings.maxWeeks} Weeks</option>
-                                <!-- Populate dynamically for week range -->
-                            </select>
-                            <select class="filter-dropdown" data-filter-type="geo">
-                                <option value="">All Geos</option>
-                                <!-- Populate dynamically -->
-                            </select>
-                             <select class="filter-dropdown" data-filter-type="site">
-                                <option value="">All Sites</option>
-                                <!-- Populate dynamically -->
-                            </select>
-                        </div>
-                        <div class="actions">
-                            <button class="action-button edit-project"><i class="fas fa-edit"></i> Edit Project</button>
-                            <button class="action-button primary"><i class="fas fa-plus"></i> Actions</button>
+                            <select class="filter-dropdown" data-filter-type="project"><option value="">All Projects</option></select>
+                            <select class="filter-dropdown" data-filter-type="lob"><option value="">All LOBs</option></select>
+                            <select class="filter-dropdown" data-filter-type="month"><option value="">All Months</option></select>
+                            <select class="filter-dropdown" data-filter-type="week"><option value="">Last ${settings.maxWeeks} Weeks</option></select>
+                            <select class="filter-dropdown" data-filter-type="geo"><option value="">All Geos</option></select>
+                            <select class="filter-dropdown" data-filter-type="site"><option value="">All Sites</option></select>
                         </div>
                     </div>
                 `;
@@ -58,194 +35,189 @@
                 dashboard.populateFilters();
             },
 
-            populateFilters: function() {
-                // Logic to extract unique values from settings.data for ProjectId, LOB, Month, Week, Geo, Site
-                // and append them as <option> tags to the respective filter-dropdowns.
-                // For 'Week', you'd likely want to generate a range or specific week numbers.
+            populateFilters: function () {
+                let projects = [...new Set(settings.data.map(d => d.ProjectId))];
+                let lobs = [...new Set(settings.data.map(d => d.LOB))];
+                let months = [...new Set(settings.data.map(d => d.Month))];
+                let weeks = [...new Set(settings.data.map(d => d.Week))];
+                let geos = [...new Set(settings.data.map(d => d.Geo))];
+                let sites = [...new Set(settings.data.map(d => d.Site))];
+
+                function formatMonth(m) {
+                    return moment(m, ["YYYY-MM", "MMM-yy", "MM-YY"]).format("MMM-yy");
+                }
+                function formatWeek(w) {
+                    return moment(w, ["YYYY-MM-DD", "DD-MMM-YY"]).format("DD-MMM-YY");
+                }
+
+                projects.forEach(v => $('.filter-dropdown[data-filter-type="project"]').append(`<option value="${v}">${v}</option>`));
+                lobs.forEach(v => $('.filter-dropdown[data-filter-type="lob"]').append(`<option value="${v}">${v}</option>`));
+                months.forEach(v => $('.filter-dropdown[data-filter-type="month"]').append(`<option value="${v}">${formatMonth(v)}</option>`));
+                weeks.forEach(v => $('.filter-dropdown[data-filter-type="week"]').append(`<option value="${v}">${formatWeek(v)}</option>`));
+                geos.forEach(v => $('.filter-dropdown[data-filter-type="geo"]').append(`<option value="${v}">${v}</option>`));
+                sites.forEach(v => $('.filter-dropdown[data-filter-type="site"]').append(`<option value="${v}">${v}</option>`));
             },
 
             renderKeyMetrics: function () {
                 var metricsHtml = `
                     <div class="key-metrics-grid">
-                        <div class="metric-card">
-                            <div class="metric-value">0.00</div>
-                            <div class="metric-label">Forecasted Hours</div>
-                            <div class="metric-comparison"></div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value">0.00</div>
-                            <div class="metric-label">Actual Hours</div>
-                            <div class="metric-comparison"></div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value">0</div>
-                            <div class="metric-label">Required HC</div>
-                            <div class="metric-comparison"></div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value">0</div>
-                            <div class="metric-label">Available HC</div>
-                            <div class="metric-comparison"></div>
-                        </div>
+                        <div class="metric-card"><div class="metric-value">0.00</div><div class="metric-label">Forecasted Hours</div></div>
+                        <div class="metric-card"><div class="metric-value">0.00</div><div class="metric-label">Actual Hours</div></div>
+                        <div class="metric-card"><div class="metric-value">0</div><div class="metric-label">Required HC</div></div>
+                        <div class="metric-card"><div class="metric-value">0</div><div class="metric-label">Available HC</div></div>
                     </div>
                 `;
                 $dashboardContainer.append(metricsHtml);
-                dashboard.updateKeyMetrics(); // Initial update with all data
+                dashboard.updateKeyMetrics();
             },
 
             updateKeyMetrics: function (filteredData) {
                 var dataToUse = filteredData || settings.data;
-                // Aggregate data based on 'dataToUse' and update the '.metric-value' and '.metric-comparison' elements
-                // Example: Sum 'Forecasted Hours', 'Actual Hours', 'Required HC', 'Available HC'
-                // Calculate comparisons (e.g., (Actual - Forecasted) / Forecasted)
+                function sumByHeader(header) {
+                    return dataToUse
+                        .filter(d => d.Header === header)
+                        .reduce((acc, curr) => acc + parseFloat(curr.Value || 0), 0);
+                }
+                var forecasted = sumByHeader("Forecasted Hours");
+                var actual = sumByHeader("Actual Hours");
+                var required = sumByHeader("Required HC");
+                var available = sumByHeader("Available HC");
+
+                var cards = $dashboardContainer.find('.metric-card');
+                $(cards[0]).find('.metric-value').text(forecasted.toFixed(2));
+                $(cards[1]).find('.metric-value').text(actual.toFixed(2));
+                $(cards[2]).find('.metric-value').text(required);
+                $(cards[3]).find('.metric-value').text(available);
             },
 
             renderCharts: function () {
                 var chartsHtml = `
                     <div class="charts-grid">
-                        <div class="chart-card">
-                            <h3>Hours Trend</h3>
-                            <canvas id="hoursTrendChart"></canvas>
-                            <div class="chart-controls">
-                                <button class="compare-toggle" data-chart="hours">Show % Change</button>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>Headcount Trend</h3>
-                            <canvas id="headcountTrendChart"></canvas>
-                            <div class="chart-controls">
-                                <button class="compare-toggle" data-chart="headcount">Show % Change</button>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>Attrition Trend</h3>
-                            <canvas id="attritionTrendChart"></canvas>
-                        </div>
-                        <div class="chart-card">
-                            <h3>Shrinkage Trend</h3>
-                            <canvas id="shrinkageTrendChart"></canvas>
-                        </div>
+                        <div class="chart-card"><h3>Hours Trend</h3><canvas id="hoursTrendChart"></canvas></div>
+                        <div class="chart-card"><h3>Headcount Trend</h3><canvas id="headcountTrendChart"></canvas></div>
+                        <div class="chart-card"><h3>Attrition Trend</h3><canvas id="attritionTrendChart"></canvas></div>
+                        <div class="chart-card"><h3>Shrinkage Trend</h3><canvas id="shrinkageTrendChart"></canvas></div>
                     </div>
                 `;
                 $dashboardContainer.append(chartsHtml);
-                dashboard.drawCharts(); // Initial draw
+                dashboard.drawCharts();
             },
 
             drawCharts: function (filteredData) {
                 var dataToUse = filteredData || settings.data;
-                // Use a charting library (e.g., Chart.js) to draw charts
-                // Aggregate data for each chart (week-on-week for up to maxWeeks)
-                // Ensure smooth hover effects and tooltips are configured in the chart options
-                // Handle comparison mode logic based on the 'compare-toggle' state
+                var weeks = [...new Set(dataToUse.map(d => d.Week))].sort((a, b) => new Date(a) - new Date(b));
+
+                function formatWeek(w) {
+                    return moment(w, ["YYYY-MM-DD", "DD-MMM-YY"]).format("DD-MMM-YY");
+                }
+                var labels = weeks.map(w => formatWeek(w));
+
+                function getTrend(header) {
+                    return weeks.map(w => {
+                        var val = dataToUse.find(d => d.Week === w && d.Header === header);
+                        return val ? parseFloat(val.Value) : 0;
+                    });
+                }
+
+                var ctx1 = document.getElementById('hoursTrendChart').getContext('2d');
+                new Chart(ctx1, {
+                    type: 'line',
+                    data: { labels, datasets: [
+                        { label: 'Forecasted Hours', data: getTrend("Forecasted Hours"), borderColor: '#007bff', fill: false },
+                        { label: 'Actual Hours', data: getTrend("Actual Hours"), borderColor: '#28a745', fill: false }
+                    ]},
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+
+                var ctx2 = document.getElementById('headcountTrendChart').getContext('2d');
+                new Chart(ctx2, {
+                    type: 'line',
+                    data: { labels, datasets: [
+                        { label: 'Required HC', data: getTrend("Required HC"), borderColor: '#ff5722', fill: false },
+                        { label: 'Available HC', data: getTrend("Available HC"), borderColor: '#ffc107', fill: false }
+                    ]},
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+
+                var ctx3 = document.getElementById('attritionTrendChart').getContext('2d');
+                new Chart(ctx3, {
+                    type: 'line',
+                    data: { labels, datasets: [
+                        { label: 'Planned Attrition', data: getTrend("Planned Attrition"), borderColor: '#9c27b0', fill: false },
+                        { label: 'Actual Attrition', data: getTrend("Actual Attrition"), borderColor: '#f44336', fill: false }
+                    ]},
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+
+                var ctx4 = document.getElementById('shrinkageTrendChart').getContext('2d');
+                new Chart(ctx4, {
+                    type: 'line',
+                    data: { labels, datasets: [
+                        { label: 'Planned Shrinkage', data: getTrend("Planned Shrinkage"), borderColor: '#3f51b5', fill: false },
+                        { label: 'Actual Shrinkage', data: getTrend("Actual Shrinkage"), borderColor: '#009688', fill: false }
+                    ]},
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
             },
 
             applyStyles: function () {
-                // Inject CSS directly or link a stylesheet
-                // This would contain all the styling for .dashboard-header, .filter-dropdown, .metric-card, .chart-card, etc.
                 var styles = `
                     .sleek-dashboard-container { font-family: 'Inter', sans-serif; background: #f9fafb; padding: 20px; border-radius: 15px; }
                     .dashboard-header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
                     .dashboard-header .logo { font-size: 24px; font-weight: bold; color: #333; }
                     .dashboard-header .filters select { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-left: 10px; font-size: 14px; }
-                    .dashboard-header .actions button { background: #6200EE; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-left: 10px; transition: background 0.3s ease; }
-                    .dashboard-header .actions button:hover { background: #7B1FA2; }
                     .key-metrics-grid, .charts-grid { display: grid; gap: 20px; }
                     .key-metrics-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 20px; }
                     .charts-grid { grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); }
                     .metric-card, .chart-card { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-                    .metric-card .metric-value { font-size: 38px; font-weight: bold; color: #333; margin-bottom: 5px; }
+                    .metric-card .metric-value { font-size: 34px; font-weight: bold; color: #333; margin-bottom: 5px; }
                     .metric-card .metric-label { font-size: 15px; color: #777; }
-                    .metric-card .metric-comparison { font-size: 14px; margin-top: 10px; color: #28a745; } /* Green for positive, red for negative */
                     .chart-card h3 { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 15px; }
-                    .chart-controls { text-align: right; margin-top: 15px; }
-                    .compare-toggle { background: #e0e0e0; color: #555; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.3s ease; }
-                    .compare-toggle:hover { background: #d0d0d0; }
-                    /* Add styles for tooltips and hover effects (often handled by charting library) */
                 `;
                 $dashboardContainer.append('<style>' + styles + '</style>');
-                 // Ensure Font Awesome is loaded for icons if used
-                 if ($('head').find('link[href*="font-awesome"]').length === 0) {
-                     $('head').append('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">');
-                 }
             },
 
             bindEvents: function () {
-                // Event listener for filter changes
                 $dashboardContainer.on('change', '.filter-dropdown', function () {
                     var filters = {};
                     $dashboardContainer.find('.filter-dropdown').each(function() {
                         var type = $(this).data('filter-type');
                         var value = $(this).val();
-                        if (value) {
-                            filters[type] = value;
-                        }
+                        if (value) filters[type] = value;
                     });
                     var filteredData = dashboard.filterData(settings.data, filters);
                     dashboard.updateKeyMetrics(filteredData);
                     dashboard.drawCharts(filteredData);
                 });
-
-                // Event listener for comparison toggles
-                $dashboardContainer.on('click', '.compare-toggle', function() {
-                    var chartId = $(this).data('chart');
-                    // Toggle a class or a data attribute to indicate comparison mode
-                    // Redraw the specific chart in comparison mode
-                    dashboard.drawCharts(); // Or a more specific redraw
-                });
-
-                // Event listeners for drill-down (conceptual)
-                // $dashboardContainer.on('click', 'canvas', function(event) {
-                //     var activePoints = myChart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, true);
-                //     if (activePoints.length > 0) {
-                //         var firstPoint = activePoints[0];
-                //         var week = myChart.data.labels[firstPoint.index];
-                //         dashboard.showDrillDown(week);
-                //     }
-                // });
             },
 
             filterData: function (data, filters) {
                 return data.filter(item => {
                     for (let key in filters) {
-                        if (filters[key] && item[key] != filters[key]) {
-                            return false;
-                        }
+                        if (filters[key] && item[key] != filters[key]) return false;
                     }
                     return true;
                 });
-                // More complex filtering logic would be needed for 'Week' range, etc.
-            },
-
-            // Placeholder for drill-down function
-            showDrillDown: function (week) {
-                // Logic to display detailed data for the selected week
-                // Could be a modal, or a new section on the dashboard
-                console.log("Drill down into week:", week);
             }
         };
 
         dashboard.init();
-        return this; // Allows for chaining
+        return this;
     };
 })(jQuery);
 
-// How to use the plugin:
-// $(document).ready(function() {
-//     var myData = [
-//         // Your JSON array data here
-//         {
-//             "Geo": "North America", "Site": "Dallas", "ProjectId": "PROJ001", "LOB": "Sales", "Week": "W1", "Month": "June",
-//             "Header": "Forecasted Hours", "Value": 100
-//         },
-//         {
-//             "Geo": "North America", "Site": "Dallas", "ProjectId": "PROJ001", "LOB": "Sales", "Week": "W1", "Month": "June",
-//             "Header": "Actual Hours", "Value": 95
-//         },
-//         // ... more data points for different headers, weeks, etc.
-//     ];
+// Dummy Data Example
+$(function () {
+    var dummyData = [
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Forecasted Hours", Value: 1200 },
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Actual Hours", Value: 1100 },
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Required HC", Value: 40 },
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-08-25", Month: "2025-08", Header: "Available HC", Value: 38 },
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Forecasted Hours", Value: 1300 },
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Actual Hours", Value: 1250 },
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Required HC", Value: 42 },
+        { Geo: "US", Site: "NY", ProjectId: "P1", LOB: "Sales", Week: "2025-09-01", Month: "2025-09", Header: "Available HC", Value: 41 },
+    ];
 
-//     $('#dashboard-root').sleekReportingDashboard({
-//         data: myData,
-//         maxWeeks: 12
-//     });
-// });
+    $('#dashboard').sleekReportingDashboard({ data: dummyData });
+});
