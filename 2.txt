@@ -20,14 +20,14 @@
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))];
         const uniqueGeos = [...new Set(settings.data.map(d => d.geo))];
         const uniqueSites = [...new Set(settings.data.map(d => d.site))];
-        const uniqueProjects = [...new Set(settings.data.map(d => d.projectid))];
+        const uniqueProjects = [...new Set(settings.data.map(d => d.projectid))]; // projectId is lower case
 
         const metrics = ["Required HC", "Available HC", "Delta", "Staffing %"];
 
-        // inject CSS
+        // inject CSS (container style instead of modal)
         if (!document.getElementById("staffing-summary-styles")) {
             $("<style id='staffing-summary-styles'>").text(`
-                .staffing-summary-container { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);color: #000; }
+                .staffing-summary-container { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); color: #000; }
                 .staffing-summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
                 .staffing-summary-title { font-size: 18px; font-weight: bold; }
                 .staffing-summary-body { max-height: 70vh; overflow-y: auto; }
@@ -156,13 +156,8 @@
             if (metric === "Required HC") return Math.round(req);
             if (metric === "Available HC") return Math.round(avail);
             if (metric === "Delta") return Math.round(avail - req);
-            if (metric === "Staffing %") return req === 0 ? 0 : Math.round((avail / req) * 100);
+            if (metric === "Staffing %") return req === 0 ? "0%" : Math.round((avail / req) * 100) + "%";
             return 0;
-        }
-
-        function sumValues(data, headerType) {
-            return data.filter(d => d.header.toLowerCase() === headerType.toLowerCase())
-                .reduce((a, b) => a + (b.value || 0), 0);
         }
 
         function buildTable() {
@@ -179,7 +174,7 @@
 
             let periods = weeksInRange;
             if (filters.summaryType === "monthly") {
-                periods = [...new Set(weeksInRange.map(w => w.substring(3)))]; // "Jun-25" from "01-Jun-25"
+                periods = [...new Set(settings.data.map(d => d.month))];
             }
 
             const headerRow = `<tr><th class="sticky-col">LOB</th>${periods.map(p => `<th colspan="${filters.metrics.length}">${p}</th>`).join("")}</tr>`;
@@ -203,11 +198,15 @@
                     } else {
                         periodData = filteredData.filter(d => d.month === p);
                     }
-                    const req = sumValues(periodData, "Required HC");
-                    const avail = sumValues(periodData, "Available HC");
-                    const val = calcMetrics(req, avail, m);
+                    const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? b.value : 0), 0);
+                    const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? b.value : 0), 0);
+                    let val = calcMetrics(req, avail, m);
                     let ragClass = "";
-                    if (m === "Staffing %") ragClass = val < 90 ? "rag-red" : val < 100 ? "rag-amber" : "rag-green";
+                    if (m === "Staffing %") {
+                        const pct = parseInt(val.replace("%", ""));
+                        ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
+                    }
+                    if (m === "Delta" && val < 0) ragClass = "rag-red";
                     return `<td class="${ragClass}">${val}</td>`;
                 }).join("")
             ).join("")
@@ -224,11 +223,15 @@
                         } else {
                             periodData = filteredData.filter(d => d.month === p && d.lob === lob);
                         }
-                        const req = sumValues(periodData, "Required HC");
-                        const avail = sumValues(periodData, "Available HC");
-                        const val = calcMetrics(req, avail, m);
+                        const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? b.value : 0), 0);
+                        const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? b.value : 0), 0);
+                        let val = calcMetrics(req, avail, m);
                         let ragClass = "";
-                        if (m === "Staffing %") ragClass = val < 90 ? "rag-red" : val < 100 ? "rag-amber" : "rag-green";
+                        if (m === "Staffing %") {
+                            const pct = parseInt(val.replace("%", ""));
+                            ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
+                        }
+                        if (m === "Delta" && val < 0) ragClass = "rag-red";
                         return `<td class="${ragClass}">${val}</td>`;
                     }).join("")
                 ).join("")
