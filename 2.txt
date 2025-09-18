@@ -20,11 +20,11 @@
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))];
         const uniqueGeos = [...new Set(settings.data.map(d => d.geo))];
         const uniqueSites = [...new Set(settings.data.map(d => d.site))];
-        const uniqueProjects = [...new Set(settings.data.map(d => d.projectId))];
+        const uniqueProjects = [...new Set(settings.data.map(d => d.projectid))];
 
         const metrics = ["Required HC", "Available HC", "Delta", "Staffing %"];
 
-        // inject CSS (container style instead of modal)
+        // inject CSS
         if (!document.getElementById("staffing-summary-styles")) {
             $("<style id='staffing-summary-styles'>").text(`
                 .staffing-summary-container { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);color: #000; }
@@ -84,7 +84,7 @@
                     ${renderMultiSelect("LOB", uniqueLOBs, "lob")}
                     ${renderMultiSelect("Geo", uniqueGeos, "geo")}
                     ${renderMultiSelect("Site", uniqueSites, "site")}
-                    ${renderMultiSelect("Project", uniqueProjects, "projectId")}
+                    ${renderMultiSelect("Project", uniqueProjects, "projectid")}
                     ${renderMultiSelect("Metrics", metrics, "metrics")}
                     ${renderRadioSelect("Week From", uniqueWeeks, "week-from", uniqueWeeks[0])}
                     ${renderRadioSelect("Week To", uniqueWeeks, "week-to", uniqueWeeks[uniqueWeeks.length - 1])}
@@ -106,7 +106,7 @@
             lob: [...uniqueLOBs],
             geo: [...uniqueGeos],
             site: [...uniqueSites],
-            project: [...uniqueProjects],
+            projectid: [...uniqueProjects],
             metrics: [...metrics],
             weekFrom: uniqueWeeks[0],
             weekTo: uniqueWeeks[uniqueWeeks.length - 1],
@@ -160,6 +160,11 @@
             return 0;
         }
 
+        function sumValues(data, headerType) {
+            return data.filter(d => d.header.toLowerCase() === headerType.toLowerCase())
+                .reduce((a, b) => a + (b.value || 0), 0);
+        }
+
         function buildTable() {
             const fromIndex = uniqueWeeks.indexOf(filters.weekFrom);
             const toIndex = uniqueWeeks.indexOf(filters.weekTo);
@@ -174,7 +179,7 @@
 
             let periods = weeksInRange;
             if (filters.summaryType === "monthly") {
-                periods = [...new Set(weeksInRange.map(w => w.substring(0, 7)))]; // YYYY-MM
+                periods = [...new Set(weeksInRange.map(w => w.substring(3)))]; // "Jun-25" from "01-Jun-25"
             }
 
             const headerRow = `<tr><th class="sticky-col">LOB</th>${periods.map(p => `<th colspan="${filters.metrics.length}">${p}</th>`).join("")}</tr>`;
@@ -186,7 +191,7 @@
                 filters.lob.includes(d.lob) &&
                 filters.geo.includes(d.geo) &&
                 filters.site.includes(d.site) &&
-                filters.project.includes(d.projectId)
+                filters.projectid.includes(d.projectid)
             );
 
             // overall summary
@@ -196,10 +201,10 @@
                     if (filters.summaryType === "weekly") {
                         periodData = filteredData.filter(d => d.week === p);
                     } else {
-                        periodData = filteredData.filter(d => d.week.startsWith(p));
+                        periodData = filteredData.filter(d => d.month === p);
                     }
-                    const req = periodData.reduce((a, b) => a + b.requiredHC, 0);
-                    const avail = periodData.reduce((a, b) => a + b.availableHC, 0);
+                    const req = sumValues(periodData, "Required HC");
+                    const avail = sumValues(periodData, "Available HC");
                     const val = calcMetrics(req, avail, m);
                     let ragClass = "";
                     if (m === "Staffing %") ragClass = val < 90 ? "rag-red" : val < 100 ? "rag-amber" : "rag-green";
@@ -215,12 +220,12 @@
                     filters.metrics.map(m => {
                         let periodData;
                         if (filters.summaryType === "weekly") {
-                            periodData = filteredData.filter(d => d.week === p && d.LOB === lob);
+                            periodData = filteredData.filter(d => d.week === p && d.lob === lob);
                         } else {
-                            periodData = filteredData.filter(d => d.week.startsWith(p) && d.LOB === lob);
+                            periodData = filteredData.filter(d => d.month === p && d.lob === lob);
                         }
-                        const req = periodData.reduce((a, b) => a + b.requiredHC, 0);
-                        const avail = periodData.reduce((a, b) => a + b.availableHC, 0);
+                        const req = sumValues(periodData, "Required HC");
+                        const avail = sumValues(periodData, "Available HC");
                         const val = calcMetrics(req, avail, m);
                         let ragClass = "";
                         if (m === "Staffing %") ragClass = val < 90 ? "rag-red" : val < 100 ? "rag-amber" : "rag-green";
