@@ -4,165 +4,657 @@
             data: [],
             containerId: null
         }, options);
-
         $('#analyticsModal').remove();
-
         const uniqueLobs = [...new Set(settings.data.map(d => d.lob))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))];
         const uniqueGeos = [...new Set(settings.data.map(d => d.geo))].sort();
         const uniqueSites = [...new Set(settings.data.map(d => d.site))].sort();
         const uniqueProjectids = [...new Set(settings.data.map(d => d.projectId))].sort();
         const metrics = ["Required HC", "Available HC", "Delta", "Staffing %"];
-
+        // Modern CSS with glassmorphism and animations
         if (!document.getElementById("staffing-summary-styles")) {
             $("<style id='staffing-summary-styles'>").text(`
-                /* ✅ Filter dropdown always above table */
-                #analyticsModal .filter-dropdown {
-                    z-index: 1055 !important;
-                    position: relative;
+                /* Modern Modal Styling */
+                #analyticsModal .modal-content { 
+                    border-radius: 20px; 
+                    box-shadow: 0 25px 50px rgba(0,0,0,0.25); 
+                    font-family: 'Inter', sans-serif; 
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    animation: modalSlideIn 0.3s ease-out;
                 }
-
-                /* ✅ Table wrapper full height with scroll */
+                
+                @keyframes modalSlideIn {
+                    from { opacity: 0; transform: scale(0.95) translateY(-20px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+                
+                #analyticsModal .modal-header { 
+                    border-bottom: none;
+                    background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+                    color: white;
+                    border-radius: 20px 20px 0 0;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                #analyticsModal .modal-header::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(10px);
+                    z-index: -1;
+                }
+                
+                #analyticsModal .modal-title { 
+                    font-weight: 600; 
+                    color: white;
+                    font-size: 14px;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+                
+                #analyticsModal .modal-title::before {
+                    content: '👥';
+                    font-size: 1.2em;
+                    background: rgba(255, 255, 255, 0.2);
+                    padding: 8px;
+                    border-radius: 10px;
+                    backdrop-filter: blur(10px);
+                }
+                
+                #analyticsModal .btn-close { 
+                    background: rgba(255, 255, 255, 0.2);
+                    border-radius: 10px;
+                    padding: 10px;
+                    transition: all 0.2s ease;
+                    filter: none;
+                    opacity: 1;
+                    color: white;
+                }
+                
+                #analyticsModal .btn-close:hover {
+                    background: rgba(255, 255, 255, 0.3);
+                    transform: scale(1.05);
+                }
+                /* Filters Section */
+                #analyticsModal .staffing-summary-filters { 
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    background: rgba(248, 250, 252, 0.8);
+                    backdrop-filter: blur(10px);
+                    border-radius: 16px;
+                    border: 1px solid rgba(226, 232, 240, 0.5);
+                    z-index: 9999;
+                }
+                
+                #analyticsModal .filter-group { 
+                    position: relative;
+                    animation: filterFadeIn 0.5s ease-out;
+                }
+                
+                @keyframes filterFadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                
+                #analyticsModal .filter-group label {
+                    display: block;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    color: #374151;
+                    margin-bottom: 8px;
+                }
+                
+                #analyticsModal .filter-group button {
+                    width: 100%;
+                    padding: 12px 16px;
+                    background: white;
+                    color: #374151;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 12px;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    cursor: pointer;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                }
+                
+                #analyticsModal .filter-group button:hover {
+                    border-color: #06b6d4;
+                    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.15);
+                    transform: translateY(-1px);
+                }
+                
+                #analyticsModal .filter-group button::after {
+                    content: '▼';
+                    font-size: 0.75rem;
+                    transition: transform 0.2s ease;
+                    color: #9ca3af;
+                }
+                
+                #analyticsModal .filter-group.open button::after {
+                    transform: rotate(180deg);
+                }
+                
+                #analyticsModal .filter-dropdown { 
+                    display: none; 
+                    position: absolute; 
+                    background: white; 
+                    border: 2px solid #e5e7eb;
+                    border-radius: 12px;
+                    padding: 12px; 
+                    z-index: 1055!important; 
+                    max-height: 250px; 
+                    overflow-y: auto;
+                    width: 100%;
+                    margin-top: 4px;
+                    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+                    backdrop-filter: blur(10px);
+                    animation: dropdownSlideIn 0.2s ease-out;
+                }
+                
+                @keyframes dropdownSlideIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                
+                #analyticsModal .filter-group.open .filter-dropdown { display: block; }
+                
+                #analyticsModal .filter-dropdown label {
+                    display: flex;
+                    align-items: center;
+                    padding: 8px 12px;
+                    margin: 0 0 4px 0;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    font-weight: 400;
+                }
+                
+                #analyticsModal .filter-dropdown label:hover {
+                    background: #f0f9ff;
+                    color: #0369a1;
+                }
+                
+                #analyticsModal .filter-dropdown input {
+                    margin-right: 10px;
+                    accent-color: #06b6d4;
+                }
+                /* Table Wrapper */
                 #analyticsModal .staffing-summary-table-wrapper {
                     overflow-x: auto;
                     overflow-y: auto;
                     max-height: 100vh;
                     position: relative;
+                    margin: 5px;
+                    border-radius: 16px;
+                    border: 1px solid rgba(226, 232, 240, 0.5);
+                    background: white;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
                 }
-
-                /* ✅ Sticky header row 1 */
+                /* Modern Table Styling */
+                #analyticsModal .staffing-summary-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    table-layout: auto;
+                    min-width: 100%;
+                    font-size: 0.875rem;
+                    color:#374151
+                }
+                /* Gradient Headers */
                 #analyticsModal .staffing-summary-table thead tr:first-child th {
                     position: sticky;
                     top: 0;
-                    z-index: 100;
                     background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%);
-                    color: #fff;
+                    color: white;
+                    z-index: 40;
+                    white-space: nowrap;
+                    padding: 16px 12px;
+                    text-align: center;
+                    font-weight: 600;
+                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                    border-right: 1px solid rgba(255, 255, 255, 0.2);
                 }
-
-                /* ✅ Sticky header row 2 */
                 #analyticsModal .staffing-summary-table thead tr:nth-child(2) th {
                     position: sticky;
-                    top: 40px; /* height of first header row */
-                    z-index: 90;
+                    top: 52px;
                     background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
-                    color: #fff;
+                    color: white;
+                    z-index: 35;
+                    white-space: nowrap;
+                    padding: 12px;
+                    text-align: center;
+                    font-weight: 500;
+                    border-right: 1px solid rgba(255, 255, 255, 0.15);
                 }
-
-                /* ✅ Sticky first column */
+                /* Sticky Column */
                 #analyticsModal .staffing-summary-table th.sticky-col,
                 #analyticsModal .staffing-summary-table td.sticky-col {
                     position: sticky;
                     left: 0;
-                    background: #fff;
-                    z-index: 80;
-                    border-right: 1px solid #e5e7eb;
+                    background: white;
+                    z-index: 60;
+                    min-width: 220px;
+                    white-space: nowrap;
+                    border-right: 2px solid #e5e7eb;
                 }
-
-                /* First column + first header row */
                 #analyticsModal .staffing-summary-table thead tr:first-child th.sticky-col {
-                    z-index: 120;
+                    z-index: 65;
+                    background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%);
+                    color: white;
                 }
-
-                /* First column + second header row */
                 #analyticsModal .staffing-summary-table thead tr:nth-child(2) th.sticky-col {
-                    z-index: 110;
+                    z-index: 64;
+                    background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+                    color: white;
+                }
+                /* Table Body */
+                #analyticsModal .staffing-summary-table td {
+                    padding: 12px;
+                    text-align: center;
+                    min-width: 120px;
+                    white-space: nowrap;
+                    border-bottom: 1px solid #f1f5f9;
+                    transition: all 0.2s ease;
+                }
+               
+                /* LOB Row Styling */
+                #analyticsModal .staffing-summary-table tr.lob-row td {
+                    background: white;
+                    font-weight: 600;
+                    padding: 16px 12px;
+                    border-bottom: 2px solid #e5e7eb;
+                }
+                #analyticsModal .staffing-summary-table tr.lob-row td.sticky-col {
+                    position: relative;
+                    font-weight: 600;
+                    padding-left: 50px;
+                }
+               
+                /* Summary Row */
+                #analyticsModal .staffing-summary-table .summary-row {
+                    font-weight: 700;
+                    background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+                    border-top: 3px solid #10b981;
+                }
+                #analyticsModal .staffing-summary-table .summary-row td.sticky-col {
+                    background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+                    font-weight: 700;
+                    position: relative;
+                    padding-left: 50px;
+                }
+               
+                /* Modern RAG Status */
+                .rag-red { 
+                    color: #dc2626 !important; 
+                    font-weight: 600;
+                    padding: 4px 8px;
+                    background: rgba(239, 68, 68, 0.1);
+                    border-radius: 6px;
+                    border: 1px solid rgba(239, 68, 68, 0.2);
+                }
+                .rag-amber { 
+                    color: #d97706 !important; 
+                    font-weight: 600;
+                    padding: 4px 8px;
+                    background: rgba(245, 158, 11, 0.1);
+                    border-radius: 6px;
+                    border: 1px solid rgba(245, 158, 11, 0.2);
+                }
+                .rag-green { 
+                    color: #059669 !important; 
+                    font-weight: 600;
+                    padding: 4px 8px;
+                    background: rgba(16, 185, 129, 0.1);
+                    border-radius: 6px;
+                    border: 1px solid rgba(16, 185, 129, 0.2);
+                }
+                /* Action Buttons */
+                #analyticsModal .action-buttons {
+                    display: flex;
+                    gap: 12px;
+                    margin: 0 24px 20px 24px;
+                    justify-content: flex-start;
+                }
+                #analyticsModal .btn-modern {
+                    padding: 12px 24px;
+                    border-radius: 12px;
+                    font-weight: 500;
+                    font-size: 0.875rem;
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    text-decoration: none;
+                }
+                #analyticsModal .btn-primary {
+                    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+                    color: white;
+                    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+                }
+                #analyticsModal .btn-primary:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 16px rgba(6, 182, 212, 0.4);
+                }
+                #analyticsModal .btn-secondary {
+                    background: white;
+                    color: #374151;
+                    border: 2px solid #e5e7eb;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                }
+                #analyticsModal .btn-secondary:hover {
+                    border-color: #06b6d4;
+                    color: #06b6d4;
+                    transform: translateY(-1px);
+                }
+                /* Scrollbar Styling */
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 4px;
+                }
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar-thumb {
+                    background: linear-gradient(135deg, #06b6d4, #0891b2);
+                    border-radius: 4px;
+                }
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar-thumb:hover {
+                    background: linear-gradient(135deg, #0891b2, #0e7490);
+                }
+                /* Footer */
+                #analyticsModal .modal-footer {
+                    background: rgba(248, 250, 252, 0.8);
+                    backdrop-filter: blur(10px);
+                    border-top: 1px solid rgba(226, 232, 240, 0.5);
+                    border-radius: 0 0 20px 20px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    font-size: 0.875rem;
+                    color: #6b7280;
+                }
+                #analyticsModal .status-indicators {
+                    display: flex;
+                    gap: 16px;
+                    align-items: center;
+                }
+                #analyticsModal .status-indicator {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                #analyticsModal .status-dot {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                }
+                #analyticsModal .status-dot.green { background: #10b981; }
+                #analyticsModal .status-dot.yellow { background: #f59e0b; }
+                #analyticsModal .status-dot.red { background: #ef4444; }
+                /* Loading Animation */
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .loading-spinner {
+                    animation: spin 1s linear infinite;
                 }
             `).appendTo("head");
         }
-
         $('#analyticsModal').on('hidden.bs.modal', function () {
             $('#analyticsModal').remove();
             $('#staffing-summary-styles').remove();
         });
-
-        const modalHtml = `
-            <div class="modal fade" id="analyticsModal" tabindex="-1" role="dialog">
-              <div class="modal-dialog modal-xl" role="document">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title">Staffing Summary</h5>
-                    <button type="button" class="close" data-dismiss="modal">&times;</button>
-                  </div>
-                  <div class="modal-body">
-                    <div class="filter-bar mb-3">
-                      <select class="filter-dropdown form-control d-inline-block mr-2" multiple id="geoFilter"></select>
-                      <select class="filter-dropdown form-control d-inline-block mr-2" multiple id="siteFilter"></select>
-                      <select class="filter-dropdown form-control d-inline-block mr-2" multiple id="projectFilter"></select>
-                      <button class="btn btn-primary" id="applyFilters">Apply</button>
+        // Enhanced filter rendering
+        function renderMultiSelect(label, options, key) {
+            const html = `
+                <div class="filter-group" data-key="${key}">
+                    <button type="button" class="form-control form-select">${label}: Select All</button>
+                    <div class="filter-dropdown">
+                        <label><input type="checkbox" value="all" checked> Select All</label>
+                        ${options.map(opt => `<label><input type="checkbox" value="${opt}" checked> ${opt}</label>`).join("")}
                     </div>
-                    <div class="table-responsive staffing-summary-table-wrapper">
-                      <table class="table table-bordered staffing-summary-table">
-                        <thead>
-                          <tr id="headerRow1"></tr>
-                          <tr id="headerRow2"></tr>
-                        </thead>
-                        <tbody id="tableBody"></tbody>
-                      </table>
-                    </div>
-                  </div>
                 </div>
-              </div>
-            </div>
-        `;
-
-        $('body').append(modalHtml);
-
-        // Populate filters
-        function populateFilters() {
-            uniqueGeos.forEach(g => $("#geoFilter").append(`<option>${g}</option>`));
-            uniqueSites.forEach(s => $("#siteFilter").append(`<option>${s}</option>`));
-            uniqueProjectids.forEach(p => $("#projectFilter").append(`<option>${p}</option>`));
+            `;
+            return html;
         }
+        function renderRadioSelect(label, options, key, defaultVal) {
+            const html = `
+                <div class="filter-group" data-key="${key}">
+                    <button type="button" class="form-control form-select">${label}: ${defaultVal}</button>
+                    <div class="filter-dropdown">
+                        ${options.map(opt => `<label><input type="radio" name="${key}" value="${opt}" ${opt === defaultVal ? "checked" : ""}> ${opt}</label>`).join("")}
+                    </div>
+                </div>
+            `;
+            return html;
+        }
+        // Enhanced UI with modern elements
+        $('body').append(`
+            <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;">
+                <div class="modal-dialog" style="width: 95vw; max-width: none; height: 95vh; margin: 2.5vh auto;">
+                    <div class="modal-content" style="height: 100%;">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Staffing Summary Dashboard</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">✕</button>
+                        </div>
+                        <div class="modal-body p-0" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                            <div class="staffing-summary-filters" id="staffingFilterContainer">
+                                ${renderMultiSelect("LOB", uniqueLobs, "lob")}
+                                ${renderMultiSelect("Geography", uniqueGeos, "geo")}
+                                ${renderMultiSelect("Site", uniqueSites, "site")}
+                                ${renderMultiSelect("Project", uniqueProjectids, "projectid")}
+                                ${renderMultiSelect("Metrics", metrics, "metrics")}
+                                ${renderRadioSelect("Week From", uniqueWeeks, "week-from", uniqueWeeks[0])}
+                                ${renderRadioSelect("Week To", uniqueWeeks, "week-to", uniqueWeeks[uniqueWeeks.length - 1])}
+                                ${renderRadioSelect("Summary Type", ["weekly", "monthly"], "summary-type", "weekly")}
+                            </div>
+                            <div class="staffing-summary-table-wrapper" id="staffingContainer" style="flex: 1;">
+                                <table class="staffing-summary-table">
+                                    <thead></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <div class="status-indicators">
+                                <div class="status-indicator">
+                                    <div class="status-dot green"></div>
+                                    <span>On Track (≥100%)</span>
+                                </div>
+                                <div class="status-indicator">
+                                    <div class="status-dot yellow"></div>
+                                    <span>At Risk (90-99%)</span>
+                                </div>
+                                <div class="status-indicator">
+                                    <div class="status-dot red"></div>
+                                    <span>Critical (&lt;90%)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+        const $containerFilter = $('#staffingFilterContainer');
+        const $container = $('#staffingContainer');
+        // Enhanced filters state
+        let filters = {
+            lob: [...uniqueLobs],
+            geo: [...uniqueGeos],
+            site: [...uniqueSites],
+            projectid: [...uniqueProjectids],
+            metrics: [...metrics],
+            weekFrom: uniqueWeeks[0],
+            weekTo: uniqueWeeks[uniqueWeeks.length - 1],
+            summaryType: "weekly"
+        };
+        // Enhanced filter interactions
+        $containerFilter.on("click", ".filter-group > button", function () {
+            const $group = $(this).closest(".filter-group");
+            $(".filter-group").not($group).removeClass("open");
+            $group.toggleClass("open");
+        });
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest(".filter-group").length) {
+                $(".filter-group").removeClass("open");
+            }
+        });
+        // Enhanced checkbox handling
+        $containerFilter.on("change", ".filter-group input[type=checkbox]", function () {
+            const $group = $(this).closest(".filter-group");
+            const key = $group.data("key");
+            const $btn = $group.find("button");
 
-        // Build table
-        function buildTable(filteredData) {
-            if (!filteredData.length) {
-                $("#headerRow1, #headerRow2, #tableBody").empty();
-                return;
+            if ($(this).val() === "all") {
+                const checked = $(this).prop("checked");
+                $group.find("input[type=checkbox]").not(this).prop("checked", checked);
+                filters[key] = checked ? [...(key === "metrics" ? metrics : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s"))] : [];
+            } else {
+                const selected = $group.find("input[type=checkbox]:checked").map((_, el) => $(el).val()).get().filter(v => v !== "all");
+                filters[key] = selected;
+                $group.find("input[value=all]").prop("checked", selected.length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length));
             }
 
-            const headers = Object.keys(filteredData[0] || {}).filter(h => !["geo", "site", "projectId", "lob"].includes(h));
+            const totalOptions = key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length;
+            const selectedCount = filters[key].length;
+            const buttonText = selectedCount === totalOptions ? "Select All" : `${selectedCount} Selected`;
+            $btn.text(`${$btn.text().split(":")[0]}: ${buttonText}`);
 
-            // Header rows
-            $("#headerRow1").html(
-                `<th class="sticky-col">Geo</th><th class="sticky-col">Site</th><th class="sticky-col">ProjectId</th><th class="sticky-col">LOB</th>` +
-                headers.map(h => `<th>${h}</th>`).join("")
-            );
-            $("#headerRow2").html(
-                `<th class="sticky-col"></th><th class="sticky-col"></th><th class="sticky-col"></th><th class="sticky-col"></th>` +
-                headers.map(h => `<th>${h}</th>`).join("")
-            );
-
-            // Body
-            $("#tableBody").html(filteredData.map(row =>
-                `<tr>
-                  <td class="sticky-col">${row.geo}</td>
-                  <td class="sticky-col">${row.site}</td>
-                  <td class="sticky-col">${row.projectId}</td>
-                  <td class="sticky-col">${row.lob}</td>
-                  ${headers.map(h => `<td>${row[h]}</td>`).join("")}
-                </tr>`
-            ).join(""));
-        }
-
-        // Apply filters
-        $(document).on("click", "#applyFilters", function () {
-            const geoSel = $("#geoFilter").val() || [];
-            const siteSel = $("#siteFilter").val() || [];
-            const projSel = $("#projectFilter").val() || [];
-
-            const filtered = settings.data.filter(x =>
-                (geoSel.length === 0 || geoSel.includes(x.geo)) &&
-                (siteSel.length === 0 || siteSel.includes(x.site)) &&
-                (projSel.length === 0 || projSel.includes(x.projectId))
-            );
-            buildTable(filtered);
+            buildTable();
         });
+        // Enhanced radio handling
+        $containerFilter.on("change", ".filter-group input[type=radio]", function () {
+            const $group = $(this).closest(".filter-group");
+            const key = $group.data("key").replace("-", "");
+            const value = $(this).val();
 
-        // Init
-        populateFilters();
-        buildTable(settings.data);
+            if (key === "summarytype") filters.summaryType = value;
+            else if (key === "weekfrom") filters.weekFrom = value;
+            else if (key === "weekto") filters.weekTo = value;
 
-        $("#analyticsModal").modal("show");
+            $group.find("button").text(`${$group.find("button").text().split(":")[0]}: ${value}`);
+            buildTable();
+        });
+        // Button interactions
+        $('#refreshBtn').on('click', function () {
+            const $icon = $(this).find('.refresh-icon');
+            $icon.addClass('loading-spinner');
+            setTimeout(() => {
+                $icon.removeClass('loading-spinner');
+                buildTable();
+            }, 1000);
+        });
+        $('#exportBtn').on('click', function () {
+            // Export functionality - customize as needed
+            const tableData = [];
+            $('#staffingContainer table tbody tr').each(function () {
+                const rowData = [];
+                $(this).find('td').each(function () {
+                    rowData.push($(this).text());
+                });
+                tableData.push(rowData);
+            });
+
+            console.log('Export data:', tableData);
+            alert('Export functionality - check console for data structure');
+        });
+        function calcMetrics(req, avail, metric) {
+            if (metric === "Required HC") return Math.round(req);
+            if (metric === "Available HC") return Math.round(avail);
+            if (metric === "Delta") return Math.round(avail - req);
+            if (metric === "Staffing %") return req === 0 ? "0%" : Math.round((avail / req) * 100) + "%";
+            return 0;
+        }
+        function buildTable() {
+            const fromIndex = uniqueWeeks.indexOf(filters.weekFrom);
+            const toIndex = uniqueWeeks.indexOf(filters.weekTo);
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
+            const $thead = $container.find(".staffing-summary-table thead");
+            const $tbody = $container.find(".staffing-summary-table tbody");
+            $thead.empty();
+            $tbody.empty();
+            if (filters.metrics.length === 0) return;
+            let periods = weeksInRange;
+            if (filters.summaryType === "monthly") {
+                periods = [...new Set(settings.data.map(d => d.month))];
+            }
+            const headerRow = `<tr><th class="sticky-col">Line of Business</th>${periods.map(p => `<th colspan="${filters.metrics.length}">${p}</th>`).join("")}</tr>`;
+            const subHeaderRow = `<tr><th class="sticky-col"></th>${periods.map(() => filters.metrics.map(m => `<th>${m}</th>`).join("")).join("")}</tr>`;
+            $thead.append(headerRow).append(subHeaderRow);
+            // Filter data based on selected filters
+            const filteredData = settings.data.filter(d =>
+                filters.lob.includes(d.lob) &&
+                filters.geo.includes(d.geo) &&
+                filters.site.includes(d.site) &&
+                filters.projectid.includes(d.projectId)
+            );
+            // Overall summary row
+            const overallRow = `<tr class="summary-row"><td class="sticky-col">Overall Summary</td>${periods.map(p =>
+                filters.metrics.map(m => {
+                    let periodData;
+                    if (filters.summaryType === "weekly") {
+                        periodData = filteredData.filter(d => d.week === p);
+                    } else {
+                        periodData = filteredData.filter(d => d.month === p);
+                    }
+                    const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? parseFloat(b.value) : 0), 0);
+                    const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? parseFloat(b.value) : 0), 0);
+                    let val = calcMetrics(req, avail, m);
+                    let ragClass = "";
+                    if (m === "Staffing %") {
+                        const pct = parseInt(val.toString().replace("%", ""));
+                        ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
+                    }
+                    if (m === "Delta" && val < 0) ragClass = "rag-red";
+                    return `<td><span class="${ragClass}">${val}</span></td>`;
+                }).join("")
+            ).join("")}</tr>`;
+            $tbody.append(overallRow);
+            // Individual LOB rows
+            filters.lob.forEach(lob => {
+                const lobRow = `<tr class="lob-row"><td class="sticky-col">${lob}</td>${periods.map(p =>
+                    filters.metrics.map(m => {
+                        let periodData;
+                        if (filters.summaryType === "weekly") {
+                            periodData = filteredData.filter(d => d.week === p && d.lob === lob);
+                        } else {
+                            periodData = filteredData.filter(d => d.month === p && d.lob === lob);
+                        }
+                        const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? parseFloat(b.value) : 0), 0);
+                        const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? parseFloat(b.value) : 0), 0);
+                        let val = calcMetrics(req, avail, m);
+                        let ragClass = "";
+                        if (m === "Staffing %") {
+                            const pct = parseInt(val.toString().replace("%", ""));
+                            ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
+                        }
+                        if (m === "Delta" && val < 0) ragClass = "rag-red";
+                        return `<td><span class="${ragClass}">${val}</span></td>`;
+                    }).join("")
+                ).join("")}</tr>`;
+                $tbody.append(lobRow);
+            });
+        }
+        // Initialize table
+        buildTable();
+        // Show modal with enhanced options
+        $('#analyticsModal').modal({
+            backdrop: 'static',
+            keyboard: false
+        }).modal('show');
+        return this;
     };
 })(jQuery);
