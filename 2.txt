@@ -1,17 +1,80 @@
+/* Table wrapper with scroll */
+#analyticsModal .staffing-summary-table-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 70vh; /* table height as per screen */
+    position: relative;
+}
+
+/* Table base */
+#analyticsModal .staffing-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;   /* let columns size naturally */
+    min-width: 100%;
+}
+
+/* ===== Sticky Headers ===== */
+
 /* First header row */
 #analyticsModal .staffing-summary-table thead tr:first-child th {
     position: sticky;
     top: 0;
     background: #145A6A;
     color: #fff;
-    z-index: 30; /* highest */
+    z-index: 40; /* above 2nd row + body */
+    white-space: nowrap;
+    padding: 8px;
 }
 
 /* Second header row */
 #analyticsModal .staffing-summary-table thead tr:nth-child(2) th {
     position: sticky;
-    top: 34px;   /* equal to first row height */
+    top: 34px;   /* match height of row1 */
     background: #1E93AB;
     color: #fff;
-    z-index: 25;
+    z-index: 35;
+    white-space: nowrap;
+    padding: 8px;
+}
+
+/* ===== Sticky First Column ===== */
+
+/* Body + header cells in first column */
+#analyticsModal .staffing-summary-table th.sticky-col,
+#analyticsModal .staffing-summary-table td.sticky-col {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 30; /* below header rows */
+    min-width: 200px;
+    white-space: nowrap;
+}
+
+/* First column inside first header row */
+#analyticsModal .staffing-summary-table thead tr:first-child th.sticky-col {
+    z-index: 50; /* highest */
+    background: #145A6A;
+    color: #fff;
+}
+
+/* First column inside second header row */
+#analyticsModal .staffing-summary-table thead tr:nth-child(2) th.sticky-col {
+    z-index: 45;
+    background: #1E93AB;
+    color: #fff;
+}
+
+/* ===== Table Cells ===== */
+#analyticsModal .staffing-summary-table td {
+    padding: 6px;
+    text-align: center;
+    min-width: 120px;
+    white-space: nowrap;
+}
+
+/* Summary row highlight */
+#analyticsModal .staffing-summary-table .summary-row {
+    font-weight: bold;
+    background: #f1f1f1;
 }
