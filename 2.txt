@@ -14,8 +14,6 @@
         // Modern CSS with glassmorphism and animations
         if (!document.getElementById("staffing-summary-styles")) {
             $("<style id='staffing-summary-styles'>").text(`
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-                
                 /* Modern Modal Styling */
                 #analyticsModal .modal-content { 
                     border-radius: 20px; 
@@ -37,7 +35,6 @@
                     background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
                     color: white;
                     border-radius: 20px 20px 0 0;
-                    padding: 24px;
                     position: relative;
                     overflow: hidden;
                 }
@@ -57,7 +54,7 @@
                 #analyticsModal .modal-title { 
                     font-weight: 600; 
                     color: white;
-                    font-size: 1.5rem;
+                    font-size: 14px;
                     display: flex;
                     align-items: center;
                     gap: 12px;
@@ -90,9 +87,6 @@
                 #analyticsModal .staffing-summary-filters { 
                     display: grid; 
                     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                    gap: 16px; 
-                    margin: 24px;
-                    padding: 24px;
                     background: rgba(248, 250, 252, 0.8);
                     backdrop-filter: blur(10px);
                     border-radius: 16px;
@@ -120,7 +114,6 @@
                 #analyticsModal .filter-group button {
                     width: 100%;
                     padding: 12px 16px;
-                    font-size: 0.875rem;
                     background: white;
                     color: #374151;
                     border: 2px solid #e5e7eb;
@@ -157,7 +150,7 @@
                     border: 2px solid #e5e7eb;
                     border-radius: 12px;
                     padding: 12px; 
-                    z-index: 1000; 
+                    z-index: 9999; 
                     max-height: 250px; 
                     overflow-y: auto;
                     width: 100%;
@@ -198,9 +191,9 @@
                 #analyticsModal .staffing-summary-table-wrapper {
                     overflow-x: auto;
                     overflow-y: auto;
-                    max-height: 60vh;
+                    max-height: 100vh;
                     position: relative;
-                    margin: 24px;
+                    margin: 5px;
                     border-radius: 16px;
                     border: 1px solid rgba(226, 232, 240, 0.5);
                     background: white;
@@ -213,6 +206,7 @@
                     table-layout: auto;
                     min-width: 100%;
                     font-size: 0.875rem;
+                    color:#374151
                 }
                 /* Gradient Headers */
                 #analyticsModal .staffing-summary-table thead tr:first-child th {
@@ -270,14 +264,7 @@
                     border-bottom: 1px solid #f1f5f9;
                     transition: all 0.2s ease;
                 }
-                #analyticsModal .staffing-summary-table tbody tr:hover {
-                    background: #f8fafc;
-                    transform: scale(1.002);
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                }
-                #analyticsModal .staffing-summary-table tbody tr:hover td.sticky-col {
-                    background: #f8fafc;
-                }
+               
                 /* LOB Row Styling */
                 #analyticsModal .staffing-summary-table tr.lob-row td {
                     background: white;
@@ -290,17 +277,7 @@
                     font-weight: 600;
                     padding-left: 50px;
                 }
-                #analyticsModal .staffing-summary-table tr.lob-row td.sticky-col::before {
-                    content: '';
-                    position: absolute;
-                    left: 12px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    width: 28px;
-                    height: 28px;
-                    border-radius: 8px;
-                    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
-                }
+               
                 /* Summary Row */
                 #analyticsModal .staffing-summary-table .summary-row {
                     font-weight: 700;
@@ -313,21 +290,7 @@
                     position: relative;
                     padding-left: 50px;
                 }
-                #analyticsModal .staffing-summary-table .summary-row td.sticky-col::before {
-                    content: '📊';
-                    position: absolute;
-                    left: 12px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    width: 28px;
-                    height: 28px;
-                    border-radius: 8px;
-                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 14px;
-                }
+               
                 /* Modern RAG Status */
                 .rag-red { 
                     color: #dc2626 !important; 
@@ -415,7 +378,6 @@
                     backdrop-filter: blur(10px);
                     border-top: 1px solid rgba(226, 232, 240, 0.5);
                     border-radius: 0 0 20px 20px;
-                    padding: 20px 24px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
@@ -458,7 +420,6 @@
         function renderMultiSelect(label, options, key) {
             const html = `
                 <div class="filter-group" data-key="${key}">
-                    <label>${label}</label>
                     <button type="button" class="form-control form-select">${label}: Select All</button>
                     <div class="filter-dropdown">
                         <label><input type="checkbox" value="all" checked> Select All</label>
@@ -471,7 +432,6 @@
         function renderRadioSelect(label, options, key, defaultVal) {
             const html = `
                 <div class="filter-group" data-key="${key}">
-                    <label>${label}</label>
                     <button type="button" class="form-control form-select">${label}: ${defaultVal}</button>
                     <div class="filter-dropdown">
                         ${options.map(opt => `<label><input type="radio" name="${key}" value="${opt}" ${opt === defaultVal ? "checked" : ""}> ${opt}</label>`).join("")}
@@ -500,16 +460,6 @@
                                 ${renderRadioSelect("Week To", uniqueWeeks, "week-to", uniqueWeeks[uniqueWeeks.length - 1])}
                                 ${renderRadioSelect("Summary Type", ["weekly", "monthly"], "summary-type", "weekly")}
                             </div>
-                            
-                            <div class="action-buttons">
-                                <button class="btn-modern btn-primary" id="refreshBtn">
-                                    <span class="refresh-icon">🔄</span> Refresh Data
-                                </button>
-                                <button class="btn-modern btn-secondary" id="exportBtn">
-                                    <span>📥</span> Export
-                                </button>
-                            </div>
-                            
                             <div class="staffing-summary-table-wrapper" id="staffingContainer" style="flex: 1;">
                                 <table class="staffing-summary-table">
                                     <thead></thead>
@@ -531,9 +481,6 @@
                                     <div class="status-dot red"></div>
                                     <span>Critical (&lt;90%)</span>
                                 </div>
-                            </div>
-                            <div>
-                                Last updated: <strong>${new Date().toLocaleTimeString()}</strong>
                             </div>
                         </div>
                     </div>
@@ -569,7 +516,7 @@
             const $group = $(this).closest(".filter-group");
             const key = $group.data("key");
             const $btn = $group.find("button");
-            
+
             if ($(this).val() === "all") {
                 const checked = $(this).prop("checked");
                 $group.find("input[type=checkbox]").not(this).prop("checked", checked);
@@ -579,12 +526,12 @@
                 filters[key] = selected;
                 $group.find("input[value=all]").prop("checked", selected.length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length));
             }
-            
+
             const totalOptions = key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length;
             const selectedCount = filters[key].length;
             const buttonText = selectedCount === totalOptions ? "Select All" : `${selectedCount} Selected`;
             $btn.text(`${$btn.text().split(":")[0]}: ${buttonText}`);
-            
+
             buildTable();
         });
         // Enhanced radio handling
@@ -592,16 +539,16 @@
             const $group = $(this).closest(".filter-group");
             const key = $group.data("key").replace("-", "");
             const value = $(this).val();
-            
+
             if (key === "summarytype") filters.summaryType = value;
             else if (key === "weekfrom") filters.weekFrom = value;
             else if (key === "weekto") filters.weekTo = value;
-            
+
             $group.find("button").text(`${$group.find("button").text().split(":")[0]}: ${value}`);
             buildTable();
         });
         // Button interactions
-        $('#refreshBtn').on('click', function() {
+        $('#refreshBtn').on('click', function () {
             const $icon = $(this).find('.refresh-icon');
             $icon.addClass('loading-spinner');
             setTimeout(() => {
@@ -609,17 +556,17 @@
                 buildTable();
             }, 1000);
         });
-        $('#exportBtn').on('click', function() {
+        $('#exportBtn').on('click', function () {
             // Export functionality - customize as needed
             const tableData = [];
-            $('#staffingContainer table tbody tr').each(function() {
+            $('#staffingContainer table tbody tr').each(function () {
                 const rowData = [];
-                $(this).find('td').each(function() {
+                $(this).find('td').each(function () {
                     rowData.push($(this).text());
                 });
                 tableData.push(rowData);
             });
-            
+
             console.log('Export data:', tableData);
             alert('Export functionality - check console for data structure');
         });
