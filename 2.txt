@@ -1,43 +1,164 @@
-/* Table should expand beyond modal width if many columns */
-#analyticsModal .staffing-summary-table {
-    border-collapse: collapse;
-    table-layout: auto;  /* allow natural column width */
-    min-width: 100%;     /* ensures it doesn't shrink too much */
-}
+(function ($) {
+    $.fn.staffingSummaryPopup = function (options) {
+        const settings = $.extend({
+            data: [],
+            weekStartDay: 'sunday'
+        }, options);
 
-/* Header sticky */
-#analyticsModal .staffing-summary-table thead th {
-    position: sticky;
-    top: 0;
-    background: #1E93AB;
-    color: #fff;
-    z-index: 20;
-    white-space: nowrap; /* prevent text wrapping */
-    min-width: 120px;    /* give space to each column */
-    padding: 8px;
-}
+        $('#analyticsModal').remove();
 
-/* Sticky first column */
-#analyticsModal .staffing-summary-table th.sticky-col,
-#analyticsModal .staffing-summary-table td.sticky-col {
-    position: sticky;
-    left: 0;
-    background: #fff;
-    z-index: 15;
-    min-width: 200px; /* LOB column wider */
-}
+        // Modal HTML
+        const modalHtml = `
+        <div class="modal fade" id="analyticsModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:95%;">
+                <div class="modal-content" style="border-radius:12px;">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="fas fa-chart-line me-2"></i> Staffing Summary</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <div class="filters mb-3 d-flex flex-wrap gap-2"></div>
+                        <div class="staffing-summary-table-wrapper"></div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
 
-/* Sticky corner (LOB header) */
-#analyticsModal .staffing-summary-table thead th.sticky-col {
-    z-index: 25;
-    background: #1E93AB;
-    color: #fff;
-}
+        $('body').append(modalHtml);
 
-/* Table cells */
-#analyticsModal .staffing-summary-table td {
-    padding: 6px;
-    text-align: center;
-    min-width: 120px;
-    white-space: nowrap;
-}
+        // Inject styles
+        const style = `
+        <style>
+        #analyticsModal .staffing-summary-table-wrapper {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 70vh; /* dynamic height as per screen */
+            position: relative;
+        }
+        #analyticsModal .staffing-summary-table {
+            border-collapse: collapse;
+            table-layout: auto;
+            min-width: 100%;
+            font-size: 14px;
+        }
+        #analyticsModal .staffing-summary-table thead th {
+            position: sticky;
+            top: 0;
+            background: #1E93AB;
+            color: #fff;
+            z-index: 20;
+            white-space: nowrap;
+            min-width: 120px;
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+        }
+        #analyticsModal .staffing-summary-table th.sticky-col,
+        #analyticsModal .staffing-summary-table td.sticky-col {
+            position: sticky;
+            left: 0;
+            background: #fff;
+            z-index: 15;
+            min-width: 200px;
+            border: 1px solid #dee2e6;
+        }
+        #analyticsModal .staffing-summary-table thead th.sticky-col {
+            z-index: 25;
+            background: #1E93AB;
+            color: #fff;
+        }
+        #analyticsModal .staffing-summary-table td {
+            padding: 6px;
+            text-align: center;
+            min-width: 120px;
+            white-space: nowrap;
+            border: 1px solid #dee2e6;
+        }
+        #analyticsModal .staffing-summary-table tr:nth-child(even) td {
+            background: #f9f9f9;
+        }
+        #analyticsModal .staffing-summary-table .summary-row {
+            font-weight: bold;
+            background: #f1f1f1;
+        }
+        </style>`;
+        $('head').append(style);
+
+        // Build Filters
+        const filters = `
+            <select class="form-select form-select-sm geo-filter" multiple><option value="">Select Geo</option></select>
+            <select class="form-select form-select-sm site-filter" multiple><option value="">Select Site</option></select>
+            <select class="form-select form-select-sm project-filter" multiple><option value="">Select Project</option></select>
+            <button class="btn btn-sm btn-primary apply-filter"><i class="fas fa-filter"></i> Apply</button>
+        `;
+        $('#analyticsModal .filters').html(filters);
+
+        // Extract unique values for filters
+        const unique = (arr, key) => [...new Set(arr.map(x => x[key]))].filter(x => x);
+        const geos = unique(settings.data, "Geo");
+        const sites = unique(settings.data, "Site");
+        const projects = unique(settings.data, "ProjectId");
+
+        geos.forEach(g => $('#analyticsModal .geo-filter').append(`<option value="${g}">${g}</option>`));
+        sites.forEach(s => $('#analyticsModal .site-filter').append(`<option value="${s}">${s}</option>`));
+        projects.forEach(p => $('#analyticsModal .project-filter').append(`<option value="${p}">${p}</option>`));
+
+        // Build table
+        function buildTable(filteredData) {
+            if (!filteredData.length) {
+                $('#analyticsModal .staffing-summary-table-wrapper').html('<div class="text-center text-muted">No data available</div>');
+                return;
+            }
+
+            const weeks = [...new Set(filteredData.map(x => x.Week))].sort();
+            const headers = [...new Set(filteredData.map(x => x.Header))];
+            const lobs = [...new Set(filteredData.map(x => x.LOB))];
+
+            let thead = `<thead><tr><th class="sticky-col">LOB</th>`;
+            weeks.forEach(w => {
+                headers.forEach(h => {
+                    thead += `<th>${w} - ${h}</th>`;
+                });
+            });
+            thead += `</tr></thead>`;
+
+            let tbody = "<tbody>";
+            lobs.forEach(lob => {
+                tbody += `<tr><td class="sticky-col">${lob}</td>`;
+                weeks.forEach(w => {
+                    headers.forEach(h => {
+                        const rec = filteredData.find(r => r.LOB === lob && r.Week === w && r.Header === h);
+                        tbody += `<td>${rec ? rec.Value : ""}</td>`;
+                    });
+                });
+                tbody += "</tr>";
+            });
+            tbody += "</tbody>";
+
+            const table = `<table class="staffing-summary-table">${thead}${tbody}</table>`;
+            $('#analyticsModal .staffing-summary-table-wrapper').html(table);
+        }
+
+        // Initial load
+        buildTable(settings.data);
+
+        // Apply filter
+        $('#analyticsModal .apply-filter').on('click', function () {
+            const selectedGeo = $('.geo-filter').val() || [];
+            const selectedSite = $('.site-filter').val() || [];
+            const selectedProject = $('.project-filter').val() || [];
+
+            const filtered = settings.data.filter(d =>
+                (selectedGeo.length === 0 || selectedGeo.includes(d.Geo)) &&
+                (selectedSite.length === 0 || selectedSite.includes(d.Site)) &&
+                (selectedProject.length === 0 || selectedProject.includes(d.ProjectId))
+            );
+
+            buildTable(filtered);
+        });
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('analyticsModal'));
+        modal.show();
+    };
+}(jQuery));
