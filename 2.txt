@@ -2,202 +2,547 @@
     $.fn.staffingSummaryContainer = function (options) {
         const settings = $.extend({
             data: [],
-            containerId: null // optional now
+            containerId: null
         }, options);
-
         $('#analyticsModal').remove();
-
         const uniqueLobs = [...new Set(settings.data.map(d => d.lob))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))];
         const uniqueGeos = [...new Set(settings.data.map(d => d.geo))].sort();
         const uniqueSites = [...new Set(settings.data.map(d => d.site))].sort();
         const uniqueProjectids = [...new Set(settings.data.map(d => d.projectId))].sort();
-
         const metrics = ["Required HC", "Available HC", "Delta", "Staffing %"];
-
-        // inject CSS (fixed only)
+        // Modern CSS with glassmorphism and animations
         if (!document.getElementById("staffing-summary-styles")) {
             $("<style id='staffing-summary-styles'>").text(`
-                #analyticsModal .modal-content { border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.12); font-family: 'Inter', sans-serif; background: #fafafa; }
-                #analyticsModal .modal-header { border-bottom: 1px solid #e0e0e0; background-color: #D7C4F0; color: #2c2c2c; }
-                #analyticsModal .modal-title { font-weight: 600; color: #2c2c2c; }
-                #analyticsModal .btn-close { filter: invert(30%); }
-
-                /* Table wrapper with scroll */
-#analyticsModal .staffing-summary-table-wrapper {
-    overflow-x: auto;
-    overflow-y: auto;
-    max-height: 100vh; /* table height as per screen */
-    position: relative;
-}
-
-/* Table base */
-#analyticsModal .staffing-summary-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: auto;   /* let columns size naturally */
-    min-width: 100%;
-}
-
-/* ===== Sticky Headers ===== */
-
-/* First header row */
-#analyticsModal .staffing-summary-table thead tr:first-child th {
-    position: sticky;
-    top: 0;
-    background: #145A6A;
-    color: #fff;
-    z-index: 40; /* above 2nd row + body */
-    white-space: nowrap;
-    padding: 8px;
-    text-align:center;
-}
-
-/* Second header row */
-#analyticsModal .staffing-summary-table thead tr:nth-child(2) th {
-    position: sticky;
-    top: 34px;   /* match height of row1 */
-    background: #1E93AB;
-    color: #fff;
-    z-index: 35;
-    white-space: nowrap;
-    padding: 8px;
-text-align:center
-}
-
-/* ===== Sticky First Column ===== */
-
-/* Body + header cells in first column */
-#analyticsModal .staffing-summary-table th.sticky-col,
-#analyticsModal .staffing-summary-table td.sticky-col {
-    position: sticky;
-    left: 0;
-    background: #fff;
-    z-index: 30; /* below header rows */
-    min-width: 200px;
-    white-space: nowrap;
-}
-
-/* First column inside first header row */
-#analyticsModal .staffing-summary-table thead tr:first-child th.sticky-col {
-    z-index: 50; /* highest */
-    background: #145A6A;
-    color: #fff;
-
-}
-
-/* First column inside second header row */
-#analyticsModal .staffing-summary-table thead tr:nth-child(2) th.sticky-col {
-    z-index: 45;
-    background: #1E93AB;
-    color: #fff;
-    text-align:center
-}
-
-/* ===== Table Cells ===== */
-#analyticsModal .staffing-summary-table td {
-    padding: 6px;
-    text-align: center;
-    min-width: 120px;
-    white-space: nowrap;
-}
-
-/* Summary row highlight */
-#analyticsModal .staffing-summary-table .summary-row {
-    font-weight: bold;
-    background: rgb(245, 250, 225);
-}
-                #analyticsModal .staffing-summary-table tr.lob-row td {
-                    background: #FFF; font-weight: bold; padding: 8px;
-                    text-align: center; white-space: nowrap; overflow: hidden;
-                    text-overflow: ellipsis; border: 1px solid #eaeaea;
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                
+                /* Modern Modal Styling */
+                #analyticsModal .modal-content { 
+                    border-radius: 20px; 
+                    box-shadow: 0 25px 50px rgba(0,0,0,0.25); 
+                    font-family: 'Inter', sans-serif; 
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    animation: modalSlideIn 0.3s ease-out;
                 }
-
-                .rag-red { color: #e74c3c !important; }
-                .rag-amber { color: #f39c12 !important; }
-                .rag-green { color: #27ae60 !important; }
-
-                #analyticsModal .staffing-summary-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; margin-left: 10px; justify-content: space-between; }
-                #analyticsModal .filter-group { position: relative;color:#000 }
-                #analyticsModal .filter-dropdown { display: none; position: absolute; background: #fff; border: 1px solid #ddd; padding: 5px; z-index: 100; max-height: 200px; overflow-y: auto; width:100% }
+                
+                @keyframes modalSlideIn {
+                    from { opacity: 0; transform: scale(0.95) translateY(-20px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+                
+                #analyticsModal .modal-header { 
+                    border-bottom: none;
+                    background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+                    color: white;
+                    border-radius: 20px 20px 0 0;
+                    padding: 24px;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                #analyticsModal .modal-header::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(10px);
+                    z-index: -1;
+                }
+                
+                #analyticsModal .modal-title { 
+                    font-weight: 600; 
+                    color: white;
+                    font-size: 1.5rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+                
+                #analyticsModal .modal-title::before {
+                    content: '👥';
+                    font-size: 1.2em;
+                    background: rgba(255, 255, 255, 0.2);
+                    padding: 8px;
+                    border-radius: 10px;
+                    backdrop-filter: blur(10px);
+                }
+                
+                #analyticsModal .btn-close { 
+                    background: rgba(255, 255, 255, 0.2);
+                    border-radius: 10px;
+                    padding: 10px;
+                    transition: all 0.2s ease;
+                    filter: none;
+                    opacity: 1;
+                    color: white;
+                }
+                
+                #analyticsModal .btn-close:hover {
+                    background: rgba(255, 255, 255, 0.3);
+                    transform: scale(1.05);
+                }
+                /* Filters Section */
+                #analyticsModal .staffing-summary-filters { 
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 16px; 
+                    margin: 24px;
+                    padding: 24px;
+                    background: rgba(248, 250, 252, 0.8);
+                    backdrop-filter: blur(10px);
+                    border-radius: 16px;
+                    border: 1px solid rgba(226, 232, 240, 0.5);
+                }
+                
+                #analyticsModal .filter-group { 
+                    position: relative;
+                    animation: filterFadeIn 0.5s ease-out;
+                }
+                
+                @keyframes filterFadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                
+                #analyticsModal .filter-group label {
+                    display: block;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    color: #374151;
+                    margin-bottom: 8px;
+                }
+                
+                #analyticsModal .filter-group button {
+                    width: 100%;
+                    padding: 12px 16px;
+                    font-size: 0.875rem;
+                    background: white;
+                    color: #374151;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 12px;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    cursor: pointer;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                }
+                
+                #analyticsModal .filter-group button:hover {
+                    border-color: #06b6d4;
+                    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.15);
+                    transform: translateY(-1px);
+                }
+                
+                #analyticsModal .filter-group button::after {
+                    content: '▼';
+                    font-size: 0.75rem;
+                    transition: transform 0.2s ease;
+                    color: #9ca3af;
+                }
+                
+                #analyticsModal .filter-group.open button::after {
+                    transform: rotate(180deg);
+                }
+                
+                #analyticsModal .filter-dropdown { 
+                    display: none; 
+                    position: absolute; 
+                    background: white; 
+                    border: 2px solid #e5e7eb;
+                    border-radius: 12px;
+                    padding: 12px; 
+                    z-index: 1000; 
+                    max-height: 250px; 
+                    overflow-y: auto;
+                    width: 100%;
+                    margin-top: 4px;
+                    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+                    backdrop-filter: blur(10px);
+                    animation: dropdownSlideIn 0.2s ease-out;
+                }
+                
+                @keyframes dropdownSlideIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                
                 #analyticsModal .filter-group.open .filter-dropdown { display: block; }
+                
+                #analyticsModal .filter-dropdown label {
+                    display: flex;
+                    align-items: center;
+                    padding: 8px 12px;
+                    margin: 0 0 4px 0;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    font-weight: 400;
+                }
+                
+                #analyticsModal .filter-dropdown label:hover {
+                    background: #f0f9ff;
+                    color: #0369a1;
+                }
+                
+                #analyticsModal .filter-dropdown input {
+                    margin-right: 10px;
+                    accent-color: #06b6d4;
+                }
+                /* Table Wrapper */
+                #analyticsModal .staffing-summary-table-wrapper {
+                    overflow-x: auto;
+                    overflow-y: auto;
+                    max-height: 60vh;
+                    position: relative;
+                    margin: 24px;
+                    border-radius: 16px;
+                    border: 1px solid rgba(226, 232, 240, 0.5);
+                    background: white;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                }
+                /* Modern Table Styling */
+                #analyticsModal .staffing-summary-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    table-layout: auto;
+                    min-width: 100%;
+                    font-size: 0.875rem;
+                }
+                /* Gradient Headers */
+                #analyticsModal .staffing-summary-table thead tr:first-child th {
+                    position: sticky;
+                    top: 0;
+                    background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%);
+                    color: white;
+                    z-index: 40;
+                    white-space: nowrap;
+                    padding: 16px 12px;
+                    text-align: center;
+                    font-weight: 600;
+                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                    border-right: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                #analyticsModal .staffing-summary-table thead tr:nth-child(2) th {
+                    position: sticky;
+                    top: 52px;
+                    background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+                    color: white;
+                    z-index: 35;
+                    white-space: nowrap;
+                    padding: 12px;
+                    text-align: center;
+                    font-weight: 500;
+                    border-right: 1px solid rgba(255, 255, 255, 0.15);
+                }
+                /* Sticky Column */
+                #analyticsModal .staffing-summary-table th.sticky-col,
+                #analyticsModal .staffing-summary-table td.sticky-col {
+                    position: sticky;
+                    left: 0;
+                    background: white;
+                    z-index: 30;
+                    min-width: 220px;
+                    white-space: nowrap;
+                    border-right: 2px solid #e5e7eb;
+                }
+                #analyticsModal .staffing-summary-table thead tr:first-child th.sticky-col {
+                    z-index: 50;
+                    background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%);
+                    color: white;
+                }
+                #analyticsModal .staffing-summary-table thead tr:nth-child(2) th.sticky-col {
+                    z-index: 45;
+                    background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+                    color: white;
+                }
+                /* Table Body */
+                #analyticsModal .staffing-summary-table td {
+                    padding: 12px;
+                    text-align: center;
+                    min-width: 120px;
+                    white-space: nowrap;
+                    border-bottom: 1px solid #f1f5f9;
+                    transition: all 0.2s ease;
+                }
+                #analyticsModal .staffing-summary-table tbody tr:hover {
+                    background: #f8fafc;
+                    transform: scale(1.002);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                }
+                #analyticsModal .staffing-summary-table tbody tr:hover td.sticky-col {
+                    background: #f8fafc;
+                }
+                /* LOB Row Styling */
+                #analyticsModal .staffing-summary-table tr.lob-row td {
+                    background: white;
+                    font-weight: 600;
+                    padding: 16px 12px;
+                    border-bottom: 2px solid #e5e7eb;
+                }
+                #analyticsModal .staffing-summary-table tr.lob-row td.sticky-col {
+                    position: relative;
+                    font-weight: 600;
+                    padding-left: 50px;
+                }
+                #analyticsModal .staffing-summary-table tr.lob-row td.sticky-col::before {
+                    content: '';
+                    position: absolute;
+                    left: 12px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 8px;
+                    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+                }
+                /* Summary Row */
+                #analyticsModal .staffing-summary-table .summary-row {
+                    font-weight: 700;
+                    background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+                    border-top: 3px solid #10b981;
+                }
+                #analyticsModal .staffing-summary-table .summary-row td.sticky-col {
+                    background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+                    font-weight: 700;
+                    position: relative;
+                    padding-left: 50px;
+                }
+                #analyticsModal .staffing-summary-table .summary-row td.sticky-col::before {
+                    content: '📊';
+                    position: absolute;
+                    left: 12px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 8px;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 14px;
+                }
+                /* Modern RAG Status */
+                .rag-red { 
+                    color: #dc2626 !important; 
+                    font-weight: 600;
+                    padding: 4px 8px;
+                    background: rgba(239, 68, 68, 0.1);
+                    border-radius: 6px;
+                    border: 1px solid rgba(239, 68, 68, 0.2);
+                }
+                .rag-amber { 
+                    color: #d97706 !important; 
+                    font-weight: 600;
+                    padding: 4px 8px;
+                    background: rgba(245, 158, 11, 0.1);
+                    border-radius: 6px;
+                    border: 1px solid rgba(245, 158, 11, 0.2);
+                }
+                .rag-green { 
+                    color: #059669 !important; 
+                    font-weight: 600;
+                    padding: 4px 8px;
+                    background: rgba(16, 185, 129, 0.1);
+                    border-radius: 6px;
+                    border: 1px solid rgba(16, 185, 129, 0.2);
+                }
+                /* Action Buttons */
+                #analyticsModal .action-buttons {
+                    display: flex;
+                    gap: 12px;
+                    margin: 0 24px 20px 24px;
+                    justify-content: flex-start;
+                }
+                #analyticsModal .btn-modern {
+                    padding: 12px 24px;
+                    border-radius: 12px;
+                    font-weight: 500;
+                    font-size: 0.875rem;
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    text-decoration: none;
+                }
+                #analyticsModal .btn-primary {
+                    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+                    color: white;
+                    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+                }
+                #analyticsModal .btn-primary:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 16px rgba(6, 182, 212, 0.4);
+                }
+                #analyticsModal .btn-secondary {
+                    background: white;
+                    color: #374151;
+                    border: 2px solid #e5e7eb;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                }
+                #analyticsModal .btn-secondary:hover {
+                    border-color: #06b6d4;
+                    color: #06b6d4;
+                    transform: translateY(-1px);
+                }
+                /* Scrollbar Styling */
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 4px;
+                }
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar-thumb {
+                    background: linear-gradient(135deg, #06b6d4, #0891b2);
+                    border-radius: 4px;
+                }
+                #analyticsModal .staffing-summary-table-wrapper::-webkit-scrollbar-thumb:hover {
+                    background: linear-gradient(135deg, #0891b2, #0e7490);
+                }
+                /* Footer */
+                #analyticsModal .modal-footer {
+                    background: rgba(248, 250, 252, 0.8);
+                    backdrop-filter: blur(10px);
+                    border-top: 1px solid rgba(226, 232, 240, 0.5);
+                    border-radius: 0 0 20px 20px;
+                    padding: 20px 24px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    font-size: 0.875rem;
+                    color: #6b7280;
+                }
+                #analyticsModal .status-indicators {
+                    display: flex;
+                    gap: 16px;
+                    align-items: center;
+                }
+                #analyticsModal .status-indicator {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                #analyticsModal .status-dot {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                }
+                #analyticsModal .status-dot.green { background: #10b981; }
+                #analyticsModal .status-dot.yellow { background: #f59e0b; }
+                #analyticsModal .status-dot.red { background: #ef4444; }
+                /* Loading Animation */
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .loading-spinner {
+                    animation: spin 1s linear infinite;
+                }
             `).appendTo("head");
         }
-
         $('#analyticsModal').on('hidden.bs.modal', function () {
             $('#analyticsModal').remove();
             $('#staffing-summary-styles').remove();
         });
-
-        // reusable filter rendering
+        // Enhanced filter rendering
         function renderMultiSelect(label, options, key) {
             const html = `
                 <div class="filter-group" data-key="${key}">
-                    <button type="button" class="form-control form-select" style="min-width:150px;font-size: 12px;background: #fafafa;color: #000;border: 1px solid;border-radius: 5px;">${label}: Select All</button>
+                    <label>${label}</label>
+                    <button type="button" class="form-control form-select">${label}: Select All</button>
                     <div class="filter-dropdown">
-                        <label><input type="checkbox" value="all" checked> Select All</label><br/>
-                        ${options.map(opt => `<label><input type="checkbox" value="${opt}" checked> ${opt}</label><br/>`).join("")}
+                        <label><input type="checkbox" value="all" checked> Select All</label>
+                        ${options.map(opt => `<label><input type="checkbox" value="${opt}" checked> ${opt}</label>`).join("")}
                     </div>
                 </div>
             `;
             return html;
         }
-
         function renderRadioSelect(label, options, key, defaultVal) {
             const html = `
                 <div class="filter-group" data-key="${key}">
-                    <button type="button" class="form-control form-select" style="min-width:150px;font-size: 12px;background: #fafafa;color: #000;border: 1px solid;border-radius: 5px;">${label}: ${defaultVal}</button>
+                    <label>${label}</label>
+                    <button type="button" class="form-control form-select">${label}: ${defaultVal}</button>
                     <div class="filter-dropdown">
-                        ${options.map(opt => `<label><input type="radio" name="${key}" value="${opt}" ${opt === defaultVal ? "checked" : ""}> ${opt}</label><br/>`).join("")}
+                        ${options.map(opt => `<label><input type="radio" name="${key}" value="${opt}" ${opt === defaultVal ? "checked" : ""}> ${opt}</label>`).join("")}
                     </div>
                 </div>
             `;
             return html;
         }
-
-        // build UI
+        // Enhanced UI with modern elements
         $('body').append(`
- <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
-          <div class="modal-dialog" style="width: 100%;margin: 0;height: 100%;max-width: none;">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Staffing Summary</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body p-0">
-            <div class="staffing-summary-container">
-                <div class="staffing-summary-header">
-                    <span class="staffing-summary-title">Staffing Summary</span>
-                </div>
-                <div class="staffing-summary-filters" id="staffingFilterContainer">
-                    ${renderMultiSelect("LOB", uniqueLobs, "lob")}
-                    ${renderMultiSelect("Geo", uniqueGeos, "geo")}
-                    ${renderMultiSelect("Site", uniqueSites, "site")}
-                    ${renderMultiSelect("Project", uniqueProjectids, "projectid")}
-                    ${renderMultiSelect("Metrics", metrics, "metrics")}
-                    ${renderRadioSelect("Week From", uniqueWeeks, "week-from", uniqueWeeks[0])}
-                    ${renderRadioSelect("Week To", uniqueWeeks, "week-to", uniqueWeeks[uniqueWeeks.length - 1])}
-                    ${renderRadioSelect("Summary Type", ["weekly", "monthly"], "summary-type", "weekly")}
-                </div>
-                <div class="staffing-summary-body">
-                    <div class="staffing-summary-table-wrapper" id="staffingContainer">
-                        <table class="staffing-summary-table">
-                            <thead></thead>
-                            <tbody style="color:#000;font-size: 16px;"></tbody>
-                        </table>
+            <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;">
+                <div class="modal-dialog" style="width: 95vw; max-width: none; height: 95vh; margin: 2.5vh auto;">
+                    <div class="modal-content" style="height: 100%;">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Staffing Summary Dashboard</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">✕</button>
+                        </div>
+                        <div class="modal-body p-0" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                            <div class="staffing-summary-filters" id="staffingFilterContainer">
+                                ${renderMultiSelect("LOB", uniqueLobs, "lob")}
+                                ${renderMultiSelect("Geography", uniqueGeos, "geo")}
+                                ${renderMultiSelect("Site", uniqueSites, "site")}
+                                ${renderMultiSelect("Project", uniqueProjectids, "projectid")}
+                                ${renderMultiSelect("Metrics", metrics, "metrics")}
+                                ${renderRadioSelect("Week From", uniqueWeeks, "week-from", uniqueWeeks[0])}
+                                ${renderRadioSelect("Week To", uniqueWeeks, "week-to", uniqueWeeks[uniqueWeeks.length - 1])}
+                                ${renderRadioSelect("Summary Type", ["weekly", "monthly"], "summary-type", "weekly")}
+                            </div>
+                            
+                            <div class="action-buttons">
+                                <button class="btn-modern btn-primary" id="refreshBtn">
+                                    <span class="refresh-icon">🔄</span> Refresh Data
+                                </button>
+                                <button class="btn-modern btn-secondary" id="exportBtn">
+                                    <span>📥</span> Export
+                                </button>
+                            </div>
+                            
+                            <div class="staffing-summary-table-wrapper" id="staffingContainer" style="flex: 1;">
+                                <table class="staffing-summary-table">
+                                    <thead></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <div class="status-indicators">
+                                <div class="status-indicator">
+                                    <div class="status-dot green"></div>
+                                    <span>On Track (≥100%)</span>
+                                </div>
+                                <div class="status-indicator">
+                                    <div class="status-dot yellow"></div>
+                                    <span>At Risk (90-99%)</span>
+                                </div>
+                                <div class="status-indicator">
+                                    <div class="status-dot red"></div>
+                                    <span>Critical (&lt;90%)</span>
+                                </div>
+                            </div>
+                            <div>
+                                Last updated: <strong>${new Date().toLocaleTimeString()}</strong>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-         </div>
-     </div>
-     </div>
-</div>
         `);
-
         const $containerFilter = $('#staffingFilterContainer');
         const $container = $('#staffingContainer');
-
-        // filters state
+        // Enhanced filters state
         let filters = {
             lob: [...uniqueLobs],
             geo: [...uniqueGeos],
@@ -208,25 +553,23 @@ text-align:center
             weekTo: uniqueWeeks[uniqueWeeks.length - 1],
             summaryType: "weekly"
         };
-
-        // filter handling
+        // Enhanced filter interactions
         $containerFilter.on("click", ".filter-group > button", function () {
             const $group = $(this).closest(".filter-group");
             $(".filter-group").not($group).removeClass("open");
             $group.toggleClass("open");
         });
-
         $(document).on("click", function (e) {
             if (!$(e.target).closest(".filter-group").length) {
                 $(".filter-group").removeClass("open");
             }
         });
-
-        // checkboxes
+        // Enhanced checkbox handling
         $containerFilter.on("change", ".filter-group input[type=checkbox]", function () {
             const $group = $(this).closest(".filter-group");
             const key = $group.data("key");
             const $btn = $group.find("button");
+            
             if ($(this).val() === "all") {
                 const checked = $(this).prop("checked");
                 $group.find("input[type=checkbox]").not(this).prop("checked", checked);
@@ -236,27 +579,50 @@ text-align:center
                 filters[key] = selected;
                 $group.find("input[value=all]").prop("checked", selected.length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length));
             }
-            $btn.text(`${$btn.text().split(":")[0]}: ${filters[key].length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length) ? "Select All" : filters[key].length + " Selected"}`);
+            
+            const totalOptions = key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length;
+            const selectedCount = filters[key].length;
+            const buttonText = selectedCount === totalOptions ? "Select All" : `${selectedCount} Selected`;
+            $btn.text(`${$btn.text().split(":")[0]}: ${buttonText}`);
+            
             buildTable();
         });
-
-        // radios
+        // Enhanced radio handling
         $containerFilter.on("change", ".filter-group input[type=radio]", function () {
             const $group = $(this).closest(".filter-group");
             const key = $group.data("key").replace("-", "");
             const value = $(this).val();
-            filters[key == 'summarytype' ? 'summaryType' : key] = value;
-            if (key == "weekfrom")
-                filters.weekFrom = value;
-            else if (key == "weekto")
-                filters.weekTo = value;
-
-
-
-            $group.find("button").text(`${$group.find("button").text().split(":")[0]}: ${$(this).val()}`);
+            
+            if (key === "summarytype") filters.summaryType = value;
+            else if (key === "weekfrom") filters.weekFrom = value;
+            else if (key === "weekto") filters.weekTo = value;
+            
+            $group.find("button").text(`${$group.find("button").text().split(":")[0]}: ${value}`);
             buildTable();
         });
-
+        // Button interactions
+        $('#refreshBtn').on('click', function() {
+            const $icon = $(this).find('.refresh-icon');
+            $icon.addClass('loading-spinner');
+            setTimeout(() => {
+                $icon.removeClass('loading-spinner');
+                buildTable();
+            }, 1000);
+        });
+        $('#exportBtn').on('click', function() {
+            // Export functionality - customize as needed
+            const tableData = [];
+            $('#staffingContainer table tbody tr').each(function() {
+                const rowData = [];
+                $(this).find('td').each(function() {
+                    rowData.push($(this).text());
+                });
+                tableData.push(rowData);
+            });
+            
+            console.log('Export data:', tableData);
+            alert('Export functionality - check console for data structure');
+        });
         function calcMetrics(req, avail, metric) {
             if (metric === "Required HC") return Math.round(req);
             if (metric === "Available HC") return Math.round(avail);
@@ -264,38 +630,31 @@ text-align:center
             if (metric === "Staffing %") return req === 0 ? "0%" : Math.round((avail / req) * 100) + "%";
             return 0;
         }
-
         function buildTable() {
             const fromIndex = uniqueWeeks.indexOf(filters.weekFrom);
             const toIndex = uniqueWeeks.indexOf(filters.weekTo);
             const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
-
             const $thead = $container.find(".staffing-summary-table thead");
             const $tbody = $container.find(".staffing-summary-table tbody");
             $thead.empty();
             $tbody.empty();
-
             if (filters.metrics.length === 0) return;
-
             let periods = weeksInRange;
             if (filters.summaryType === "monthly") {
                 periods = [...new Set(settings.data.map(d => d.month))];
             }
-
-            const headerRow = `<tr><th class="sticky-col" style='min-width: 220px;'>LOB</th>${periods.map(p => `<th colspan="${filters.metrics.length}">${p}</th>`).join("")}</tr>`;
+            const headerRow = `<tr><th class="sticky-col">Line of Business</th>${periods.map(p => `<th colspan="${filters.metrics.length}">${p}</th>`).join("")}</tr>`;
             const subHeaderRow = `<tr><th class="sticky-col"></th>${periods.map(() => filters.metrics.map(m => `<th>${m}</th>`).join("")).join("")}</tr>`;
             $thead.append(headerRow).append(subHeaderRow);
-
-            // filter data
+            // Filter data based on selected filters
             const filteredData = settings.data.filter(d =>
                 filters.lob.includes(d.lob) &&
                 filters.geo.includes(d.geo) &&
                 filters.site.includes(d.site) &&
                 filters.projectid.includes(d.projectId)
             );
-
-            // overall summary
-            const overallRow = `<tr class="summary-row"><td class="sticky-col" style="background:rgb(245, 250, 225)">Overall Summary</td>${periods.map(p =>
+            // Overall summary row
+            const overallRow = `<tr class="summary-row"><td class="sticky-col">Overall Summary</td>${periods.map(p =>
                 filters.metrics.map(m => {
                     let periodData;
                     if (filters.summaryType === "weekly") {
@@ -303,22 +662,20 @@ text-align:center
                     } else {
                         periodData = filteredData.filter(d => d.month === p);
                     }
-                    const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? b.value : 0), 0);
-                    const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? b.value : 0), 0);
+                    const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? parseFloat(b.value) : 0), 0);
+                    const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? parseFloat(b.value) : 0), 0);
                     let val = calcMetrics(req, avail, m);
                     let ragClass = "";
                     if (m === "Staffing %") {
-                        const pct = parseInt(val.replace("%", ""));
+                        const pct = parseInt(val.toString().replace("%", ""));
                         ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
                     }
                     if (m === "Delta" && val < 0) ragClass = "rag-red";
-                    return `<td class="${ragClass}">${val}</td>`;
+                    return `<td><span class="${ragClass}">${val}</span></td>`;
                 }).join("")
-            ).join("")
-                }</tr>`;
+            ).join("")}</tr>`;
             $tbody.append(overallRow);
-
-            // per LOB
+            // Individual LOB rows
             filters.lob.forEach(lob => {
                 const lobRow = `<tr class="lob-row"><td class="sticky-col">${lob}</td>${periods.map(p =>
                     filters.metrics.map(m => {
@@ -328,32 +685,28 @@ text-align:center
                         } else {
                             periodData = filteredData.filter(d => d.month === p && d.lob === lob);
                         }
-                        const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? b.value : 0), 0);
-                        const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? b.value : 0), 0);
+                        const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? parseFloat(b.value) : 0), 0);
+                        const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? parseFloat(b.value) : 0), 0);
                         let val = calcMetrics(req, avail, m);
                         let ragClass = "";
                         if (m === "Staffing %") {
-                            const pct = parseInt(val.replace("%", ""));
+                            const pct = parseInt(val.toString().replace("%", ""));
                             ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
                         }
                         if (m === "Delta" && val < 0) ragClass = "rag-red";
-                        return `<td class="${ragClass}">${val}</td>`;
+                        return `<td><span class="${ragClass}">${val}</span></td>`;
                     }).join("")
-                ).join("")
-                    }</tr>`;
+                ).join("")}</tr>`;
                 $tbody.append(lobRow);
             });
         }
-
+        // Initialize table
         buildTable();
-
+        // Show modal with enhanced options
         $('#analyticsModal').modal({
             backdrop: 'static',
             keyboard: false
         }).modal('show');
-
-
-
-
+        return this;
     };
 })(jQuery);
