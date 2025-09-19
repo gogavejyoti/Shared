@@ -131,3 +131,191 @@
         $('body').append(`
  <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
           <div class="modal-dialog" style="width: 100%;margin: 0;height: 100%;max-width: none;">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Staffing Summary</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body p-0">
+            <div class="staffing-summary-container">
+                <div class="staffing-summary-header">
+                    <span class="staffing-summary-title">Staffing Summary</span>
+                </div>
+                <div class="staffing-summary-filters" id="staffingFilterContainer">
+                    ${renderMultiSelect("LOB", uniqueLobs, "lob")}
+                    ${renderMultiSelect("Geo", uniqueGeos, "geo")}
+                    ${renderMultiSelect("Site", uniqueSites, "site")}
+                    ${renderMultiSelect("Project", uniqueProjects, "projectid")}
+                    ${renderMultiSelect("Metrics", metrics, "metrics")}
+                    ${renderRadioSelect("Week From", uniqueWeeks, "week-from", uniqueWeeks[0])}
+                    ${renderRadioSelect("Week To", uniqueWeeks, "week-to", uniqueWeeks[uniqueWeeks.length - 1])}
+                    ${renderRadioSelect("Summary Type", ["weekly", "monthly"], "summary-type", "weekly")}
+                </div>
+                <div class="staffing-summary-body">
+                    <div class="staffing-summary-table-wrapper" id="staffingContainer">
+                        <table class="staffing-summary-table">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+         </div>
+     </div>
+     </div>
+</div>
+        `);
+
+        const $containerFilter = $('#staffingFilterContainer');
+        const $container = $('#staffingContainer');
+
+        // filters state
+        let filters = {
+            lob: [...uniqueLobs],
+            geo: [...uniqueGeos],
+            site: [...uniqueSites],
+            projectid: [...uniqueProjects],
+            metrics: [...metrics],
+            weekFrom: uniqueWeeks[0],
+            weekTo: uniqueWeeks[uniqueWeeks.length - 1],
+            summaryType: "weekly"
+        };
+
+        // filter handling
+        $containerFilter.on("click", ".filter-group > button", function () {
+            const $group = $(this).closest(".filter-group");
+            $(".filter-group").not($group).removeClass("open");
+            $group.toggleClass("open");
+        });
+
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest(".filter-group").length) {
+                $(".filter-group").removeClass("open");
+            }
+        });
+
+        // checkboxes
+        $containerFilter.on("change", ".filter-group input[type=checkbox]", function () {
+            const $group = $(this).closest(".filter-group");
+            const key = $group.data("key");
+            const $btn = $group.find("button");
+            if ($(this).val() === "all") {
+                const checked = $(this).prop("checked");
+                $group.find("input[type=checkbox]").not(this).prop("checked", checked);
+                filters[key] = checked ? [...(key === "metrics" ? metrics : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s"))] : [];
+            } else {
+                const selected = $group.find("input[type=checkbox]:checked").map((_, el) => $(el).val()).get().filter(v => v !== "all");
+                filters[key] = selected;
+                $group.find("input[value=all]").prop("checked", selected.length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length));
+            }
+            $btn.text(`${$btn.text().split(":")[0]}: ${filters[key].length === (key === "metrics" ? metrics.length : eval("unique" + key.charAt(0).toUpperCase() + key.slice(1) + "s").length) ? "Select All" : filters[key].length + " Selected"}`);
+            buildTable();
+        });
+
+        // radios
+        $containerFilter.on("change", ".filter-group input[type=radio]", function () {
+            const $group = $(this).closest(".filter-group");
+            const key = $group.data("key").replace("-", "");
+
+            filters[key=='summarytype'?'summaryType' : key] = $(this).val();
+            $group.find("button").text(`${$group.find("button").text().split(":")[0]}: ${$(this).val()}`);
+            buildTable();
+        });
+
+        function calcMetrics(req, avail, metric) {
+            if (metric === "Required HC") return Math.round(req);
+            if (metric === "Available HC") return Math.round(avail);
+            if (metric === "Delta") return Math.round(avail - req);
+            if (metric === "Staffing %") return req === 0 ? "0%" : Math.round((avail / req) * 100) + "%";
+            return 0;
+        }
+
+        function buildTable() {
+            const fromIndex = uniqueWeeks.indexOf(filters.weekFrom);
+            const toIndex = uniqueWeeks.indexOf(filters.weekTo);
+            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
+
+            const $thead = $container.find(".staffing-summary-table thead");
+            const $tbody = $container.find(".staffing-summary-table tbody");
+            $thead.empty();
+            $tbody.empty();
+
+            if (filters.metrics.length === 0) return;
+
+            let periods = weeksInRange;
+            if (filters.summaryType === "monthly") {
+                periods = [...new Set(settings.data.map(d => d.month))];
+            }
+
+            const headerRow = `<tr><th class="sticky-col" style='min-width: 220px;'>LOB</th>${periods.map(p => `<th colspan="${filters.metrics.length}">${p}</th>`).join("")}</tr>`;
+            const subHeaderRow = `<tr><th class="sticky-col"></th>${periods.map(() => filters.metrics.map(m => `<th>${m}</th>`).join("")).join("")}</tr>`;
+            $thead.append(headerRow).append(subHeaderRow);
+
+            // filter data
+            const filteredData = settings.data.filter(d =>
+                filters.lob.includes(d.lob) &&
+                filters.geo.includes(d.geo) &&
+                filters.site.includes(d.site) &&
+                filters.projectid.includes(d.projectid)
+            );
+
+            // overall summary
+            const overallRow = `<tr class="summary-row"><td class="sticky-col">Overall Summary</td>${periods.map(p =>
+                filters.metrics.map(m => {
+                    let periodData;
+                    if (filters.summaryType === "weekly") {
+                        periodData = filteredData.filter(d => d.week === p);
+                    } else {
+                        periodData = filteredData.filter(d => d.month === p);
+                    }
+                    const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? b.value : 0), 0);
+                    const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? b.value : 0), 0);
+                    let val = calcMetrics(req, avail, m);
+                    let ragClass = "";
+                    if (m === "Staffing %") {
+                        const pct = parseInt(val.replace("%", ""));
+                        ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
+                    }
+                    if (m === "Delta" && val < 0) ragClass = "rag-red";
+                    return `<td class="${ragClass}">${val}</td>`;
+                }).join("")
+            ).join("")
+                }</tr>`;
+            $tbody.append(overallRow);
+
+            // per LOB
+            filters.lob.forEach(lob => {
+                const lobRow = `<tr class="lob-row"><td class="sticky-col">${lob}</td>${periods.map(p =>
+                    filters.metrics.map(m => {
+                        let periodData;
+                        if (filters.summaryType === "weekly") {
+                            periodData = filteredData.filter(d => d.week === p && d.lob === lob);
+                        } else {
+                            periodData = filteredData.filter(d => d.month === p && d.lob === lob);
+                        }
+                        const req = periodData.reduce((a, b) => a + (b.header === "Required HC" ? b.value : 0), 0);
+                        const avail = periodData.reduce((a, b) => a + (b.header === "Available HC" ? b.value : 0), 0);
+                        let val = calcMetrics(req, avail, m);
+                        let ragClass = "";
+                        if (m === "Staffing %") {
+                            const pct = parseInt(val.replace("%", ""));
+                            ragClass = pct < 90 ? "rag-red" : pct < 100 ? "rag-amber" : "rag-green";
+                        }
+                        if (m === "Delta" && val < 0) ragClass = "rag-red";
+                        return `<td class="${ragClass}">${val}</td>`;
+                    }).join("")
+                ).join("")
+                    }</tr>`;
+                $tbody.append(lobRow);
+            });
+        }
+
+        buildTable();
+
+        $('#analyticsModal').modal({
+            backdrop: 'static',
+            keyboard: false
+        }).modal('show');
+
+    };
+})(jQuery);
