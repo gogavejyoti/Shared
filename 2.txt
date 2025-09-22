@@ -1,23 +1,25 @@
 pasteHandlerOfCopyPaste: function(e) {
     if (!gr(h.luckysheet_select_save, h.currentSheetIndex)) return;
 
-    let t = Q().paste,
-        l = $.extend(true, {}, h.config);
+    const t = Q().paste;
+    let l = $.extend(true, {}, h.config);
     l.merge = l.merge || {};
 
     const a = e.HasMC,
           o = e.RowlChange,
-          s = e.dataSheetIndex,
-          copyRange = e.copyRange[0],
+          s = e.dataSheetIndex;
+
+    const copyRange = e.copyRange[0],
           u = copyRange.row[0],
           d = copyRange.row[1],
           f = copyRange.column[0],
           m = copyRange.column[1];
 
-    let g = [],
-        y = false;
+    let g = [], y = false;
 
+    // -----------------------------
     // Prepare copied data
+    // -----------------------------
     for (let idx = 0; idx < e.copyRange.length; idx++) {
         let data = Nt({ row: e.copyRange[idx].row, column: e.copyRange[idx].column }, s);
         if (e.copyRange.length > 1) {
@@ -32,7 +34,6 @@ pasteHandlerOfCopyPaste: function(e) {
     }
 
     if (y) g = g[0].map((_, colIdx) => g.map(row => row[colIdx]));
-
     let v = $.extend(true, [], g);
 
     if (e.copyRange.length > 1) {
@@ -41,7 +42,9 @@ pasteHandlerOfCopyPaste: function(e) {
                 if (v[r][c]?.f != null) delete v[r][c].f, delete v[r][c].spl;
     }
 
+    // -----------------------------
     // Determine target range
+    // -----------------------------
     let w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
         x = w.row[0],
         C = w.row[1],
@@ -55,9 +58,10 @@ pasteHandlerOfCopyPaste: function(e) {
         _ = S + v[0].length - 1;
     }
 
+    // -----------------------------
     // Merge conflict check
-    let R = l.merge && Dt(l, x, C, S, _);
-    if (R) {
+    // -----------------------------
+    if (l.merge && Dt(l, x, C, S, _)) {
         de() ? alert(t.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
         return;
     }
@@ -77,32 +81,26 @@ pasteHandlerOfCopyPaste: function(e) {
     let q = null;
 
     // -----------------------------
-    // Ultra-fast paste loop (formulas as text only)
+    // Paste formulas as text, no calculation
     // -----------------------------
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
             let Y = x + (se - 1) * v.length,
                 X = S + (ie - 1) * v[0].length,
                 te = x + se * v.length,
-                ee = S + ie * v[0].length;
-            let ue = Y - u, he = X - f, formulaMap = {};
+                ee = S + ie * v[0].length,
+                formulaMap = {},
+                ue = Y - u,
+                he = X - f;
 
             for (let G = Y; G < te; G++) {
                 let rowCopy = [].concat(N[G]);
                 for (let pe = X; pe < ee; pe++) {
                     let cell = v[G - Y]?.[pe - X] ? $.extend(true, {}, v[G - Y][pe - X]) : null;
                     if (cell) {
-                        // Paste formula as text only, ensure '='
-                        if (cell.f != null) {
-                            let formulaText = cell.f.startsWith('=') ? cell.f : '=' + cell.f;
-                            formulaText = p.functionCopy(formulaText, "down", ue);
-                            formulaText = p.functionCopy(formulaText, "right", he);
-                            cell.f = formulaText;
-                            cell.v = null;      // skip calculation now
-                            cell.dirty = true;  // mark for later recalculation
-                        }
+                        if (cell.f != null) cell.f = cell.f.startsWith('=') ? cell.f : '=' + cell.f;
 
-                        // Multi-cell merge
+                        // Merge handling
                         if (a && "mc" in cell) {
                             if (cell.mc.rs != null) {
                                 cell.mc.r = G;
@@ -126,7 +124,7 @@ pasteHandlerOfCopyPaste: function(e) {
 
     // Conditional formatting & data validation
     let ce = null;
-    if (e.copyRange.length == 1) {
+    if (e.copyRange.length === 1) {
         const sourceCF = h.luckysheetfile[K(s)].luckysheet_conditionformat_save;
         if (sourceCF?.length > 0) {
             ce = $.extend(true, [], h.luckysheetfile[K(h.currentSheetIndex)].luckysheet_conditionformat_save);
@@ -152,25 +150,28 @@ pasteHandlerOfCopyPaste: function(e) {
         }
     }
 
-    // Final write
     const payload = { cfg: l, RowlChange: o, cdformat: ce, dataVerification: q };
     Ye(N, h.luckysheet_select_save, payload);
 
     // -----------------------------
-    // Recalculate only visible cells after paste
+    // Ultra-fast batch formula recalculation
     // -----------------------------
-    const visible = luckysheet.getVisibleCellRange(); // visible rows & columns
-    for (let r = visible.row[0]; r <= visible.row[1]; r++) {
-        for (let c = visible.column[0]; c <= visible.column[1]; c++) {
-            const cell = N[r][c];
-            if (cell?.dirty) {
-                const result = cell.f ? p.execfunction(cell.f, r, c, void 0, true) : null;
-                if (result) {
-                    cell.v = result[1];
-                    if (cell.ct?.fa) cell.m = mt(cell.ct.fa, cell.v);
-                }
-                cell.dirty = false;
-            }
+    // Collect all formula cells
+    let formulaCells = [];
+    for (let r = 0; r < N.length; r++) {
+        for (let c = 0; c < N[0].length; c++) {
+            if (N[r][c]?.f != null) formulaCells.push([r, c]);
+        }
+    }
+
+    // Calculate only formula cells in one batch
+    for (let i = 0; i < formulaCells.length; i++) {
+        const [r, c] = formulaCells[i];
+        let cell = N[r][c];
+        let result = p.execfunction(cell.f, r, c, void 0, true);
+        if (result) {
+            cell.v = result[1];
+            if (cell.ct?.fa) cell.m = mt(cell.ct.fa, cell.v);
         }
     }
 
