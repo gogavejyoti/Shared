@@ -1,26 +1,23 @@
-(function ($) {
-    $.fn.resourcePlanningDashboard = function (options) {
-        const settings = $.extend({ data: [], containerId: '' }, options);
-        const container = $('#' + settings.containerId);
-        container.empty().addClass('dashboard-container');
+const headerMap = {
+    'Required HC': 'requiredHC',
+    'Available HC': 'availableHC',
+    'Actual Attrition': 'actualAttrition',
+    'Planned Attrition': 'plannedAttrition',
+    'Actual Shrinkage': 'actualShrinkage',
+    'Planned Shrinkage': 'plannedShrinkage',
+    'Forecasted Hours': 'forecastedHours',
+    'Actual Hours': 'actualHours'
+};
 
-        // ---------------------------
-        // Pivot the long-format data
-        // ---------------------------
-        const pivotData = (data) => {
-            const grouped = {};
-            data.forEach(d => {
-                const key = `${d.geo}|${d.site}|${d.projectId}|${d.lob}|${d.week}|${d.month}`;
-                if (!grouped[key]) grouped[key] = {
-                    geo: d.geo, site: d.site, projectId: d.projectId, lob: d.lob, week: d.week, month: d.month
-                };
-                grouped[key][d.header.replace(/\s+/g,'')] = d.value;
-            });
-            return Object.values(grouped);
+const pivotData = (data) => {
+    const grouped = {};
+    data.forEach(d => {
+        const key = `${d.geo}|${d.site}|${d.projectId}|${d.lob}|${d.week}|${d.month}`;
+        if (!grouped[key]) grouped[key] = {
+            geo: d.geo, site: d.site, projectId: d.projectId, lob: d.lob, week: d.week, month: d.month
         };
-
-        const wideData = pivotData(settings.data); // <-- Call pivot here
-
-        // Now all rendering/filtering/etc. use wideData
-        // Example: uniqueValues = field => [...new Set(wideData.map(d => d[field]))];
-        // Filters, KPIs, charts, table, drill-down all use wideData
+        const internalKey = headerMap[d.header];
+        if (internalKey) grouped[key][internalKey] = d.value;
+    });
+    return Object.values(grouped);
+};
