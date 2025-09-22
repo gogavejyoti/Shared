@@ -50,9 +50,7 @@
             const grouped = {};
             data.forEach(d => {
                 const key = `${d.geo}|${d.site}|${d.projectId}|${d.lob}|${d.week}|${d.month}`;
-                if (!grouped[key]) grouped[key] = {
-                    geo: d.geo, site: d.site, projectId: d.projectId, lob: d.lob, week: d.week, month: d.month
-                };
+                if (!grouped[key]) grouped[key] = { geo: d.geo, site: d.site, projectId: d.projectId, lob: d.lob, week: d.week, month: d.month };
                 const internalKey = headerMap[d.header];
                 if (internalKey) grouped[key][internalKey] = d.value;
             });
@@ -84,9 +82,9 @@
         // ---------------------------
         // Filters
         // ---------------------------
-        const uniqueValues = field => [...new Set(wideData.map(d => d[field]))].sort();
+        const uniqueValues = field => Array.from(new Set(wideData.map(d => d[field]))).sort();
         const geoList = uniqueValues('geo'), siteList = uniqueValues('site'), projectList = uniqueValues('projectId'), lobList = uniqueValues('lob');
-        const weekList = [...new Set(wideData.map(d=>d.week))].sort((a,b)=>new Date(a)-new Date(b));
+        const weekList = Array.from(new Set(wideData.map(d => d.week))).sort((a,b)=>new Date(a)-new Date(b));
 
         const filterBar = $('<div class="filters-bar"></div>');
 
@@ -98,10 +96,13 @@
             values.forEach(v => list.append(`<label><input type="checkbox" value="${v}" checked> ${v}</label>`));
             btn.on('click',()=>{ list.toggle(); });
             filter.append(btn).append(list);
-            list.find('input[type=checkbox]').on('change', function(){
-                const selected = list.find('input:checked').map((i,e)=>$(e).val()).get().join(', ') || `Select ${label}`;
-                btn.text(selected);
-            });
+
+            const updateBtnText = () => { 
+                const selectedText = list.find('input:checked').map((i,e)=>$(e).val()).get().join(', ') || `Select ${label}`;
+                btn.text(selectedText);
+            };
+            list.find('input[type=checkbox]').on('change', updateBtnText);
+            updateBtnText();
             return filter;
         };
 
@@ -110,7 +111,16 @@
         const projectFilter = createMultiSelect('Project', projectList);
         const lobFilter = createMultiSelect('LOB', lobList);
 
-        // Week From / To single select
+        // Close dropdowns on outside click
+        $(document).on('click', function(e){
+            $('.dropdown-list').each(function(){
+                if(!$(this).is(e.target) && $(this).has(e.target).length === 0 && !$(this).prev('.dropdown-btn').is(e.target)){
+                    $(this).hide();
+                }
+            });
+        });
+
+        // Week From / To dropdown
         const createWeekSelect = (label, values, defaultValue) => {
             const filter = $('<div class="filter"></div>');
             filter.append(`<label>${label}</label>`);
@@ -120,8 +130,7 @@
             filter.append(select);
             return filter;
         };
-
-        const currentWeekIndex = Math.floor(weekList.length/2);
+        const currentWeekIndex = weekList.findIndex(w => new Date(w) >= new Date());
         const weekFromFilter = createWeekSelect('Week From', weekList, weekList[Math.max(0,currentWeekIndex-6)]);
         const weekToFilter = createWeekSelect('Week To', weekList, weekList[Math.min(weekList.length-1,currentWeekIndex+6)]);
 
@@ -132,31 +141,23 @@
         filterBar.append(geoFilter, siteFilter, projectFilter, lobFilter, weekFromFilter, weekToFilter, reportTypeFilter, applyBtn);
         container.append(filterBar);
 
-        // ---------------------------
         // KPI Tiles
-        // ---------------------------
         const kpiContainer = $('<div class="kpi-container"></div>');
         const kpiMetrics = ['Staffing %','Delta','Forecast Accuracy','Attrition %','Shrinkage %'];
         kpiMetrics.forEach(kpi=>{ kpiContainer.append(`<div class="kpi-tile"><div class="kpi-label">${kpi}</div><div class="kpi-value">0</div></div>`); });
         container.append(kpiContainer);
 
-        // ---------------------------
         // Charts
-        // ---------------------------
         const chartsContainer = $('<div class="charts-container"></div>');
         const chartIds = ['hcTrendChart','deltaChart','attritionChart','hoursChart','shareChart'];
         chartIds.forEach(id=>chartsContainer.append(`<div class="chart-card"><canvas id="${id}" height="220"></canvas></div>`));
         container.append(chartsContainer);
 
-        // ---------------------------
         // Table
-        // ---------------------------
         const tableContainer = $('<div class="table-container"><table id="resourceTable" class="display nowrap" width="100%"></table></div>');
         container.append(tableContainer);
 
-        // ---------------------------
-        // Render Dashboard Function
-        // ---------------------------
+        // Render Dashboard
         const renderDashboard = () => {
             updateBreadcrumb();
 
@@ -171,7 +172,6 @@
             let filtered = wideData.filter(d=>selectedGeo.includes(d.geo) && selectedSite.includes(d.site) && selectedProject.includes(d.projectId) && selectedLOB.includes(d.lob));
             filtered = filtered.filter(d=>d.week>=weekFrom && d.week<=weekTo);
 
-            // Monthly aggregation
             if(reportType==='monthly'){
                 const grouped = {};
                 filtered.forEach(d=>{
@@ -184,25 +184,28 @@
                 filtered = Object.values(grouped);
             }
 
-            // ---------------------------
-            // KPIs (current week/month)
-            // ---------------------------
-            const currentPeriod = filtered[filtered.length-1]; // last in range as current
+            // KPI Tiles
+            const currentPeriod = filtered[filtered.length-1];
             if(currentPeriod){
                 const delta=currentPeriod.availableHC-currentPeriod.requiredHC;
                 const staffingPct=currentPeriod.requiredHC>0?((currentPeriod.availableHC/currentPeriod.requiredHC)*100).toFixed(1)+'%':'0%';
                 const forecastPct=currentPeriod.forecastedHours>0?((currentPeriod.actualHours/currentPeriod.forecastedHours)*100).toFixed(1)+'%':'0%';
                 const attrPct=currentPeriod.plannedAttrition>0?((currentPeriod.actualAttrition/currentPeriod.plannedAttrition)*100).toFixed(1)+'%':'0%';
                 const shrinkPct=currentPeriod.plannedShrinkage>0?((currentPeriod.actualShrinkage/currentPeriod.plannedShrinkage)*100).toFixed(1)+'%':'0%';
-                const kpiValues=[staffingPct,delta,forecastPct,attrPct,shrinkPct];
-                kpiContainer.find('.kpi-tile .kpi-value').each((i,e)=>$(e).text(kpiValues[i]));
+
+                const tiles = kpiContainer.find('.kpi-value');
+                tiles.eq(0).text(staffingPct);
+                tiles.eq(1).text(delta);
+                tiles.eq(2).text(forecastPct);
+                tiles.eq(3).text(attrPct);
+                tiles.eq(4).text(shrinkPct);
             }
 
             // ---------------------------
             // Charts
             // ---------------------------
-            const weeksSorted=[...new Set(filtered.map(d=>d.week))].sort((a,b)=>new Date(a)-new Date(b));
-            const sumByWeek = field=>weeksSorted.map(w=>filtered.filter(d=>d.week===w).reduce((a,b)=>a+(b[field]||0),0));
+            const weeksSorted = [...new Set(filtered.map(d=>d.week))].sort((a,b)=>new Date(a)-new Date(b));
+            const sumByWeek = field => weeksSorted.map(w=>filtered.filter(d=>d.week===w).reduce((a,b)=>a+(b[field]||0),0));
             const hcRequired=sumByWeek('requiredHC'), hcAvailable=sumByWeek('availableHC'), hcDelta=hcAvailable.map((v,i)=>v-hcRequired[i]);
             const forecasted=sumByWeek('forecastedHours'), actualH=sumByWeek('actualHours');
             const attrPlanned=sumByWeek('plannedAttrition'), attrActual=sumByWeek('actualAttrition');
