@@ -35,13 +35,10 @@ pasteHandlerOfCopyPaste: function (e) {
 
     let v = $.extend(true, [], g);
 
-    // Remove formulas for multi-range copy
     if (e.copyRange.length > 1) {
-        for (let r = 0; r < v.length; r++) {
-            for (let c = 0; c < v[r].length; c++) {
+        for (let r = 0; r < v.length; r++)
+            for (let c = 0; c < v[r].length; c++)
                 if (v[r][c]?.f != null) delete v[r][c].f, delete v[r][c].spl;
-            }
-        }
     }
 
     // Determine target range
@@ -65,7 +62,6 @@ pasteHandlerOfCopyPaste: function (e) {
         return;
     }
 
-    // Compute repeat counts
     const I = (C - x + 1) / v.length,
           F = (_ - S + 1) / v[0].length;
 
@@ -79,8 +75,9 @@ pasteHandlerOfCopyPaste: function (e) {
           V = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification);
 
     let q = null;
+    const formulaCells = []; // collect formula cells
 
-    // Paste loop: store formulas but defer execution
+    // Paste loop: copy values and formulas (deferred)
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
             let Y = x + (se - 1) * v.length,
@@ -97,7 +94,6 @@ pasteHandlerOfCopyPaste: function (e) {
                 for (let pe = X; pe < ee; pe++) {
                     let cell = v[G - Y]?.[pe - X] ? $.extend(true, {}, v[G - Y][pe - X]) : null;
 
-                    // Adjust formula text but don't calculate yet
                     if (cell?.f != null) {
                         let Fe = cell.f;
                         if (ue > 0) Fe = "=" + p.functionCopy(Fe, "down", ue);
@@ -105,14 +101,15 @@ pasteHandlerOfCopyPaste: function (e) {
                         if (he > 0) Fe = "=" + p.functionCopy(Fe, "right", he);
                         if (he < 0) Fe = "=" + p.functionCopy(Fe, "left", Math.abs(he));
 
-                        cell.f = Fe; // formula stored
-                        cell.v = null; // defer execution
+                        cell.f = Fe;
+                        cell.v = null; // defer calculation
+                        formulaCells.push([G, pe]); // add to batch
                     }
 
                     rowCopy[pe] = cell;
 
-                    // Multi-cell merge updates
-                    if (cell != null && a && "mc" in cell) {
+                    // Multi-cell merge
+                    if (cell && a && "mc" in cell) {
                         if (cell.mc.rs != null) {
                             cell.mc.r = G;
                             cell.mc.c = pe;
@@ -128,7 +125,6 @@ pasteHandlerOfCopyPaste: function (e) {
         }
     }
 
-    // Update selection
     w.row = [x, C];
     w.column = [S, _];
 
@@ -164,27 +160,19 @@ pasteHandlerOfCopyPaste: function (e) {
     const payload = { cfg: l, RowlChange: o, cdformat: ce, dataVerification: q };
     Ye(N, h.luckysheet_select_save, payload);
 
-    // Bulk formula execution AFTER paste
-    (function execAllFormula(flowData, range) {
-        const rowStart = range?.rowStart ?? 0,
-              rowEnd   = range?.rowEnd   ?? flowData.length - 1,
-              colStart = range?.colStart ?? 0,
-              colEnd   = range?.colEnd   ?? flowData[0].length - 1;
-
-        for (let r = rowStart; r <= rowEnd; r++) {
-            for (let c = colStart; c <= colEnd; c++) {
-                const cell = flowData[r]?.[c];
-                if (cell && cell.f) {
-                    const result = p.execfunction(cell.f, r, c, void 0, true);
-                    cell.v = result[1];
-                    cell.f = result[2] ? "=" + result[2] : cell.f;
-                    if (cell.spl != null) cell.spl = result[3]?.data;
-                    if (cell.ct?.fa) cell.m = mt(cell.ct.fa, cell.v);
-                }
-            }
+    // -----------------------------
+    // Batch formula execution
+    // -----------------------------
+    for (let [r, c] of formulaCells) {
+        const cell = N[r][c];
+        if (cell && cell.f) {
+            const result = p.execfunction(cell.f, r, c, void 0, true);
+            cell.v = result[1];
+            cell.f = result[2] ? "=" + result[2] : cell.f;
+            if (cell.spl != null) cell.spl = result[3]?.data;
+            if (cell.ct?.fa) cell.m = mt(cell.ct.fa, cell.v);
         }
-    })(N, { rowStart: x, rowEnd: C, colStart: S, colEnd: _ });
+    }
 
-    // Trigger UI update
-    tt();
+    tt(); // UI update
 }
