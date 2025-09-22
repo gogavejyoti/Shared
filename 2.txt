@@ -75,8 +75,26 @@ pasteHandlerOfCopyPaste: function (e) {
           V = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification);
 
     let q = null,
-        formulaCells = []; // to track formula cells
-    const depGraph = {}; // dependency graph
+        formulaCells = [],
+        depGraph = {};
+
+    // Helper to extract cell references from formula
+    function getFormulaRefs(formula) {
+        if (!formula) return [];
+        if (formula[0] === "=") formula = formula.substring(1);
+        const refs = new Set();
+        const cellRefRegex = /([A-Z]+)(\d+)/g;
+        let match;
+        while ((match = cellRefRegex.exec(formula)) !== null) {
+            const colLetters = match[1], rowNum = parseInt(match[2], 10) - 1;
+            let colNum = 0;
+            for (let i = 0; i < colLetters.length; i++)
+                colNum = colNum * 26 + (colLetters.charCodeAt(i) - 64);
+            colNum -= 1;
+            refs.add(`${rowNum}_${colNum}`);
+        }
+        return Array.from(refs);
+    }
 
     // Paste loop: copy values/formulas (deferred)
     for (let se = 1; se <= I; se++) {
@@ -85,10 +103,7 @@ pasteHandlerOfCopyPaste: function (e) {
                 X = S + (ie - 1) * v[0].length,
                 te = x + se * v.length,
                 ee = S + ie * v[0].length;
-
-            let ue = Y - u,
-                he = X - f,
-                formulaMap = {};
+            let ue = Y - u, he = X - f, formulaMap = {};
 
             for (let G = Y; G < te; G++) {
                 let rowCopy = [].concat(N[G]);
@@ -103,12 +118,9 @@ pasteHandlerOfCopyPaste: function (e) {
                         if (he < 0) Fe = "=" + p.functionCopy(Fe, "left", Math.abs(he));
 
                         cell.f = Fe;
-                        cell.v = null; // defer calculation
+                        cell.v = null;
                         formulaCells.push({ r: G, c: pe, f: Fe });
-
-                        // build dependencies (cells referenced by formula)
-                        const refs = p.getFormulaRefs(Fe); // implement this: return array of "R_C"
-                        depGraph[G + "_" + pe] = refs;
+                        depGraph[G + "_" + pe] = getFormulaRefs(Fe);
                     }
 
                     rowCopy[pe] = cell;
@@ -166,7 +178,7 @@ pasteHandlerOfCopyPaste: function (e) {
     Ye(N, h.luckysheet_select_save, payload);
 
     // -----------------------------
-    // Extremely fast batch formula evaluation
+    // Extremely fast batch formula evaluation (topological)
     // -----------------------------
     const evaluated = new Set();
 
