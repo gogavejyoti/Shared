@@ -74,10 +74,11 @@ pasteHandlerOfCopyPaste: function (e) {
     const O = Ur(s),
           V = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification);
 
-    let q = null;
-    const formulaCells = []; // collect formula cells
+    let q = null,
+        formulaCells = []; // to track formula cells
+    const depGraph = {}; // dependency graph
 
-    // Paste loop: copy values and formulas (deferred)
+    // Paste loop: copy values/formulas (deferred)
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
             let Y = x + (se - 1) * v.length,
@@ -103,7 +104,11 @@ pasteHandlerOfCopyPaste: function (e) {
 
                         cell.f = Fe;
                         cell.v = null; // defer calculation
-                        formulaCells.push([G, pe]); // add to batch
+                        formulaCells.push({ r: G, c: pe, f: Fe });
+
+                        // build dependencies (cells referenced by formula)
+                        const refs = p.getFormulaRefs(Fe); // implement this: return array of "R_C"
+                        depGraph[G + "_" + pe] = refs;
                     }
 
                     rowCopy[pe] = cell;
@@ -161,9 +166,15 @@ pasteHandlerOfCopyPaste: function (e) {
     Ye(N, h.luckysheet_select_save, payload);
 
     // -----------------------------
-    // Batch formula execution
+    // Extremely fast batch formula evaluation
     // -----------------------------
-    for (let [r, c] of formulaCells) {
+    const evaluated = new Set();
+
+    function topoEval(cellKey) {
+        if (evaluated.has(cellKey)) return;
+        const deps = depGraph[cellKey] || [];
+        for (let ref of deps) topoEval(ref);
+        const [r, c] = cellKey.split("_").map(Number);
         const cell = N[r][c];
         if (cell && cell.f) {
             const result = p.execfunction(cell.f, r, c, void 0, true);
@@ -172,7 +183,12 @@ pasteHandlerOfCopyPaste: function (e) {
             if (cell.spl != null) cell.spl = result[3]?.data;
             if (cell.ct?.fa) cell.m = mt(cell.ct.fa, cell.v);
         }
+        evaluated.add(cellKey);
     }
 
-    tt(); // UI update
+    for (let fc of formulaCells) {
+        topoEval(fc.r + "_" + fc.c);
+    }
+
+    tt(); // UI update after all formulas
 }
