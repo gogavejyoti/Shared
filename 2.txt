@@ -7,20 +7,18 @@
 <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.14.0/js/jquery.dataTables.min.js"></script>
 
 <style>
-/* Dashboard Styles */
 .dashboard-container { font-family:'Segoe UI',sans-serif; background:#f9fafb; padding:15px; }
 .filters-bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:15px; align-items:flex-end; }
 .filters-bar .filter { display:flex; flex-direction:column; font-size:12px; min-width:150px; position:relative; }
-.filters-bar .filter select { display:none; } /* hide default select */
 .filters-bar .filter .dropdown-btn { background:#fff; border:1px solid #ccc; border-radius:5px; padding:5px 10px; cursor:pointer; text-align:left; }
-.filters-bar .filter .dropdown-list { display:none; position:absolute; top:35px; left:0; background:#fff; border:1px solid #ccc; border-radius:5px; z-index:1000; max-height:150px; overflow-y:auto; width:100%; }
+.filters-bar .filter .dropdown-list { display:none; position:absolute; top:35px; left:0; background:#fff; border:1px solid #ccc; border-radius:5px; z-index:1000; max-height:150px; overflow-y:auto; width:100%; box-shadow:0 2px 6px rgba(0,0,0,0.15);}
 .filters-bar .filter .dropdown-list label { display:flex; align-items:center; padding:2px 5px; cursor:pointer; }
+.filters-bar .filter .dropdown-list input { margin-right:5px; }
 .filters-bar button { height:35px; margin-top:18px; }
 .kpi-container { display:flex; flex-wrap:wrap; gap:15px; margin-bottom:15px; }
 .kpi-tile { flex:1; min-width:150px; background:#fff; border-radius:8px; padding:15px; box-shadow:0 2px 6px rgba(0,0,0,0.1); position:relative; text-align:center; }
 .kpi-tile .kpi-label { font-size:13px; color:#555; }
 .kpi-tile .kpi-value { font-size:24px; font-weight:bold; margin-top:5px; }
-.kpi-tile .kpi-trend { position:absolute; bottom:10px; right:10px; font-size:12px; }
 .charts-container { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:15px; margin-bottom:15px; }
 .chart-card { background:#fff; border-radius:8px; padding:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
 .table-container { background:#fff; border-radius:8px; padding:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-top:15px; }
@@ -88,9 +86,10 @@
         // ---------------------------
         const uniqueValues = field => [...new Set(wideData.map(d => d[field]))].sort();
         const geoList = uniqueValues('geo'), siteList = uniqueValues('site'), projectList = uniqueValues('projectId'), lobList = uniqueValues('lob');
-        const weekList = [...new Set(wideData.map(d => d.week))].sort((a,b)=>new Date(a)-new Date(b));
+        const weekList = [...new Set(wideData.map(d=>d.week))].sort((a,b)=>new Date(a)-new Date(b));
 
         const filterBar = $('<div class="filters-bar"></div>');
+
         const createMultiSelect = (label, values) => {
             const filter = $('<div class="filter"></div>');
             filter.append(`<label>${label}</label>`);
@@ -99,7 +98,6 @@
             values.forEach(v => list.append(`<label><input type="checkbox" value="${v}" checked> ${v}</label>`));
             btn.on('click',()=>{ list.toggle(); });
             filter.append(btn).append(list);
-            // Update button text on selection
             list.find('input[type=checkbox]').on('change', function(){
                 const selected = list.find('input:checked').map((i,e)=>$(e).val()).get().join(', ') || `Select ${label}`;
                 btn.text(selected);
@@ -123,15 +121,14 @@
             return filter;
         };
 
-        const currentWeek = weekList[Math.floor(weekList.length/2)];
-        const weekFromFilter = createWeekSelect('Week From', weekList, currentWeek);
-        const weekToFilter = createWeekSelect('Week To', weekList, currentWeek);
+        const currentWeekIndex = Math.floor(weekList.length/2);
+        const weekFromFilter = createWeekSelect('Week From', weekList, weekList[Math.max(0,currentWeekIndex-6)]);
+        const weekToFilter = createWeekSelect('Week To', weekList, weekList[Math.min(weekList.length-1,currentWeekIndex+6)]);
 
         // Report Type
         const reportTypeFilter = $('<div class="filter"><label>Report Type</label><select class="form-select form-select-sm"><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option></select></div>');
 
         const applyBtn = $('<button class="btn btn-primary btn-sm">Apply Filters</button>');
-
         filterBar.append(geoFilter, siteFilter, projectFilter, lobFilter, weekFromFilter, weekToFilter, reportTypeFilter, applyBtn);
         container.append(filterBar);
 
@@ -140,7 +137,7 @@
         // ---------------------------
         const kpiContainer = $('<div class="kpi-container"></div>');
         const kpiMetrics = ['Staffing %','Delta','Forecast Accuracy','Attrition %','Shrinkage %'];
-        kpiMetrics.forEach(kpi=>{ kpiContainer.append(`<div class="kpi-tile"><div class="kpi-label">${kpi}</div><div class="kpi-value">0</div><div class="kpi-trend"></div></div>`); });
+        kpiMetrics.forEach(kpi=>{ kpiContainer.append(`<div class="kpi-tile"><div class="kpi-label">${kpi}</div><div class="kpi-value">0</div></div>`); });
         container.append(kpiContainer);
 
         // ---------------------------
@@ -158,12 +155,11 @@
         container.append(tableContainer);
 
         // ---------------------------
-        // Render Function
+        // Render Dashboard Function
         // ---------------------------
         const renderDashboard = () => {
             updateBreadcrumb();
 
-            // Apply Filters
             const selectedGeo = geoFilter.find('input:checked').map((i,e)=>$(e).val()).get();
             const selectedSite = siteFilter.find('input:checked').map((i,e)=>$(e).val()).get();
             const selectedProject = projectFilter.find('input:checked').map((i,e)=>$(e).val()).get();
@@ -173,18 +169,15 @@
             const reportType = reportTypeFilter.find('select').val();
 
             let filtered = wideData.filter(d=>selectedGeo.includes(d.geo) && selectedSite.includes(d.site) && selectedProject.includes(d.projectId) && selectedLOB.includes(d.lob));
-            
-            // Filter by week range
             filtered = filtered.filter(d=>d.week>=weekFrom && d.week<=weekTo);
 
-            // If monthly report, aggregate
+            // Monthly aggregation
             if(reportType==='monthly'){
                 const grouped = {};
                 filtered.forEach(d=>{
                     const key = `${d.geo}|${d.site}|${d.projectId}|${d.lob}|${d.month}`;
                     if(!grouped[key]) grouped[key]={...d, week:d.month};
                     else {
-                        // sum numeric metrics
                         ['requiredHC','availableHC','forecastedHours','actualHours','plannedAttrition','actualAttrition','plannedShrinkage','actualShrinkage'].forEach(f=>{ grouped[key][f]=(grouped[key][f]||0)+(d[f]||0); });
                     }
                 });
@@ -192,31 +185,29 @@
             }
 
             // ---------------------------
-            // KPIs Calculation
+            // KPIs (current week/month)
             // ---------------------------
-            const sum = (arr, field) => arr.reduce((a,b)=>a+(b[field]||0),0);
-            const requiredHC = sum(filtered,'requiredHC'), availableHC=sum(filtered,'availableHC'), delta = availableHC-requiredHC;
-            const staffingPct = requiredHC>0 ? ((availableHC/requiredHC)*100).toFixed(1)+'%' : '0%';
-            const forecastedHours = sum(filtered,'forecastedHours'), actualHours=sum(filtered,'actualHours');
-            const forecastPct = forecastedHours>0?((actualHours/forecastedHours)*100).toFixed(1)+'%':'0%';
-            const plannedAttrition=sum(filtered,'plannedAttrition'), actualAttrition=sum(filtered,'actualAttrition');
-            const attrPct = plannedAttrition>0?((actualAttrition/plannedAttrition)*100).toFixed(1)+'%':'0%';
-            const plannedShrink=sum(filtered,'plannedShrinkage'), actualShrink=sum(filtered,'actualShrinkage');
-            const shrinkPct = plannedShrink>0?((actualShrink/plannedShrink)*100).toFixed(1)+'%':'0%';
-
-            const kpiValues = [staffingPct,delta,forecastPct,attrPct,shrinkPct];
-            kpiContainer.find('.kpi-tile .kpi-value').each((i,e)=>$(e).text(kpiValues[i]));
+            const currentPeriod = filtered[filtered.length-1]; // last in range as current
+            if(currentPeriod){
+                const delta=currentPeriod.availableHC-currentPeriod.requiredHC;
+                const staffingPct=currentPeriod.requiredHC>0?((currentPeriod.availableHC/currentPeriod.requiredHC)*100).toFixed(1)+'%':'0%';
+                const forecastPct=currentPeriod.forecastedHours>0?((currentPeriod.actualHours/currentPeriod.forecastedHours)*100).toFixed(1)+'%':'0%';
+                const attrPct=currentPeriod.plannedAttrition>0?((currentPeriod.actualAttrition/currentPeriod.plannedAttrition)*100).toFixed(1)+'%':'0%';
+                const shrinkPct=currentPeriod.plannedShrinkage>0?((currentPeriod.actualShrinkage/currentPeriod.plannedShrinkage)*100).toFixed(1)+'%':'0%';
+                const kpiValues=[staffingPct,delta,forecastPct,attrPct,shrinkPct];
+                kpiContainer.find('.kpi-tile .kpi-value').each((i,e)=>$(e).text(kpiValues[i]));
+            }
 
             // ---------------------------
             // Charts
             // ---------------------------
-            const weeksSorted = [...new Set(filtered.map(d=>d.week))].sort((a,b)=>new Date(a)-new Date(b));
+            const weeksSorted=[...new Set(filtered.map(d=>d.week))].sort((a,b)=>new Date(a)-new Date(b));
             const sumByWeek = field=>weeksSorted.map(w=>filtered.filter(d=>d.week===w).reduce((a,b)=>a+(b[field]||0),0));
-
             const hcRequired=sumByWeek('requiredHC'), hcAvailable=sumByWeek('availableHC'), hcDelta=hcAvailable.map((v,i)=>v-hcRequired[i]);
             const forecasted=sumByWeek('forecastedHours'), actualH=sumByWeek('actualHours');
             const attrPlanned=sumByWeek('plannedAttrition'), attrActual=sumByWeek('actualAttrition');
             const shrinkPlanned=sumByWeek('plannedShrinkage'), shrinkActual=sumByWeek('actualShrinkage');
+            const geoShare=[...new Set(filtered.map(d=>d.geo))].map(g=>({geo:g,value:filtered.filter(d=>d.geo===g).reduce((a,b)=>a+(b['availableHC']||0),0)}));
 
             const destroyChart=id=>{ const c=Chart.getChart(id); if(c) c.destroy(); };
             chartIds.forEach(destroyChart);
@@ -225,9 +216,6 @@
             new Chart(document.getElementById('deltaChart'),{type:'bar',data:{labels:weeksSorted,datasets:[{label:'Delta HC',data:hcDelta,backgroundColor:hcDelta.map(v=>v<0?'#ef4444':'#10b981')}]} ,options:{responsive:true,plugins:{legend:{display:false}}}});
             new Chart(document.getElementById('attritionChart'),{type:'line',data:{labels:weeksSorted,datasets:[{label:'Planned Attrition',data:attrPlanned,borderColor:'#f97316',fill:false},{label:'Actual Attrition',data:attrActual,borderColor:'#ef4444',fill:false}]},options:{responsive:true,plugins:{legend:{position:'top'}}}});
             new Chart(document.getElementById('hoursChart'),{type:'line',data:{labels:weeksSorted,datasets:[{label:'Forecasted Hours',data:forecasted,borderColor:'#3b82f6',fill:true,backgroundColor:'#3b82f622'},{label:'Actual Hours',data:actualH,borderColor:'#10b981',fill:true,backgroundColor:'#10b98122'}]},options:{responsive:true,plugins:{legend:{position:'top'}}}});
-            
-            // Donut chart for HC share by Geo
-            const geoShare=[...new Set(filtered.map(d=>d.geo))].map(g=>({geo:g,value:filtered.filter(d=>d.geo===g).reduce((a,b)=>a+(b['availableHC']||0),0)}));
             const shareData={labels:geoShare.map(d=>d.geo),datasets:[{data:geoShare.map(d=>d.value),backgroundColor:['#3b82f6','#10b981','#f97316','#ef4444','#8b5cf6']}]};
             new Chart(document.getElementById('shareChart'),{type:'doughnut',data:shareData,options:{responsive:true,plugins:{legend:{position:'top'}}}});
 
