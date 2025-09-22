@@ -77,7 +77,7 @@ pasteHandlerOfCopyPaste: function(e) {
     let q = null;
 
     // -----------------------------
-    // Ultra-fast paste loop (no formula calculation)
+    // Ultra-fast paste loop (formulas as text only)
     // -----------------------------
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
@@ -92,12 +92,14 @@ pasteHandlerOfCopyPaste: function(e) {
                 for (let pe = X; pe < ee; pe++) {
                     let cell = v[G - Y]?.[pe - X] ? $.extend(true, {}, v[G - Y][pe - X]) : null;
                     if (cell) {
-                        // Copy formula as text only, defer calculation
+                        // Paste formula as text only, ensure '='
                         if (cell.f != null) {
-                            cell.f = p.functionCopy(cell.f, "down", ue);
-                            cell.f = p.functionCopy(cell.f, "right", he);
-                            cell.v = null;      // do not calculate
-                            cell.dirty = true;  // mark dirty
+                            let formulaText = cell.f.startsWith('=') ? cell.f : '=' + cell.f;
+                            formulaText = p.functionCopy(formulaText, "down", ue);
+                            formulaText = p.functionCopy(formulaText, "right", he);
+                            cell.f = formulaText;
+                            cell.v = null;      // skip calculation now
+                            cell.dirty = true;  // mark for later recalculation
                         }
 
                         // Multi-cell merge
@@ -122,7 +124,7 @@ pasteHandlerOfCopyPaste: function(e) {
     w.row = [x, C];
     w.column = [S, _];
 
-    // Conditional formatting & data validation (optional, copied as-is)
+    // Conditional formatting & data validation
     let ce = null;
     if (e.copyRange.length == 1) {
         const sourceCF = h.luckysheetfile[K(s)].luckysheet_conditionformat_save;
@@ -155,7 +157,22 @@ pasteHandlerOfCopyPaste: function(e) {
     Ye(N, h.luckysheet_select_save, payload);
 
     // -----------------------------
-    // UI refresh only
+    // Recalculate only visible cells after paste
     // -----------------------------
-    tt(); // update UI
+    const visible = luckysheet.getVisibleCellRange(); // visible rows & columns
+    for (let r = visible.row[0]; r <= visible.row[1]; r++) {
+        for (let c = visible.column[0]; c <= visible.column[1]; c++) {
+            const cell = N[r][c];
+            if (cell?.dirty) {
+                const result = cell.f ? p.execfunction(cell.f, r, c, void 0, true) : null;
+                if (result) {
+                    cell.v = result[1];
+                    if (cell.ct?.fa) cell.m = mt(cell.ct.fa, cell.v);
+                }
+                cell.dirty = false;
+            }
+        }
+    }
+
+    tt(); // refresh UI
 }
