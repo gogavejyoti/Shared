@@ -1,24 +1,177 @@
-#analyticsModal .staffing-summary-table td.sticky-col {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 55; /* below headers */
-    min-width: 220px;
-    white-space: nowrap;
-    border-right: 2px solid #e5e7eb;
-}
+<!-- Dependencies -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@1.14.0/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/datatables.net@1.14.0/js/jquery.dataTables.min.js"></script>
 
-/* Sticky First Column (Header Cells – both rows) */
-#analyticsModal .staffing-summary-table thead th.sticky-col {
-    position: sticky;
-    left: 0;
-    z-index: 80 !important; /* higher than all other headers */
-    background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%);
-    color: white;
-    min-width: 220px;
-    border-right: 2px solid #e5e7eb;
-}
-#analyticsModal .staffing-summary-table thead tr:nth-child(2) th.sticky-col {
-    top: 52px; /* align with second header row */
-    background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
-}
+<style>
+/* Dashboard Styles */
+.dashboard-container { font-family:'Segoe UI',sans-serif; background:#f9fafb; padding:15px; }
+.filters-bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:15px; }
+.filters-bar .filter { display:flex; flex-direction:column; font-size:12px; }
+.filters-bar .filter select { width:150px; height:35px; }
+.filters-bar button { height:35px; margin-top:18px; }
+.kpi-container { display:flex; flex-wrap:wrap; gap:15px; margin-bottom:15px; }
+.kpi-tile { flex:1; min-width:150px; background:#fff; border-radius:8px; padding:15px; box-shadow:0 2px 6px rgba(0,0,0,0.1); position:relative; text-align:center; }
+.kpi-tile .kpi-label { font-size:13px; color:#555; }
+.kpi-tile .kpi-value { font-size:24px; font-weight:bold; margin-top:5px; }
+.kpi-tile .kpi-trend { position:absolute; bottom:10px; right:10px; font-size:12px; }
+.charts-container { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:15px; margin-bottom:15px; }
+.chart-card { background:#fff; border-radius:8px; padding:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+.table-container { background:#fff; border-radius:8px; padding:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-top:15px; }
+</style>
+
+<script>
+(function ($) {
+    $.fn.resourcePlanningDashboard = function (options) {
+        const settings = $.extend({ data: [], containerId: '' }, options);
+        const container = $('#' + settings.containerId);
+        container.empty().addClass('dashboard-container');
+
+        // Breadcrumb
+        let breadcrumb = [];
+        const updateBreadcrumb = () => {
+            container.find('.breadcrumb').remove();
+            if(breadcrumb.length>0){
+                const bc = $('<nav class="breadcrumb mb-3"></nav>');
+                breadcrumb.forEach((b,i)=>{
+                    if(i===breadcrumb.length-1) bc.append(`<span>${b}</span>`);
+                    else bc.append(`<a href="#" class="breadcrumb-link" data-index="${i}">${b}</a> &gt; `);
+                });
+                container.prepend(bc);
+                bc.find('.breadcrumb-link').on('click',function(e){
+                    e.preventDefault();
+                    breadcrumb = breadcrumb.slice(0,parseInt($(this).data('index'))+1);
+                    renderDashboard();
+                });
+            }
+        };
+
+        // ---------------------------
+        // 1. Filters
+        // ---------------------------
+        const uniqueValues = field => [...new Set(settings.data.map(d=>d[field]))].sort();
+        const geoList = uniqueValues('geo'), siteList = uniqueValues('site'), projectList = uniqueValues('projectId');
+        const lobList = uniqueValues('lob'), weekList = uniqueValues('week'), monthList = uniqueValues('month');
+
+        const filterBar = $('<div class="filters-bar"></div>');
+        const createFilterSelect = (label, values) => {
+            const select = $('<select class="form-select form-select-sm" multiple></select>');
+            values.forEach(v=>select.append(`<option value="${v}" selected>${v}</option>`));
+            return $('<div class="filter"></div>').append(`<label>${label}</label>`).append(select);
+        };
+        filterBar.append(createFilterSelect('Geo', geoList));
+        filterBar.append(createFilterSelect('Site', siteList));
+        filterBar.append(createFilterSelect('Project', projectList));
+        filterBar.append(createFilterSelect('LOB', lobList));
+        filterBar.append(createFilterSelect('Week', weekList));
+        filterBar.append(createFilterSelect('Month', monthList));
+        const applyBtn = $('<button class="btn btn-primary btn-sm">Apply Filters</button>');
+        filterBar.append(applyBtn);
+        container.append(filterBar);
+
+        // ---------------------------
+        // 2. KPI Tiles
+        // ---------------------------
+        const kpiContainer = $('<div class="kpi-container"></div>');
+        const kpiMetrics = ['Staffing %','Delta','Forecast Accuracy','Attrition %','Shrinkage %'];
+        kpiMetrics.forEach(kpi=>{ kpiContainer.append(`<div class="kpi-tile"><div class="kpi-label">${kpi}</div><div class="kpi-value">0</div><div class="kpi-trend"></div></div>`); });
+        container.append(kpiContainer);
+
+        // ---------------------------
+        // 3. Charts
+        // ---------------------------
+        const chartsContainer = $('<div class="charts-container"></div>');
+        const chartIds = ['hcTrendChart','deltaChart','attritionChart','hoursChart','shareChart'];
+        chartIds.forEach(id=>chartsContainer.append(`<div class="chart-card"><canvas id="${id}"></canvas></div>`));
+        container.append(chartsContainer);
+
+        // ---------------------------
+        // 4. Table
+        // ---------------------------
+        container.append('<div class="table-container"><table id="resourceTable" class="display nowrap" style="width:100%"></table></div>');
+
+        // ---------------------------
+        // Render Dashboard
+        // ---------------------------
+        const getSelectedOptions = select => $(select).val()||[];
+        const renderDashboard = () => {
+            updateBreadcrumb();
+            const geoFilter = getSelectedOptions(filterBar.find('select').eq(0));
+            const siteFilter = getSelectedOptions(filterBar.find('select').eq(1));
+            const projectFilter = getSelectedOptions(filterBar.find('select').eq(2));
+            const lobFilter = getSelectedOptions(filterBar.find('select').eq(3));
+            const weekFilter = getSelectedOptions(filterBar.find('select').eq(4));
+            const monthFilter = getSelectedOptions(filterBar.find('select').eq(5));
+
+            let filtered = settings.data.filter(d=>
+                geoFilter.includes(d.geo) && siteFilter.includes(d.site) &&
+                projectFilter.includes(d.projectId) && lobFilter.includes(d.lob) &&
+                weekFilter.includes(d.week) && monthFilter.includes(d.month)
+            );
+            if(filtered.length===0) filtered = settings.data;
+
+            // Drill-down breadcrumb
+            const levelKeys = ['geo','site','projectId','lob'];
+            breadcrumb = [];
+            for(const key of levelKeys){
+                const vals = [...new Set(filtered.map(d=>d[key]))];
+                if(vals.length===1) breadcrumb.push(vals[0]);
+                else break;
+            }
+
+            // ---------------------------
+            // KPI calculations
+            // ---------------------------
+            const sum = field => filtered.reduce((a,b)=>a+(b[field]||0),0);
+            const totalRequired=sum('requiredHC'), totalAvailable=sum('availableHC'), totalForecast=sum('forecastedHours'), totalActual=sum('actualHours');
+            const staffingPercent = totalRequired>0?((totalAvailable/totalRequired)*100).toFixed(1)+'%':'0%';
+            const delta = totalAvailable-totalRequired;
+            const forecastAccuracy = totalForecast>0?((totalActual/totalForecast)*100).toFixed(1)+'%':'0%';
+            const actualAttr = sum('actualAttrition'), plannedAttr=sum('plannedAttrition');
+            const attritionPercent = plannedAttr>0?((actualAttr/plannedAttr)*100).toFixed(1)+'%':'0%';
+            const actualShrink=sum('actualShrinkage'), plannedShrink=sum('plannedShrinkage');
+            const shrinkagePercent = plannedShrink>0?((actualShrink/plannedShrink)*100).toFixed(1)+'%':'0%';
+
+            const kpiValues=[staffingPercent,delta,forecastAccuracy,attritionPercent,shrinkagePercent];
+            kpiContainer.find('.kpi-tile').each(function(i){ $(this).find('.kpi-value').text(kpiValues[i]); });
+
+            // ---------------------------
+            // Charts
+            // ---------------------------
+            const weeksSorted=[...new Set(filtered.map(d=>d.week))].sort((a,b)=>new Date(a)-new Date(b));
+            const sumByWeek=field=>weeksSorted.map(w=>filtered.filter(d=>d.week===w).reduce((a,b)=>a+(b[field]||0),0));
+            const hcRequired=sumByWeek('requiredHC'), hcAvailable=sumByWeek('availableHC'), hcDelta=hcAvailable.map((v,i)=>v-hcRequired[i]);
+            const forecasted=sumByWeek('forecastedHours'), actualH=sumByWeek('actualHours');
+            const attrPlanned=sumByWeek('plannedAttrition'), attrActual=sumByWeek('actualAttrition');
+            const shrinkPlanned=sumByWeek('plannedShrinkage'), shrinkActual=sumByWeek('actualShrinkage');
+
+            const destroyChart=id=>{ const c=Chart.getChart(id); if(c) c.destroy(); };
+            chartIds.forEach(destroyChart);
+
+            new Chart(document.getElementById('hcTrendChart'),{type:'line',data:{labels:weeksSorted,datasets:[{label:'Required HC',data:hcRequired,borderColor:'#3b82f6',backgroundColor:'#3b82f622',fill:true},{label:'Available HC',data:hcAvailable,borderColor:'#10b981',backgroundColor:'#10b98122',fill:true}]},options:{responsive:true,plugins:{legend:{position:'top'}}}});
+            new Chart(document.getElementById('deltaChart'),{type:'bar',data:{labels:weeksSorted,datasets:[{label:'Delta HC',data:hcDelta,backgroundColor:hcDelta.map(v=>v<0?'#ef4444':'#10b981')}]} ,options:{responsive:true,plugins:{legend:{display:false}}}});
+            new Chart(document.getElementById('attritionChart'),{type:'line',data:{labels:weeksSorted,datasets:[{label:'Planned Attrition',data:attrPlanned,borderColor:'#f97316',fill:false},{label:'Actual Attrition',data:attrActual,borderColor:'#ef4444',fill:false}]},options:{responsive:true,plugins:{legend:{position:'top'}}}});
+            new Chart(document.getElementById('hoursChart'),{type:'line',data:{labels:weeksSorted,datasets:[{label:'Forecasted Hours',data:forecasted,borderColor:'#3b82f6',fill:true,backgroundColor:'#3b82f622'},{label:'Actual Hours',data:actualH,borderColor:'#10b981',fill:true,backgroundColor:'#10b98122'}]},options:{responsive:true,plugins:{legend:{position:'top'}}}});
+            
+            // Optional: Donut chart for HC share
+            const geoShare=[...new Set(filtered.map(d=>d.geo))].map(g=>({geo:g,value:filtered.filter(d=>d.geo===g).reduce((a,b)=>a+(b['availableHC']||0),0)}));
+            const shareData={labels:geoShare.map(d=>d.geo),datasets:[{data:geoShare.map(d=>d.value),backgroundColor:['#3b82f6','#10b981','#f97316','#ef4444','#8b5cf6']}]};
+            new Chart(document.getElementById('shareChart'),{type:'doughnut',data:shareData,options:{responsive:true,plugins:{legend:{position:'top'}}}});
+
+            // ---------------------------
+            // Table
+            // ---------------------------
+            const columns=[{title:'Week',data:'week'},{title:'Required HC',data:'requiredHC'},{title:'Available HC',data:'availableHC'},{title:'Delta',data:d=>d.availableHC-d.requiredHC},{title:'Staffing %',data:d=>d.requiredHC>0?((d.availableHC/d.requiredHC)*100).toFixed(1)+'%':'0%'},{title:'Forecasted Hours',data:'forecastedHours'},{title:'Actual Hours',data:'actualHours'},{title:'Planned Attrition',data:'plannedAttrition'},{title:'Actual Attrition',data:'actualAttrition'},{title:'Planned Shrinkage',data:'plannedShrinkage'},{title:'Actual Shrinkage',data:'actualShrinkage'}];
+
+            if($.fn.DataTable.isDataTable('#resourceTable')) $('#resourceTable').DataTable().destroy();
+            $('#resourceTable').DataTable({data:filtered,columns:columns,scrollX:true,scrollY:'300px',scrollCollapse:true,paging:false,fixedHeader:true});
+        };
+
+        renderDashboard();
+        applyBtn.on('click',renderDashboard);
+    };
+}(jQuery));
+</script>
