@@ -1,112 +1,80 @@
-<div class="row">
-  <div class="col-md-8">
-    <div id="apexMixedChart"></div>
-  </div>
-  <div class="col-md-4">
-    <div id="geoDonutChart"></div>
-  </div>
-</div>
+<div id="geoWeekHeatmap"></div>
 
 <script>
-let staffingChart = null;
-let geoChart = null;
+let heatmapChart = null;
 
-// -------- Weekly FTE Chart --------
-function buildStaffingChart(data, containerId) {
-    // Aggregate weekly
-    const weekMap = {};
+function buildGeoWeekHeatmap(data, containerId) {
+    // ---- aggregate by Geo and Week ----
+    const geoSet = new Set();
+    const weekSet = new Set();
+    const staffingMap = {};
+
     data.forEach(d => {
-        if(!weekMap[d.weekFormat]) {
-            weekMap[d.weekFormat] = { required:0, available:0 };
-        }
-        weekMap[d.weekFormat].required += d.requiredHC || 0;
-        weekMap[d.weekFormat].available += d.availableHC || 0;
+        const geo = d.geo;
+        const week = d.weekFormat;
+        geoSet.add(geo);
+        weekSet.add(week);
+
+        const key = geo + '||' + week;
+        if (!staffingMap[key]) staffingMap[key] = { required:0, available:0 };
+        staffingMap[key].required += d.requiredHC || 0;
+        staffingMap[key].available += d.availableHC || 0;
     });
 
-    const weeks = Object.keys(weekMap).sort((a,b) => new Date(a) - new Date(b));
-    const fteReq = weeks.map(w => Math.round(weekMap[w].required));
-    const fteAva = weeks.map(w => Math.round(weekMap[w].available));
-    const staffingPct = weeks.map(w => {
-        const req = weekMap[w].required;
-        const ava = weekMap[w].available;
-        return req > 0 ? Math.round((ava/req)*100) : 0;
+    const weeks = Array.from(weekSet).sort((a,b) => new Date(a)-new Date(b));
+    const geos = Array.from(geoSet);
+
+    // ---- build series for Apex Heatmap ----
+    const series = geos.map(geo => {
+        const dataPoints = weeks.map(week => {
+            const key = geo + '||' + week;
+            const obj = staffingMap[key] || { required:0, available:0 };
+            const pct = obj.required > 0 ? Math.round((obj.available / obj.required) * 100) : 0;
+            return pct;
+        });
+        return { name: geo, data: dataPoints };
     });
 
     const options = {
-        chart: { height: 300, type: 'line', stacked: false },
-        stroke: { width: [0, 0, 3] },
-        dataLabels: { enabled: false },
-        series: [
-            { name: 'FTE Required', type: 'column', data: fteReq },
-            { name: 'FTE Available', type: 'column', data: fteAva },
-            { name: 'Staffing %', type: 'line', data: staffingPct }
-        ],
-        xaxis: { categories: weeks, title: { text: "Week" }},
-        yaxis: [
-            { seriesName: 'FTE Required', title: { text: "FTE Count" }, forceNiceScale: true },
-            { seriesName: 'FTE Available', show: false },
-            { opposite: true, seriesName: 'Staffing %', title: { text: "Staffing %" }, labels: { formatter: v => v+"%" }, forceNiceScale: true }
-        ],
-        tooltip: {
-            shared: true,
-            y: { formatter: (val, opts) => opts.seriesIndex === 2 ? val+"%" : val }
+        chart: { type: 'heatmap', height: 350 },
+        dataLabels: { enabled: true, formatter: val => val + "%" },
+        colors: ["#FF5733", "#FFC107", "#28a745"], // red to green gradient
+        plotOptions: {
+            heatmap: {
+                shadeIntensity: 0.6,
+                colorScale: {
+                    ranges: [
+                        { from: 0, to: 80, color: '#FF5733', name: '<80%' },
+                        { from: 81, to: 99, color: '#FFC107', name: '81-99%' },
+                        { from: 100, to: 200, color: '#28a745', name: '>=100%' }
+                    ]
+                }
+            }
         },
-        legend: { position: "top" },
-        colors: ["#007bff", "#28a745", "#ffc107"]
+        series: series,
+        xaxis: { categories: weeks, title: { text: "Week" } },
+        yaxis: { title: { text: "Geo" } },
+        tooltip: {
+            y: { formatter: val => val + "%" }
+        },
+        legend: { position: 'top' }
     };
 
-    if(staffingChart) staffingChart.destroy();
-    staffingChart = new ApexCharts(document.querySelector("#" + containerId), options);
-    staffingChart.render();
+    if(heatmapChart) heatmapChart.destroy();
+    heatmapChart = new ApexCharts(document.querySelector("#" + containerId), options);
+    heatmapChart.render();
 }
 
-// -------- Geo-wise Donut Chart --------
-function buildGeoDonutChart(data, containerId) {
-    // Aggregate by geo
-    const geoMap = {};
-    data.forEach(d => {
-        if(!geoMap[d.geo]) geoMap[d.geo] = 0;
-        geoMap[d.geo] += d.availableHC || 0;
-    });
-
-    const geoLabels = Object.keys(geoMap);
-    const geoValues = Object.values(geoMap).map(v => Math.round(v));
-
-    const geoOptions = {
-        chart: { type: 'donut', height: 300 },
-        series: geoValues,
-        labels: geoLabels,
-        legend: { position: 'bottom' },
-        colors: ["#28a745","#007bff","#ffc107","#ff5733","#6f42c1"],
-        tooltip: { y: { formatter: val => val + " HC" } },
-        dataLabels: { enabled: true, formatter: (val, opts) => geoValues[opts.seriesIndex] }
-    };
-
-    if(geoChart) geoChart.destroy();
-    geoChart = new ApexCharts(document.querySelector("#" + containerId), geoOptions);
-    geoChart.render();
-}
-
-// -------- Sample Data --------
+// ---- sample data ----
 let weeklyData = [
   { geo:"India", weekFormat:"01-Jan-25", requiredHC:100, availableHC:90 },
-  { geo:"India", weekFormat:"01-Jan-25", requiredHC:50, availableHC:60 },
-  { geo:"USA", weekFormat:"08-Jan-25", requiredHC:120, availableHC:130 },
-  { geo:"Philippines", weekFormat:"08-Jan-25", requiredHC:70, availableHC:60 },
-  { geo:"USA", weekFormat:"15-Jan-25", requiredHC:140, availableHC:150 },
-  { geo:"India", weekFormat:"15-Jan-25", requiredHC:60, availableHC:55 }
+  { geo:"India", weekFormat:"08-Jan-25", requiredHC:120, availableHC:130 },
+  { geo:"USA", weekFormat:"01-Jan-25", requiredHC:50, availableHC:40 },
+  { geo:"USA", weekFormat:"08-Jan-25", requiredHC:70, availableHC:65 },
+  { geo:"Philippines", weekFormat:"01-Jan-25", requiredHC:60, availableHC:70 },
+  { geo:"Philippines", weekFormat:"08-Jan-25", requiredHC:80, availableHC:60 }
 ];
-style: {
-              colors: ['#ff0000'] // Example: Set to red
-            }
-// -------- Render both charts --------
-buildStaffingChart(weeklyData, "apexMixedChart");
-buildGeoDonutChart(weeklyData, "geoDonutChart");
-</script>
-formatter: function (w) {
-                  // Calculate the total value from the series
-                  const total = w.globals.seriesTotals.reduce((a, b) => a + b, 0);
-                  // Return the total value inside a <span> with inline white color styling
-                  return `<span style="color: #fff; font-weight: 600;">${total}</span>`;
-                }
 
+// ---- render heatmap ----
+buildGeoWeekHeatmap(weeklyData, "geoWeekHeatmap");
+</script>
