@@ -3,13 +3,19 @@
 </div>
 
 <style>
-/* Sticky header */
+/* Sticky headers */
 #staffingTableContainer table thead th {
     position: sticky;
     top: 0;
     background: #f8f9fa;
-    z-index: 2;
+    z-index: 3;
     text-align: center;
+}
+
+/* Second header row on top of first row */
+#staffingTableContainer table thead tr:nth-child(2) th {
+    top: 35px; /* adjust based on first row height */
+    z-index: 4;
 }
 
 /* Sticky first column */
@@ -18,16 +24,21 @@
     position: sticky;
     left: 0;
     background: #f8f9fa;
-    z-index: 3;
+    z-index: 5;
+}
+
+/* LOB style */
+.lobRow td:first-child {
+    font-style: italic;
+    font-size: 0.85em;
 }
 </style>
 
 <script>
 function buildStaffingTable(data, containerId) {
     const container = document.querySelector("#" + containerId);
-    container.innerHTML = ''; // clear previous table
+    container.innerHTML = '';
 
-    // unique geos and months
     const geos = [...new Set(data.map(d => d.geo))];
     const months = [...new Set(data.map(d => d.monthFormat))].sort((a,b)=>new Date(a)-new Date(b));
 
@@ -35,9 +46,8 @@ function buildStaffingTable(data, containerId) {
     table.className = 'table table-bordered table-striped';
     table.style.minWidth = (months.length * 120 + 100) + 'px';
 
-    // Header rows
+    // Header
     const thead = document.createElement('thead');
-
     const tr1 = document.createElement('tr');
     const thGeo = document.createElement('th');
     thGeo.rowSpan = 2;
@@ -90,7 +100,7 @@ function buildStaffingTable(data, containerId) {
         });
         tbody.appendChild(tr);
 
-        // LOB rows (hidden initially)
+        // LOB rows
         const lobRecords = data.filter(d => d.geo===geo);
         const lobs = [...new Set(lobRecords.map(d=>d.lob))];
         lobs.forEach(lob => {
@@ -98,7 +108,7 @@ function buildStaffingTable(data, containerId) {
             trLob.className = 'lobRow';
             trLob.style.display = 'none';
             const tdLob = document.createElement('td');
-            tdLob.innerText = '   └ ' + lob; // indent
+            tdLob.innerText = '   └ ' + lob; 
             trLob.appendChild(tdLob);
 
             months.forEach(month=>{
@@ -118,7 +128,6 @@ function buildStaffingTable(data, containerId) {
             tbody.appendChild(trLob);
         });
 
-        // Toggle LOB rows on click
         tr.addEventListener('click', ()=>{
             let next = tr.nextElementSibling;
             while(next && next.classList.contains('lobRow')){
