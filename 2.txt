@@ -103,4 +103,10 @@ style: {
 buildStaffingChart(weeklyData, "apexMixedChart");
 buildGeoDonutChart(weeklyData, "geoDonutChart");
 </script>
+formatter: function (w) {
+                  // Calculate the total value from the series
+                  const total = w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                  // Return the total value inside a <span> with inline white color styling
+                  return `<span style="color: #fff; font-weight: 600;">${total}</span>`;
+                }
 
