@@ -2,14 +2,22 @@
 
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
+let wowDeltaChartInstance = null; // store chart instance
+
 function buildWoWDeltaAreaChart(data, containerId) {
     const container = document.querySelector("#" + containerId);
     container.innerHTML = '';
 
-    // Get unique weeks sorted
+    // Destroy existing chart if exists
+    if (wowDeltaChartInstance) {
+        wowDeltaChartInstance.destroy();
+        wowDeltaChartInstance = null;
+    }
+
+    // Unique weeks sorted
     const weeks = [...new Set(data.map(d => d.weekFormat))].sort((a,b) => new Date(a) - new Date(b));
 
-    // Get unique geos
+    // Unique geos
     const geos = [...new Set(data.map(d => d.geo))];
 
     // Prepare series
@@ -35,8 +43,8 @@ function buildWoWDeltaAreaChart(data, containerId) {
         legend: { position: 'top' }
     };
 
-    const chart = new ApexCharts(container, options);
-    chart.render();
+    wowDeltaChartInstance = new ApexCharts(container, options);
+    wowDeltaChartInstance.render();
 }
 
 // Sample data
@@ -47,5 +55,15 @@ let weeklyData = [
   { geo:"USA", weekFormat:"08-Sep-25", requiredHC:80, availableHC:75 }
 ];
 
+// Initial render
 buildWoWDeltaAreaChart(weeklyData, 'woWDeltaChart');
+
+// Example: refresh chart with new data after 3 seconds
+setTimeout(()=>{
+    let newWeeklyData = [
+        { geo:"India", weekFormat:"15-Sep-25", requiredHC:130, availableHC:140 },
+        { geo:"USA", weekFormat:"15-Sep-25", requiredHC:85, availableHC:80 }
+    ];
+    buildWoWDeltaAreaChart(newWeeklyData, 'woWDeltaChart');
+}, 3000);
 </script>
