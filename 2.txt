@@ -1,80 +1,127 @@
-<div id="geoWeekHeatmap"></div>
+<div id="staffingTableContainer"></div>
 
 <script>
-let heatmapChart = null;
+function buildStaffingTable(data, containerId) {
+    const container = document.querySelector("#" + containerId);
+    container.innerHTML = ''; // clear previous table
 
-function buildGeoWeekHeatmap(data, containerId) {
-    // ---- aggregate by Geo and Week ----
-    const geoSet = new Set();
-    const weekSet = new Set();
-    const staffingMap = {};
+    // get unique geo and months
+    const geos = [...new Set(data.map(d => d.geo))];
+    const months = [...new Set(data.map(d => d.monthFormat))].sort((a,b)=>new Date(a)-new Date(b));
 
-    data.forEach(d => {
-        const geo = d.geo;
-        const week = d.weekFormat;
-        geoSet.add(geo);
-        weekSet.add(week);
+    // Create table
+    const table = document.createElement('table');
+    table.className = 'table table-bordered table-striped';
 
-        const key = geo + '||' + week;
-        if (!staffingMap[key]) staffingMap[key] = { required:0, available:0 };
-        staffingMap[key].required += d.requiredHC || 0;
-        staffingMap[key].available += d.availableHC || 0;
+    // Header row 1
+    const thead = document.createElement('thead');
+    const tr1 = document.createElement('tr');
+    const thGeo = document.createElement('th');
+    thGeo.rowSpan = 2;
+    thGeo.innerText = 'Geo';
+    tr1.appendChild(thGeo);
+
+    months.forEach(m => {
+        const th = document.createElement('th');
+        th.colSpan = 4;
+        th.innerText = m;
+        tr1.appendChild(th);
     });
+    thead.appendChild(tr1);
 
-    const weeks = Array.from(weekSet).sort((a,b) => new Date(a)-new Date(b));
-    const geos = Array.from(geoSet);
-
-    // ---- build series for Apex Heatmap ----
-    const series = geos.map(geo => {
-        const dataPoints = weeks.map(week => {
-            const key = geo + '||' + week;
-            const obj = staffingMap[key] || { required:0, available:0 };
-            const pct = obj.required > 0 ? Math.round((obj.available / obj.required) * 100) : 0;
-            return pct;
+    // Header row 2
+    const tr2 = document.createElement('tr');
+    months.forEach(() => {
+        ['FTE Req','FTE Available','Delta','Staffing %'].forEach(h => {
+            const th = document.createElement('th');
+            th.innerText = h;
+            tr2.appendChild(th);
         });
-        return { name: geo, data: dataPoints };
+    });
+    thead.appendChild(tr2);
+    table.appendChild(thead);
+
+    // Body
+    const tbody = document.createElement('tbody');
+
+    geos.forEach(geo => {
+        const tr = document.createElement('tr');
+        tr.className = 'geoRow';
+        tr.style.cursor = 'pointer';
+        const tdGeo = document.createElement('td');
+        tdGeo.innerText = geo;
+        tr.appendChild(tdGeo);
+
+        months.forEach(month => {
+            const record = data.filter(d => d.geo===geo && d.monthFormat===month);
+            let required = record.reduce((sum,r)=>sum+(r.requiredHC||0),0);
+            let available = record.reduce((sum,r)=>sum+(r.availableHC||0),0);
+            let delta = available - required;
+            let staffing = required>0 ? Math.round((available/required)*100) : 0;
+
+            [required, available, delta, staffing].forEach((val,i)=>{
+                const td = document.createElement('td');
+                td.innerText = (i<3)?val: staffing + '%';
+                if(i===2){ // delta coloring
+                    td.style.color = (delta<0)?'red':'green';
+                }
+                tr.appendChild(td);
+            });
+        });
+
+        tbody.appendChild(tr);
+
+        // Add hidden LOB rows
+        const lobRecords = data.filter(d => d.geo===geo);
+        const lobs = [...new Set(lobRecords.map(d=>d.lob))];
+        lobs.forEach(lob => {
+            const trLob = document.createElement('tr');
+            trLob.className = 'lobRow';
+            trLob.style.display = 'none';
+            const tdLob = document.createElement('td');
+            tdLob.innerText = '   └ ' + lob; // indent
+            trLob.appendChild(tdLob);
+
+            months.forEach(month=>{
+                const rec = data.filter(d => d.geo===geo && d.lob===lob && d.monthFormat===month);
+                let required = rec.reduce((sum,r)=>sum+(r.requiredHC||0),0);
+                let available = rec.reduce((sum,r)=>sum+(r.availableHC||0),0);
+                let delta = available - required;
+                let staffing = required>0 ? Math.round((available/required)*100) : 0;
+
+                [required, available, delta, staffing].forEach((val,i)=>{
+                    const td = document.createElement('td');
+                    td.innerText = (i<3)?val: staffing + '%';
+                    if(i===2){ td.style.color = (delta<0)?'red':'green'; }
+                    trLob.appendChild(td);
+                });
+            });
+            tbody.appendChild(trLob);
+        });
+
+        // Geo row click to toggle LOB rows
+        tr.addEventListener('click', ()=>{
+            let next = tr.nextElementSibling;
+            while(next && next.classList.contains('lobRow')){
+                next.style.display = (next.style.display==='none')?'table-row':'none';
+                next = next.nextElementSibling;
+            }
+        });
     });
 
-    const options = {
-        chart: { type: 'heatmap', height: 350 },
-        dataLabels: { enabled: true, formatter: val => val + "%" },
-        colors: ["#FF5733", "#FFC107", "#28a745"], // red to green gradient
-        plotOptions: {
-            heatmap: {
-                shadeIntensity: 0.6,
-                colorScale: {
-                    ranges: [
-                        { from: 0, to: 80, color: '#FF5733', name: '<80%' },
-                        { from: 81, to: 99, color: '#FFC107', name: '81-99%' },
-                        { from: 100, to: 200, color: '#28a745', name: '>=100%' }
-                    ]
-                }
-            }
-        },
-        series: series,
-        xaxis: { categories: weeks, title: { text: "Week" } },
-        yaxis: { title: { text: "Geo" } },
-        tooltip: {
-            y: { formatter: val => val + "%" }
-        },
-        legend: { position: 'top' }
-    };
-
-    if(heatmapChart) heatmapChart.destroy();
-    heatmapChart = new ApexCharts(document.querySelector("#" + containerId), options);
-    heatmapChart.render();
+    table.appendChild(tbody);
+    container.appendChild(table);
 }
 
-// ---- sample data ----
-let weeklyData = [
-  { geo:"India", weekFormat:"01-Jan-25", requiredHC:100, availableHC:90 },
-  { geo:"India", weekFormat:"08-Jan-25", requiredHC:120, availableHC:130 },
-  { geo:"USA", weekFormat:"01-Jan-25", requiredHC:50, availableHC:40 },
-  { geo:"USA", weekFormat:"08-Jan-25", requiredHC:70, availableHC:65 },
-  { geo:"Philippines", weekFormat:"01-Jan-25", requiredHC:60, availableHC:70 },
-  { geo:"Philippines", weekFormat:"08-Jan-25", requiredHC:80, availableHC:60 }
+// -------- Sample Data --------
+let monthlyData = [
+  { geo:"India", monthFormat:"Jan-25", lob:"LOB1", requiredHC:100, availableHC:90 },
+  { geo:"India", monthFormat:"Jan-25", lob:"LOB2", requiredHC:50, availableHC:60 },
+  { geo:"USA", monthFormat:"Jan-25", lob:"LOB1", requiredHC:70, availableHC:60 },
+  { geo:"India", monthFormat:"Feb-25", lob:"LOB1", requiredHC:120, availableHC:130 },
+  { geo:"USA", monthFormat:"Feb-25", lob:"LOB1", requiredHC:80, availableHC:75 }
 ];
 
-// ---- render heatmap ----
-buildGeoWeekHeatmap(weeklyData, "geoWeekHeatmap");
+// Build table
+buildStaffingTable(monthlyData, 'staffingTableContainer');
 </script>
