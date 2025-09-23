@@ -1,154 +1,51 @@
-<div id="staffingTableWrapper" style="overflow:auto; max-height:400px; border:1px solid #ccc;">
-    <div id="staffingTableContainer"></div>
-</div>
+<div id="woWDeltaChart"></div>
 
-<style>
-/* Sticky headers */
-#staffingTableContainer table thead th {
-    position: sticky;
-    top: 0;
-    background: #f8f9fa;
-    z-index: 3;
-    text-align: center;
-}
-
-/* Second header row on top of first row */
-#staffingTableContainer table thead tr:nth-child(2) th {
-    top: 35px; /* adjust based on first row height */
-    z-index: 4;
-}
-
-/* Sticky first column */
-#staffingTableContainer table tbody td:first-child,
-#staffingTableContainer table thead th:first-child {
-    position: sticky;
-    left: 0;
-    background: #f8f9fa;
-    z-index: 5;
-}
-
-/* LOB style */
-.lobRow td:first-child {
-    font-style: italic;
-    font-size: 0.85em;
-}
-</style>
-
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
-function buildStaffingTable(data, containerId) {
+function buildWoWDeltaAreaChart(data, containerId) {
     const container = document.querySelector("#" + containerId);
     container.innerHTML = '';
 
+    // Get unique weeks sorted
+    const weeks = [...new Set(data.map(d => d.weekFormat))].sort((a,b) => new Date(a) - new Date(b));
+
+    // Get unique geos
     const geos = [...new Set(data.map(d => d.geo))];
-    const months = [...new Set(data.map(d => d.monthFormat))].sort((a,b)=>new Date(a)-new Date(b));
 
-    const table = document.createElement('table');
-    table.className = 'table table-bordered table-striped';
-    table.style.minWidth = (months.length * 120 + 100) + 'px';
-
-    // Header
-    const thead = document.createElement('thead');
-    const tr1 = document.createElement('tr');
-    const thGeo = document.createElement('th');
-    thGeo.rowSpan = 2;
-    thGeo.innerText = 'Geo';
-    tr1.appendChild(thGeo);
-
-    months.forEach(m => {
-        const th = document.createElement('th');
-        th.colSpan = 4;
-        th.innerText = m;
-        tr1.appendChild(th);
-    });
-    thead.appendChild(tr1);
-
-    const tr2 = document.createElement('tr');
-    months.forEach(() => {
-        ['FTE Req','FTE Available','Delta','Staffing %'].forEach(h => {
-            const th = document.createElement('th');
-            th.innerText = h;
-            tr2.appendChild(th);
+    // Prepare series
+    const series = geos.map(geo => {
+        const geoData = weeks.map(week => {
+            const rec = data.filter(d => d.geo === geo && d.weekFormat === week);
+            const required = rec.reduce((sum,r)=>sum+(r.requiredHC||0),0);
+            const available = rec.reduce((sum,r)=>sum+(r.availableHC||0),0);
+            return Math.round(available - required); // Delta
         });
-    });
-    thead.appendChild(tr2);
-    table.appendChild(thead);
-
-    // Body
-    const tbody = document.createElement('tbody');
-
-    geos.forEach(geo => {
-        const tr = document.createElement('tr');
-        tr.className = 'geoRow';
-        tr.style.cursor = 'pointer';
-        const tdGeo = document.createElement('td');
-        tdGeo.innerText = geo;
-        tr.appendChild(tdGeo);
-
-        months.forEach(month => {
-            const record = data.filter(d => d.geo===geo && d.monthFormat===month);
-            let required = Math.round(record.reduce((sum,r)=>sum+(r.requiredHC||0),0));
-            let available = Math.round(record.reduce((sum,r)=>sum+(r.availableHC||0),0));
-            let delta = available - required;
-            let staffing = required>0 ? Math.round((available/required)*100) : 0;
-
-            [required, available, delta, staffing].forEach((val,i)=>{
-                const td = document.createElement('td');
-                td.innerText = (i<3)?val: staffing + '%';
-                if(i===2){ td.style.color = (delta<0)?'red':'green'; }
-                tr.appendChild(td);
-            });
-        });
-        tbody.appendChild(tr);
-
-        // LOB rows
-        const lobRecords = data.filter(d => d.geo===geo);
-        const lobs = [...new Set(lobRecords.map(d=>d.lob))];
-        lobs.forEach(lob => {
-            const trLob = document.createElement('tr');
-            trLob.className = 'lobRow';
-            trLob.style.display = 'none';
-            const tdLob = document.createElement('td');
-            tdLob.innerText = '   └ ' + lob; 
-            trLob.appendChild(tdLob);
-
-            months.forEach(month=>{
-                const rec = data.filter(d => d.geo===geo && d.lob===lob && d.monthFormat===month);
-                let required = Math.round(rec.reduce((sum,r)=>sum+(r.requiredHC||0),0));
-                let available = Math.round(rec.reduce((sum,r)=>sum+(r.availableHC||0),0));
-                let delta = available - required;
-                let staffing = required>0 ? Math.round((available/required)*100) : 0;
-
-                [required, available, delta, staffing].forEach((val,i)=>{
-                    const td = document.createElement('td');
-                    td.innerText = (i<3)?val: staffing + '%';
-                    if(i===2){ td.style.color = (delta<0)?'red':'green'; }
-                    trLob.appendChild(td);
-                });
-            });
-            tbody.appendChild(trLob);
-        });
-
-        tr.addEventListener('click', ()=>{
-            let next = tr.nextElementSibling;
-            while(next && next.classList.contains('lobRow')){
-                next.style.display = (next.style.display==='none')?'table-row':'none';
-                next = next.nextElementSibling;
-            }
-        });
+        return { name: geo, data: geoData };
     });
 
-    table.appendChild(tbody);
-    container.appendChild(table);
+    const options = {
+        chart: { type: 'area', height: 300, stacked: false },
+        series: series,
+        stroke: { curve: 'smooth' },
+        xaxis: { categories: weeks, title: { text: 'Week' } },
+        yaxis: { title: { text: 'Delta (Available - Required)' } },
+        tooltip: { shared: true, intersect: false },
+        dataLabels: { enabled: false },
+        colors: ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd'],
+        legend: { position: 'top' }
+    };
+
+    const chart = new ApexCharts(container, options);
+    chart.render();
 }
 
 // Sample data
-let monthlyData = [
-  { geo:"India", monthFormat:"Jan-25", lob:"LOB1", requiredHC:100, availableHC:90 },
-  { geo:"India", monthFormat:"Jan-25", lob:"LOB2", requiredHC:50, availableHC:60 },
-  { geo:"USA", monthFormat:"Jan-25", lob:"LOB1", requiredHC:70, availableHC:60 },
-  { geo:"India", monthFormat:"Feb-25", lob:"LOB1", requiredHC:120, availableHC:130 },
-  { geo:"USA", monthFormat:"Feb-25", lob:"LOB1", requiredHC:80, availableHC:75 }
+let weeklyData = [
+  { geo:"India", weekFormat:"01-Sep-25", requiredHC:100, availableHC:90 },
+  { geo:"India", weekFormat:"08-Sep-25", requiredHC:120, availableHC:130 },
+  { geo:"USA", weekFormat:"01-Sep-25", requiredHC:70, availableHC:60 },
+  { geo:"USA", weekFormat:"08-Sep-25", requiredHC:80, availableHC:75 }
 ];
 
-buildStaffingTable(monthlyData, 'staffingTableContainer');
+buildWoWDeltaAreaChart(weeklyData, 'woWDeltaChart');
 </script>
