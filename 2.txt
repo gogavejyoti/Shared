@@ -1,89 +1,110 @@
+<!-- include ApexCharts -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
-<!-- html -->
-<div id="apexMixedChart"></div>
+<div class="container my-3">
+  <button id="refreshBtn" class="btn btn-primary btn-sm mb-3">🔄 Refresh Chart</button>
+  <div id="apexMixedChart"></div>
+</div>
 
-<!-- script -->
 <script>
-  var apexMixedChartOptions = {
-    chart: {
-      height: 250,
-      type: 'line',
-      stacked: false
-    },
-    dataLabels: { enabled: false },
-    series: [
-      { name: 'Income', type: 'column', data: [1.4, 2, 2.5, 1.5, 2.5, 2.8, 3.8, 4.6] },
-      { name: 'Cashflow', type: 'column', data: [1.1, 3, 3.1, 4, 4.1, 4.9, 6.5, 8.5] }, 
-      { name: 'Revenue', type: 'line', data: [20, 29, 37, 36, 44, 45, 50, 58] }
-    ],
-    stroke: { width: [0, 0, 3] },
-    colors: [app.color.theme, 'rgba('+ app.color.bodyColorRgb + ', .5)', app.color.warning],
-    title: {
-      text: 'XYZ - Stock Analysis (2015 - 2024)',
-      align: 'left',
-      offsetX: 110
-    },
-    xaxis: {
-      categories: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
-      axisBorder: {
-        show: true,
-        color: app.color.borderColor,
-        height: 1,
-        width: '100%',
-        offsetX: 0,
-        offsetY: -1
-      },
-      axisTicks: {
-        show: true,
-        borderType: 'solid',
-        color: app.color.borderColor,
-        height: 6,
-        offsetX: 0,
-        offsetY: 0
-      }
-    },
-    yaxis: [{
-      axisTicks: { show: true, color: app.color.borderColor },
-      axisBorder: { show: true, color: app.color.theme },
-      labels: { style: { colors: [app.color.bodyColor] } },
-      title: {
-        text: "Income (*1000)",
-        style: { color: app.color.theme }
-      },
-      tooltip: { enabled: true }
-    },{
-      seriesName: 'Income',
-      opposite: true,
-      axisTicks: { show: true, color: app.color.borderColor },
-      axisBorder: { show: true, color: app.color.borderColor },
-      labels: { style: { colors: [app.color.bodyColor] } },
-      title: {
-        text: "Operating Cashflow (*1000)",
-        style: { color: app.color.bodyColor }
-      },
-    }, {
-      seriesName: 'Revenue',
-      opposite: true,
-      axisTicks: { show: true, color: app.color.borderColor },
-      axisBorder: { show: true, color: app.color.warning },
-      labels: { style: { colors: [app.color.bodyColor] } },
-      title: {
-        text: "Revenue (*1000)",
-        style: { color: app.color.warning }
-      }
-    }],
-    tooltip: {
-      fixed: {
-        enabled: true,
-        position: 'topLeft',
-        offsetY: 30,
-        offsetX: 60
-      },
-    },
-    legend: { horizontalAlign: 'left', offsetX: 40 }
-  };
-  var apexMixedChart = new ApexCharts(
-    document.querySelector('#apexMixedChart'),
-    apexMixedChartOptions
-  );
-  apexMixedChart.render();
+let chart = null; // hold reference so we can refresh
+
+function buildStaffingChart(data, containerId) {
+    // ---- aggregate by weekFormat ----
+    const weekMap = {};
+    data.forEach(d => {
+        if(!weekMap[d.weekFormat]) {
+            weekMap[d.weekFormat] = { required:0, available:0 };
+        }
+        weekMap[d.weekFormat].required += d.requiredHC || 0;
+        weekMap[d.weekFormat].available += d.availableHC || 0;
+    });
+
+    // sort weeks by date (assuming dd-MMM-yy format)
+    const weeks = Object.keys(weekMap).sort((a,b) => new Date(a) - new Date(b));
+    const fteReq = weeks.map(w => Math.round(weekMap[w].required));
+    const fteAva = weeks.map(w => Math.round(weekMap[w].available));
+    const staffingPct = weeks.map(w => {
+        const req = weekMap[w].required;
+        const ava = weekMap[w].available;
+        return req > 0 ? Math.round((ava/req)*100) : 0;
+    });
+
+    // ---- chart options ----
+    const options = {
+        chart: {
+            height: 300,
+            type: 'line',
+            stacked: false
+        },
+        stroke: { width: [0, 0, 3] },
+        dataLabels: { enabled: true },
+        series: [
+            { name: 'FTE Required', type: 'column', data: fteReq },
+            { name: 'FTE Available', type: 'column', data: fteAva },
+            { name: 'Staffing %', type: 'line', data: staffingPct }
+        ],
+        xaxis: {
+            categories: weeks,
+            title: { text: "Week" }
+        },
+        yaxis: [
+            {
+                seriesName: 'FTE Required',
+                title: { text: "FTE Count" },
+            },
+            {
+                seriesName: 'FTE Available',
+                show: false
+            },
+            {
+                opposite: true,
+                seriesName: 'Staffing %',
+                title: { text: "Staffing %" },
+                labels: { formatter: val => val + "%" }
+            }
+        ],
+        tooltip: {
+            shared: true,
+            intersect: false,
+            y: {
+                formatter: function (val, opts) {
+                    if (opts.seriesIndex === 2) return val + "%";
+                    return val;
+                }
+            }
+        },
+        legend: { position: "top", horizontalAlign: "center" },
+        colors: ["#007bff", "#28a745", "#ffc107"]
+    };
+
+    // ---- destroy old chart & create new ----
+    if(chart) {
+        chart.destroy();
+    }
+    chart = new ApexCharts(document.querySelector("#" + containerId), options);
+    chart.render();
+}
+
+// ---- sample data ----
+let weeklyData = [
+  { weekFormat:"01-Jan-25", requiredHC:100, availableHC:90 },
+  { weekFormat:"01-Jan-25", requiredHC:50, availableHC:60 },
+  { weekFormat:"08-Jan-25", requiredHC:120, availableHC:130 },
+  { weekFormat:"08-Jan-25", requiredHC:70, availableHC:60 }
+];
+
+// initial bind
+buildStaffingChart(weeklyData, "apexMixedChart");
+
+// refresh button
+document.getElementById("refreshBtn").addEventListener("click", function() {
+    // simulate new dataset
+    weeklyData = [
+      { weekFormat:"15-Jan-25", requiredHC:140, availableHC:130 },
+      { weekFormat:"15-Jan-25", requiredHC:80, availableHC:100 },
+      { weekFormat:"22-Jan-25", requiredHC:150, availableHC:170 }
+    ];
+    buildStaffingChart(weeklyData, "apexMixedChart");
+});
+</script>
