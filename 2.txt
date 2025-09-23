@@ -7,7 +7,7 @@
 </div>
 
 <script>
-let chart = null; // hold reference so we can refresh
+let chart = null; // chart reference
 
 function buildStaffingChart(data, containerId) {
     // ---- aggregate by weekFormat ----
@@ -38,7 +38,7 @@ function buildStaffingChart(data, containerId) {
             stacked: false
         },
         stroke: { width: [0, 0, 3] },
-        dataLabels: { enabled: true },
+        dataLabels: { enabled: false }, // removed labels
         series: [
             { name: 'FTE Required', type: 'column', data: fteReq },
             { name: 'FTE Available', type: 'column', data: fteAva },
@@ -52,6 +52,8 @@ function buildStaffingChart(data, containerId) {
             {
                 seriesName: 'FTE Required',
                 title: { text: "FTE Count" },
+                min: undefined,  // auto-scale
+                forceNiceScale: true
             },
             {
                 seriesName: 'FTE Available',
@@ -61,7 +63,9 @@ function buildStaffingChart(data, containerId) {
                 opposite: true,
                 seriesName: 'Staffing %',
                 title: { text: "Staffing %" },
-                labels: { formatter: val => val + "%" }
+                labels: { formatter: val => val + "%" },
+                min: undefined,  // auto-scale
+                forceNiceScale: true
             }
         ],
         tooltip: {
