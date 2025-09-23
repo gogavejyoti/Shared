@@ -1,20 +1,43 @@
-<div id="staffingTableContainer"></div>
+<div id="staffingTableWrapper" style="overflow:auto; max-height:400px; border:1px solid #ccc;">
+    <div id="staffingTableContainer"></div>
+</div>
+
+<style>
+/* Sticky header */
+#staffingTableContainer table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 2;
+    text-align: center;
+}
+
+/* Sticky first column */
+#staffingTableContainer table tbody td:first-child,
+#staffingTableContainer table thead th:first-child {
+    position: sticky;
+    left: 0;
+    background: #f8f9fa;
+    z-index: 3;
+}
+</style>
 
 <script>
 function buildStaffingTable(data, containerId) {
     const container = document.querySelector("#" + containerId);
     container.innerHTML = ''; // clear previous table
 
-    // get unique geo and months
+    // unique geos and months
     const geos = [...new Set(data.map(d => d.geo))];
     const months = [...new Set(data.map(d => d.monthFormat))].sort((a,b)=>new Date(a)-new Date(b));
 
-    // Create table
     const table = document.createElement('table');
     table.className = 'table table-bordered table-striped';
+    table.style.minWidth = (months.length * 120 + 100) + 'px';
 
-    // Header row 1
+    // Header rows
     const thead = document.createElement('thead');
+
     const tr1 = document.createElement('tr');
     const thGeo = document.createElement('th');
     thGeo.rowSpan = 2;
@@ -29,7 +52,6 @@ function buildStaffingTable(data, containerId) {
     });
     thead.appendChild(tr1);
 
-    // Header row 2
     const tr2 = document.createElement('tr');
     months.forEach(() => {
         ['FTE Req','FTE Available','Delta','Staffing %'].forEach(h => {
@@ -54,24 +76,21 @@ function buildStaffingTable(data, containerId) {
 
         months.forEach(month => {
             const record = data.filter(d => d.geo===geo && d.monthFormat===month);
-            let required = record.reduce((sum,r)=>sum+(r.requiredHC||0),0);
-            let available = record.reduce((sum,r)=>sum+(r.availableHC||0),0);
+            let required = Math.round(record.reduce((sum,r)=>sum+(r.requiredHC||0),0));
+            let available = Math.round(record.reduce((sum,r)=>sum+(r.availableHC||0),0));
             let delta = available - required;
             let staffing = required>0 ? Math.round((available/required)*100) : 0;
 
             [required, available, delta, staffing].forEach((val,i)=>{
                 const td = document.createElement('td');
                 td.innerText = (i<3)?val: staffing + '%';
-                if(i===2){ // delta coloring
-                    td.style.color = (delta<0)?'red':'green';
-                }
+                if(i===2){ td.style.color = (delta<0)?'red':'green'; }
                 tr.appendChild(td);
             });
         });
-
         tbody.appendChild(tr);
 
-        // Add hidden LOB rows
+        // LOB rows (hidden initially)
         const lobRecords = data.filter(d => d.geo===geo);
         const lobs = [...new Set(lobRecords.map(d=>d.lob))];
         lobs.forEach(lob => {
@@ -84,8 +103,8 @@ function buildStaffingTable(data, containerId) {
 
             months.forEach(month=>{
                 const rec = data.filter(d => d.geo===geo && d.lob===lob && d.monthFormat===month);
-                let required = rec.reduce((sum,r)=>sum+(r.requiredHC||0),0);
-                let available = rec.reduce((sum,r)=>sum+(r.availableHC||0),0);
+                let required = Math.round(rec.reduce((sum,r)=>sum+(r.requiredHC||0),0));
+                let available = Math.round(rec.reduce((sum,r)=>sum+(r.availableHC||0),0));
                 let delta = available - required;
                 let staffing = required>0 ? Math.round((available/required)*100) : 0;
 
@@ -99,7 +118,7 @@ function buildStaffingTable(data, containerId) {
             tbody.appendChild(trLob);
         });
 
-        // Geo row click to toggle LOB rows
+        // Toggle LOB rows on click
         tr.addEventListener('click', ()=>{
             let next = tr.nextElementSibling;
             while(next && next.classList.contains('lobRow')){
@@ -113,7 +132,7 @@ function buildStaffingTable(data, containerId) {
     container.appendChild(table);
 }
 
-// -------- Sample Data --------
+// Sample data
 let monthlyData = [
   { geo:"India", monthFormat:"Jan-25", lob:"LOB1", requiredHC:100, availableHC:90 },
   { geo:"India", monthFormat:"Jan-25", lob:"LOB2", requiredHC:50, availableHC:60 },
@@ -122,6 +141,5 @@ let monthlyData = [
   { geo:"USA", monthFormat:"Feb-25", lob:"LOB1", requiredHC:80, availableHC:75 }
 ];
 
-// Build table
 buildStaffingTable(monthlyData, 'staffingTableContainer');
 </script>
