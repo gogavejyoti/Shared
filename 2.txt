@@ -96,8 +96,11 @@ let weeklyData = [
   { geo:"USA", weekFormat:"15-Jan-25", requiredHC:140, availableHC:150 },
   { geo:"India", weekFormat:"15-Jan-25", requiredHC:60, availableHC:55 }
 ];
-
+style: {
+              colors: ['#ff0000'] // Example: Set to red
+            }
 // -------- Render both charts --------
 buildStaffingChart(weeklyData, "apexMixedChart");
 buildGeoDonutChart(weeklyData, "geoDonutChart");
 </script>
+
