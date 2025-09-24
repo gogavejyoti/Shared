@@ -1,14 +1,184 @@
-/* Parent rows (Geo or LOB depending on drill mode) */
-.groupRow td:first-child {
-    font-weight: bold;
-    font-size: 1em;
-    background-color: #ffffff; /* keep white */
-}
+function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", viewMode = "Monthly") {
+    const container = document.querySelector("#" + containerId);
+    container.innerHTML = '';
 
-/* Child rows (drilldown) */
-.childRow td:first-child {
-    font-style: italic;
-    font-size: 0.85em;
-    padding-left: 15px;
-    background-color: #f9f9f9; /* light gray to differentiate */
+    // --- Drill Mode Dropdown (Geo→LOB or LOB→Geo)
+    const drillSelector = document.createElement("select");
+    drillSelector.className = "form-select mb-2 d-inline-block";
+    drillSelector.style.width = "180px";
+    ["GeoToLob", "LobToGeo"].forEach(mode => {
+        const opt = document.createElement("option");
+        opt.value = mode;
+        opt.innerText = mode === "GeoToLob" ? "Geo → LOB" : "LOB → Geo";
+        if (mode === drillMode) opt.selected = true;
+        drillSelector.appendChild(opt);
+    });
+    drillSelector.addEventListener("change", () => {
+        buildStaffingTableDrillDown(data, containerId, drillSelector.value, viewSelector.value);
+    });
+
+    // --- View Mode Dropdown (Weekly or Monthly)
+    const viewSelector = document.createElement("select");
+    viewSelector.className = "form-select mb-2 ms-2 d-inline-block";
+    viewSelector.style.width = "150px";
+    ["Weekly", "Monthly"].forEach(mode => {
+        const opt = document.createElement("option");
+        opt.value = mode;
+        opt.innerText = mode;
+        if (mode === viewMode) opt.selected = true;
+        viewSelector.appendChild(opt);
+    });
+    viewSelector.addEventListener("change", () => {
+        buildStaffingTableDrillDown(data, containerId, drillSelector.value, viewSelector.value);
+    });
+
+    // Add both dropdowns to container
+    container.appendChild(drillSelector);
+    container.appendChild(viewSelector);
+
+    // --- Time dimension (Week vs Month)
+    const timeKey = viewMode === "Weekly" ? "weekFormat" : "monthFormat";
+    const periods = [...new Set(data.map(d => d[timeKey]))]
+        .sort((a, b) => new Date(a) - new Date(b));
+
+    // --- Groups
+    const groups = drillMode === "GeoToLob"
+        ? [...new Set(data.map(d => d.geo))]
+        : [...new Set(data.map(d => d.lob))];
+
+    const table = document.createElement('table');
+    table.className = 'table table-bordered table-striped';
+    table.style.minWidth = (periods.length * 120 + 100) + 'px';
+
+    // ---------- Header ----------
+    const thead = document.createElement('thead');
+    const tr1 = document.createElement('tr');
+    const thGroup = document.createElement('th');
+    thGroup.rowSpan = 2;
+    thGroup.innerText = drillMode === "GeoToLob" ? "Geo" : "LOB";
+    tr1.appendChild(thGroup);
+
+    periods.forEach(p => {
+        const th = document.createElement('th');
+        th.colSpan = 4;
+        th.innerText = p;
+        tr1.appendChild(th);
+    });
+    thead.appendChild(tr1);
+
+    const tr2 = document.createElement('tr');
+    periods.forEach(() => {
+        ['FTE Req', 'FTE Available', 'Delta', 'Staffing %'].forEach(h => {
+            const th = document.createElement('th');
+            th.innerText = h;
+            th.setAttribute('nowrap', '');
+            tr2.appendChild(th);
+        });
+    });
+    thead.appendChild(tr2);
+    table.appendChild(thead);
+
+    // ---------- Body ----------
+    const tbody = document.createElement('tbody');
+
+    // ✅ Overall Summary Row
+    const trSummary = document.createElement("tr");
+    trSummary.className = "table-primary fw-bold";
+    const tdSummary = document.createElement("td");
+    tdSummary.innerText = "Overall Summary";
+    trSummary.appendChild(tdSummary);
+
+    periods.forEach(period => {
+        const recs = data.filter(d => d[timeKey] === period);
+        let required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
+        let available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
+        let delta = available - required;
+        let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+
+        [required, available, delta, staffing].forEach((val, i) => {
+            const td = document.createElement("td");
+            td.innerText = (i < 3) ? val : staffing + "%";
+            if (i === 2) td.style.color = (delta < 0) ? "red" : "green";
+            trSummary.appendChild(td);
+        });
+    });
+    tbody.appendChild(trSummary);
+
+    // ✅ Drilldown Rows
+    groups.forEach(group => {
+        const tr = document.createElement('tr');
+        tr.className = 'groupRow';
+        tr.style.cursor = 'pointer';
+        const tdGroup = document.createElement('td');
+        tdGroup.innerText = group;
+        tr.appendChild(tdGroup);
+
+        periods.forEach(period => {
+            const recs = data.filter(d =>
+                (drillMode === "GeoToLob" ? d.geo === group : d.lob === group) &&
+                d[timeKey] === period
+            );
+            let required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
+            let available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
+            let delta = available - required;
+            let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+
+            [required, available, delta, staffing].forEach((val, i) => {
+                const td = document.createElement('td');
+                td.innerText = (i < 3) ? val : staffing + "%";
+                if (i === 2) td.style.color = (delta < 0) ? "red" : "green";
+                tr.appendChild(td);
+            });
+        });
+        tbody.appendChild(tr);
+
+        // 🔽 Child Rows
+        const children = drillMode === "GeoToLob"
+            ? [...new Set(data.filter(d => d.geo === group).map(d => d.lob))]
+            : [...new Set(data.filter(d => d.lob === group).map(d => d.geo))];
+
+        children.forEach(child => {
+            const trChild = document.createElement("tr");
+            trChild.className = "childRow";
+            trChild.style.display = "none";
+            const tdChild = document.createElement("td");
+            tdChild.innerText = "   └ " + child;
+            tdChild.style.fontStyle = "italic";
+            tdChild.style.fontSize = "0.85em";
+            trChild.appendChild(tdChild);
+
+            periods.forEach(period => {
+                const recs = data.filter(d =>
+                    (drillMode === "GeoToLob"
+                        ? d.geo === group && d.lob === child
+                        : d.lob === group && d.geo === child) &&
+                    d[timeKey] === period
+                );
+                let required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
+                let available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
+                let delta = available - required;
+                let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+
+                [required, available, delta, staffing].forEach((val, i) => {
+                    const td = document.createElement('td');
+                    td.innerText = (i < 3) ? val : staffing + "%";
+                    if (i === 2) td.style.color = (delta < 0) ? "red" : "green";
+                    trChild.appendChild(td);
+                });
+            });
+            tbody.appendChild(trChild);
+        });
+
+        // Toggle child rows
+        tr.addEventListener("click", () => {
+            let next = tr.nextElementSibling;
+            while (next && next.classList.contains("childRow")) {
+                next.style.display = (next.style.display === "none") ? "table-row" : "none";
+                next = next.nextElementSibling;
+            }
+        });
+    });
+
+    table.appendChild(tbody);
+    container.appendChild(table);
 }
