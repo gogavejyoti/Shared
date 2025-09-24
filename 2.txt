@@ -14,27 +14,27 @@
 
 /* Second header row (FTE Req, Available, etc.) */
 #staffingTableContainer table thead tr:nth-child(2) th {
-    top: 35px;  /* adjust to first row height */
+    top: 35px;  /* adjust to your first header row height */
     z-index: 5;
 }
 
-/* Sticky first column (Geo + LOB) */
-#staffingTableContainer table tbody td:first-child,
-#staffingTableContainer table thead th:first-child {
+/* Sticky first column for both header and body */
+#staffingTableContainer table thead th:first-child,
+#staffingTableContainer table tbody td:first-child {
     position: sticky;
     left: 0;
     background: #f8f9fa;
     z-index: 6;
 }
 
-/* Top-left corner cell (Geo header) */
+/* Top-left cell (Geo header) */
 #staffingTableContainer table thead tr:nth-child(1) th:first-child {
     top: 0;
     left: 0;
-    z-index: 7; /* highest so it stays above both frozen header rows */
+    z-index: 7;
 }
 
-/* Second header row first column (empty cell under Geo) */
+/* Under Geo header cell (in second header row) */
 #staffingTableContainer table thead tr:nth-child(2) th:first-child {
     top: 35px;
     left: 0;
