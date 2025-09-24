@@ -1,9 +1,15 @@
 /* General header style */
 #staffingTableContainer table thead th {
     position: sticky;
-    background: #f8f9fa;
+    background: #f8f9fa; /* solid background */
     text-align: center;
     z-index: 3;
+}
+
+/* Add subtle shadow to hide gaps */
+#staffingTableContainer table thead th,
+#staffingTableContainer table tbody td:first-child {
+    box-shadow: inset 0 -1px 0 #dee2e6; /* bottom border */
 }
 
 /* First header row (Months) */
@@ -14,31 +20,33 @@
 
 /* Second header row (FTE Req, Available, etc.) */
 #staffingTableContainer table thead tr:nth-child(2) th {
-    top: 35px;  /* adjust to your first header row height */
+    top: 35px;  /* adjust to first row height */
     z-index: 5;
 }
 
-/* Sticky first column for both header and body */
+/* Sticky first column */
 #staffingTableContainer table thead th:first-child,
 #staffingTableContainer table tbody td:first-child {
     position: sticky;
     left: 0;
-    background: #f8f9fa;
+    background: #f8f9fa; /* ensure solid fill */
     z-index: 6;
 }
 
-/* Top-left cell (Geo header) */
+/* Top-left Geo header */
 #staffingTableContainer table thead tr:nth-child(1) th:first-child {
     top: 0;
     left: 0;
     z-index: 7;
+    box-shadow: 1px 0 0 #dee2e6, inset 0 -1px 0 #dee2e6;
 }
 
-/* Under Geo header cell (in second header row) */
+/* Second row first column */
 #staffingTableContainer table thead tr:nth-child(2) th:first-child {
     top: 35px;
     left: 0;
     z-index: 7;
+    box-shadow: 1px 0 0 #dee2e6, inset 0 -1px 0 #dee2e6;
 }
 
 /* LOB styling */
