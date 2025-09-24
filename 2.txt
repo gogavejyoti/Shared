@@ -1,191 +1,256 @@
-function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", viewMode = "Monthly") {
-    const container = document.querySelector("#" + containerId);
-    container.innerHTML = '';
+(function ($) {
+    $.fn.multiSelectDropdown = function (options) {
+        const settings = $.extend({
+            placeholder: 'Select options',
+            data: [],
+            tooltip: false,
+            sortLabel: false,
+            disabled: false,
+            onHide: function () { },
+        }, options);
 
-    // Determine period key
-    const timeKey = viewMode === "Weekly" ? "weekFormat" : "monthFormat";
+        this.each(function () {
+            const $select = $(this);
+            $select.hide();
 
-    // Collect and sort periods properly
-    const periods = [...new Set(data.map(d => d[timeKey]).filter(x => x))]
-        .map(p => ({ period: p, date: new Date(p) }))
-        .sort((a, b) => a.date - b.date)
-        .map(x => x.period);
-
-    // Dropdowns
-    const topRow = document.createElement('div');
-    topRow.style.marginBottom = '8px';
-
-    const drillSelector = document.createElement("select");
-    drillSelector.className = "form-select d-inline-block me-2";
-    drillSelector.style.width = "180px";
-    ["GeoToLob", "LobToGeo"].forEach(mode => {
-        const opt = document.createElement("option");
-        opt.value = mode;
-        opt.innerText = mode === "GeoToLob" ? "Geo → LOB" : "LOB → Geo";
-        if (mode === drillMode) opt.selected = true;
-        drillSelector.appendChild(opt);
-    });
-
-    const viewSelector = document.createElement("select");
-    viewSelector.className = "form-select d-inline-block";
-    viewSelector.style.width = "140px";
-    ["Weekly", "Monthly"].forEach(mode => {
-        const opt = document.createElement("option");
-        opt.value = mode;
-        opt.innerText = mode;
-        if (mode === viewMode) opt.selected = true;
-        viewSelector.appendChild(opt);
-    });
-
-    drillSelector.addEventListener("change", () => {
-        buildStaffingTableDrillDown(data, containerId, drillSelector.value, viewSelector.value);
-    });
-    viewSelector.addEventListener("change", () => {
-        buildStaffingTableDrillDown(data, containerId, drillSelector.value, viewSelector.value);
-    });
-
-    topRow.appendChild(drillSelector);
-    topRow.appendChild(viewSelector);
-    container.appendChild(topRow);
-
-    // Groups
-    const groups = drillMode === "GeoToLob"
-        ? [...new Set(data.map(d => d.geo))]
-        : [...new Set(data.map(d => d.lob))];
-
-    // Table
-    const table = document.createElement('table');
-    table.className = 'table table-bordered table-striped';
-    table.style.minWidth = (Math.max(1, periods.length) * 120 + 160) + 'px';
-
-    // Header rows
-    const thead = document.createElement('thead');
-    const tr1 = document.createElement('tr');
-    const thGroup = document.createElement('th');
-    thGroup.rowSpan = 2;
-    thGroup.innerText = drillMode === "GeoToLob" ? "Geo" : "LOB";
-    tr1.appendChild(thGroup);
-
-    periods.forEach(p => {
-        const th = document.createElement('th');
-        th.colSpan = 4;
-        th.innerText = p;
-        tr1.appendChild(th);
-    });
-    thead.appendChild(tr1);
-
-    const tr2 = document.createElement('tr');
-    periods.forEach(() => {
-        ['FTE Req', 'FTE Available', 'Delta', 'Staffing %'].forEach(h => {
-            const th = document.createElement('th');
-            th.innerText = h;
-            th.setAttribute('nowrap', '');
-            tr2.appendChild(th);
-        });
-    });
-    thead.appendChild(tr2);
-    table.appendChild(thead);
-
-    // Body
-    const tbody = document.createElement('tbody');
-
-    // Overall summary row
-    const trSummary = document.createElement("tr");
-    trSummary.className = "table-primary fw-bold";
-    const tdSummary = document.createElement("td");
-    tdSummary.innerText = "Overall Summary";
-    trSummary.appendChild(tdSummary);
-
-    periods.forEach(period => {
-        const recs = data.filter(d => d[timeKey] === period);
-        const required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
-        const available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
-        const delta = available - required;
-        const staffing = required > 0 ? Math.round((available / required) * 100) : 0;
-
-        [required, available, delta, staffing].forEach((val, i) => {
-            const td = document.createElement("td");
-            td.innerText = (i < 3) ? val : staffing + "%";
-            if (i === 2) td.style.color = (delta < 0) ? "red" : "green";
-            trSummary.appendChild(td);
-        });
-    });
-    tbody.appendChild(trSummary);
-
-    // Drilldown rows
-    groups.forEach(group => {
-        const tr = document.createElement('tr');
-        tr.className = 'groupRow';
-        tr.style.cursor = 'pointer';
-        const tdGroup = document.createElement('td');
-        tdGroup.innerText = group;
-        tr.appendChild(tdGroup);
-
-        periods.forEach(period => {
-            const recs = data.filter(d =>
-                (drillMode === "GeoToLob" ? d.geo === group : d.lob === group) &&
-                d[timeKey] === period
-            );
-            const required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
-            const available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
-            const delta = available - required;
-            const staffing = required > 0 ? Math.round((available / required) * 100) : 0;
-
-            [required, available, delta, staffing].forEach((val, i) => {
-                const td = document.createElement('td');
-                td.innerText = (i < 3) ? val : staffing + "%";
-                if (i === 2) td.style.color = (delta < 0) ? "red" : "green";
-                tr.appendChild(td);
+            const $container = $('<div>', { class: 'multi-select-container' });
+            const $dropdown = $('<div>', {
+                class: 'multi-select-dropdown',
+                tabindex: 0
             });
-        });
-        tbody.appendChild(tr);
 
-        // Children
-        const children = drillMode === "GeoToLob"
-            ? [...new Set(data.filter(d => d.geo === group).map(d => d.lob))]
-            : [...new Set(data.filter(d => d.lob === group).map(d => d.geo))];
+            const $input = $('<input>', {
+                type: 'text',
+                readonly: true,
+                placeholder: settings.placeholder,
+                class: 'multi-select-input',
+                title: settings.tooltip ? settings.placeholder : '',
+                disabled: settings.disabled,
+            });
 
-        children.forEach(child => {
-            const trChild = document.createElement("tr");
-            trChild.className = "childRow";
-            trChild.style.display = "none";
-            const tdChild = document.createElement("td");
-            tdChild.innerText = "   └ " + child;
-            tdChild.style.fontStyle = "italic";
-            tdChild.style.fontSize = "0.85em";
-            trChild.appendChild(tdChild);
+            const $optionsList = $('<ul>', { class: 'multi-select-options' });
 
-            periods.forEach(period => {
-                const recs = data.filter(d =>
-                    (drillMode === "GeoToLob"
-                        ? d.geo === group && d.lob === child
-                        : d.lob === group && d.geo === child) &&
-                    d[timeKey] === period
-                );
-                const required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
-                const available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
-                const delta = available - required;
-                const staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+            $dropdown.append($input, $optionsList);
+            $container.append($dropdown);
+            $select.after($container);
 
-                [required, available, delta, staffing].forEach((val, i) => {
-                    const td = document.createElement('td');
-                    td.innerText = (i < 3) ? val : staffing + "%";
-                    if (i === 2) td.style.color = (delta < 0) ? "red" : "green";
-                    trChild.appendChild(td);
+            const updateInput = () => {
+                const checkedOptions = $optionsList.find('input.option-checkbox:checked').length;
+                let tooltipText = settings.tooltip ? settings.placeholder : '';
+
+                if ($optionsList.find('input.select-all-checkbox').is(':checked')) {
+                    $input.val('All');
+                    tooltipText = settings.tooltip ? 'All' : '';
+                } else if (checkedOptions > 0) {
+                    const selected = $optionsList
+                        .find('input.option-checkbox:checked')
+                        .map((_, checkbox) => $(checkbox).next('span').text())
+                        .get()
+                        .join(', ');
+                    $input.val(selected);
+                    tooltipText = settings.tooltip ? selected : '';
+                } else {
+                    $input.val(settings.placeholder);
+                    tooltipText = settings.tooltip ? settings.placeholder : '';
+                }
+
+                if (settings.tooltip) {
+                    $input.attr('title', tooltipText);
+                }
+            };
+
+            const sortData = (data) => {
+                return settings.sortLabel ? data.sort((a, b) => a.label.localeCompare(b.label)) : data;
+            };
+
+            const renderOptions = (data) => {
+                $optionsList.empty();
+
+                if (!settings.disabled) {
+                    const $selectAllLi = $('<li>', { class: 'select-all-li' });
+                    const $selectAllCheckbox = $('<input>', {
+                        type: 'checkbox',
+                        class: 'select-all-checkbox',
+                    }).on('change', function () {
+                        const isChecked = $(this).is(':checked');
+                        $optionsList.find('input.option-checkbox').prop('checked', isChecked);
+                        updateInput();
+                    });
+
+                    const $selectAllLabel = $('<span>').text('Select All');
+                    $selectAllLi.append($selectAllCheckbox, $selectAllLabel).on('click', function (e) {
+                        if (!$(e.target).is('input')) $selectAllCheckbox.trigger('click');
+                    });
+                    $optionsList.append($selectAllLi);
+
+                    const sortedData = sortData(data);
+
+                    sortedData.forEach(item => {
+                        const $li = $('<li>');
+                        const $checkbox = $('<input>', {
+                            type: 'checkbox',
+                            value: item.value,
+                            class: 'option-checkbox',
+                        }).on('change', function () {
+                            const total = $optionsList.find('input.option-checkbox').length;
+                            const checked = $optionsList.find('input.option-checkbox:checked').length;
+                            $optionsList.find('input.select-all-checkbox').prop('checked', total === checked);
+                            updateInput();
+                        });
+
+                        const $label = $('<span>').text(item.label);
+                        $li.append($checkbox, $label).on('click', function (e) {
+                            if (!$(e.target).is('input')) $checkbox.trigger('click');
+                        });
+
+                        $optionsList.append($li);
+                    });
+                }
+            };
+
+            renderOptions(settings.data);
+
+            $input.on('click', function (e) {
+                if (settings.disabled) return;
+                e.stopPropagation();
+                const $currentOptions = $(this).siblings('.multi-select-options');
+                $('.multi-select-options:visible').not($currentOptions).hide();
+                settings.onHide();
+                $optionsList.toggle();
+                $dropdown.focus();
+            });
+
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('.multi-select-dropdown').length) {
+                    if ($optionsList.is(':visible')) {
+                        $optionsList.hide();
+                        settings.onHide();
+                    }
+                }
+            });
+
+            $optionsList.on('click', function (e) {
+                e.stopPropagation();
+            });
+
+            let typeBuffer = '';
+            let typeTimeout;
+            let currentIndex = -1;
+
+            const updateHighlight = (index) => {
+                const $items = $optionsList.find('li');
+                $items.removeClass('highlighted');
+                if (index >= 0 && index < $items.length) {
+                    const $target = $items.eq(index);
+                    $target.addClass('highlighted');
+                    $optionsList.scrollTop(
+                        $optionsList.scrollTop() + $target.position().top
+                    );
+                }
+            };
+
+            $dropdown.on('keydown', function (e) {
+                if (settings.disabled || !$optionsList.is(':visible')) return;
+
+                const $items = $optionsList.find('li');
+                clearTimeout(typeTimeout);
+
+                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    typeBuffer += e.key.toLowerCase();
+                    const $match = $items.filter(function () {
+                        return $(this).text().toLowerCase().startsWith(typeBuffer);
+                    }).first();
+                    currentIndex = $items.index($match);
+                    updateHighlight(currentIndex);
+
+                    typeTimeout = setTimeout(() => {
+                        typeBuffer = '';
+                    }, 1000);
+                    return;
+                }
+
+                switch (e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        currentIndex = (currentIndex + 1) % $items.length;
+                        updateHighlight(currentIndex);
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        currentIndex = (currentIndex - 1 + $items.length) % $items.length;
+                        updateHighlight(currentIndex);
+                        break;
+                    case 'Enter':
+                        e.preventDefault();
+                        if (currentIndex >= 0 && currentIndex < $items.length) {
+                            const $li = $items.eq(currentIndex);
+                            const $checkbox = $li.find('input[type="checkbox"]');
+                            $checkbox.prop('checked', !$checkbox.prop('checked')).trigger('change');
+                            updateInput();
+                        }
+                        break;
+                }
+            });
+
+            // Plugin Methods
+            $select[0].refreshData = function (newData) {
+                settings.data = newData;
+                renderOptions(newData);
+                updateInput();
+            };
+
+            $select[0].getSelectedValues = function () {
+                if ($optionsList.find('input.select-all-checkbox').is(':checked')) {
+                    return ['0'];
+                }
+                return $optionsList
+                    .find('input.option-checkbox:checked')
+                    .map((_, checkbox) => $(checkbox).val())
+                    .get();
+            };
+
+            $select[0].clearSelectedValues = function () {
+                $optionsList.find('input.option-checkbox').prop('checked', false);
+                $optionsList.find('input.select-all-checkbox').prop('checked', false);
+                $input.val(settings.placeholder);
+                if (settings.tooltip) {
+                    $input.attr('title', settings.placeholder);
+                }
+            };
+
+            $select.data('previousSelectedIds', []);
+
+            $select[0].hasSelectionChanged = function () {
+                const currentSelectedIds = $select[0].getSelectedValues();
+                const previousSelectedIds = $select.data('previousSelectedIds');
+
+                const changed = currentSelectedIds.length !== previousSelectedIds.length ||
+                    currentSelectedIds.some(id => !previousSelectedIds.includes(id));
+
+                $select.data('previousSelectedIds', currentSelectedIds);
+                return changed;
+            };
+
+            $select[0].setDisabled = function (isDisabled) {
+                settings.disabled = isDisabled;
+                $input.prop('disabled', isDisabled);
+                renderOptions(settings.data);
+                updateInput();
+            };
+
+            $select[0].selectValues = function (values) {
+                $optionsList.find('input.option-checkbox').each(function () {
+                    const isChecked = values.includes($(this).val());
+                    $(this).prop('checked', isChecked);
                 });
-            });
-            tbody.appendChild(trChild);
+                const total = $optionsList.find('input.option-checkbox').length;
+                const checked = $optionsList.find('input.option-checkbox:checked').length;
+                $optionsList.find('input.select-all-checkbox').prop('checked', total === checked);
+                updateInput(); 
+            };
+
         });
 
-        tr.addEventListener("click", () => {
-            let next = tr.nextElementSibling;
-            while (next && next.classList.contains("childRow")) {
-                next.style.display = (next.style.display === "none") ? "table-row" : "none";
-                next = next.nextElementSibling;
-            }
-        });
-    });
-
-    table.appendChild(tbody);
-    container.appendChild(table);
-}
+        return this;
+    };
+})(jQuery);
