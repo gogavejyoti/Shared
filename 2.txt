@@ -1,69 +1,48 @@
-<div id="woWDeltaChart"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-<script>
-let wowDeltaChartInstance = null; // store chart instance
-
-function buildWoWDeltaAreaChart(data, containerId) {
-    const container = document.querySelector("#" + containerId);
-    container.innerHTML = '';
-
-    // Destroy existing chart if exists
-    if (wowDeltaChartInstance) {
-        wowDeltaChartInstance.destroy();
-        wowDeltaChartInstance = null;
-    }
-
-    // Unique weeks sorted
-    const weeks = [...new Set(data.map(d => d.weekFormat))].sort((a,b) => new Date(a) - new Date(b));
-
-    // Unique geos
-    const geos = [...new Set(data.map(d => d.geo))];
-
-    // Prepare series
-    const series = geos.map(geo => {
-        const geoData = weeks.map(week => {
-            const rec = data.filter(d => d.geo === geo && d.weekFormat === week);
-            const required = rec.reduce((sum,r)=>sum+(r.requiredHC||0),0);
-            const available = rec.reduce((sum,r)=>sum+(r.availableHC||0),0);
-            return Math.round(available - required); // Delta
-        });
-        return { name: geo, data: geoData };
-    });
-
-    const options = {
-        chart: { type: 'area', height: 300, stacked: false },
-        series: series,
-        stroke: { curve: 'smooth' },
-        xaxis: { categories: weeks, title: { text: 'Week' } },
-        yaxis: { title: { text: 'Delta (Available - Required)' } },
-        tooltip: { shared: true, intersect: false },
-        dataLabels: { enabled: false },
-        colors: ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd'],
-        legend: { position: 'top' }
-    };
-
-    wowDeltaChartInstance = new ApexCharts(container, options);
-    wowDeltaChartInstance.render();
+/* General header style */
+#staffingTableContainer table thead th {
+    position: sticky;
+    background: #f8f9fa;
+    text-align: center;
+    z-index: 3;
 }
 
-// Sample data
-let weeklyData = [
-  { geo:"India", weekFormat:"01-Sep-25", requiredHC:100, availableHC:90 },
-  { geo:"India", weekFormat:"08-Sep-25", requiredHC:120, availableHC:130 },
-  { geo:"USA", weekFormat:"01-Sep-25", requiredHC:70, availableHC:60 },
-  { geo:"USA", weekFormat:"08-Sep-25", requiredHC:80, availableHC:75 }
-];
+/* First header row (Months) */
+#staffingTableContainer table thead tr:nth-child(1) th {
+    top: 0;
+    z-index: 4;
+}
 
-// Initial render
-buildWoWDeltaAreaChart(weeklyData, 'woWDeltaChart');
+/* Second header row (FTE Req, Available, etc.) */
+#staffingTableContainer table thead tr:nth-child(2) th {
+    top: 35px;  /* adjust to first row height */
+    z-index: 5;
+}
 
-// Example: refresh chart with new data after 3 seconds
-setTimeout(()=>{
-    let newWeeklyData = [
-        { geo:"India", weekFormat:"15-Sep-25", requiredHC:130, availableHC:140 },
-        { geo:"USA", weekFormat:"15-Sep-25", requiredHC:85, availableHC:80 }
-    ];
-    buildWoWDeltaAreaChart(newWeeklyData, 'woWDeltaChart');
-}, 3000);
-</script>
+/* Sticky first column (Geo + LOB) */
+#staffingTableContainer table tbody td:first-child,
+#staffingTableContainer table thead th:first-child {
+    position: sticky;
+    left: 0;
+    background: #f8f9fa;
+    z-index: 6;
+}
+
+/* Top-left corner cell (Geo header) */
+#staffingTableContainer table thead tr:nth-child(1) th:first-child {
+    top: 0;
+    left: 0;
+    z-index: 7; /* highest so it stays above both frozen header rows */
+}
+
+/* Second header row first column (empty cell under Geo) */
+#staffingTableContainer table thead tr:nth-child(2) th:first-child {
+    top: 35px;
+    left: 0;
+    z-index: 7;
+}
+
+/* LOB styling */
+.lobRow td:first-child {
+    font-style: italic;
+    font-size: 0.85em;
+}
