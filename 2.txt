@@ -1,56 +1,106 @@
-/* General header style */
-#staffingTableContainer table thead th {
-    position: sticky;
-    background: #f8f9fa; /* solid background */
-    text-align: center;
-    z-index: 3;
-}
+    function buildStaffingTableDrillDown(data, containerId) {
+        const container = document.querySelector("#" + containerId);
+        container.innerHTML = '';
 
-/* Add subtle shadow to hide gaps */
-#staffingTableContainer table thead th,
-#staffingTableContainer table tbody td:first-child {
-    box-shadow: inset 0 -1px 0 #dee2e6; /* bottom border */
-}
+        const geos = [...new Set(data.map(d => d.geo))];
+        const months = [...new Set(data.map(d => d.monthFormat))].sort((a, b) => new Date(a) - new Date(b));
 
-/* First header row (Months) */
-#staffingTableContainer table thead tr:nth-child(1) th {
-    top: 0;
-    z-index: 4;
-}
+        const table = document.createElement('table');
+        table.className = 'table table-bordered table-striped';
+        table.style.minWidth = (months.length * 120 + 100) + 'px';
 
-/* Second header row (FTE Req, Available, etc.) */
-#staffingTableContainer table thead tr:nth-child(2) th {
-    top: 35px;  /* adjust to first row height */
-    z-index: 5;
-}
+        // Header
+        const thead = document.createElement('thead');
+        const tr1 = document.createElement('tr');
+        const thGeo = document.createElement('th');
+        thGeo.rowSpan = 2;
+        thGeo.innerText = 'Geo';
+        tr1.appendChild(thGeo);
 
-/* Sticky first column */
-#staffingTableContainer table thead th:first-child,
-#staffingTableContainer table tbody td:first-child {
-    position: sticky;
-    left: 0;
-    background: #f8f9fa; /* ensure solid fill */
-    z-index: 6;
-}
+        months.forEach(m => {
+            const th = document.createElement('th');
+            th.colSpan = 4;
+            th.innerText = m;
+            tr1.appendChild(th);
+        });
+        thead.appendChild(tr1);
 
-/* Top-left Geo header */
-#staffingTableContainer table thead tr:nth-child(1) th:first-child {
-    top: 0;
-    left: 0;
-    z-index: 7;
-    box-shadow: 1px 0 0 #dee2e6, inset 0 -1px 0 #dee2e6;
-}
+        const tr2 = document.createElement('tr');
+        months.forEach(() => {
+            ['FTE Req', 'FTE Available', 'Delta', 'Staffing %'].forEach(h => {
+                const th = document.createElement('th');
+                th.innerText = h;
+                th.setAttribute('nowrap', '');
+                tr2.appendChild(th);
+            });
+        });
+        thead.appendChild(tr2);
+        table.appendChild(thead);
 
-/* Second row first column */
-#staffingTableContainer table thead tr:nth-child(2) th:first-child {
-    top: 35px;
-    left: 0;
-    z-index: 7;
-    box-shadow: 1px 0 0 #dee2e6, inset 0 -1px 0 #dee2e6;
-}
+        // Body
+        const tbody = document.createElement('tbody');
 
-/* LOB styling */
-.lobRow td:first-child {
-    font-style: italic;
-    font-size: 0.85em;
-}
+        geos.forEach(geo => {
+            const tr = document.createElement('tr');
+            tr.className = 'geoRow';
+            tr.style.cursor = 'pointer';
+            const tdGeo = document.createElement('td');
+            tdGeo.innerText = geo;
+            tr.appendChild(tdGeo);
+
+            months.forEach(month => {
+                const record = data.filter(d => d.geo === geo && d.monthFormat === month);
+                let required = Math.round(record.reduce((sum, r) => sum + (r.requiredHC || 0), 0));
+                let available = Math.round(record.reduce((sum, r) => sum + (r.availableHC || 0), 0));
+                let delta = available - required;
+                let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+
+                [required, available, delta, staffing].forEach((val, i) => {
+                    const td = document.createElement('td');
+                    td.innerText = (i < 3) ? val : staffing + '%';
+                    if (i === 2) { td.style.color = (delta < 0) ? 'red' : 'green'; }
+                    tr.appendChild(td);
+                });
+            });
+            tbody.appendChild(tr);
+
+            // LOB rows
+            const lobRecords = data.filter(d => d.geo === geo);
+            const lobs = [...new Set(lobRecords.map(d => d.lob))];
+            lobs.forEach(lob => {
+                const trLob = document.createElement('tr');
+                trLob.className = 'lobRow';
+                trLob.style.display = 'none';
+                const tdLob = document.createElement('td');
+                tdLob.innerText = '   └ ' + lob;
+                trLob.appendChild(tdLob);
+
+                months.forEach(month => {
+                    const rec = data.filter(d => d.geo === geo && d.lob === lob && d.monthFormat === month);
+                    let required = Math.round(rec.reduce((sum, r) => sum + (r.requiredHC || 0), 0));
+                    let available = Math.round(rec.reduce((sum, r) => sum + (r.availableHC || 0), 0));
+                    let delta = available - required;
+                    let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+
+                    [required, available, delta, staffing].forEach((val, i) => {
+                        const td = document.createElement('td');
+                        td.innerText = (i < 3) ? val : staffing + '%';
+                        if (i === 2) { td.style.color = (delta < 0) ? 'red' : 'green'; }
+                        trLob.appendChild(td);
+                    });
+                });
+                tbody.appendChild(trLob);
+            });
+
+            tr.addEventListener('click', () => {
+                let next = tr.nextElementSibling;
+                while (next && next.classList.contains('lobRow')) {
+                    next.style.display = (next.style.display === 'none') ? 'table-row' : 'none';
+                    next = next.nextElementSibling;
+                }
+            });
+        });
+
+        table.appendChild(tbody);
+        container.appendChild(table);
+    }
