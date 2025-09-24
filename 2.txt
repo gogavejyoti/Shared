@@ -2,9 +2,12 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
     const container = document.querySelector("#" + containerId);
     container.innerHTML = '';
 
-    // --- Drill Mode Dropdown (Geo→LOB or LOB→Geo)
+    // Dropdowns
+    const topRow = document.createElement('div');
+    topRow.style.marginBottom = '8px';
+
     const drillSelector = document.createElement("select");
-    drillSelector.className = "form-select mb-2 d-inline-block";
+    drillSelector.className = "form-select d-inline-block me-2";
     drillSelector.style.width = "180px";
     ["GeoToLob", "LobToGeo"].forEach(mode => {
         const opt = document.createElement("option");
@@ -13,14 +16,10 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
         if (mode === drillMode) opt.selected = true;
         drillSelector.appendChild(opt);
     });
-    drillSelector.addEventListener("change", () => {
-        buildStaffingTableDrillDown(data, containerId, drillSelector.value, viewSelector.value);
-    });
 
-    // --- View Mode Dropdown (Weekly or Monthly)
     const viewSelector = document.createElement("select");
-    viewSelector.className = "form-select mb-2 ms-2 d-inline-block";
-    viewSelector.style.width = "150px";
+    viewSelector.className = "form-select d-inline-block";
+    viewSelector.style.width = "140px";
     ["Weekly", "Monthly"].forEach(mode => {
         const opt = document.createElement("option");
         opt.value = mode;
@@ -28,29 +27,37 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
         if (mode === viewMode) opt.selected = true;
         viewSelector.appendChild(opt);
     });
+
+    drillSelector.addEventListener("change", () => {
+        buildStaffingTableDrillDown(data, containerId, drillSelector.value, viewSelector.value);
+    });
     viewSelector.addEventListener("change", () => {
         buildStaffingTableDrillDown(data, containerId, drillSelector.value, viewSelector.value);
     });
 
-    // Add both dropdowns to container
-    container.appendChild(drillSelector);
-    container.appendChild(viewSelector);
+    topRow.appendChild(drillSelector);
+    topRow.appendChild(viewSelector);
+    container.appendChild(topRow);
 
-    // --- Time dimension (Week vs Month)
+    // Determine period key
     const timeKey = viewMode === "Weekly" ? "weekFormat" : "monthFormat";
-    const periods = [...new Set(data.map(d => d[timeKey]))]
-        .sort((a, b) => new Date(a) - new Date(b));
 
-    // --- Groups
+    // Sort periods
+    const periods = [...new Set(data.map(d => d[timeKey]))]
+        .filter(x => x)
+        .sort((a,b) => new Date(a) - new Date(b));
+
+    // Groups
     const groups = drillMode === "GeoToLob"
         ? [...new Set(data.map(d => d.geo))]
         : [...new Set(data.map(d => d.lob))];
 
+    // Build table
     const table = document.createElement('table');
     table.className = 'table table-bordered table-striped';
-    table.style.minWidth = (periods.length * 120 + 100) + 'px';
+    table.style.minWidth = (Math.max(1, periods.length) * 120 + 160) + 'px';
 
-    // ---------- Header ----------
+    // Header
     const thead = document.createElement('thead');
     const tr1 = document.createElement('tr');
     const thGroup = document.createElement('th');
@@ -78,10 +85,10 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
     thead.appendChild(tr2);
     table.appendChild(thead);
 
-    // ---------- Body ----------
+    // Body
     const tbody = document.createElement('tbody');
 
-    // ✅ Overall Summary Row
+    // Overall summary
     const trSummary = document.createElement("tr");
     trSummary.className = "table-primary fw-bold";
     const tdSummary = document.createElement("td");
@@ -90,10 +97,10 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
 
     periods.forEach(period => {
         const recs = data.filter(d => d[timeKey] === period);
-        let required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
-        let available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
-        let delta = available - required;
-        let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+        const required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
+        const available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
+        const delta = available - required;
+        const staffing = required > 0 ? Math.round((available / required) * 100) : 0;
 
         [required, available, delta, staffing].forEach((val, i) => {
             const td = document.createElement("td");
@@ -104,7 +111,7 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
     });
     tbody.appendChild(trSummary);
 
-    // ✅ Drilldown Rows
+    // Drilldown
     groups.forEach(group => {
         const tr = document.createElement('tr');
         tr.className = 'groupRow';
@@ -118,10 +125,10 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
                 (drillMode === "GeoToLob" ? d.geo === group : d.lob === group) &&
                 d[timeKey] === period
             );
-            let required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
-            let available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
-            let delta = available - required;
-            let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+            const required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
+            const available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
+            const delta = available - required;
+            const staffing = required > 0 ? Math.round((available / required) * 100) : 0;
 
             [required, available, delta, staffing].forEach((val, i) => {
                 const td = document.createElement('td');
@@ -132,7 +139,7 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
         });
         tbody.appendChild(tr);
 
-        // 🔽 Child Rows
+        // Children
         const children = drillMode === "GeoToLob"
             ? [...new Set(data.filter(d => d.geo === group).map(d => d.lob))]
             : [...new Set(data.filter(d => d.lob === group).map(d => d.geo))];
@@ -154,10 +161,10 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
                         : d.lob === group && d.geo === child) &&
                     d[timeKey] === period
                 );
-                let required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
-                let available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
-                let delta = available - required;
-                let staffing = required > 0 ? Math.round((available / required) * 100) : 0;
+                const required = Math.round(recs.reduce((s, r) => s + (r.requiredHC || 0), 0));
+                const available = Math.round(recs.reduce((s, r) => s + (r.availableHC || 0), 0));
+                const delta = available - required;
+                const staffing = required > 0 ? Math.round((available / required) * 100) : 0;
 
                 [required, available, delta, staffing].forEach((val, i) => {
                     const td = document.createElement('td');
@@ -169,7 +176,6 @@ function buildStaffingTableDrillDown(data, containerId, drillMode = "GeoToLob", 
             tbody.appendChild(trChild);
         });
 
-        // Toggle child rows
         tr.addEventListener("click", () => {
             let next = tr.nextElementSibling;
             while (next && next.classList.contains("childRow")) {
