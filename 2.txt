@@ -1,83 +1,48 @@
-<div id="attritionChart"></div>
+function renderGeoWiseShrinkageDonut(containerId, rawData) {
+  // Step 1: Aggregate Actual Shrinkage Geo-wise
+  const geoData = {};
 
-<script>
-function buildAttritionComparisonChart(data, containerId) {
-    // ---- aggregate attrition by weekFormat ----
-    const weekMap = {};
-    data.forEach(d => {
-        if (!weekMap[d.weekFormat]) {
-            weekMap[d.weekFormat] = {
-                totalAvail: 0,
-                plannedWeighted: 0,
-                actualWeighted: 0
-            };
-        }
-        const avail = d.availableHC || 0;
-        weekMap[d.weekFormat].totalAvail += avail;
-        weekMap[d.weekFormat].plannedWeighted += avail * (d.plannedAttrition || 0);
-        weekMap[d.weekFormat].actualWeighted += avail * (d.actualAttrition || 0);
-    });
-
-    // ---- calculate aggregated attrition ----
-    const weeks = Object.keys(weekMap).sort((a, b) => new Date(a) - new Date(b));
-
-    const planned = weeks.map(w => {
-        const total = weekMap[w].totalAvail;
-        return total > 0 ? Math.round((weekMap[w].plannedWeighted / total) * 100) : null;
-    });
-    const actual = weeks.map(w => {
-        const total = weekMap[w].totalAvail;
-        return total > 0 ? Math.round((weekMap[w].actualWeighted / total) * 100) : null;
-    });
-
-    // ---- chart options ----
-    const options = {
-        chart: {
-            type: 'line',
-            height: 300,
-            toolbar: { show: false }
-        },
-        stroke: {
-            width: [2, 3],
-            dashArray: [5, 0] // Planned dashed, Actual solid
-        },
-        colors: [app.color.theme, app.color.warning],
-        dataLabels: { enabled: false },
-        series: [
-            { name: "Planned Attrition", data: planned },
-            { name: "Actual Attrition", data: actual }
-        ],
-        xaxis: {
-            categories: weeks,
-            labels: { rotate: -45 },
-            axisBorder: { show: true, color: app.color.borderColor },
-            axisTicks: { show: true, color: app.color.borderColor }
-        },
-        yaxis: {
-            title: { text: "Attrition %", style: { color: app.color.bodyColor } },
-            labels: {
-                formatter: val => val + "%",
-                style: { colors: [app.color.bodyColor] }
-            },
-            min: 0
-        },
-        tooltip: {
-            shared: true,
-            y: {
-                formatter: val => val !== null ? val + "%" : "N/A"
-            }
-        },
-        legend: {
-            position: "bottom",
-            horizontalAlign: "center"
-        }
-    };
-
-    // ---- destroy old chart & create new ----
-    if (window.attritionChart) {
-        window.attritionChart.destroy();
+  rawData.forEach(item => {
+    if (!geoData[item.geo]) {
+      geoData[item.geo] = { totalHC: 0, weightedShrink: 0 };
     }
-    window.attritionChart = new ApexCharts(document.querySelector("#" + containerId), options);
-    window.attritionChart.render();
+    geoData[item.geo].totalHC += item.availableHC || 0;
+    geoData[item.geo].weightedShrink += (item.availableHC || 0) * (item.actualShrinkage || 0);
+  });
+
+  const chartData = Object.keys(geoData).map(geo => {
+    const { totalHC, weightedShrink } = geoData[geo];
+    const avgShrink = totalHC === 0 ? 0 : (weightedShrink / totalHC) * 100; // percentage
+    return {
+      name: geo,
+      y: parseFloat(avgShrink.toFixed(2))
+    };
+  });
+
+  // Step 2: Render Donut Chart
+  Highcharts.chart(containerId, {
+    chart: {
+      type: 'pie'
+    },
+    title: {
+      text: 'Geo-wise Actual Shrinkage'
+    },
+    plotOptions: {
+      pie: {
+        innerSize: '60%', // makes it donut
+        dataLabels: {
+          enabled: true,
+          format: '{point.name}: {point.y:.2f}%'
+        }
+      }
+    },
+    tooltip: {
+      pointFormat: '<b>{point.y:.2f}%</b>'
+    },
+    series: [{
+      name: 'Actual Shrinkage',
+      colorByPoint: true,
+      data: chartData
+    }]
+  });
 }
-</script>
