@@ -1,72 +1,87 @@
-function buildShrinkageChart(data, containerId) {
-    // ---- aggregate by weekFormat ----
+<div id="shrinkageChart"></div>
+
+<script>
+function buildShrinkageComparisonChart(data, containerId) {
+    // ---- aggregate shrinkage by weekFormat ----
     const weekMap = {};
     data.forEach(d => {
         if (!weekMap[d.weekFormat]) {
-            weekMap[d.weekFormat] = { ava: 0, planned: 0, actual: 0 };
+            weekMap[d.weekFormat] = {
+                totalAvail: 0,
+                plannedWeighted: 0,
+                actualWeighted: 0
+            };
         }
-        const ava = d.availableHC || 0;
-        weekMap[d.weekFormat].ava += ava;
-        weekMap[d.weekFormat].planned += ava * (d.plannedShrinkage || 0);
-        weekMap[d.weekFormat].actual += ava * (d.actualShrinkage || 0);
+        const avail = d.availableHC || 0;
+        weekMap[d.weekFormat].totalAvail += avail;
+        weekMap[d.weekFormat].plannedWeighted += avail * (d.plannedShrinkage || 0);
+        weekMap[d.weekFormat].actualWeighted += avail * (d.actualShrinkage || 0);
     });
 
-    // ---- parse dd-MMM-yy correctly ----
-    function parseWeek(str) {
-        const [dd, mon, yy] = str.split("-");
-        const monthMap = {
-            Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5,
-            Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11
-        };
-        return new Date(2000 + parseInt(yy), monthMap[mon], parseInt(dd));
-    }
-
-    // ---- sort weeks ----
-    const weeks = Object.keys(weekMap).sort((a, b) => parseWeek(a) - parseWeek(b));
-
-    // ---- series data (weighted average shrinkage %) ----
-    const plannedSeries = weeks.map(w => {
-        const obj = weekMap[w];
-        return obj.ava > 0 ? Math.round((obj.planned / obj.ava) * 100) : null;
+    // ---- calculate aggregated shrinkages ----
+    const weeks = Object.keys(weekMap).sort((a, b) => {
+        // sort dd-MMM-yy format properly
+        return new Date(a) - new Date(b);
     });
 
-    const actualSeries = weeks.map(w => {
-        const obj = weekMap[w];
-        return obj.ava > 0 ? Math.round((obj.actual / obj.ava) * 100) : null;
+    const planned = weeks.map(w => {
+        const total = weekMap[w].totalAvail;
+        return total > 0 ? Math.round((weekMap[w].plannedWeighted / total) * 100) : null;
+    });
+    const actual = weeks.map(w => {
+        const total = weekMap[w].totalAvail;
+        return total > 0 ? Math.round((weekMap[w].actualWeighted / total) * 100) : null;
     });
 
     // ---- chart options ----
     const options = {
         chart: {
-            height: 250,
-            type: 'line',
+            type: 'bar',
+            height: 300,
+            stacked: false,
             toolbar: { show: false }
         },
-        stroke: { width: [3, 3] },
-        colors: [app.color.theme, app.color.warning],
+        plotOptions: {
+            bar: {
+                horizontal: false,
+                columnWidth: '40%',
+                endingShape: 'rounded'
+            }
+        },
         dataLabels: { enabled: false },
+        colors: [app.color.theme, app.color.warning],
         series: [
-            { name: 'Planned Shrinkage %', type: 'line', data: plannedSeries },
-            { name: 'Actual Shrinkage %', type: 'line', data: actualSeries }
+            { name: "Planned Shrinkage", data: planned },
+            { name: "Actual Shrinkage", data: actual }
         ],
         xaxis: {
             categories: weeks,
-            labels: { rotate: -45 },
+            labels: {
+                rotate: -45
+            },
             axisBorder: { show: true, color: app.color.borderColor },
             axisTicks: { show: true, color: app.color.borderColor }
         },
         yaxis: {
-            title: { text: "Shrinkage %", style: { color: app.color.warning } },
-            labels: { formatter: val => val + "%", style: { colors: [app.color.bodyColor] } },
-            min: 0,
-            max: 100
+            title: { text: "Shrinkage %", style: { color: app.color.bodyColor } },
+            labels: {
+                formatter: val => val + "%",
+                style: { colors: [app.color.bodyColor] }
+            },
+            min: 0
         },
         tooltip: {
             shared: true,
-            intersect: false,
-            y: { formatter: val => (val !== null ? val + "%" : "N/A") }
+            y: {
+                formatter: function (val) {
+                    return val !== null ? val + "%" : "N/A";
+                }
+            }
         },
-        legend: { position: "bottom", horizontalAlign: "center" }
+        legend: {
+            position: "bottom",
+            horizontalAlign: "center"
+        }
     };
 
     // ---- destroy old chart & create new ----
@@ -76,3 +91,4 @@ function buildShrinkageChart(data, containerId) {
     window.shrinkageChart = new ApexCharts(document.querySelector("#" + containerId), options);
     window.shrinkageChart.render();
 }
+</script>
