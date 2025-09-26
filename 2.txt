@@ -27,33 +27,34 @@ function buildOTFWeekChart(data, containerId) {
         const act = weekMap[w]?.actual ?? 0;
         const fc = weekMap[w]?.forecasted ?? 0;
 
-        actualHours.push(act);
-        forecastedHours.push(fc);
+        actualHours.push(Math.round(act));
+        forecastedHours.push(Math.round(fc));
 
-        otfPct.push(act > 0 ? parseFloat(((fc / act) * 100).toFixed(2)) : 0);
+        otfPct.push(act > 0 ? Math.round((fc / act) * 100) : 0);
     });
 
     // ApexCharts options
     const options = {
         chart: { type: 'line', height: 300, stacked: false, toolbar: { show: false } },
-        stroke: { width: [2, 2, 3], dashArray: [0, 0, 4] },
+        stroke: { width: [0, 0, 3], dashArray: [0, 0, 4] }, // bars have 0 stroke
         colors: ["#007bff", "#28a745", "#ffc107"], // Forecasted, Actual, OTF %
         dataLabels: { enabled: false },
         series: [
-            { name: 'Forecasted Hours', type: 'area', data: forecastedHours },
-            { name: 'Actual Hours', type: 'area', data: actualHours },
+            { name: 'Forecasted Hours', type: 'column', data: forecastedHours },
+            { name: 'Actual Hours', type: 'column', data: actualHours },
             { name: 'OTF %', type: 'line', data: otfPct }
         ],
         xaxis: { categories: weeks },
         yaxis: [
             {
                 title: { text: 'Hours' },
-                min: 0
+                min: 0,
+                labels: { formatter: val => Math.round(val) } // no decimals
             },
             { 
                 opposite: true,
                 title: { text: 'OTF %' },
-                labels: { formatter: val => val + "%" },
+                labels: { formatter: val => Math.round(val) + "%" },
                 min: 0,
                 max: 150
             }
@@ -63,18 +64,16 @@ function buildOTFWeekChart(data, containerId) {
             intersect: false,
             y: {
                 formatter: function(val, opts) {
-                    return opts.seriesIndex === 2 ? val + "%" : val;
+                    return opts.seriesIndex === 2 ? Math.round(val) + "%" : Math.round(val);
                 }
             }
         },
         legend: { position: 'bottom', horizontalAlign: 'center' },
         fill: { 
-            type: ['gradient', 'gradient', 'solid'],
-            gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.2 } 
+            type: ['solid', 'solid', 'solid']
         }
     };
 
-    // Destroy previous chart if exists
     if (otfChart) otfChart.destroy();
     otfChart = new ApexCharts(document.querySelector("#" + containerId), options);
     otfChart.render();
