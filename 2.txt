@@ -1,12 +1,13 @@
-let otfChart; // global reference to destroy previous chart if needed
+let otfChart; // global reference
 
 function buildOTFWeekChart(data, containerId) {
+    if (!data || data.length === 0) return;
+
     // Aggregate by weekFormat (dd-MMM-yy)
     const weekMap = {};
     data.forEach(d => {
-        if (!weekMap[d.weekFormat]) {
-            weekMap[d.weekFormat] = { actual: 0, forecasted: 0 };
-        }
+        if (!weekMap[d.weekFormat]) weekMap[d.weekFormat] = { actual: 0, forecasted: 0 };
+
         weekMap[d.weekFormat].actual += d.actualHours || 0;
         weekMap[d.weekFormat].forecasted += d.forecastedHours || 0;
     });
@@ -14,12 +15,21 @@ function buildOTFWeekChart(data, containerId) {
     // Sort weeks by date
     const weeks = Object.keys(weekMap).sort((a, b) => new Date(a) - new Date(b));
 
-    const actualHours = weeks.map(w => Math.round(weekMap[w].actual));
-    const forecastedHours = weeks.map(w => Math.round(weekMap[w].forecasted));
+    // Prepare series data safely
+    const actualHours = weeks.map(w => {
+        const val = weekMap[w].actual;
+        return (val !== undefined && val !== null && !isNaN(val)) ? Math.round(val) : 0;
+    });
+
+    const forecastedHours = weeks.map(w => {
+        const val = weekMap[w].forecasted;
+        return (val !== undefined && val !== null && !isNaN(val)) ? Math.round(val) : 0;
+    });
+
     const otfPct = weeks.map(w => {
-        const act = weekMap[w].actual;
-        const fc = weekMap[w].forecasted;
-        return act === 0 ? 0 : parseFloat(((fc / act) * 100).toFixed(2));
+        const act = weekMap[w].actual || 0;
+        const fc = weekMap[w].forecasted || 0;
+        return act > 0 ? parseFloat(((fc / act) * 100).toFixed(2)) : 0;
     });
 
     // ApexCharts options
@@ -50,10 +60,12 @@ function buildOTFWeekChart(data, containerId) {
                 min: 0
             },
             {
-                opposite: true,
                 seriesName: 'OTF %',
+                opposite: true,
                 title: { text: 'OTF %' },
-                labels: { formatter: val => val + "%" }
+                labels: { formatter: val => val + "%" },
+                min: 0,
+                max: 150 // optional: to keep line readable
             }
         ],
         tooltip: {
@@ -73,7 +85,9 @@ function buildOTFWeekChart(data, containerId) {
         }
     };
 
+    // destroy previous chart if exists
     if (otfChart) otfChart.destroy();
+
     otfChart = new ApexCharts(document.querySelector("#" + containerId), options);
     otfChart.render();
 }
