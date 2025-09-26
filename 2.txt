@@ -1,70 +1,79 @@
-function buildStaffingTableShrinkageAttrition(jsonData, containerId) {
-    // clear container
-    $("#" + containerId).empty();
+let otfChart; // global reference to destroy previous chart if needed
 
-    // aggregate by month
-    const monthMap = {};
-    jsonData.forEach(d => {
-        if (!monthMap[d.monthFormat]) {
-            monthMap[d.monthFormat] = {
-                totalHC: 0,
-                plannedShrinkageWeighted: 0,
-                actualShrinkageWeighted: 0,
-                plannedAttritionWeighted: 0,
-                actualAttritionWeighted: 0,
-                totalForecastedHours: 0,
-                totalActualHours: 0
-            };
+function buildOTFWeekChart(data, containerId) {
+    // Aggregate by weekFormat (dd-MMM-yy)
+    const weekMap = {};
+    data.forEach(d => {
+        if (!weekMap[d.weekFormat]) {
+            weekMap[d.weekFormat] = { actual: 0, forecasted: 0 };
         }
-        const m = monthMap[d.monthFormat];
-        m.totalHC += d.availableHC || 0;
-        m.plannedShrinkageWeighted += (d.availableHC || 0) * (d.plannedShrinkage || 0);
-        m.actualShrinkageWeighted += (d.availableHC || 0) * (d.actualShrinkage || 0);
-        m.plannedAttritionWeighted += (d.availableHC || 0) * (d.plannedAttrition || 0);
-        m.actualAttritionWeighted += (d.availableHC || 0) * (d.actualAttrition || 0);
-
-        m.totalForecastedHours += d.forecastedHours || 0;
-        m.totalActualHours += d.actualHours || 0;
+        weekMap[d.weekFormat].actual += d.actualHours || 0;
+        weekMap[d.weekFormat].forecasted += d.forecastedHours || 0;
     });
 
-    let html = `<div class="table-responsive" style="overflow-x:auto;">
-      <table class="table table-hover align-middle text-center">
-        <thead class="table-dark">
-          <tr>
-            <th>Month</th>
-            <th colspan="2">Shrinkage %</th>
-            <th colspan="2">Attrition %</th>
-            <th>OTF %</th>
-          </tr>
-          <tr>
-            <th></th>
-            <th>Planned</th>
-            <th>Actual</th>
-            <th>Planned</th>
-            <th>Actual</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>`;
+    // Sort weeks by date
+    const weeks = Object.keys(weekMap).sort((a, b) => new Date(a) - new Date(b));
 
-    Object.keys(monthMap).forEach(month => {
-        const m = monthMap[month];
-        const plannedShrink = m.totalHC === 0 ? "N/A" : (m.plannedShrinkageWeighted / m.totalHC * 100).toFixed(2) + "%";
-        const actualShrink = m.totalHC === 0 ? "N/A" : (m.actualShrinkageWeighted / m.totalHC * 100).toFixed(2) + "%";
-        const plannedAttr = m.totalHC === 0 ? "N/A" : (m.plannedAttritionWeighted / m.totalHC * 100).toFixed(2) + "%";
-        const actualAttr = m.totalHC === 0 ? "N/A" : (m.actualAttritionWeighted / m.totalHC * 100).toFixed(2) + "%";
-        const otf = m.totalActualHours === 0 ? "N/A" : (m.totalForecastedHours / m.totalActualHours * 100).toFixed(2) + "%";
-
-        html += `<tr>
-          <td class="fw-semibold" nowrap>${month}</td>
-          <td>${plannedShrink}</td>
-          <td>${actualShrink}</td>
-          <td>${plannedAttr}</td>
-          <td>${actualAttr}</td>
-          <td>${otf}</td>
-        </tr>`;
+    const actualHours = weeks.map(w => Math.round(weekMap[w].actual));
+    const forecastedHours = weeks.map(w => Math.round(weekMap[w].forecasted));
+    const otfPct = weeks.map(w => {
+        const act = weekMap[w].actual;
+        const fc = weekMap[w].forecasted;
+        return act === 0 ? 0 : parseFloat(((fc / act) * 100).toFixed(2));
     });
 
-    html += `</tbody></table></div>`;
-    $("#" + containerId).html(html);
+    // ApexCharts options
+    const options = {
+        chart: {
+            type: 'line',
+            height: 300,
+            stacked: false,
+            toolbar: { show: false }
+        },
+        stroke: { width: [2, 2, 3], dashArray: [0, 0, 4] }, // dotted line for OTF%
+        colors: ["#007bff", "#28a745", "#ffc107"], // forecast, actual, OTF%
+        dataLabels: { enabled: false },
+        series: [
+            { name: 'Forecasted Hours', type: 'area', data: forecastedHours },
+            { name: 'Actual Hours', type: 'area', data: actualHours },
+            { name: 'OTF %', type: 'line', data: otfPct }
+        ],
+        xaxis: {
+            categories: weeks,
+            axisBorder: { show: true },
+            axisTicks: { show: true }
+        },
+        yaxis: [
+            {
+                seriesName: 'Forecasted Hours',
+                title: { text: 'Hours' },
+                min: 0
+            },
+            {
+                opposite: true,
+                seriesName: 'OTF %',
+                title: { text: 'OTF %' },
+                labels: { formatter: val => val + "%" }
+            }
+        ],
+        tooltip: {
+            shared: true,
+            intersect: false,
+            y: {
+                formatter: function(val, opts) {
+                    if (opts.seriesIndex === 2) return val + "%";
+                    return val;
+                }
+            }
+        },
+        legend: { position: 'bottom', horizontalAlign: 'center' },
+        fill: {
+            type: ['gradient', 'gradient', 'solid'],
+            gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.2, stops: [0, 90, 100] }
+        }
+    };
+
+    if (otfChart) otfChart.destroy();
+    otfChart = new ApexCharts(document.querySelector("#" + containerId), options);
+    otfChart.render();
 }
