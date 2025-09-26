@@ -1,5 +1,5 @@
-function buildStaffingTableExtended(jsonData, containerId) {
-    // clear first
+function buildStaffingTableShrinkageAttrition(jsonData, containerId) {
+    // clear container
     $("#" + containerId).empty();
 
     // aggregate by month
@@ -7,21 +7,16 @@ function buildStaffingTableExtended(jsonData, containerId) {
     jsonData.forEach(d => {
         if (!monthMap[d.monthFormat]) {
             monthMap[d.monthFormat] = {
-                required: 0,
-                available: 0,
+                totalHC: 0,
                 plannedShrinkageWeighted: 0,
                 actualShrinkageWeighted: 0,
                 plannedAttritionWeighted: 0,
                 actualAttritionWeighted: 0,
-                totalHC: 0,
                 totalForecastedHours: 0,
                 totalActualHours: 0
             };
         }
         const m = monthMap[d.monthFormat];
-        m.required += d.requiredHC || 0;
-        m.available += d.availableHC || 0;
-
         m.totalHC += d.availableHC || 0;
         m.plannedShrinkageWeighted += (d.availableHC || 0) * (d.plannedShrinkage || 0);
         m.actualShrinkageWeighted += (d.availableHC || 0) * (d.actualShrinkage || 0);
@@ -36,46 +31,32 @@ function buildStaffingTableExtended(jsonData, containerId) {
       <table class="table table-hover align-middle text-center">
         <thead class="table-dark">
           <tr>
-            <th rowspan="2">Month</th>
-            <th rowspan="2">FTE Required</th>
-            <th rowspan="2">FTE Available</th>
-            <th rowspan="2">Delta</th>
-            <th rowspan="2">Staffing %</th>
+            <th>Month</th>
             <th colspan="2">Shrinkage %</th>
             <th colspan="2">Attrition %</th>
-            <th rowspan="2">OTF %</th>
+            <th>OTF %</th>
           </tr>
           <tr>
+            <th></th>
             <th>Planned</th>
             <th>Actual</th>
             <th>Planned</th>
             <th>Actual</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>`;
 
     Object.keys(monthMap).forEach(month => {
         const m = monthMap[month];
-        const req = Math.round(m.required);
-        const ava = Math.round(m.available);
-        const delta = ava - req;
-        const staffing = req > 0 ? Math.round((ava / req) * 100) + "%" : "N/A";
-        const deltaColor = delta < 0 ? "text-danger fw-bold" : "text-success fw-bold";
-
         const plannedShrink = m.totalHC === 0 ? "N/A" : (m.plannedShrinkageWeighted / m.totalHC * 100).toFixed(2) + "%";
         const actualShrink = m.totalHC === 0 ? "N/A" : (m.actualShrinkageWeighted / m.totalHC * 100).toFixed(2) + "%";
-
         const plannedAttr = m.totalHC === 0 ? "N/A" : (m.plannedAttritionWeighted / m.totalHC * 100).toFixed(2) + "%";
         const actualAttr = m.totalHC === 0 ? "N/A" : (m.actualAttritionWeighted / m.totalHC * 100).toFixed(2) + "%";
-
         const otf = m.totalActualHours === 0 ? "N/A" : (m.totalForecastedHours / m.totalActualHours * 100).toFixed(2) + "%";
 
         html += `<tr>
           <td class="fw-semibold" nowrap>${month}</td>
-          <td>${req}</td>
-          <td>${ava}</td>
-          <td class="${deltaColor}">${delta}</td>
-          <td>${staffing}</td>
           <td>${plannedShrink}</td>
           <td>${actualShrink}</td>
           <td>${plannedAttr}</td>
