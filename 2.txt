@@ -1,24 +1,19 @@
-let otfChart; // global reference
 
 function buildOTFWeekChart(data, containerId) {
     if (!data || data.length === 0) return;
 
-    // Aggregate by weekFormat (dd-MMM-yy)
     const weekMap = {};
     data.forEach(d => {
         const week = d.weekFormat;
-        if (!week) return; // skip invalid week
-
+        if (!week) return;
         if (!weekMap[week]) weekMap[week] = { actual: 0, forecasted: 0 };
-
         weekMap[week].actual += (d.actualHours || 0);
         weekMap[week].forecasted += (d.forecastedHours || 0);
     });
 
-    const weeks = Object.keys(weekMap).sort((a, b) => new Date(a) - new Date(b));
+    const weeks = Object.keys(weekMap).sort((a,b) => new Date(a) - new Date(b));
     if (weeks.length === 0) return;
 
-    // Prepare series arrays safely
     const actualHours = [];
     const forecastedHours = [];
     const otfPct = [];
@@ -29,15 +24,13 @@ function buildOTFWeekChart(data, containerId) {
 
         actualHours.push(Math.round(act));
         forecastedHours.push(Math.round(fc));
-
         otfPct.push(act > 0 ? Math.round((fc / act) * 100) : 0);
     });
 
-    // ApexCharts options
     const options = {
         chart: { type: 'line', height: 300, stacked: false, toolbar: { show: false } },
-        stroke: { width: [0, 0, 3], dashArray: [0, 0, 4] }, // bars have 0 stroke
-        colors: ["#007bff", "#28a745", "#ffc107"], // Forecasted, Actual, OTF %
+        stroke: { width: [0,0,3], dashArray: [0,0,4] },
+        colors: ["#007bff", "#28a745", "#ffc107"],
         dataLabels: { enabled: false },
         series: [
             { name: 'Forecasted Hours', type: 'column', data: forecastedHours },
@@ -49,14 +42,14 @@ function buildOTFWeekChart(data, containerId) {
             {
                 title: { text: 'Hours' },
                 min: 0,
-                labels: { formatter: val => Math.round(val) } // no decimals
+                labels: { formatter: val => Math.round(val) }
             },
-            { 
+            {
                 opposite: true,
                 title: { text: 'OTF %' },
-                labels: { formatter: val => Math.round(val) + "%" },
                 min: 0,
-                max: 150
+                max: 150, // or 100
+                labels: { formatter: val => Math.round(val) + "%" }
             }
         ],
         tooltip: {
@@ -69,9 +62,7 @@ function buildOTFWeekChart(data, containerId) {
             }
         },
         legend: { position: 'bottom', horizontalAlign: 'center' },
-        fill: { 
-            type: ['solid', 'solid', 'solid']
-        }
+        fill: { type: ['solid','solid','solid'] }
     };
 
     if (otfChart) otfChart.destroy();
