@@ -1,3 +1,10 @@
+<!-- Container -->
+<div id="geoShrinkageDonut" style="max-width: 600px; margin: auto;"></div>
+
+<!-- ApexCharts CDN -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script>
 function renderGeoWiseShrinkageDonut(containerId, rawData) {
   // Step 1: Aggregate Actual Shrinkage Geo-wise
   const geoData = {};
@@ -10,39 +17,58 @@ function renderGeoWiseShrinkageDonut(containerId, rawData) {
     geoData[item.geo].weightedShrink += (item.availableHC || 0) * (item.actualShrinkage || 0);
   });
 
-  const chartData = Object.keys(geoData).map(geo => {
+  const labels = [];
+  const values = [];
+
+  Object.keys(geoData).forEach(geo => {
     const { totalHC, weightedShrink } = geoData[geo];
-    const avgShrink = totalHC === 0 ? 0 : (weightedShrink / totalHC) * 100; // percentage
-    return {
-      name: geo,
-      y: parseFloat(avgShrink.toFixed(2))
-    };
+    const avgShrink = totalHC === 0 ? 0 : (weightedShrink / totalHC) * 100; // %
+    labels.push(geo);
+    values.push(parseFloat(avgShrink.toFixed(2)));
   });
 
-  // Step 2: Render Donut Chart
-  Highcharts.chart(containerId, {
+  // Step 2: Render Donut with ApexCharts
+  const options = {
     chart: {
-      type: 'pie'
+      type: 'donut',
+      height: 400
     },
+    labels: labels,
+    series: values,
     title: {
-      text: 'Geo-wise Actual Shrinkage'
+      text: 'Geo-wise Actual Shrinkage',
+      align: 'center',
+      style: {
+        fontSize: '18px',
+        fontWeight: 'bold'
+      }
     },
-    plotOptions: {
-      pie: {
-        innerSize: '60%', // makes it donut
-        dataLabels: {
-          enabled: true,
-          format: '{point.name}: {point.y:.2f}%'
-        }
+    dataLabels: {
+      enabled: true,
+      formatter: function (val) {
+        return val.toFixed(1) + "%";
       }
     },
     tooltip: {
-      pointFormat: '<b>{point.y:.2f}%</b>'
+      y: {
+        formatter: function (val) {
+          return val.toFixed(2) + "%";
+        }
+      }
     },
-    series: [{
-      name: 'Actual Shrinkage',
-      colorByPoint: true,
-      data: chartData
-    }]
-  });
+    legend: {
+      position: 'bottom'
+    },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: '60%'
+        }
+      }
+    }
+  };
+
+  const chart = new ApexCharts(document.querySelector(`#${containerId}`), options);
+  chart.render();
 }
+</script>
