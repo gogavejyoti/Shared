@@ -1,20 +1,16 @@
-function buildStaffingTableMetricsFull(data, containerId, drillMode = "GeoToLob", viewMode = "Monthly") {
+function buildWeightedMetricsTable(data, containerId, drillMode = "GeoToLob", viewMode = "Monthly") {
     const container = document.querySelector("#" + containerId);
     container.innerHTML = '';
 
-    // Determine period key
     const timeKey = viewMode === "Weekly" ? "weekFormat" : "monthFormat";
-    const chartData = (viewMode === "Weekly" && typeof weeklyData !== 'undefined') ? weeklyData
-                    : (viewMode === "Monthly" && typeof monthData !== 'undefined') ? monthData
-                    : data;
 
     // Collect and sort periods
-    const periods = [...new Set(chartData.map(d => d[timeKey]).filter(x => x))]
+    const periods = [...new Set(data.map(d => d[timeKey]).filter(x => x))]
         .map(p => ({ period: p, date: new Date(p) }))
-        .sort((a,b) => a.date - b.date)
+        .sort((a, b) => a.date - b.date)
         .map(x => x.period);
 
-    // Top dropdown row
+    // Dropdowns
     const topRow = document.createElement('div');
     topRow.style.marginBottom = '8px';
 
@@ -40,22 +36,25 @@ function buildStaffingTableMetricsFull(data, containerId, drillMode = "GeoToLob"
         viewSelector.appendChild(opt);
     });
 
-    drillSelector.addEventListener("change", () => buildStaffingTableMetricsFull(data, containerId, drillSelector.value, viewSelector.value));
-    viewSelector.addEventListener("change", () => buildStaffingTableMetricsFull(data, containerId, drillSelector.value, viewSelector.value));
+    drillSelector.addEventListener("change", () => {
+        buildWeightedMetricsTable(data, containerId, drillSelector.value, viewSelector.value);
+    });
+    viewSelector.addEventListener("change", () => {
+        buildWeightedMetricsTable(data, containerId, drillSelector.value, viewSelector.value);
+    });
 
     topRow.appendChild(drillSelector);
     topRow.appendChild(viewSelector);
     container.appendChild(topRow);
 
-    // Groups
     const groups = drillMode === "GeoToLob"
-        ? [...new Set(chartData.map(d => d.geo))]
-        : [...new Set(chartData.map(d => d.lob))];
+        ? [...new Set(data.map(d => d.geo))]
+        : [...new Set(data.map(d => d.lob))];
 
     // Table
     const table = document.createElement('table');
     table.className = 'table table-bordered';
-    table.style.minWidth = (Math.max(1, periods.length) * 150 + 160) + 'px';
+    table.style.minWidth = (Math.max(1, periods.length) * 120 + 160) + 'px';
 
     // Header
     const thead = document.createElement('thead');
@@ -74,45 +73,59 @@ function buildStaffingTableMetricsFull(data, containerId, drillMode = "GeoToLob"
     thead.appendChild(tr1);
 
     const tr2 = document.createElement('tr');
-    periods.forEach(() => ['Planned Shrinkage','Actual Shrinkage','Planned Attrition','Actual Attrition','OTF %'].forEach(h=>{
-        const th = document.createElement('th');
-        th.innerText = h;
-        tr2.appendChild(th);
-    }));
+    periods.forEach(() => {
+        ['Planned Shrinkage', 'Actual Shrinkage', 'Planned Attrition', 'Actual Attrition', 'OTF %'].forEach(h => {
+            const th = document.createElement('th');
+            th.innerText = h;
+            th.setAttribute('nowrap', '');
+            tr2.appendChild(th);
+        });
+    });
     thead.appendChild(tr2);
     table.appendChild(thead);
 
     // Body
     const tbody = document.createElement('tbody');
 
-    // Overall summary row
+    // Overall Summary
     const trSummary = document.createElement("tr");
     trSummary.className = "table-primary fw-bold";
     const tdSummary = document.createElement("td");
     tdSummary.innerText = "Overall Summary";
     trSummary.appendChild(tdSummary);
 
-    periods.forEach(period=>{
-        const recs = chartData.filter(d=>d[timeKey]===period);
-        const totalAvailable = recs.reduce((s,r)=>s+(r.availableHC||0),0);
-        const plannedShrinkage = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.plannedShrinkage||0)),0)/totalAvailable) : 0;
-        const actualShrinkage = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.actualShrinkage||0)),0)/totalAvailable) : 0;
-        const plannedAttrition = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.plannedAttrition||0)),0)/totalAvailable) : 0;
-        const actualAttrition = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.actualAttrition||0)),0)/totalAvailable) : 0;
-        const otf = recs.reduce((s,r)=>s+(r.actualHours||0),0)>0
-                    ? Math.round(recs.reduce((s,r)=>s+(r.forecastedHours||0),0)/recs.reduce((s,r)=>s+(r.actualHours||0),0)*100)
-                    : 0;
+    periods.forEach(period => {
+        const recs = data.filter(d => d[timeKey] === period);
+        const totalAvailable = recs.reduce((s, r) => s + (r.availableHC || 0), 0);
+        const totalActualHours = recs.reduce((s, r) => s + (r.actualHours || 0), 0);
+        const totalForecastedHours = recs.reduce((s, r) => s + (r.forecastedHours || 0), 0);
 
-        [plannedShrinkage, actualShrinkage, plannedAttrition, actualAttrition, otf].forEach(val=>{
-            const td = document.createElement('td');
+        const plannedShrinkage = totalAvailable > 0
+            ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedShrinkage || 0)), 0) / totalAvailable)
+            : 0;
+        const actualShrinkage = totalAvailable > 0
+            ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualShrinkage || 0)), 0) / totalAvailable)
+            : 0;
+        const plannedAttrition = totalAvailable > 0
+            ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedAttrition || 0)), 0) / totalAvailable)
+            : 0;
+        const actualAttrition = totalAvailable > 0
+            ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualAttrition || 0)), 0) / totalAvailable)
+            : 0;
+        const otf = totalActualHours > 0
+            ? Math.round((totalForecastedHours / totalActualHours) * 100)
+            : 0;
+
+        [plannedShrinkage, actualShrinkage, plannedAttrition, actualAttrition, otf].forEach(val => {
+            const td = document.createElement("td");
             td.innerText = val + "%";
             trSummary.appendChild(td);
         });
     });
     tbody.appendChild(trSummary);
 
-    // Drilldown
-    groups.forEach(group=>{
+    // Drilldown rows
+    groups.forEach(group => {
         const tr = document.createElement('tr');
         tr.className = 'groupRow';
         tr.style.cursor = 'pointer';
@@ -120,59 +133,85 @@ function buildStaffingTableMetricsFull(data, containerId, drillMode = "GeoToLob"
         tdGroup.innerText = group;
         tr.appendChild(tdGroup);
 
-        periods.forEach(period=>{
-            const recs = chartData.filter(d =>
-                (drillMode==="GeoToLob"?d.geo===group:d.lob===group) && d[timeKey]===period
+        periods.forEach(period => {
+            const recs = data.filter(d =>
+                (drillMode === "GeoToLob" ? d.geo === group : d.lob === group) &&
+                d[timeKey] === period
             );
-            const totalAvailable = recs.reduce((s,r)=>s+(r.availableHC||0),0);
-            const plannedShrinkage = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.plannedShrinkage||0)),0)/totalAvailable) : 0;
-            const actualShrinkage = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.actualShrinkage||0)),0)/totalAvailable) : 0;
-            const plannedAttrition = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.plannedAttrition||0)),0)/totalAvailable) : 0;
-            const actualAttrition = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.actualAttrition||0)),0)/totalAvailable) : 0;
-            const otf = recs.reduce((s,r)=>s+(r.actualHours||0),0)>0
-                        ? Math.round(recs.reduce((s,r)=>s+(r.forecastedHours||0),0)/recs.reduce((s,r)=>s+(r.actualHours||0),0)*100)
-                        : 0;
+            const totalAvailable = recs.reduce((s, r) => s + (r.availableHC || 0), 0);
+            const totalActualHours = recs.reduce((s, r) => s + (r.actualHours || 0), 0);
+            const totalForecastedHours = recs.reduce((s, r) => s + (r.forecastedHours || 0), 0);
 
-            [plannedShrinkage, actualShrinkage, plannedAttrition, actualAttrition, otf].forEach(val=>{
-                const td = document.createElement('td');
+            const plannedShrinkage = totalAvailable > 0
+                ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedShrinkage || 0)), 0) / totalAvailable)
+                : 0;
+            const actualShrinkage = totalAvailable > 0
+                ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualShrinkage || 0)), 0) / totalAvailable)
+                : 0;
+            const plannedAttrition = totalAvailable > 0
+                ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedAttrition || 0)), 0) / totalAvailable)
+                : 0;
+            const actualAttrition = totalAvailable > 0
+                ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualAttrition || 0)), 0) / totalAvailable)
+                : 0;
+            const otf = totalActualHours > 0
+                ? Math.round((totalForecastedHours / totalActualHours) * 100)
+                : 0;
+
+            [plannedShrinkage, actualShrinkage, plannedAttrition, actualAttrition, otf].forEach(val => {
+                const td = document.createElement("td");
                 td.innerText = val + "%";
                 tr.appendChild(td);
             });
         });
         tbody.appendChild(tr);
 
-        // Child rows
-        const children = drillMode==="GeoToLob"
-            ? [...new Set(chartData.filter(d=>d.geo===group).map(d=>d.lob))]
-            : [...new Set(chartData.filter(d=>d.lob===group).map(d=>d.geo))];
+        // Children
+        const children = drillMode === "GeoToLob"
+            ? [...new Set(data.filter(d => d.geo === group).map(d => d.lob))]
+            : [...new Set(data.filter(d => d.lob === group).map(d => d.geo))];
 
-        children.forEach(child=>{
-            const trChild = document.createElement('tr');
-            trChild.className="childRow";
-            trChild.style.display="none";
-            trChild.style.background="#525252";
-            trChild.style.fontStyle="italic";
-            trChild.style.fontSize="0.85em";
-            const tdChild = document.createElement('td');
-            tdChild.innerText = "   └ "+child;
+        children.forEach(child => {
+            const trChild = document.createElement("tr");
+            trChild.style.background = "#525252";
+            trChild.style.fontStyle = "italic";
+            trChild.className = "childRow";
+            trChild.style.display = "none";
+            const tdChild = document.createElement("td");
+            tdChild.innerText = "   └ " + child;
+            tdChild.style.fontStyle = "italic";
+            tdChild.style.fontSize = "0.85em";
             trChild.appendChild(tdChild);
 
-            periods.forEach(period=>{
-                const recs = chartData.filter(d =>
-                    (drillMode==="GeoToLob"?d.geo===group && d.lob===child:d.lob===group && d.geo===child)
-                    && d[timeKey]===period
+            periods.forEach(period => {
+                const recs = data.filter(d =>
+                    (drillMode === "GeoToLob"
+                        ? d.geo === group && d.lob === child
+                        : d.lob === group && d.geo === child) &&
+                    d[timeKey] === period
                 );
-                const totalAvailable = recs.reduce((s,r)=>s+(r.availableHC||0),0);
-                const plannedShrinkage = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.plannedShrinkage||0)),0)/totalAvailable) : 0;
-                const actualShrinkage = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.actualShrinkage||0)),0)/totalAvailable) : 0;
-                const plannedAttrition = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.plannedAttrition||0)),0)/totalAvailable) : 0;
-                const actualAttrition = totalAvailable>0 ? Math.round(recs.reduce((s,r)=>s+(r.availableHC*(r.actualAttrition||0)),0)/totalAvailable) : 0;
-                const otf = recs.reduce((s,r)=>s+(r.actualHours||0),0)>0
-                            ? Math.round(recs.reduce((s,r)=>s+(r.forecastedHours||0),0)/recs.reduce((s,r)=>s+(r.actualHours||0),0)*100)
-                            : 0;
+                const totalAvailable = recs.reduce((s, r) => s + (r.availableHC || 0), 0);
+                const totalActualHours = recs.reduce((s, r) => s + (r.actualHours || 0), 0);
+                const totalForecastedHours = recs.reduce((s, r) => s + (r.forecastedHours || 0), 0);
 
-                [plannedShrinkage, actualShrinkage, plannedAttrition, actualAttrition, otf].forEach(val=>{
-                    const td = document.createElement('td');
+                const plannedShrinkage = totalAvailable > 0
+                    ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedShrinkage || 0)), 0) / totalAvailable)
+                    : 0;
+                const actualShrinkage = totalAvailable > 0
+                    ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualShrinkage || 0)), 0) / totalAvailable)
+                    : 0;
+                const plannedAttrition = totalAvailable > 0
+                    ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedAttrition || 0)), 0) / totalAvailable)
+                    : 0;
+                const actualAttrition = totalAvailable > 0
+                    ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualAttrition || 0)), 0) / totalAvailable)
+                    : 0;
+                const otf = totalActualHours > 0
+                    ? Math.round((totalForecastedHours / totalActualHours) * 100)
+                    : 0;
+
+                [plannedShrinkage, actualShrinkage, plannedAttrition, actualAttrition, otf].forEach(val => {
+                    const td = document.createElement("td");
                     td.innerText = val + "%";
                     trChild.appendChild(td);
                 });
@@ -180,10 +219,10 @@ function buildStaffingTableMetricsFull(data, containerId, drillMode = "GeoToLob"
             tbody.appendChild(trChild);
         });
 
-        tr.addEventListener('click', ()=>{
+        tr.addEventListener("click", () => {
             let next = tr.nextElementSibling;
-            while(next && next.classList.contains("childRow")){
-                next.style.display = (next.style.display==="none")?"table-row":"none";
+            while (next && next.classList.contains("childRow")) {
+                next.style.display = (next.style.display === "none") ? "table-row" : "none";
                 next = next.nextElementSibling;
             }
         });
