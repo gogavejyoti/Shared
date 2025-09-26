@@ -1,8 +1,8 @@
-<div id="shrinkageChart"></div>
+<div id="attritionChart"></div>
 
 <script>
-function buildShrinkageComparisonChart(data, containerId) {
-    // ---- aggregate shrinkage by weekFormat ----
+function buildAttritionComparisonChart(data, containerId) {
+    // ---- aggregate attrition by weekFormat ----
     const weekMap = {};
     data.forEach(d => {
         if (!weekMap[d.weekFormat]) {
@@ -14,15 +14,12 @@ function buildShrinkageComparisonChart(data, containerId) {
         }
         const avail = d.availableHC || 0;
         weekMap[d.weekFormat].totalAvail += avail;
-        weekMap[d.weekFormat].plannedWeighted += avail * (d.plannedShrinkage || 0);
-        weekMap[d.weekFormat].actualWeighted += avail * (d.actualShrinkage || 0);
+        weekMap[d.weekFormat].plannedWeighted += avail * (d.plannedAttrition || 0);
+        weekMap[d.weekFormat].actualWeighted += avail * (d.actualAttrition || 0);
     });
 
-    // ---- calculate aggregated shrinkages ----
-    const weeks = Object.keys(weekMap).sort((a, b) => {
-        // sort dd-MMM-yy format properly
-        return new Date(a) - new Date(b);
-    });
+    // ---- calculate aggregated attrition ----
+    const weeks = Object.keys(weekMap).sort((a, b) => new Date(a) - new Date(b));
 
     const planned = weeks.map(w => {
         const total = weekMap[w].totalAvail;
@@ -36,34 +33,28 @@ function buildShrinkageComparisonChart(data, containerId) {
     // ---- chart options ----
     const options = {
         chart: {
-            type: 'bar',
+            type: 'line',
             height: 300,
-            stacked: false,
             toolbar: { show: false }
         },
-        plotOptions: {
-            bar: {
-                horizontal: false,
-                columnWidth: '40%',
-                endingShape: 'rounded'
-            }
+        stroke: {
+            width: [2, 3],
+            dashArray: [5, 0] // Planned dashed, Actual solid
         },
-        dataLabels: { enabled: false },
         colors: [app.color.theme, app.color.warning],
+        dataLabels: { enabled: false },
         series: [
-            { name: "Planned Shrinkage", data: planned },
-            { name: "Actual Shrinkage", data: actual }
+            { name: "Planned Attrition", data: planned },
+            { name: "Actual Attrition", data: actual }
         ],
         xaxis: {
             categories: weeks,
-            labels: {
-                rotate: -45
-            },
+            labels: { rotate: -45 },
             axisBorder: { show: true, color: app.color.borderColor },
             axisTicks: { show: true, color: app.color.borderColor }
         },
         yaxis: {
-            title: { text: "Shrinkage %", style: { color: app.color.bodyColor } },
+            title: { text: "Attrition %", style: { color: app.color.bodyColor } },
             labels: {
                 formatter: val => val + "%",
                 style: { colors: [app.color.bodyColor] }
@@ -73,9 +64,7 @@ function buildShrinkageComparisonChart(data, containerId) {
         tooltip: {
             shared: true,
             y: {
-                formatter: function (val) {
-                    return val !== null ? val + "%" : "N/A";
-                }
+                formatter: val => val !== null ? val + "%" : "N/A"
             }
         },
         legend: {
@@ -85,10 +74,10 @@ function buildShrinkageComparisonChart(data, containerId) {
     };
 
     // ---- destroy old chart & create new ----
-    if (window.shrinkageChart) {
-        window.shrinkageChart.destroy();
+    if (window.attritionChart) {
+        window.attritionChart.destroy();
     }
-    window.shrinkageChart = new ApexCharts(document.querySelector("#" + containerId), options);
-    window.shrinkageChart.render();
+    window.attritionChart = new ApexCharts(document.querySelector("#" + containerId), options);
+    window.attritionChart.render();
 }
 </script>
