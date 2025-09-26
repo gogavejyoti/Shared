@@ -1,256 +1,107 @@
-(function ($) {
-    $.fn.multiSelectDropdown = function (options) {
-        const settings = $.extend({
-            placeholder: 'Select options',
-            data: [],
-            tooltip: false,
-            sortLabel: false,
-            disabled: false,
-            onHide: function () { },
-        }, options);
-
-        this.each(function () {
-            const $select = $(this);
-            $select.hide();
-
-            const $container = $('<div>', { class: 'multi-select-container' });
-            const $dropdown = $('<div>', {
-                class: 'multi-select-dropdown',
-                tabindex: 0
-            });
-
-            const $input = $('<input>', {
-                type: 'text',
-                readonly: true,
-                placeholder: settings.placeholder,
-                class: 'multi-select-input',
-                title: settings.tooltip ? settings.placeholder : '',
-                disabled: settings.disabled,
-            });
-
-            const $optionsList = $('<ul>', { class: 'multi-select-options' });
-
-            $dropdown.append($input, $optionsList);
-            $container.append($dropdown);
-            $select.after($container);
-
-            const updateInput = () => {
-                const checkedOptions = $optionsList.find('input.option-checkbox:checked').length;
-                let tooltipText = settings.tooltip ? settings.placeholder : '';
-
-                if ($optionsList.find('input.select-all-checkbox').is(':checked')) {
-                    $input.val('All');
-                    tooltipText = settings.tooltip ? 'All' : '';
-                } else if (checkedOptions > 0) {
-                    const selected = $optionsList
-                        .find('input.option-checkbox:checked')
-                        .map((_, checkbox) => $(checkbox).next('span').text())
-                        .get()
-                        .join(', ');
-                    $input.val(selected);
-                    tooltipText = settings.tooltip ? selected : '';
-                } else {
-                    $input.val(settings.placeholder);
-                    tooltipText = settings.tooltip ? settings.placeholder : '';
-                }
-
-                if (settings.tooltip) {
-                    $input.attr('title', tooltipText);
-                }
-            };
-
-            const sortData = (data) => {
-                return settings.sortLabel ? data.sort((a, b) => a.label.localeCompare(b.label)) : data;
-            };
-
-            const renderOptions = (data) => {
-                $optionsList.empty();
-
-                if (!settings.disabled) {
-                    const $selectAllLi = $('<li>', { class: 'select-all-li' });
-                    const $selectAllCheckbox = $('<input>', {
-                        type: 'checkbox',
-                        class: 'select-all-checkbox',
-                    }).on('change', function () {
-                        const isChecked = $(this).is(':checked');
-                        $optionsList.find('input.option-checkbox').prop('checked', isChecked);
-                        updateInput();
-                    });
-
-                    const $selectAllLabel = $('<span>').text('Select All');
-                    $selectAllLi.append($selectAllCheckbox, $selectAllLabel).on('click', function (e) {
-                        if (!$(e.target).is('input')) $selectAllCheckbox.trigger('click');
-                    });
-                    $optionsList.append($selectAllLi);
-
-                    const sortedData = sortData(data);
-
-                    sortedData.forEach(item => {
-                        const $li = $('<li>');
-                        const $checkbox = $('<input>', {
-                            type: 'checkbox',
-                            value: item.value,
-                            class: 'option-checkbox',
-                        }).on('change', function () {
-                            const total = $optionsList.find('input.option-checkbox').length;
-                            const checked = $optionsList.find('input.option-checkbox:checked').length;
-                            $optionsList.find('input.select-all-checkbox').prop('checked', total === checked);
-                            updateInput();
-                        });
-
-                        const $label = $('<span>').text(item.label);
-                        $li.append($checkbox, $label).on('click', function (e) {
-                            if (!$(e.target).is('input')) $checkbox.trigger('click');
-                        });
-
-                        $optionsList.append($li);
-                    });
-                }
-            };
-
-            renderOptions(settings.data);
-
-            $input.on('click', function (e) {
-                if (settings.disabled) return;
-                e.stopPropagation();
-                const $currentOptions = $(this).siblings('.multi-select-options');
-                $('.multi-select-options:visible').not($currentOptions).hide();
-                settings.onHide();
-                $optionsList.toggle();
-                $dropdown.focus();
-            });
-
-            $(document).on('click', function (e) {
-                if (!$(e.target).closest('.multi-select-dropdown').length) {
-                    if ($optionsList.is(':visible')) {
-                        $optionsList.hide();
-                        settings.onHide();
-                    }
-                }
-            });
-
-            $optionsList.on('click', function (e) {
-                e.stopPropagation();
-            });
-
-            let typeBuffer = '';
-            let typeTimeout;
-            let currentIndex = -1;
-
-            const updateHighlight = (index) => {
-                const $items = $optionsList.find('li');
-                $items.removeClass('highlighted');
-                if (index >= 0 && index < $items.length) {
-                    const $target = $items.eq(index);
-                    $target.addClass('highlighted');
-                    $optionsList.scrollTop(
-                        $optionsList.scrollTop() + $target.position().top
-                    );
-                }
-            };
-
-            $dropdown.on('keydown', function (e) {
-                if (settings.disabled || !$optionsList.is(':visible')) return;
-
-                const $items = $optionsList.find('li');
-                clearTimeout(typeTimeout);
-
-                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                    typeBuffer += e.key.toLowerCase();
-                    const $match = $items.filter(function () {
-                        return $(this).text().toLowerCase().startsWith(typeBuffer);
-                    }).first();
-                    currentIndex = $items.index($match);
-                    updateHighlight(currentIndex);
-
-                    typeTimeout = setTimeout(() => {
-                        typeBuffer = '';
-                    }, 1000);
-                    return;
-                }
-
-                switch (e.key) {
-                    case 'ArrowDown':
-                        e.preventDefault();
-                        currentIndex = (currentIndex + 1) % $items.length;
-                        updateHighlight(currentIndex);
-                        break;
-                    case 'ArrowUp':
-                        e.preventDefault();
-                        currentIndex = (currentIndex - 1 + $items.length) % $items.length;
-                        updateHighlight(currentIndex);
-                        break;
-                    case 'Enter':
-                        e.preventDefault();
-                        if (currentIndex >= 0 && currentIndex < $items.length) {
-                            const $li = $items.eq(currentIndex);
-                            const $checkbox = $li.find('input[type="checkbox"]');
-                            $checkbox.prop('checked', !$checkbox.prop('checked')).trigger('change');
-                            updateInput();
-                        }
-                        break;
-                }
-            });
-
-            // Plugin Methods
-            $select[0].refreshData = function (newData) {
-                settings.data = newData;
-                renderOptions(newData);
-                updateInput();
-            };
-
-            $select[0].getSelectedValues = function () {
-                if ($optionsList.find('input.select-all-checkbox').is(':checked')) {
-                    return ['0'];
-                }
-                return $optionsList
-                    .find('input.option-checkbox:checked')
-                    .map((_, checkbox) => $(checkbox).val())
-                    .get();
-            };
-
-            $select[0].clearSelectedValues = function () {
-                $optionsList.find('input.option-checkbox').prop('checked', false);
-                $optionsList.find('input.select-all-checkbox').prop('checked', false);
-                $input.val(settings.placeholder);
-                if (settings.tooltip) {
-                    $input.attr('title', settings.placeholder);
-                }
-            };
-
-            $select.data('previousSelectedIds', []);
-
-            $select[0].hasSelectionChanged = function () {
-                const currentSelectedIds = $select[0].getSelectedValues();
-                const previousSelectedIds = $select.data('previousSelectedIds');
-
-                const changed = currentSelectedIds.length !== previousSelectedIds.length ||
-                    currentSelectedIds.some(id => !previousSelectedIds.includes(id));
-
-                $select.data('previousSelectedIds', currentSelectedIds);
-                return changed;
-            };
-
-            $select[0].setDisabled = function (isDisabled) {
-                settings.disabled = isDisabled;
-                $input.prop('disabled', isDisabled);
-                renderOptions(settings.data);
-                updateInput();
-            };
-
-            $select[0].selectValues = function (values) {
-                $optionsList.find('input.option-checkbox').each(function () {
-                    const isChecked = values.includes($(this).val());
-                    $(this).prop('checked', isChecked);
-                });
-                const total = $optionsList.find('input.option-checkbox').length;
-                const checked = $optionsList.find('input.option-checkbox:checked').length;
-                $optionsList.find('input.select-all-checkbox').prop('checked', total === checked);
-                updateInput(); 
-            };
-
+    function buildStaffingChart(data, containerId) {
+        // ---- aggregate by weekFormat ----
+        const weekMap = {};
+        data.forEach(d => {
+            if (!weekMap[d.weekFormat]) {
+                weekMap[d.weekFormat] = { required: 0, available: 0 };
+            }
+            weekMap[d.weekFormat].required += d.requiredHC || 0;
+            weekMap[d.weekFormat].available += d.availableHC || 0;
         });
 
-        return this;
-    };
-})(jQuery);
+        // sort weeks by date (assuming dd-MMM-yy format)
+        const weeks = Object.keys(weekMap).sort((a, b) => new Date(a) - new Date(b));
+        const fteReq = weeks.map(w => Math.round(weekMap[w].required));
+        const fteAva = weeks.map(w => Math.round(weekMap[w].available));
+        const staffingPct = weeks.map(w => {
+            const req = weekMap[w].required;
+            const ava = weekMap[w].available;
+            return req > 0 ? Math.round((ava / req) * 100) : 0;
+        });
+
+        // ---- chart options ----
+        const options = {
+            chart: {
+                height: 250,
+                type: 'line',
+                stacked: false,
+                toolbar: {
+                    show: false
+                }
+            },
+   
+            toolbar: {
+                show: false // Hides the toolbar with the zoom icon
+            },
+            stroke: { width: [0, 0, 3] },
+            colors: [app.color.theme, 'rgba(' + app.color.bodyColorRgb + ', .5)', app.color.warning],
+            dataLabels: { enabled: false }, // removed labels
+            series: [
+                { name: 'FTE Required', type: 'column', data: fteReq },
+                { name: 'FTE Available', type: 'column', data: fteAva },
+                { name: 'Staffing %', type: 'line', data: staffingPct }
+            ],
+            xaxis: {
+                categories: weeks,
+                axisBorder: {
+                    show: true,
+                    color: app.color.borderColor,
+                    height: 1,
+                    width: '100%',
+                    offsetX: 0,
+                    offsetY: -1
+                },
+                axisTicks: {
+                    show: true,
+                    borderType: 'solid',
+                    color: app.color.borderColor,
+                    height: 6,
+                    offsetX: 0,
+                    offsetY: 0
+                }
+
+            },
+            yaxis: [
+                {
+                    seriesName: 'FTE Required',
+                    title: { text: "FTE Count", style: { color: app.color.warning } },
+                    min: undefined,  // auto-scale
+                    forceNiceScale: true,
+                    labels: { style: { colors: [app.color.bodyColor] } },
+                },
+                {
+                    seriesName: 'FTE Available',
+                    show: false,
+                    labels: { style: { colors: [app.color.bodyColor] } },
+                },
+                {
+                    opposite: true,
+                    seriesName: 'Staffing %',
+                    title: { text: "Staffing %", style: { color: app.color.warning } },
+                    axisTicks: { show: true, color: app.color.borderColor },
+                    axisBorder: { show: true, color: app.color.borderColor },
+                    labels: { formatter: val => val + "%", style: { colors: [app.color.bodyColor] } },
+                    min: undefined,  // auto-scale
+                    forceNiceScale: true
+                }
+            ],
+            tooltip: {
+                shared: true,
+                intersect: false,
+                y: {
+                    formatter: function (val, opts) {
+                        if (opts.seriesIndex === 2) return val + "%";
+                        return val;
+                    }
+                }
+            },
+            legend: { position: "bottom", horizontalAlign: "center" }
+        };
+
+        // ---- destroy old chart & create new ----
+        if (chart) {
+            chart.destroy();
+        }
+        chart = new ApexCharts(document.querySelector("#" + containerId), options);
+        chart.render();
+    }
