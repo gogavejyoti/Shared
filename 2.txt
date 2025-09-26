@@ -1,74 +1,67 @@
-<!-- Container -->
-<div id="geoShrinkageDonut" style="max-width: 600px; margin: auto;"></div>
-
-<!-- ApexCharts CDN -->
-<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-
-<script>
-function renderGeoWiseShrinkageDonut(containerId, rawData) {
-  // Step 1: Aggregate Actual Shrinkage Geo-wise
-  const geoData = {};
-
-  rawData.forEach(item => {
-    if (!geoData[item.geo]) {
-      geoData[item.geo] = { totalHC: 0, weightedShrink: 0 };
-    }
-    geoData[item.geo].totalHC += item.availableHC || 0;
-    geoData[item.geo].weightedShrink += (item.availableHC || 0) * (item.actualShrinkage || 0);
-  });
-
-  const labels = [];
-  const values = [];
-
-  Object.keys(geoData).forEach(geo => {
-    const { totalHC, weightedShrink } = geoData[geo];
-    const avgShrink = totalHC === 0 ? 0 : (weightedShrink / totalHC) * 100; // %
-    labels.push(geo);
-    values.push(parseFloat(avgShrink.toFixed(2)));
-  });
-
-  // Step 2: Render Donut with ApexCharts
-  const options = {
-    chart: {
-      type: 'donut',
-      height: 400
-    },
-    labels: labels,
-    series: values,
-    title: {
-      text: 'Geo-wise Actual Shrinkage',
-      align: 'center',
-      style: {
-        fontSize: '18px',
-        fontWeight: 'bold'
-      }
-    },
-    dataLabels: {
-      enabled: true,
-      formatter: function (val) {
-        return val.toFixed(1) + "%";
-      }
-    },
-    tooltip: {
-      y: {
-        formatter: function (val) {
-          return val.toFixed(2) + "%";
+    function buildGeoDonutChart(data, containerId) {
+        // Aggregate by geo
+        const geoMap = {};
+        let currentMonth = '';
+        if (data) {
+            currentMonth = data[0].monthFormat;
+            data.forEach(d => {
+                if (d.monthFormat == currentMonth) {
+                    if (!geoMap[d.geo]) geoMap[d.geo] = 0;
+                    geoMap[d.geo] += d.availableHC || 0;
+                }
+            });
         }
-      }
-    },
-    legend: {
-      position: 'bottom'
-    },
-    plotOptions: {
-      pie: {
-        donut: {
-          size: '60%'
-        }
-      }
-    }
-  };
 
-  const chart = new ApexCharts(document.querySelector(`#${containerId}`), options);
-  chart.render();
-}
-</script>
+       
+
+        const geoLabels = Object.keys(geoMap);
+        const geoValues = Object.values(geoMap).map(v => Math.round(v));
+        const totAvailable = geoValues.reduce((sum, val) => sum + val, 0);
+        const geoOptions = {
+            chart: { type: 'donut', height: 250, foreColor: '#fff' },
+            title: {
+                text: 'FTE Available',
+                align: 'center',     
+                style: {
+                    fontSize: '15px',
+                    fontWeight: 'bold',
+                    fontFamily: 'Arial, sans-serif',
+                    color: '#fff'
+                }
+            },
+            series: geoValues,
+            labels: geoLabels,
+            legend: { position: 'bottom' },
+            colors: ["#28a745", "#007bff", "#ffc107", "#ff5733", "#6f42c1"],
+            tooltip: { y: { formatter: val => val + " HC" } },
+            dataLabels: {
+                enabled: true, style: { colors: ['#fff'] }, formatter: (val, opts) => geoValues[opts.seriesIndex]
+            },
+            plotOptions: {
+                pie: {
+                    donut: {
+                        size: '65%',
+                        color: '#fff',
+                        labels: {
+                            show: true,
+                            name: { show: true },
+                            value: { show: true },
+                            color: '#fff',
+                            total: {
+                                show: true,
+                                color: ['#fff'],
+                                style: { fontSize: "8px" },
+                                label: currentMonth,
+                                formatter: () => totAvailable
+                                }
+                            }
+
+                        }
+                    }
+                }
+        };
+
+        if (geoChart) geoChart.destroy();
+        geoChart = new ApexCharts(document.querySelector("#" + containerId), geoOptions);
+        geoChart.render();
+    }
