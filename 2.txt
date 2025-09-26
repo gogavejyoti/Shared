@@ -1,107 +1,78 @@
-    function buildStaffingChart(data, containerId) {
-        // ---- aggregate by weekFormat ----
-        const weekMap = {};
-        data.forEach(d => {
-            if (!weekMap[d.weekFormat]) {
-                weekMap[d.weekFormat] = { required: 0, available: 0 };
-            }
-            weekMap[d.weekFormat].required += d.requiredHC || 0;
-            weekMap[d.weekFormat].available += d.availableHC || 0;
-        });
-
-        // sort weeks by date (assuming dd-MMM-yy format)
-        const weeks = Object.keys(weekMap).sort((a, b) => new Date(a) - new Date(b));
-        const fteReq = weeks.map(w => Math.round(weekMap[w].required));
-        const fteAva = weeks.map(w => Math.round(weekMap[w].available));
-        const staffingPct = weeks.map(w => {
-            const req = weekMap[w].required;
-            const ava = weekMap[w].available;
-            return req > 0 ? Math.round((ava / req) * 100) : 0;
-        });
-
-        // ---- chart options ----
-        const options = {
-            chart: {
-                height: 250,
-                type: 'line',
-                stacked: false,
-                toolbar: {
-                    show: false
-                }
-            },
-   
-            toolbar: {
-                show: false // Hides the toolbar with the zoom icon
-            },
-            stroke: { width: [0, 0, 3] },
-            colors: [app.color.theme, 'rgba(' + app.color.bodyColorRgb + ', .5)', app.color.warning],
-            dataLabels: { enabled: false }, // removed labels
-            series: [
-                { name: 'FTE Required', type: 'column', data: fteReq },
-                { name: 'FTE Available', type: 'column', data: fteAva },
-                { name: 'Staffing %', type: 'line', data: staffingPct }
-            ],
-            xaxis: {
-                categories: weeks,
-                axisBorder: {
-                    show: true,
-                    color: app.color.borderColor,
-                    height: 1,
-                    width: '100%',
-                    offsetX: 0,
-                    offsetY: -1
-                },
-                axisTicks: {
-                    show: true,
-                    borderType: 'solid',
-                    color: app.color.borderColor,
-                    height: 6,
-                    offsetX: 0,
-                    offsetY: 0
-                }
-
-            },
-            yaxis: [
-                {
-                    seriesName: 'FTE Required',
-                    title: { text: "FTE Count", style: { color: app.color.warning } },
-                    min: undefined,  // auto-scale
-                    forceNiceScale: true,
-                    labels: { style: { colors: [app.color.bodyColor] } },
-                },
-                {
-                    seriesName: 'FTE Available',
-                    show: false,
-                    labels: { style: { colors: [app.color.bodyColor] } },
-                },
-                {
-                    opposite: true,
-                    seriesName: 'Staffing %',
-                    title: { text: "Staffing %", style: { color: app.color.warning } },
-                    axisTicks: { show: true, color: app.color.borderColor },
-                    axisBorder: { show: true, color: app.color.borderColor },
-                    labels: { formatter: val => val + "%", style: { colors: [app.color.bodyColor] } },
-                    min: undefined,  // auto-scale
-                    forceNiceScale: true
-                }
-            ],
-            tooltip: {
-                shared: true,
-                intersect: false,
-                y: {
-                    formatter: function (val, opts) {
-                        if (opts.seriesIndex === 2) return val + "%";
-                        return val;
-                    }
-                }
-            },
-            legend: { position: "bottom", horizontalAlign: "center" }
-        };
-
-        // ---- destroy old chart & create new ----
-        if (chart) {
-            chart.destroy();
+function buildShrinkageChart(data, containerId) {
+    // ---- aggregate by weekFormat ----
+    const weekMap = {};
+    data.forEach(d => {
+        if (!weekMap[d.weekFormat]) {
+            weekMap[d.weekFormat] = { ava: 0, planned: 0, actual: 0 };
         }
-        chart = new ApexCharts(document.querySelector("#" + containerId), options);
-        chart.render();
+        const ava = d.availableHC || 0;
+        weekMap[d.weekFormat].ava += ava;
+        weekMap[d.weekFormat].planned += ava * (d.plannedShrinkage || 0);
+        weekMap[d.weekFormat].actual += ava * (d.actualShrinkage || 0);
+    });
+
+    // ---- parse dd-MMM-yy correctly ----
+    function parseWeek(str) {
+        const [dd, mon, yy] = str.split("-");
+        const monthMap = {
+            Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5,
+            Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11
+        };
+        return new Date(2000 + parseInt(yy), monthMap[mon], parseInt(dd));
     }
+
+    // ---- sort weeks ----
+    const weeks = Object.keys(weekMap).sort((a, b) => parseWeek(a) - parseWeek(b));
+
+    // ---- series data (weighted average shrinkage %) ----
+    const plannedSeries = weeks.map(w => {
+        const obj = weekMap[w];
+        return obj.ava > 0 ? Math.round((obj.planned / obj.ava) * 100) : null;
+    });
+
+    const actualSeries = weeks.map(w => {
+        const obj = weekMap[w];
+        return obj.ava > 0 ? Math.round((obj.actual / obj.ava) * 100) : null;
+    });
+
+    // ---- chart options ----
+    const options = {
+        chart: {
+            height: 250,
+            type: 'line',
+            toolbar: { show: false }
+        },
+        stroke: { width: [3, 3] },
+        colors: [app.color.theme, app.color.warning],
+        dataLabels: { enabled: false },
+        series: [
+            { name: 'Planned Shrinkage %', type: 'line', data: plannedSeries },
+            { name: 'Actual Shrinkage %', type: 'line', data: actualSeries }
+        ],
+        xaxis: {
+            categories: weeks,
+            labels: { rotate: -45 },
+            axisBorder: { show: true, color: app.color.borderColor },
+            axisTicks: { show: true, color: app.color.borderColor }
+        },
+        yaxis: {
+            title: { text: "Shrinkage %", style: { color: app.color.warning } },
+            labels: { formatter: val => val + "%", style: { colors: [app.color.bodyColor] } },
+            min: 0,
+            max: 100
+        },
+        tooltip: {
+            shared: true,
+            intersect: false,
+            y: { formatter: val => (val !== null ? val + "%" : "N/A") }
+        },
+        legend: { position: "bottom", horizontalAlign: "center" }
+    };
+
+    // ---- destroy old chart & create new ----
+    if (window.shrinkageChart) {
+        window.shrinkageChart.destroy();
+    }
+    window.shrinkageChart = new ApexCharts(document.querySelector("#" + containerId), options);
+    window.shrinkageChart.render();
+}
