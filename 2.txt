@@ -1,5 +1,5 @@
-function buildGeoShrinkageDonutChart(data, containerId) {
-    // Aggregate Actual Shrinkage by geo for current month
+function buildGeoAttritionDonutChart(data, containerId) {
+    // Aggregate Actual Attrition by geo for current month
     const geoMap = {};
     let currentMonth = '';
     if (data && data.length > 0) {
@@ -7,26 +7,26 @@ function buildGeoShrinkageDonutChart(data, containerId) {
         data.forEach(d => {
             if (d.monthFormat == currentMonth) {
                 if (!geoMap[d.geo]) {
-                    geoMap[d.geo] = { totalHC: 0, weightedShrink: 0 };
+                    geoMap[d.geo] = { totalHC: 0, weightedAttrition: 0 };
                 }
                 geoMap[d.geo].totalHC += d.availableHC || 0;
-                geoMap[d.geo].weightedShrink += (d.availableHC || 0) * (d.actualShrinkage || 0);
+                geoMap[d.geo].weightedAttrition += (d.availableHC || 0) * (d.actualAttrition || 0);
             }
         });
     }
 
     const geoLabels = Object.keys(geoMap);
     const geoValues = geoLabels.map(geo => {
-        const { totalHC, weightedShrink } = geoMap[geo];
-        return totalHC === 0 ? 0 : parseFloat(((weightedShrink / totalHC) * 100).toFixed(2));
+        const { totalHC, weightedAttrition } = geoMap[geo];
+        return totalHC === 0 ? 0 : parseFloat(((weightedAttrition / totalHC) * 100).toFixed(2));
     });
 
-    const avgShrink = geoValues.reduce((sum, v) => sum + v, 0) / (geoValues.length || 1);
+    const avgAttrition = geoValues.reduce((sum, v) => sum + v, 0) / (geoValues.length || 1);
 
     const geoOptions = {
         chart: { type: 'donut', height: 250, foreColor: '#fff' },
         title: {
-            text: 'Geo-wise Actual Shrinkage',
+            text: 'Geo-wise Actual Attrition',
             align: 'center',
             style: {
                 fontSize: '15px',
@@ -38,7 +38,7 @@ function buildGeoShrinkageDonutChart(data, containerId) {
         series: geoValues,
         labels: geoLabels,
         legend: { position: 'bottom' },
-        colors: ["#28a745", "#007bff", "#ffc107", "#ff5733", "#6f42c1"],
+        colors: ["#17a2b8", "#fd7e14", "#6610f2", "#20c997", "#e83e8c"],
         tooltip: {
             y: {
                 formatter: val => val.toFixed(2) + "%"
@@ -61,7 +61,7 @@ function buildGeoShrinkageDonutChart(data, containerId) {
                             show: true,
                             label: currentMonth,
                             color: '#fff',
-                            formatter: () => avgShrink.toFixed(2) + "%"
+                            formatter: () => avgAttrition.toFixed(2) + "%"
                         }
                     }
                 }
