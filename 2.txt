@@ -1,212 +1,198 @@
-function buildWeightedMetricsTable(data, containerId, drillMode = "GeoToLob", viewMode = "Monthly") {
-    const container = document.querySelector("#" + containerId);
-    container.innerHTML = '';
-
-    // Determine period key
-    const timeKey = viewMode === "Weekly" ? "weekFormat" : "monthFormat";
-
-    // Collect and sort periods
-    const periods = [...new Set(data.map(d => d[timeKey]).filter(x => x))]
-        .map(p => ({ period: p, date: new Date(p) }))
-        .sort((a, b) => a.date - b.date)
-        .map(x => x.period);
-
-    // Dropdowns
-    const topRow = document.createElement('div');
-    topRow.style.marginBottom = '8px';
-
-    const drillSelector = document.createElement("select");
-    drillSelector.className = "form-select d-inline-block me-2";
-    drillSelector.style.width = "180px";
-    ["GeoToLob", "LobToGeo"].forEach(mode => {
-        const opt = document.createElement("option");
-        opt.value = mode;
-        opt.innerText = mode === "GeoToLob" ? "Geo → LOB" : "LOB → Geo";
-        if (mode === drillMode) opt.selected = true;
-        drillSelector.appendChild(opt);
-    });
-
-    const viewSelector = document.createElement("select");
-    viewSelector.className = "form-select d-inline-block";
-    viewSelector.style.width = "140px";
-    ["Weekly", "Monthly"].forEach(mode => {
-        const opt = document.createElement("option");
-        opt.value = mode;
-        opt.innerText = mode;
-        if (mode === viewMode) opt.selected = true;
-        viewSelector.appendChild(opt);
-    });
-
-    drillSelector.addEventListener("change", () => {
-        buildWeightedMetricsTable(data, containerId, drillSelector.value, viewSelector.value);
-    });
-    viewSelector.addEventListener("change", () => {
-        buildWeightedMetricsTable(data, containerId, drillSelector.value, viewSelector.value);
-    });
-
-    topRow.appendChild(drillSelector);
-    topRow.appendChild(viewSelector);
-    container.appendChild(topRow);
-
-    // Groups
-    const groups = drillMode === "GeoToLob"
-        ? [...new Set(data.map(d => d.geo))]
-        : [...new Set(data.map(d => d.lob))];
-
-    // Table
-    const table = document.createElement('table');
-    table.className = 'table table-bordered table-hover';
-    table.style.minWidth = (Math.max(1, periods.length) * 120 + 160) + 'px';
-
-    // Header rows
-    const thead = document.createElement('thead');
-    const tr1 = document.createElement('tr');
-    const thGroup = document.createElement('th');
-    thGroup.rowSpan = 2;
-    thGroup.innerText = drillMode === "GeoToLob" ? "Geo" : "LOB";
-    tr1.appendChild(thGroup);
-
-    periods.forEach(p => {
-        const th = document.createElement('th');
-        th.colSpan = 5;
-        th.innerText = p;
-        tr1.appendChild(th);
-    });
-    thead.appendChild(tr1);
-
-    const tr2 = document.createElement('tr');
-    periods.forEach(() => {
-        ['Planned Shr.', 'Actual Shr.', 'Planned Attr.', 'Actual Attr.', 'OTF %'].forEach(h => {
-            const th = document.createElement('th');
-            th.innerText = h;
-            th.setAttribute('nowrap', '');
-            tr2.appendChild(th);
-        });
-    });
-    thead.appendChild(tr2);
-    table.appendChild(thead);
-
-    // Body
-    const tbody = document.createElement('tbody');
-
-    // Overall Summary row
-    const trSummary = document.createElement("tr");
-    trSummary.className = "table-primary fw-bold";
-    const tdSummary = document.createElement("td");
-    tdSummary.innerText = "Overall Summary";
-    trSummary.appendChild(tdSummary);
-
-    periods.forEach(period => {
-        const recs = data.filter(d => d[timeKey] === period);
-        const denominator = recs.reduce((s, r) => s + (r.availableHC || 0), 0);
-
-        const plannedShrink = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedShrinkage || 0)), 0) / denominator) : 0;
-        const actualShrink = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualShrinkage || 0)), 0) / denominator) : 0;
-        const plannedAttr = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedAttrition || 0)), 0) / denominator) : 0;
-        const actualAttr = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualAttrition || 0)), 0) / denominator) : 0;
-
-        const totalForecasted = recs.reduce((s, r) => s + (r.forecastedHours || 0), 0);
-        const totalActual = recs.reduce((s, r) => s + (r.actualHours || 0), 0);
-        const otf = totalActual ? Math.round((totalForecasted / totalActual) * 100) : 0;
-
-        [plannedShrink, actualShrink, plannedAttr, actualAttr, otf].forEach((val, i) => {
-            const td = document.createElement("td");
-            td.innerText = val + (i < 4 ? "%" : "%");
-            td.style.fontWeight = "500";
-            trSummary.appendChild(td);
-        });
-    });
-    tbody.appendChild(trSummary);
-
-    // Drilldown rows
-    groups.forEach(group => {
-        const tr = document.createElement('tr');
-        tr.className = 'groupRow';
-        tr.style.cursor = 'pointer';
-        const tdGroup = document.createElement('td');
-        tdGroup.innerText = group;
-        tr.appendChild(tdGroup);
-
-        periods.forEach(period => {
-            const recs = data.filter(d =>
-                (drillMode === "GeoToLob" ? d.geo === group : d.lob === group) &&
-                d[timeKey] === period
-            );
-
-            const denominator = recs.reduce((s, r) => s + (r.availableHC || 0), 0);
-            const plannedShrink = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedShrinkage || 0)), 0) / denominator) : 0;
-            const actualShrink = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualShrinkage || 0)), 0) / denominator) : 0;
-            const plannedAttr = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedAttrition || 0)), 0) / denominator) : 0;
-            const actualAttr = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualAttrition || 0)), 0) / denominator) : 0;
-
-            const totalForecasted = recs.reduce((s, r) => s + (r.forecastedHours || 0), 0);
-            const totalActual = recs.reduce((s, r) => s + (r.actualHours || 0), 0);
-            const otf = totalActual ? Math.round((totalForecasted / totalActual) * 100) : 0;
-
-            [plannedShrink, actualShrink, plannedAttr, actualAttr, otf].forEach(val => {
-                const td = document.createElement("td");
-                td.innerText = val + "%";
-                td.style.fontWeight = "500";
-                tr.appendChild(td);
-            });
-        });
-        tbody.appendChild(tr);
-
-        // Children
-        const children = drillMode === "GeoToLob"
-            ? [...new Set(data.filter(d => d.geo === group).map(d => d.lob))]
-            : [...new Set(data.filter(d => d.lob === group).map(d => d.geo))];
-
-        children.forEach(child => {
-            const trChild = document.createElement("tr");
-            trChild.style.background = "#f0f0f0";
-            trChild.style.fontStyle = "italic";
-            trChild.className = "childRow";
-            trChild.style.display = "none";
-            const tdChild = document.createElement("td");
-            tdChild.innerText = "   └ " + child;
-            tdChild.style.fontStyle = "italic";
-            tdChild.style.fontSize = "0.85em";
-            trChild.appendChild(tdChild);
-
-            periods.forEach(period => {
-                const recs = data.filter(d =>
-                    (drillMode === "GeoToLob"
-                        ? d.geo === group && d.lob === child
-                        : d.lob === group && d.geo === child) &&
-                    d[timeKey] === period
-                );
-
-                const denominator = recs.reduce((s, r) => s + (r.availableHC || 0), 0);
-                const plannedShrink = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedShrinkage || 0)), 0) / denominator) : 0;
-                const actualShrink = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualShrinkage || 0)), 0) / denominator) : 0;
-                const plannedAttr = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.plannedAttrition || 0)), 0) / denominator) : 0;
-                const actualAttr = denominator ? Math.round(recs.reduce((s, r) => s + ((r.availableHC || 0) * (r.actualAttrition || 0)), 0) / denominator) : 0;
-
-                const totalForecasted = recs.reduce((s, r) => s + (r.forecastedHours || 0), 0);
-                const totalActual = recs.reduce((s, r) => s + (r.actualHours || 0), 0);
-                const otf = totalActual ? Math.round((totalForecasted / totalActual) * 100) : 0;
-
-                [plannedShrink, actualShrink, plannedAttr, actualAttr, otf].forEach(val => {
-                    const td = document.createElement('td');
-                    td.innerText = val + "%";
-                    td.style.fontWeight = "500";
-                    trChild.appendChild(td);
-                });
-            });
-
-            tbody.appendChild(trChild);
-        });
-
-        tr.addEventListener("click", () => {
-            let next = tr.nextElementSibling;
-            while (next && next.classList.contains("childRow")) {
-                next.style.display = (next.style.display === "none") ? "table-row" : "none";
-                next = next.nextElementSibling;
-            }
-        });
-    });
-
-    table.appendChild(tbody);
-    container.appendChild(table);
-}
+            pasteHandlerOfCopyPaste: function (e) {
+                if (!gr(h.luckysheet_select_save, h.currentSheetIndex))
+                    return;
+                let t = Q().paste
+                    , l = $.extend(!0, {}, h.config);
+                l.merge == null && (l.merge = {});
+                let a = e.HasMC
+                    , o = e.RowlChange
+                    , s = e.dataSheetIndex
+                    , u = e.copyRange[0].row[0]
+                    , d = e.copyRange[0].row[1]
+                    , f = e.copyRange[0].column[0]
+                    , m = e.copyRange[0].column[1]
+                    , g = []
+                    , y = !1;
+                for (let se = 0; se < e.copyRange.length; se++) {
+                    let ie = Nt({
+                        row: e.copyRange[se].row,
+                        column: e.copyRange[se].column
+                    }, s);
+                    e.copyRange.length > 1 ? u == e.copyRange[1].row[0] && d == e.copyRange[1].row[1] ? (ie = ie[0].map(function (ue, he) {
+                        return ie.map(function (J) {
+                            return J[he]
+                        })
+                    }),
+                        g = g.concat(ie),
+                        y = !0) : f == e.copyRange[1].column[0] && m == e.copyRange[1].column[1] && (g = g.concat(ie)) : g = ie
+                }
+                y && (g = g[0].map(function (se, ie) {
+                    return g.map(function (ue) {
+                        return ue[ie]
+                    })
+                }));
+                let v = $.extend(!0, [], g);
+                if (e.copyRange.length > 1)
+                    for (let se = 0; se < v.length; se++)
+                        for (let ie = 0; ie < v[se].length; ie++)
+                            v[se][ie] != null && v[se][ie].f != null && (delete v[se][ie].f,
+                                delete v[se][ie].spl);
+                let k = v.length
+                    , b = v[0].length
+                    , w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
+                    , x = w.row[0]
+                    , C = w.row[1]
+                    , S = w.column[0]
+                    , _ = w.column[1]
+                    , T = (C - x + 1) % k
+                    , A = (_ - S + 1) % b;
+                (T != 0 || A != 0) && (C = x + k - 1,
+                    _ = S + b - 1);
+                let R = !1;
+                if (l.merge != null && (R = Dt(l, x, C, S, _)),
+                    R) {
+                    de() ? alert(t.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
+                    return
+                }
+                let I = (C - x + 1) / k
+                    , F = (_ - S + 1) / b
+                    , N = we.deepCopyFlowData(h.flowdata)
+                    , D = N.length
+                    , E = N[0].length
+                    , P = k + x - D
+                    , z = b + S - E;
+                (P > 0 || z > 0) && (N = il([].concat(N), P, z, !0));
+                let O = Ur(s)
+                    , V = $.extend(!0, {}, h.luckysheetfile[K(s)].dataVerification)
+                    , q = null
+                    , Y = 0
+                    , X = 0
+                    , ee = 0
+                    , te = 0;
+                for (let se = 1; se <= I; se++)
+                    for (let ie = 1; ie <= F; ie++) {
+                        Y = x + (se - 1) * k,
+                            X = S + (ie - 1) * b,
+                            te = x + se * k,
+                            ee = S + ie * b;
+                        let ue = Y - u
+                            , he = X - f
+                            , J = {};
+                        for (let G = Y; G < te; G++) {
+                            let le = [].concat(N[G]);
+                            for (let pe = X; pe < ee; pe++) {
+                                if (O[u + G - Y + "_" + (f + pe - X)]) {
+                                    let Fe = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: G,
+                                            col_index: pe,
+                                            l: O[u + G - Y + "_" + (f + pe - X)].l,
+                                            r: O[u + G - Y + "_" + (f + pe - X)].r,
+                                            t: O[u + G - Y + "_" + (f + pe - X)].t,
+                                            b: O[u + G - Y + "_" + (f + pe - X)].b
+                                        }
+                                    };
+                                    l.borderInfo == null && (l.borderInfo = []),
+                                        l.borderInfo.push(Fe)
+                                } else if (O[G + "_" + pe]) {
+                                    let Fe = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: G,
+                                            col_index: pe,
+                                            l: null,
+                                            r: null,
+                                            t: null,
+                                            b: null
+                                        }
+                                    };
+                                    l.borderInfo == null && (l.borderInfo = []),
+                                        l.borderInfo.push(Fe)
+                                }
+                                V[u + G - Y + "_" + (f + pe - X)] && (q == null && (q = $.extend(!0, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification)),
+                                    q[G + "_" + pe] = V[u + G - Y + "_" + (f + pe - X)]),
+                                    L(le[pe]) == "object" && "mc" in le[pe] && ("rs" in le[pe].mc && delete l.merge[le[pe].mc.r + "_" + le[pe].mc.c],
+                                        delete le[pe].mc);
+                                let oe = null;
+                                if (v[G - Y] != null && v[G - Y][pe - X] != null && (oe = $.extend(!0, {}, v[G - Y][pe - X])),
+                                    oe != null && oe.f != null) {
+                                    let Fe = oe.f;
+                                    ue > 0 && (Fe = "=" + p.functionCopy(Fe, "down", ue)),
+                                        ue < 0 && (Fe = "=" + p.functionCopy(Fe, "up", Math.abs(ue))),
+                                        he > 0 && (Fe = "=" + p.functionCopy(Fe, "right", he)),
+                                        he < 0 && (Fe = "=" + p.functionCopy(Fe, "left", Math.abs(he)));
+                                    let ae = p.execfunction(Fe, G, pe, void 0, !0);
+                                    oe.spl != null ? (oe.f = ae[2],
+                                        oe.v = ae[1],
+                                        oe.spl = ae[3].data) : (oe.f = ae[2],
+                                            oe.v = ae[1],
+                                            oe.ct != null && oe.ct.fa != null && (oe.m = mt(oe.ct.fa, ae[1])))
+                                }
+                                le[pe] = $.extend(!0, {}, oe),
+                                    oe != null && a && "mc" in le[pe] && (le[pe].mc.rs != null ? (le[pe].mc.r = G,
+                                        le[pe].mc.c = pe,
+                                        l.merge[le[pe].mc.r + "_" + le[pe].mc.c] = le[pe].mc,
+                                        J[oe.mc.r + "_" + oe.mc.c] = [le[pe].mc.r, le[pe].mc.c]) : le[pe] = {
+                                            mc: {
+                                                r: J[oe.mc.r + "_" + oe.mc.c][0],
+                                                c: J[oe.mc.r + "_" + oe.mc.c][1]
+                                            }
+                                        })
+                            }
+                            N[G] = le
+                        }
+                    }
+                let ce = null;
+                if (e.copyRange.length == 1) {
+                    let se = h.luckysheetfile[K(s)]
+                        , ie = h.luckysheetfile[K(h.currentSheetIndex)]
+                        , ue = $.extend(!0, [], se.luckysheet_conditionformat_save);
+                    if (ue != null && ue.length > 0) {
+                        ce = $.extend(!0, [], ie.luckysheet_conditionformat_save);
+                        for (let he = 0; he < ue.length; he++) {
+                            let J = ue[he].cellrange
+                                , G = [];
+                            for (let le = 1; le <= I; le++)
+                                for (let pe = 1; pe <= F; pe++) {
+                                    Y = x + (le - 1) * k,
+                                        X = S + (pe - 1) * b,
+                                        te = x + le * k,
+                                        ee = S + pe * b;
+                                    for (let oe = 0; oe < J.length; oe++) {
+                                        let Fe = $e.CFSplitRange(J[oe], {
+                                            row: [u, d],
+                                            column: [f, m]
+                                        }, {
+                                            row: [Y, te - 1],
+                                            column: [X, ee - 1]
+                                        }, "operatePart");
+                                        Fe.length > 0 && (G = G.concat(Fe))
+                                    }
+                                }
+                            G.length > 0 && (ue[he].cellrange = G,
+                                ce.push(ue[he]))
+                        }
+                    }
+                }
+                if (w.row = [x, C],
+                    w.column = [S, _],
+                    o || P > 0 || z > 0) {
+                    l = yl(N, x, C, l);
+                    let se = {
+                        cfg: l,
+                        RowlChange: !0,
+                        cdformat: ce,
+                        dataVerification: q
+                    };
+                    Ye(N, h.luckysheet_select_save, se)
+                } else {
+                    let se = {
+                        cfg: l,
+                        cdformat: ce,
+                        dataVerification: q
+                    };
+                    Ye(N, h.luckysheet_select_save, se),
+                        tt()
+                }
+            },
