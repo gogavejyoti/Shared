@@ -1,109 +1,321 @@
 pasteHandlerOfCopyPaste: function (e) {
-    const d = Store.luckysheetfile[getSheetIndex(Store.currentSheetIndex)];
-    if (!d || !d.data || !Store.clipboard || !Store.clipboard.data) return;
+    if (!gr(h.luckysheet_select_save, h.currentSheetIndex)) return;
 
-    const clipboard = Store.clipboard;
-    const range = getPasteRange(e, clipboard.range);
-    if (!range) return;
-
-    const r1 = range.row[0], r2 = range.row[1];
-    const c1 = range.column[0], c2 = range.column[1];
-    const data = d.data;
-
-    const cache = new Map(); // formulaText -> value
-    const depMap = new Map(); // "r,c" -> { f, deps:[] }
-    const indegree = new Map(); // "r,c" -> number
-    const formulaCells = [];
-    const keyOf = (r, c) => r + "," + c;
-
-    // --- STEP 1: Paste & collect dependency info ---
-    for (let r = r1; r <= r2; r++) {
-        for (let c = c1; c <= c2; c++) {
-            const clipR = r - r1;
-            const clipC = c - c1;
-            const clipCell = clipboard.data[clipR]?.[clipC];
-            if (!clipCell) continue;
-
-            const cell = {};
-            if (clipCell.f) {
-                const shiftedF = p.functionCopy(
-                    clipCell.f,
-                    r - clipboard.range.row[0],
-                    c - clipboard.range.column[0]
-                );
-                cell.f = shiftedF;
-
-                // collect dependencies within pasted range
-                const deps = [];
-                const refRegex = /\$?[A-Z]+\$?\d+/g;
-                let m;
-                while ((m = refRegex.exec(shiftedF)) !== null) {
-                    const ref = m[0];
-                    const colLetters = ref.match(/[A-Z]+/)[0];
-                    const rowNumber = parseInt(ref.match(/\d+/)[0], 10);
-                    const refR = rowNumber - 1;
-                    const refC = colLetters.split('').reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
-                    if (refR >= r1 && refR <= r2 && refC >= c1 && refC <= c2) {
-                        deps.push(keyOf(refR, refC));
+    // Cache frequently accessed variables
+    const t = Q().paste;
+    const l = $.extend(true, {}, h.config);
+    l.merge = l.merge || {};
+    
+    const { HasMC: a, RowlChange: o, dataSheetIndex: s, copyRange } = e;
+    const [firstRange] = copyRange;
+    const u = firstRange.row[0], d = firstRange.row[1], f = firstRange.column[0], m = firstRange.column[1];
+    
+    // Optimized data extraction
+    let g = [];
+    let y = false;
+    
+    // Pre-calculate ranges to avoid repeated function calls
+    const rangesData = [];
+    for (let se = 0; se < copyRange.length; se++) {
+        rangesData[se] = Nt({
+            row: copyRange[se].row,
+            column: copyRange[se].column
+        }, s);
+    }
+    
+    // Process copy ranges efficiently
+    if (copyRange.length === 1) {
+        g = rangesData[0];
+    } else {
+        for (let se = 0; se < copyRange.length; se++) {
+            const rangeData = rangesData[se];
+            if (se === 1) {
+                const isSameRows = u === copyRange[1].row[0] && d === copyRange[1].row[1];
+                const isSameCols = f === copyRange[1].column[0] && m === copyRange[1].column[1];
+                
+                if (isSameRows) {
+                    // Transpose efficiently
+                    const transposed = rangeData[0].map((_, colIndex) => 
+                        rangeData.map(row => row[colIndex])
+                    );
+                    g = g.concat(transposed);
+                    y = true;
+                } else if (isSameCols) {
+                    g = g.concat(rangeData);
+                }
+            } else if (se === 0) {
+                g = g.concat(rangeData);
+            }
+        }
+        
+        if (y) {
+            // Transpose back efficiently
+            g = g[0].map((_, colIndex) => g.map(row => row[colIndex]));
+        }
+    }
+    
+    // Clean formulas in batch
+    const v = $.extend(true, [], g);
+    if (copyRange.length > 1) {
+        for (let se = 0; se < v.length; se++) {
+            const row = v[se];
+            if (!row) continue;
+            for (let ie = 0; ie < row.length; ie++) {
+                const cell = row[ie];
+                if (cell && cell.f != null) {
+                    delete cell.f;
+                    delete cell.spl;
+                }
+            }
+        }
+    }
+    
+    const k = v.length, b = v[0].length;
+    const w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1];
+    let x = w.row[0], C = w.row[1], S = w.column[0], _ = w.column[1];
+    
+    // Adjust selection efficiently
+    const T = (C - x + 1) % k;
+    const A = (_ - S + 1) % b;
+    if (T !== 0 || A !== 0) {
+        C = x + k - 1;
+        _ = S + b - 1;
+        w.row = [x, C];
+        w.column = [S, _];
+    }
+    
+    // Merge validation with early return
+    if (l.merge != null && Dt(l, x, C, S, _)) {
+        de() ? alert(t.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
+        return;
+    }
+    
+    // Pre-calculate repeat factors
+    const I = (C - x + 1) / k;
+    const F = (_ - S + 1) / b;
+    
+    // Prepare flow data with minimal copying
+    let N = we.deepCopyFlowData(h.flowdata);
+    const D = N.length, E = N[0].length;
+    const P = k + x - D, z = b + S - E;
+    if (P > 0 || z > 0) {
+        N = il([].concat(N), P, z, true);
+    }
+    
+    // Cache expensive operations
+    const O = Ur(s);
+    const V = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification);
+    let q = null;
+    
+    // Pre-calculate offsets to avoid repeated calculations
+    const rowOffset = x - u;
+    const colOffset = S - f;
+    
+    // Batch processing with optimized loops
+    const mergeCache = {};
+    
+    for (let se = 1; se <= I; se++) {
+        const Y = x + (se - 1) * k;
+        const te = x + se * k;
+        
+        for (let ie = 1; ie <= F; ie++) {
+            const X = S + (ie - 1) * b;
+            const ee = S + ie * b;
+            
+            // Process block efficiently
+            for (let G = Y; G < te; G++) {
+                // Ensure row exists
+                if (!N[G]) N[G] = [];
+                const le = N[G];
+                
+                for (let pe = X; pe < ee; pe++) {
+                    // Process border info
+                    const sourceRow = u + G - Y;
+                    const sourceCol = f + pe - X;
+                    const sourceKey = `${sourceRow}_${sourceCol}`;
+                    const targetKey = `${G}_${pe}`;
+                    
+                    if (O[sourceKey]) {
+                        l.borderInfo = l.borderInfo || [];
+                        l.borderInfo.push({
+                            rangeType: "cell",
+                            value: {
+                                row_index: G,
+                                col_index: pe,
+                                l: O[sourceKey].l,
+                                r: O[sourceKey].r,
+                                t: O[sourceKey].t,
+                                b: O[sourceKey].b
+                            }
+                        });
+                    } else if (O[targetKey]) {
+                        l.borderInfo = l.borderInfo || [];
+                        l.borderInfo.push({
+                            rangeType: "cell",
+                            value: {
+                                row_index: G,
+                                col_index: pe,
+                                l: null,
+                                r: null,
+                                t: null,
+                                b: null
+                            }
+                        });
+                    }
+                    
+                    // Process data verification
+                    if (V[sourceKey]) {
+                        if (!q) {
+                            q = $.extend(true, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification);
+                        }
+                        q[targetKey] = V[sourceKey];
+                    }
+                    
+                    // Clean existing merge references
+                    if (le[pe] && typeof le[pe] === 'object' && le[pe].mc) {
+                        if (le[pe].mc.rs && l.merge) {
+                            delete l.merge[le[pe].mc.r + "_" + le[pe].mc.c];
+                        }
+                        delete le[pe].mc;
+                    }
+                    
+                    // Process cell data
+                    const sourceRowIdx = G - Y;
+                    const sourceColIdx = pe - X;
+                    let oe = null;
+                    
+                    if (v[sourceRowIdx] && v[sourceRowIdx][sourceColIdx]) {
+                        oe = $.extend(true, {}, v[sourceRowIdx][sourceColIdx]);
+                        
+                        // Process formulas efficiently
+                        if (oe && oe.f != null) {
+                            let Fe = oe.f;
+                            
+                            // Use pre-calculated offsets
+                            if (rowOffset > 0) {
+                                Fe = "=" + p.functionCopy(Fe, "down", rowOffset);
+                            } else if (rowOffset < 0) {
+                                Fe = "=" + p.functionCopy(Fe, "up", Math.abs(rowOffset));
+                            }
+                            
+                            if (colOffset > 0) {
+                                Fe = "=" + p.functionCopy(Fe, "right", colOffset);
+                            } else if (colOffset < 0) {
+                                Fe = "=" + p.functionCopy(Fe, "left", Math.abs(colOffset));
+                            }
+                            
+                            const ae = p.execfunction(Fe, G, pe, void 0, true);
+                            
+                            if (oe.spl != null) {
+                                oe.f = ae[2];
+                                oe.v = ae[1];
+                                oe.spl = ae[3].data;
+                            } else {
+                                oe.f = ae[2];
+                                oe.v = ae[1];
+                                if (oe.ct != null && oe.ct.fa != null) {
+                                    oe.m = mt(oe.ct.fa, ae[1]);
+                                }
+                            }
+                        }
+                        
+                        le[pe] = oe;
+                        
+                        // Process merge cells efficiently
+                        if (a && oe && oe.mc) {
+                            if (oe.mc.rs != null) {
+                                oe.mc.r = G;
+                                oe.mc.c = pe;
+                                l.merge[oe.mc.r + "_" + oe.mc.c] = oe.mc;
+                                mergeCache[oe.mc.r + "_" + oe.mc.c] = [oe.mc.r, oe.mc.c];
+                            } else {
+                                const cacheKey = oe.mc.r + "_" + oe.mc.c;
+                                if (mergeCache[cacheKey]) {
+                                    le[pe] = {
+                                        mc: {
+                                            r: mergeCache[cacheKey][0],
+                                            c: mergeCache[cacheKey][1]
+                                        }
+                                    };
+                                }
+                            }
+                        }
+                    } else {
+                        le[pe] = oe;
                     }
                 }
-
-                const key = keyOf(r, c);
-                depMap.set(key, { r, c, f: shiftedF, deps });
-                indegree.set(key, deps.length);
-                formulaCells.push(key);
-            } else {
-                if (clipCell.v !== undefined) cell.v = clipCell.v;
-                if (clipCell.m !== undefined) cell.m = clipCell.m;
-            }
-            data[r][c] = cell;
-        }
-    }
-
-    // --- STEP 2: Topological sort (Kahn’s algorithm) ---
-    const queue = [];
-    for (const key of formulaCells) {
-        if (indegree.get(key) === 0) queue.push(key);
-    }
-
-    const topoOrder = [];
-    while (queue.length) {
-        const nodeKey = queue.shift();
-        topoOrder.push(nodeKey);
-        const { r, c } = depMap.get(nodeKey);
-
-        // Find formulas that depend on this cell
-        for (const [k, val] of depMap) {
-            if (val.deps.includes(nodeKey)) {
-                indegree.set(k, indegree.get(k) - 1);
-                if (indegree.get(k) === 0) queue.push(k);
             }
         }
     }
-
-    // --- STEP 3: Evaluate formulas in dependency order ---
-    for (const key of topoOrder) {
-        const { r, c, f } = depMap.get(key);
-
-        if (cache.has(f)) {
-            const v = cache.get(f);
-            data[r][c].v = v;
-            data[r][c].m = v;
-            continue;
-        }
-
-        try {
-            const v = p.execfunction(f, r, c, undefined, true);
-            data[r][c].v = v;
-            data[r][c].m = v;
-            cache.set(f, v);
-        } catch (err) {
-            console.error("Formula error at", key, f, err);
-            data[r][c].v = null;
-            data[r][c].m = "#ERROR!";
+    
+    // Process conditional formatting efficiently
+    let ce = null;
+    if (e.copyRange.length === 1) {
+        const se = h.luckysheetfile[K(s)];
+        const ie = h.luckysheetfile[K(h.currentSheetIndex)];
+        const ue = $.extend(true, [], se.luckysheet_conditionformat_save);
+        
+        if (ue != null && ue.length > 0) {
+            ce = $.extend(true, [], ie.luckysheet_conditionformat_save);
+            
+            for (let he = 0; he < ue.length; he++) {
+                const J = ue[he].cellrange;
+                const G = [];
+                
+                for (let le = 1; le <= I; le++) {
+                    const Y = x + (le - 1) * k;
+                    const te = x + le * k;
+                    
+                    for (let pe = 1; pe <= F; pe++) {
+                        const X = S + (pe - 1) * b;
+                        const ee = S + pe * b;
+                        
+                        for (let oe = 0; oe < J.length; oe++) {
+                            const Fe = $e.CFSplitRange(J[oe], {
+                                row: [u, d],
+                                column: [f, m]
+                            }, {
+                                row: [Y, te - 1],
+                                column: [X, ee - 1]
+                            }, "operatePart");
+                            
+                            if (Fe.length > 0) {
+                                G.push(...Fe);
+                            }
+                        }
+                    }
+                }
+                
+                if (G.length > 0) {
+                    ue[he].cellrange = G;
+                    ce.push(ue[he]);
+                }
+            }
         }
     }
-
-    // --- STEP 4: Refresh grid once ---
-    luckysheetrefreshgrid();
+    
+    // Final update with optimized checks
+    w.row = [x, C];
+    w.column = [S, _];
+    
+    const needsRowAdjustment = o || P > 0 || z > 0;
+    
+    if (needsRowAdjustment) {
+        l = yl(N, x, C, l);
+        const se = {
+            cfg: l,
+            RowlChange: true,
+            cdformat: ce,
+            dataVerification: q
+        };
+        Ye(N, h.luckysheet_select_save, se);
+    } else {
+        const se = {
+            cfg: l,
+            cdformat: ce,
+            dataVerification: q
+        };
+        Ye(N, h.luckysheet_select_save, se);
+        tt();
+    }
 }
