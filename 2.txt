@@ -1,198 +1,138 @@
-            pasteHandlerOfCopyPaste: function (e) {
-                if (!gr(h.luckysheet_select_save, h.currentSheetIndex))
-                    return;
-                let t = Q().paste
-                    , l = $.extend(!0, {}, h.config);
-                l.merge == null && (l.merge = {});
-                let a = e.HasMC
-                    , o = e.RowlChange
-                    , s = e.dataSheetIndex
-                    , u = e.copyRange[0].row[0]
-                    , d = e.copyRange[0].row[1]
-                    , f = e.copyRange[0].column[0]
-                    , m = e.copyRange[0].column[1]
-                    , g = []
-                    , y = !1;
-                for (let se = 0; se < e.copyRange.length; se++) {
-                    let ie = Nt({
-                        row: e.copyRange[se].row,
-                        column: e.copyRange[se].column
-                    }, s);
-                    e.copyRange.length > 1 ? u == e.copyRange[1].row[0] && d == e.copyRange[1].row[1] ? (ie = ie[0].map(function (ue, he) {
-                        return ie.map(function (J) {
-                            return J[he]
-                        })
-                    }),
-                        g = g.concat(ie),
-                        y = !0) : f == e.copyRange[1].column[0] && m == e.copyRange[1].column[1] && (g = g.concat(ie)) : g = ie
+pasteHandlerOfCopyPaste: function (e) {
+    if (!gr(h.luckysheet_select_save, h.currentSheetIndex)) return;
+
+    const t = Q().paste;
+    let cfg = $.extend(true, {}, h.config);
+    cfg.merge ??= {};
+
+    const srcSheetIndex = e.dataSheetIndex;
+    const [srcRowStart, srcRowEnd] = e.copyRange[0].row;
+    const [srcColStart, srcColEnd] = e.copyRange[0].column;
+    const srcRows = srcRowEnd - srcRowStart + 1;
+    const srcCols = srcColEnd - srcColStart + 1;
+
+    // Step 1: Collect copied data block once
+    let copiedBlock = [];
+    for (let i = 0; i < e.copyRange.length; i++) {
+        const block = Nt({
+            row: e.copyRange[i].row,
+            column: e.copyRange[i].column
+        }, srcSheetIndex);
+        copiedBlock = copiedBlock.concat(block);
+    }
+
+    // Handle transpose copy (multi-range horizontal)
+    if (e.copyRange.length > 1 && srcRowStart === e.copyRange[1].row[0]) {
+        copiedBlock = copiedBlock[0].map((_, col) => copiedBlock.map(row => row[col]));
+    }
+
+    // Remove formulas if multi-range copy
+    if (e.copyRange.length > 1) {
+        for (let r = 0; r < copiedBlock.length; r++) {
+            for (let c = 0; c < copiedBlock[r].length; c++) {
+                if (copiedBlock[r][c]?.f) {
+                    delete copiedBlock[r][c].f;
+                    delete copiedBlock[r][c].spl;
                 }
-                y && (g = g[0].map(function (se, ie) {
-                    return g.map(function (ue) {
-                        return ue[ie]
-                    })
-                }));
-                let v = $.extend(!0, [], g);
-                if (e.copyRange.length > 1)
-                    for (let se = 0; se < v.length; se++)
-                        for (let ie = 0; ie < v[se].length; ie++)
-                            v[se][ie] != null && v[se][ie].f != null && (delete v[se][ie].f,
-                                delete v[se][ie].spl);
-                let k = v.length
-                    , b = v[0].length
-                    , w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
-                    , x = w.row[0]
-                    , C = w.row[1]
-                    , S = w.column[0]
-                    , _ = w.column[1]
-                    , T = (C - x + 1) % k
-                    , A = (_ - S + 1) % b;
-                (T != 0 || A != 0) && (C = x + k - 1,
-                    _ = S + b - 1);
-                let R = !1;
-                if (l.merge != null && (R = Dt(l, x, C, S, _)),
-                    R) {
-                    de() ? alert(t.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
-                    return
-                }
-                let I = (C - x + 1) / k
-                    , F = (_ - S + 1) / b
-                    , N = we.deepCopyFlowData(h.flowdata)
-                    , D = N.length
-                    , E = N[0].length
-                    , P = k + x - D
-                    , z = b + S - E;
-                (P > 0 || z > 0) && (N = il([].concat(N), P, z, !0));
-                let O = Ur(s)
-                    , V = $.extend(!0, {}, h.luckysheetfile[K(s)].dataVerification)
-                    , q = null
-                    , Y = 0
-                    , X = 0
-                    , ee = 0
-                    , te = 0;
-                for (let se = 1; se <= I; se++)
-                    for (let ie = 1; ie <= F; ie++) {
-                        Y = x + (se - 1) * k,
-                            X = S + (ie - 1) * b,
-                            te = x + se * k,
-                            ee = S + ie * b;
-                        let ue = Y - u
-                            , he = X - f
-                            , J = {};
-                        for (let G = Y; G < te; G++) {
-                            let le = [].concat(N[G]);
-                            for (let pe = X; pe < ee; pe++) {
-                                if (O[u + G - Y + "_" + (f + pe - X)]) {
-                                    let Fe = {
-                                        rangeType: "cell",
-                                        value: {
-                                            row_index: G,
-                                            col_index: pe,
-                                            l: O[u + G - Y + "_" + (f + pe - X)].l,
-                                            r: O[u + G - Y + "_" + (f + pe - X)].r,
-                                            t: O[u + G - Y + "_" + (f + pe - X)].t,
-                                            b: O[u + G - Y + "_" + (f + pe - X)].b
-                                        }
-                                    };
-                                    l.borderInfo == null && (l.borderInfo = []),
-                                        l.borderInfo.push(Fe)
-                                } else if (O[G + "_" + pe]) {
-                                    let Fe = {
-                                        rangeType: "cell",
-                                        value: {
-                                            row_index: G,
-                                            col_index: pe,
-                                            l: null,
-                                            r: null,
-                                            t: null,
-                                            b: null
-                                        }
-                                    };
-                                    l.borderInfo == null && (l.borderInfo = []),
-                                        l.borderInfo.push(Fe)
-                                }
-                                V[u + G - Y + "_" + (f + pe - X)] && (q == null && (q = $.extend(!0, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification)),
-                                    q[G + "_" + pe] = V[u + G - Y + "_" + (f + pe - X)]),
-                                    L(le[pe]) == "object" && "mc" in le[pe] && ("rs" in le[pe].mc && delete l.merge[le[pe].mc.r + "_" + le[pe].mc.c],
-                                        delete le[pe].mc);
-                                let oe = null;
-                                if (v[G - Y] != null && v[G - Y][pe - X] != null && (oe = $.extend(!0, {}, v[G - Y][pe - X])),
-                                    oe != null && oe.f != null) {
-                                    let Fe = oe.f;
-                                    ue > 0 && (Fe = "=" + p.functionCopy(Fe, "down", ue)),
-                                        ue < 0 && (Fe = "=" + p.functionCopy(Fe, "up", Math.abs(ue))),
-                                        he > 0 && (Fe = "=" + p.functionCopy(Fe, "right", he)),
-                                        he < 0 && (Fe = "=" + p.functionCopy(Fe, "left", Math.abs(he)));
-                                    let ae = p.execfunction(Fe, G, pe, void 0, !0);
-                                    oe.spl != null ? (oe.f = ae[2],
-                                        oe.v = ae[1],
-                                        oe.spl = ae[3].data) : (oe.f = ae[2],
-                                            oe.v = ae[1],
-                                            oe.ct != null && oe.ct.fa != null && (oe.m = mt(oe.ct.fa, ae[1])))
-                                }
-                                le[pe] = $.extend(!0, {}, oe),
-                                    oe != null && a && "mc" in le[pe] && (le[pe].mc.rs != null ? (le[pe].mc.r = G,
-                                        le[pe].mc.c = pe,
-                                        l.merge[le[pe].mc.r + "_" + le[pe].mc.c] = le[pe].mc,
-                                        J[oe.mc.r + "_" + oe.mc.c] = [le[pe].mc.r, le[pe].mc.c]) : le[pe] = {
-                                            mc: {
-                                                r: J[oe.mc.r + "_" + oe.mc.c][0],
-                                                c: J[oe.mc.r + "_" + oe.mc.c][1]
-                                            }
-                                        })
-                            }
-                            N[G] = le
-                        }
+            }
+        }
+    }
+
+    // Step 2: Determine paste target
+    const selection = h.luckysheet_select_save[h.luckysheet_select_save.length - 1];
+    let [destRowStart, destRowEnd] = selection.row;
+    let [destColStart, destColEnd] = selection.column;
+
+    // Adjust target size to block
+    if (((destRowEnd - destRowStart + 1) % srcRows) !== 0 || ((destColEnd - destColStart + 1) % srcCols) !== 0) {
+        destRowEnd = destRowStart + srcRows - 1;
+        destColEnd = destColStart + srcCols - 1;
+    }
+
+    // Step 3: Merge check
+    if (cfg.merge && Dt(cfg, destRowStart, destRowEnd, destColStart, destColEnd)) {
+        de() ? alert(t.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
+        return;
+    }
+
+    // Step 4: Expand flowdata if needed
+    let flowdata = we.deepCopyFlowData(h.flowdata);
+    const addRows = destRowEnd + 1 - flowdata.length;
+    const addCols = destColEnd + 1 - flowdata[0].length;
+    if (addRows > 0 || addCols > 0) flowdata = il(flowdata, addRows, addCols, true);
+
+    const rowRepeats = Math.floor((destRowEnd - destRowStart + 1) / srcRows);
+    const colRepeats = Math.floor((destColEnd - destColStart + 1) / srcCols);
+
+    // Step 5: Prepare structures for formula evaluation
+    const formulaTasks = [];
+    const formulaCache = new Map();  // key: adjusted formula string, value: evaluated result
+
+    // Step 6: Paste data blocks efficiently
+    for (let blockR = 0; blockR < rowRepeats; blockR++) {
+        for (let blockC = 0; blockC < colRepeats; blockC++) {
+            const baseR = destRowStart + blockR * srcRows;
+            const baseC = destColStart + blockC * srcCols;
+
+            for (let r = 0; r < srcRows; r++) {
+                const destR = baseR + r;
+                const rowArr = flowdata[destR];
+
+                for (let c = 0; c < srcCols; c++) {
+                    const destC = baseC + c;
+                    const srcCell = copiedBlock[r][c];
+                    if (!srcCell) {
+                        rowArr[destC] = null;
+                        continue;
                     }
-                let ce = null;
-                if (e.copyRange.length == 1) {
-                    let se = h.luckysheetfile[K(s)]
-                        , ie = h.luckysheetfile[K(h.currentSheetIndex)]
-                        , ue = $.extend(!0, [], se.luckysheet_conditionformat_save);
-                    if (ue != null && ue.length > 0) {
-                        ce = $.extend(!0, [], ie.luckysheet_conditionformat_save);
-                        for (let he = 0; he < ue.length; he++) {
-                            let J = ue[he].cellrange
-                                , G = [];
-                            for (let le = 1; le <= I; le++)
-                                for (let pe = 1; pe <= F; pe++) {
-                                    Y = x + (le - 1) * k,
-                                        X = S + (pe - 1) * b,
-                                        te = x + le * k,
-                                        ee = S + pe * b;
-                                    for (let oe = 0; oe < J.length; oe++) {
-                                        let Fe = $e.CFSplitRange(J[oe], {
-                                            row: [u, d],
-                                            column: [f, m]
-                                        }, {
-                                            row: [Y, te - 1],
-                                            column: [X, ee - 1]
-                                        }, "operatePart");
-                                        Fe.length > 0 && (G = G.concat(Fe))
-                                    }
-                                }
-                            G.length > 0 && (ue[he].cellrange = G,
-                                ce.push(ue[he]))
+
+                    const newCell = { ...srcCell };
+
+                    if (newCell.f) {
+                        // Adjust formula position
+                        let shiftedFormula = newCell.f;
+                        const rowShift = destR - (srcRowStart + r);
+                        const colShift = destC - (srcColStart + c);
+
+                        if (rowShift !== 0) {
+                            shiftedFormula = "=" + p.functionCopy(shiftedFormula, rowShift > 0 ? "down" : "up", Math.abs(rowShift));
                         }
+                        if (colShift !== 0) {
+                            shiftedFormula = "=" + p.functionCopy(shiftedFormula, colShift > 0 ? "right" : "left", Math.abs(colShift));
+                        }
+
+                        newCell.f = shiftedFormula;
+                        // Defer formula evaluation
+                        formulaTasks.push({ r: destR, c: destC, f: shiftedFormula });
                     }
+
+                    rowArr[destC] = newCell;
                 }
-                if (w.row = [x, C],
-                    w.column = [S, _],
-                    o || P > 0 || z > 0) {
-                    l = yl(N, x, C, l);
-                    let se = {
-                        cfg: l,
-                        RowlChange: !0,
-                        cdformat: ce,
-                        dataVerification: q
-                    };
-                    Ye(N, h.luckysheet_select_save, se)
-                } else {
-                    let se = {
-                        cfg: l,
-                        cdformat: ce,
-                        dataVerification: q
-                    };
-                    Ye(N, h.luckysheet_select_save, se),
-                        tt()
-                }
-            },
+            }
+        }
+    }
+
+    // Step 7: Evaluate formulas with caching
+    for (const task of formulaTasks) {
+        const { r, c, f } = task;
+
+        if (formulaCache.has(f)) {
+            flowdata[r][c].v = formulaCache.get(f);
+            continue;
+        }
+
+        try {
+            const result = p.execfunction(f, r, c, undefined, true);
+            flowdata[r][c].v = result[1];
+            flowdata[r][c].f = result[2];
+            if (result[3]?.data) flowdata[r][c].spl = result[3].data;
+            formulaCache.set(f, result[1]);
+        } catch (err) {
+            console.error("Formula evaluation error at", r, c, f, err);
+        }
+    }
+
+    // Step 8: Final apply (one render)
+    const opt = { cfg: cfg, RowlChange: true };
+    Ye(flowdata, h.luckysheet_select_save, opt);
+}
