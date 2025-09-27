@@ -5,33 +5,41 @@ pasteHandlerOfCopyPaste: function (e) {
     let l = $.extend(true, {}, h.config);
     if (!l.merge) l.merge = {};
 
-    const s = e.dataSheetIndex,
-        copyRanges = e.copyRange,
-        firstRange = copyRanges[0],
-        row0 = firstRange.row[0], row1 = firstRange.row[1],
-        col0 = firstRange.column[0], col1 = firstRange.column[1];
+    const a = e.HasMC,
+          o = e.RowlChange,
+          s = e.dataSheetIndex,
+          copyRanges = e.copyRange,
+          firstRange = copyRanges[0],
+          u = firstRange.row[0], d = firstRange.row[1],
+          f = firstRange.column[0], m = firstRange.column[1];
 
-    // ✅ Preload copied data once
-    let copied = [];
-    if (copyRanges.length === 1) {
-        copied = Nt({ row: firstRange.row, column: firstRange.column }, s);
-    } else {
-        for (let i = 0; i < copyRanges.length; i++) {
-            let data = Nt({ row: copyRanges[i].row, column: copyRanges[i].column }, s);
-            copied = copied.concat(data);
-        }
+    let g = [], y = false;
+
+    // Precompute copied data
+    for (let i = 0; i < copyRanges.length; i++) {
+        let data = Nt({
+            row: copyRanges[i].row,
+            column: copyRanges[i].column
+        }, s);
+
+        if (copyRanges.length > 1) {
+            if (i === 1 && u === copyRanges[1].row[0] && d === copyRanges[1].row[1]) {
+                data = data[0].map((_, ci) => data.map(r => r[ci]));
+                g = g.concat(data);
+                y = true;
+            } else if (i === 1 && f === copyRanges[1].column[0] && m === copyRanges[1].column[1]) {
+                g = g.concat(data);
+            }
+        } else g = data;
     }
 
-    // ✅ Handle multi-range transpose only once
-    if (copyRanges.length > 1 && row0 === copyRanges[1].row[0] && row1 === copyRanges[1].row[1]) {
-        copied = copied[0].map((_, c) => copied.map(r => r[c]));
-    }
+    if (y) g = g[0].map((_, ci) => g.map(r => r[ci]));
 
-    const v = $.extend(true, [], copied),
-        rowCount = v.length,
-        colCount = v[0].length;
+    const v = $.extend(true, [], g);
+    const rowCount = v.length,
+          colCount = v[0].length;
 
-    // ✅ Clean formulas if multi-range
+    // Remove formulas in multi-range
     if (copyRanges.length > 1) {
         for (let r = 0; r < rowCount; r++) {
             for (let c = 0; c < colCount; c++) {
@@ -45,67 +53,67 @@ pasteHandlerOfCopyPaste: function (e) {
     }
 
     const sel = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
-        x0 = sel.row[0], x1 = sel.row[1],
-        y0 = sel.column[0], y1 = sel.column[1];
+          x = sel.row[0], C = sel.row[1],
+          S = sel.column[0], _ = sel.column[1];
 
-    // ✅ Adjust paste area size to match copied data
-    let heightMod = (x1 - x0 + 1) % rowCount,
-        widthMod = (y1 - y0 + 1) % colCount;
-    if (heightMod !== 0 || widthMod !== 0) {
-        sel.row[1] = x0 + rowCount - 1;
-        sel.column[1] = y0 + colCount - 1;
+    let pasteRows = (C - x + 1) % rowCount,
+        pasteCols = (_ - S + 1) % colCount;
+
+    if (pasteRows !== 0 || pasteCols !== 0) {
+        sel.row[1] = x + rowCount - 1;
+        sel.column[1] = S + colCount - 1;
     }
 
-    // ✅ Merge conflict check early exit
-    if (l.merge && Dt(l, x0, sel.row[1], y0, sel.column[1])) {
-        if (de()) alert(t.errorNotAllowMerged);
-        else U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
+    // Merge check
+    let R = l.merge != null && Dt(l, x, sel.row[1], S, sel.column[1]);
+    if (R) {
+        de() ? alert(t.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
         return;
     }
 
-    const I = (sel.row[1] - x0 + 1) / rowCount,
-        F = (sel.column[1] - y0 + 1) / colCount;
+    const I = (sel.row[1] - x + 1) / rowCount,
+          F = (sel.column[1] - S + 1) / colCount;
 
     let N = we.deepCopyFlowData(h.flowdata);
-    const addRows = rowCount + x0 - N.length;
-    const addCols = colCount + y0 - N[0].length;
+    const addRows = rowCount + x - N.length,
+          addCols = colCount + S - N[0].length;
     if (addRows > 0 || addCols > 0) {
         N = il([].concat(N), addRows, addCols, true);
     }
 
     const borderMap = Ur(s),
-        verifSource = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification),
-        verifTarget = $.extend(true, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification || {}),
-        formulaCache = new Map();  // ✅ cache for execfunction
+          verifSrc = $.extend(true, {}, h.luckysheetfile[K(s)].dataVerification),
+          verifTarget = $.extend(true, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification || {}),
+          formulaCache = new Map();
 
-    const copyRowSpan = row1 - row0 + 1;
-    const copyColSpan = col1 - col0 + 1;
-    const hasMC = e.HasMC;
+    const JMC = {}; // temp merged cell mapping
 
-    for (let rr = 0; rr < I; rr++) {
-        for (let cc = 0; cc < F; cc++) {
-            const startRow = x0 + rr * rowCount;
-            const startCol = y0 + cc * colCount;
+    for (let rr = 1; rr <= I; rr++) {
+        for (let cc = 1; cc <= F; cc++) {
+            const startRow = x + (rr - 1) * rowCount,
+                  startCol = S + (cc - 1) * colCount;
 
             for (let r = 0; r < rowCount; r++) {
                 const targetRow = startRow + r;
-                let rowArr = N[targetRow].slice();  // shallow clone once per row
+                let rowArr = [].concat(N[targetRow]);
 
                 for (let c = 0; c < colCount; c++) {
                     const targetCol = startCol + c;
-                    const srcCell = v[r][c];
+                    const srcCell = v[r][c] ? $.extend(true, {}, v[r][c]) : null;
 
-                    // ✅ Apply border fast
-                    const borderKeySrc = `${row0 + r}_${col0 + c}`;
-                    const borderKeyTgt = `${targetRow}_${targetCol}`;
-                    if (borderMap[borderKeySrc]) {
+                    const rowOff = targetRow - (x + r),
+                          colOff = targetCol - (S + c);
+
+                    // Border
+                    const keySrc = `${u + r}_${f + c}`;
+                    const keyTgt = `${targetRow}_${targetCol}`;
+                    if (borderMap[keySrc]) {
                         l.borderInfo = l.borderInfo || [];
-                        const b = borderMap[borderKeySrc];
                         l.borderInfo.push({
                             rangeType: "cell",
-                            value: { row_index: targetRow, col_index: targetCol, l: b.l, r: b.r, t: b.t, b: b.b }
+                            value: { row_index: targetRow, col_index: targetCol, ...borderMap[keySrc] }
                         });
-                    } else if (borderMap[borderKeyTgt]) {
+                    } else if (borderMap[keyTgt]) {
                         l.borderInfo = l.borderInfo || [];
                         l.borderInfo.push({
                             rangeType: "cell",
@@ -113,45 +121,49 @@ pasteHandlerOfCopyPaste: function (e) {
                         });
                     }
 
-                    // ✅ Data validation copy
-                    const verKeySrc = `${row0 + r}_${col0 + c}`;
-                    if (verifSource[verKeySrc]) {
-                        verifTarget[`${targetRow}_${targetCol}`] = verifSource[verKeySrc];
-                    }
+                    // Data verification
+                    if (verifSrc[keySrc]) verifTarget[keyTgt] = verifSrc[keySrc];
 
-                    // ✅ Handle formulas with caching
-                    let newCell = srcCell ? { ...srcCell } : null;
-                    if (newCell && newCell.f) {
-                        let fstr = newCell.f;
-                        const rowOff = targetRow - (row0 + r);
-                        const colOff = targetCol - (col0 + c);
-                        const cacheKey = `${fstr}|${rowOff}|${colOff}`;
+                    // Formulas
+                    if (srcCell && srcCell.f) {
+                        let formula = srcCell.f;
+                        const cacheKey = `${formula}|${rowOff}|${colOff}`;
+                        let result = formulaCache.get(cacheKey);
 
-                        let execResult = formulaCache.get(cacheKey);
-                        if (!execResult) {
-                            if (rowOff > 0) fstr = "=" + p.functionCopy(fstr, "down", rowOff);
-                            else if (rowOff < 0) fstr = "=" + p.functionCopy(fstr, "up", -rowOff);
-                            if (colOff > 0) fstr = "=" + p.functionCopy(fstr, "right", colOff);
-                            else if (colOff < 0) fstr = "=" + p.functionCopy(fstr, "left", -colOff);
+                        if (!result) {
+                            if (rowOff > 0) formula = "=" + p.functionCopy(formula, "down", rowOff);
+                            else if (rowOff < 0) formula = "=" + p.functionCopy(formula, "up", -rowOff);
+                            if (colOff > 0) formula = "=" + p.functionCopy(formula, "right", colOff);
+                            else if (colOff < 0) formula = "=" + p.functionCopy(formula, "left", -colOff);
 
-                            execResult = p.execfunction(fstr, targetRow, targetCol, undefined, true);
-                            formulaCache.set(cacheKey, execResult);
+                            result = p.execfunction(formula, targetRow, targetCol, undefined, true);
+                            formulaCache.set(cacheKey, result);
                         }
 
-                        if (newCell.spl) {
-                            newCell.f = execResult[2];
-                            newCell.v = execResult[1];
-                            newCell.spl = execResult[3].data;
+                        if (srcCell.spl) {
+                            srcCell.f = result[2];
+                            srcCell.v = result[1];
+                            srcCell.spl = result[3].data;
                         } else {
-                            newCell.f = execResult[2];
-                            newCell.v = execResult[1];
-                            if (newCell.ct && newCell.ct.fa) {
-                                newCell.m = mt(newCell.ct.fa, execResult[1]);
-                            }
+                            srcCell.f = result[2];
+                            srcCell.v = result[1];
+                            if (srcCell.ct && srcCell.ct.fa) srcCell.m = mt(srcCell.ct.fa, result[1]);
                         }
                     }
 
-                    rowArr[targetCol] = newCell ? newCell : null;
+                    // Merged cells
+                    if (srcCell && a && srcCell.mc) {
+                        if (srcCell.mc.rs != null) {
+                            srcCell.mc.r = targetRow;
+                            srcCell.mc.c = targetCol;
+                            l.merge[`${srcCell.mc.r}_${srcCell.mc.c}`] = srcCell.mc;
+                            JMC[`${srcCell.mc.r}_${srcCell.mc.c}`] = [srcCell.mc.r, srcCell.mc.c];
+                        } else {
+                            srcCell.mc = { r: JMC[`${srcCell.mc.r}_${srcCell.mc.c}`][0], c: JMC[`${srcCell.mc.r}_${srcCell.mc.c}`][1] };
+                        }
+                    }
+
+                    rowArr[targetCol] = srcCell;
                 }
 
                 N[targetRow] = rowArr;
@@ -159,40 +171,44 @@ pasteHandlerOfCopyPaste: function (e) {
         }
     }
 
-    // ✅ Conditional formatting
+    // Conditional formatting copy
     let ce = null;
     if (copyRanges.length === 1) {
-        const srcSheet = h.luckysheetfile[K(s)];
-        const tgtSheet = h.luckysheetfile[K(h.currentSheetIndex)];
-        const cf = srcSheet.luckysheet_conditionformat_save;
-        if (cf && cf.length) {
-            ce = $.extend(true, [], tgtSheet.luckysheet_conditionformat_save);
-            for (let cfItem of cf) {
-                let newRanges = [];
-                for (let rr = 0; rr < I; rr++) {
-                    for (let cc = 0; cc < F; cc++) {
-                        const sr = x0 + rr * rowCount, sc = y0 + cc * colCount;
-                        const er = sr + rowCount - 1, ec = sc + colCount - 1;
-                        for (let orig of cfItem.cellrange) {
-                            const parts = $e.CFSplitRange(orig,
-                                { row: [row0, row1], column: [col0, col1] },
-                                { row: [sr, er], column: [sc, ec] },
-                                "operatePart"
-                            );
-                            if (parts.length) newRanges = newRanges.concat(parts);
-                        }
+        const srcCF = h.luckysheetfile[K(s)].luckysheet_conditionformat_save || [],
+              tgtCF = h.luckysheetfile[K(h.currentSheetIndex)].luckysheet_conditionformat_save || [];
+        ce = $.extend(true, [], tgtCF);
+
+        for (let cfItem of srcCF) {
+            let newRanges = [];
+            for (let rr = 1; rr <= I; rr++) {
+                for (let cc = 1; cc <= F; cc++) {
+                    const startRow = x + (rr - 1) * rowCount,
+                          startCol = S + (cc - 1) * colCount,
+                          endRow = startRow + rowCount - 1,
+                          endCol = startCol + colCount - 1;
+
+                    for (let orig of cfItem.cellrange) {
+                        const parts = $e.CFSplitRange(orig, { row: [u, d], column: [f, m] }, { row: [startRow, endRow], column: [startCol, endCol] }, "operatePart");
+                        if (parts.length) newRanges = newRanges.concat(parts);
                     }
                 }
-                if (newRanges.length) {
-                    const newItem = $.extend(true, {}, cfItem);
-                    newItem.cellrange = newRanges;
-                    ce.push(newItem);
-                }
+            }
+            if (newRanges.length) {
+                const newItem = $.extend(true, {}, cfItem);
+                newItem.cellrange = newRanges;
+                ce.push(newItem);
             }
         }
     }
 
-    const finalParams = { cfg: yl(N, x0, sel.row[1], l), cdformat: ce, dataVerification: verifTarget };
-    Ye(N, h.luckysheet_select_save, finalParams);
+    sel.row = [x, sel.row[1]];
+    sel.column = [S, sel.column[1]];
+
+    const params = { cfg: yl(N, x, sel.row[1], l), cdformat: ce, dataVerification: verifTarget };
+    if (o || addRows > 0 || addCols > 0) {
+        params.RowlChange = true;
+    }
+
+    Ye(N, h.luckysheet_select_save, params);
     tt();
 }
