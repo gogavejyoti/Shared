@@ -1,24 +1,68 @@
-// Initialize change tracker
-h.sheetChanges = {}; // key = sheetIndex, value = { insertedRows: [], deletedRows: [], insertedCols: [], deletedCols: [] }
+_shiftCrossSheetReference: function (formulaStr, currentSheetIndex) {
+    const regex = /([^\!\s]+)!\$?([A-Z]+)\$?(\d+)/g;
+    let match;
+    let updatedFormula = formulaStr;
 
-// Function to record sheet changes
-function trackSheetChange(sheetIndex, type, start, endOrCount) {
-    if (!h.sheetChanges[sheetIndex]) {
-        h.sheetChanges[sheetIndex] = { insertedRows: [], deletedRows: [], insertedCols: [], deletedCols: [] };
+    while ((match = regex.exec(formulaStr)) !== null) {
+        const sheetName = match[1]; // target sheet
+        let col = match[2];
+        let row = parseInt(match[3], 10);
+
+        // Find the sheet object by name
+        const targetSheet = Ft().find(s => s.name === sheetName);
+        if (!targetSheet) continue;
+
+        const changes = h.sheetChanges[targetSheet.index];
+        if (changes) {
+            // Adjust rows for inserted/deleted rows
+            if (changes.insertedRows) {
+                changes.insertedRows.forEach(r => { if (row >= r.start) row += r.count; });
+            }
+            if (changes.deletedRows) {
+                changes.deletedRows.forEach(r => {
+                    if (row >= r.start && row <= r.end) row = r.start; 
+                    else if (row > r.end) row -= (r.end - r.start + 1);
+                });
+            }
+
+            // Adjust columns for inserted/deleted columns
+            let colIndex = colNameToIndex(col); // convert 'A' -> 0
+            if (changes.insertedCols) {
+                changes.insertedCols.forEach(c => { if (colIndex >= c.start) colIndex += c.count; });
+            }
+            if (changes.deletedCols) {
+                changes.deletedCols.forEach(c => {
+                    if (colIndex >= c.start && colIndex <= c.end) colIndex = c.start; 
+                    else if (colIndex > c.end) colIndex -= (c.end - c.start + 1);
+                });
+            }
+            col = colIndexToName(colIndex); // convert back to 'A'
+        }
+
+        const newRef = `${sheetName}!${col}${row}`;
+        updatedFormula = updatedFormula.replace(match[0], newRef);
     }
 
-    switch (type) {
-        case "insertRow":
-            h.sheetChanges[sheetIndex].insertedRows.push({ start: start, count: endOrCount });
-            break;
-        case "deleteRow":
-            h.sheetChanges[sheetIndex].deletedRows.push({ start: start, end: endOrCount });
-            break;
-        case "insertCol":
-            h.sheetChanges[sheetIndex].insertedCols.push({ start: start, count: endOrCount });
-            break;
-        case "deleteCol":
-            h.sheetChanges[sheetIndex].deletedCols.push({ start: start, end: endOrCount });
-            break;
+    return updatedFormula;
+
+    // Helper: convert column name to index (A->0, B->1, ...)
+    function colNameToIndex(name) {
+        let index = 0;
+        for (let i = 0; i < name.length; i++) {
+            index = index * 26 + (name.charCodeAt(i) - 65 + 1);
+        }
+        return index - 1;
+    }
+
+    // Helper: convert index to column name (0->A, 1->B, ...)
+    function colIndexToName(index) {
+        let name = "";
+        index += 1;
+        while (index > 0) {
+            let mod = (index - 1) % 26;
+            name = String.fromCharCode(65 + mod) + name;
+            index = Math.floor((index - mod - 1) / 26);
+        }
+        return name;
     }
 }
