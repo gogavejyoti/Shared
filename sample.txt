@@ -1,9 +1,8 @@
- // ✅ Shift cross-sheet references before deleting rows
-    if (typeof _shiftCrossSheetReference === "function") {
+ if (typeof _shiftCrossSheetReference === "function") {
         _shiftCrossSheetReference({
-            type: "deleteRow",
+            type: "deleteCol",
             sheetIndex: h.currentSheetIndex,
-            rowIndex: t,
-            rowCount: l - t + 1
+            colIndex: t,
+            colCount: l - t + 1
         });
     }
