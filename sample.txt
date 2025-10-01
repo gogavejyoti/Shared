@@ -12,21 +12,26 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
 
                 let formula = cell.f;
 
-                // Match any sheet name with spaces (unquoted) before !ColumnRow
-                formula = formula.replace(/([A-Za-z0-9_ ]+)!([A-Z]+)(\d+)/g, function (match, refSheetName, colLetter, rowNumber) {
-                    const refSheet = allSheets.find(sh => sh.name === refSheetName.trim());
+                // ✅ Match sheet names wrapped in single quotes + cell references
+                // Example: 'IND R1 Lanco'!D19
+                formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
+                    const refSheet = allSheets.find(sh => sh.name === sheetName);
                     if (!refSheet) return match;
 
                     let refRow = parseInt(rowNumber, 10);
                     let refCol = _columnLetterToIndex(colLetter);
 
+                    // Handle row shifts
                     if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
                         refRow += rowCount;
                     } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex && refRow <= rowIndex + rowCount) {
                         refRow = rowIndex;
                     } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex + rowCount) {
                         refRow -= rowCount;
-                    } else if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
+                    }
+
+                    // Handle column shifts
+                    if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
                         refCol += colCount;
                     } else if (type === "deleteCol" && refSheet.index === sheetIndex && refCol >= colIndex && refCol < colIndex + colCount) {
                         refCol = colIndex;
@@ -34,7 +39,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                         refCol -= colCount;
                     }
 
-                    return `${refSheetName}!${_columnIndexToLetter(refCol)}${refRow}`;
+                    return `'${sheetName}'!${_columnIndexToLetter(refCol)}${refRow}`;
                 });
 
                 cell.f = formula;
@@ -42,6 +47,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         }
     }
 
+    // Helper: convert column letter (e.g. 'D') to index (0-based)
     function _columnLetterToIndex(col) {
         let index = 0;
         for (let i = 0; i < col.length; i++) {
@@ -50,6 +56,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         return index - 1;
     }
 
+    // Helper: convert index (0-based) to column letter
     function _columnIndexToLetter(index) {
         let col = "";
         index += 1;
