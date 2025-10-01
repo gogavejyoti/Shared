@@ -1,7 +1,7 @@
-// ✅ Shift cross-sheet references before moving cells left
+ // ✅ Shift cross-sheet references before moving cells up
     if (typeof _shiftCrossSheetReference === "function") {
         _shiftCrossSheetReference({
-            type: "moveLeft",
+            type: "moveUp",
             sheetIndex: h.currentSheetIndex,
             rowStart: t,
             rowEnd: l,
