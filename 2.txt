@@ -2,7 +2,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (o) return;
     const s = this;
 
-    // Initialize global helpers once
+    // Initialize helpers
     if (a == null) a = h.flowdata;
     if (!window.luckysheet_compareWith) {
         window.luckysheet_compareWith = ja;
@@ -20,14 +20,14 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
     if (l == null) l = h.currentSheetIndex;
 
-    // If explicit value provided, store it
+    // Store explicit value if provided
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // Fetch all function group cells and sheets info
+    // Get all function group cells and sheet info
     const allFuncCells = s.getAllFunctionGroup() || [];
     const sheetsInfo = Ft() || [];
     const sheetMap = {};
@@ -47,7 +47,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     const nodes = {};
     const rangeToKeysCache = {};
 
-    // Helper: get keys inside a rectangular range
+    // Helper: get keys in a rectangular range
     function keysForRange(R) {
         const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
         if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
@@ -62,7 +62,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         return list;
     }
 
-    // Build nodes with dynamic reference adjustment
+    // Build nodes
     for (let i = 0; i < allFuncCells.length; i++) {
         const T = allFuncCells[i];
         const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
@@ -70,14 +70,13 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         if (!R) continue;
 
         const upper = R.toUpperCase();
-        const needsIsFunctionRange = upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1;
+        const needsFunctionRange = upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1;
         const formulaRanges = [];
 
-        if (needsIsFunctionRange) {
+        if (needsFunctionRange) {
             this.isFunctionRange(R, null, null, T.index, null, function (ref) {
-                // Dynamically shift references for INDIRECT/OFFSET/INDEX
-                const shiftedRef = s.shiftFormulaReference(ref, T.index);
-                const rg = s.getcellrange($.trim(shiftedRef), T.index);
+                // Re-parse references dynamically (reflects inserted/deleted rows/columns)
+                const rg = s.getcellrange($.trim(ref), T.index);
                 if (rg) formulaRanges.push(rg);
             });
         } else if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
@@ -87,8 +86,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
                 if (!tk) continue;
                 if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
 
-                // Automatically shift formula references before parsing ranges
-                tk = s.shiftFormulaReference(tk, T.index);
+                // Always parse ranges dynamically for current sheet state
                 const rg = s.getcellrange($.trim(tk), T.index);
                 if (rg) formulaRanges.push(rg);
             }
