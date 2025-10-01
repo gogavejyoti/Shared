@@ -1,9 +1,8 @@
- // 🔹 Adjust cross-sheet references after insertion
-    if (typeof _shiftCrossSheetReference === "function") {
+if (typeof _shiftCrossSheetReference === "function") {
         _shiftCrossSheetReference({
-            type: "insertRow",
+            type: "insertCol",
             sheetIndex: h.currentSheetIndex,
-            rowIndex: n,   // inserting above this row
-            rowCount: 1
+            colIndex: n,   // inserting before this column
+            colCount: 1
         });
     }
