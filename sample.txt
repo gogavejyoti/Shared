@@ -1,5 +1,4 @@
 function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
-    // Iterate through all sheets
     const allSheets = Ft() || [];
 
     for (let s = 0; s < allSheets.length; s++) {
@@ -13,10 +12,9 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
 
                 let formula = cell.f;
 
-                // Regex to find references like Sheet2!A1 or 'Sheet 2'!A1
-                formula = formula.replace(/(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)/g, function (match, quotedSheet, plainSheet, colLetter, rowNumber) {
-                    const refSheetName = quotedSheet || plainSheet;
-                    const refSheet = allSheets.find(sh => sh.name === refSheetName);
+                // Match any sheet name with spaces (unquoted) before !ColumnRow
+                formula = formula.replace(/([A-Za-z0-9_ ]+)!([A-Z]+)(\d+)/g, function (match, refSheetName, colLetter, rowNumber) {
+                    const refSheet = allSheets.find(sh => sh.name === refSheetName.trim());
                     if (!refSheet) return match;
 
                     let refRow = parseInt(rowNumber, 10);
@@ -25,13 +23,13 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
                         refRow += rowCount;
                     } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex && refRow <= rowIndex + rowCount) {
-                        refRow = rowIndex; // point to first deleted row
+                        refRow = rowIndex;
                     } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex + rowCount) {
                         refRow -= rowCount;
                     } else if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
                         refCol += colCount;
                     } else if (type === "deleteCol" && refSheet.index === sheetIndex && refCol >= colIndex && refCol < colIndex + colCount) {
-                        refCol = colIndex; // point to first deleted column
+                        refCol = colIndex;
                     } else if (type === "deleteCol" && refSheet.index === sheetIndex && refCol >= colIndex + colCount) {
                         refCol -= colCount;
                     }
@@ -39,13 +37,11 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     return `${refSheetName}!${_columnIndexToLetter(refCol)}${refRow}`;
                 });
 
-                // Update formula
                 cell.f = formula;
             }
         }
     }
 
-    // Utility: convert column letter to zero-based index
     function _columnLetterToIndex(col) {
         let index = 0;
         for (let i = 0; i < col.length; i++) {
@@ -54,7 +50,6 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         return index - 1;
     }
 
-    // Utility: convert zero-based index to column letter
     function _columnIndexToLetter(index) {
         let col = "";
         index += 1;
