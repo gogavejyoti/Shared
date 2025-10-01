@@ -1,139 +1,147 @@
-execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    let s = this;
-    if (a == null) a = h.flowdata;
-
-    // Ensure global functions exist
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja;
-        window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr;
-        window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn;
-        window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c;
-        window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t;
-        window.luckysheet_getSpecialReference = Tc;
-    }
-
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-
-    let sheetData = Ft();
-    let dynamicArrayCompute = sheetData[K(h.currentSheetIndex)]?.dynamicArray_compute || {};
-
-    if (l == null) l = h.currentSheetIndex;
-
-    if (t != null) {
-        let tempData = [[{ v: null }]];
-        At(0, 0, tempData, t);
-        s.execFunctionGlobalData[`${e}_${n}_${l}`] = tempData[0][0];
-    }
-
-    let allFunctions = s.getAllFunctionGroup();
-    let vertexMap = {};
-    let execQueue = [];
-    let queueLen = 0;
-
-    s.execvertex = {};
-    let rangeSelectCache = {};
-
-    // Initialize functions
-    const initFunction = (funcObj) => {
-        funcObj.color = "w";
-        funcObj.parent = null;
-        funcObj.chidren = {};
-        funcObj.times = 0;
-    };
-
-    if (!s.execFunctionExist) {
-        for (let b of allFunctions) {
-            let w = sheetData[K(b.index)];
-            if (!w) continue;
-
-            let x = w.data[b.r][b.c];
-            let formulaKey = zl(b.r, b.c, b.index);
-
-            if (x?.f === formulaKey) {
-                if (!(b instanceof Object)) b = new Function("return " + b)();
-                initFunction(b);
-
-                vertexMap[`r${b.r}c${b.c}i${b.index}`] = b;
-                s.isFunctionRangeSave = false;
-
-                if (o) s.isFunctionRangeSave = true;
-                else if (e != null && n != null) {
-                    let cacheKey = `${b.r}_${b.c}_${b.index}`;
-                    if (!(cacheKey in rangeSelectCache)) {
-                        rangeSelectCache[cacheKey] = s.isFunctionRangeSelect(formulaKey, e, n, l, dynamicArrayCompute);
+    $("#luckysheet-top-left-add-selected").click(function (e) {
+                if (e.target.nodeName === "INPUT")
+                    return;
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q()
+                    , t = n.drag
+                    , l = n.info;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
+                    return
+                }
+                let a = $(this)
+                    , o = a.find("input").val();
+                if (!B(o)) {
+                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
+                    return
+                }
+                if (o = parseInt(o),
+                    o < 1 || o > 100) {
+                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
+                    return
+                }
+                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0];
+                !Je.createHookFunction("rowInsertBefore", s, o, "lefttop", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "lefttop")
+            }),
+            $("#luckysheetColsRowsHandleAdd_row").click(function (e) {
+                if ($("#luckysheet-rightclick-menu").hide(),
+                    rt(),
+                    h.allowEdit === !1)
+                    return;
+                let n = h.luckysheet_select_save[0].row[0];
+                !Je.createHookFunction("rowInsertBefore", n, 1, "lefttop", h.luckysheetRightHeadClickIs) || Sr("row", n, 1, "lefttop")
+            }),
+            $("#luckysheetColsRowsHandleAdd_column").click(function (e) {
+                if ($("#luckysheet-rightclick-menu").hide(),
+                    rt(),
+                    h.allowEdit === !1)
+                    return;
+                let n = h.luckysheet_select_save[0].column[0];
+                Sr("column", n, 1, "lefttop")
+            }),
+            $(".luckysheetColsRowsHandleAdd_custom").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide();
+                let n = me.cellRightClickConfig
+                    , t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].column[0];
+                if (n.customs[Number(e.currentTarget.dataset.index)])
+                    try {
+                        n.customs[Number(e.currentTarget.dataset.index)].onClick(e, event, {
+                            rowIndex: t,
+                            columnIndex: l
+                        })
+                    } catch (a) {
+                        console.error("custom click error", a)
                     }
-                    s.isFunctionRangeSave = rangeSelectCache[cacheKey];
+            }),
+            $("#luckysheet-bottom-right-add-selected").click(function (e) {
+                if (e.target.nodeName === "INPUT")
+                    return;
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q()
+                    , t = n.drag
+                    , l = n.info;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
+                    return
                 }
-
-                if (s.isFunctionRangeSave) {
-                    execQueue.push(b);
-                    s.execvertex[`r${b.r}c${b.c}i${b.index}`] = b;
-                    queueLen++;
+                let a = $(this)
+                    , o = a.find("input").val();
+                if (!B(o)) {
+                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
+                    return
                 }
-            }
-        }
-    } else {
-        for (let b of s.execFunctionExist) {
-            let key = `r${b.r}c${b.c}i${b.i}`;
-            if (key in vertexMap) continue;
-
-            for (let x of allFunctions) {
-                let formulaKey = zl(x.r, x.c, x.index);
-                initFunction(x);
-
-                vertexMap[`r${x.r}c${x.c}i${x.index}`] = x;
-                s.isFunctionRangeSave = o ? true : s.isFunctionRangeSelect(formulaKey, b.r, b.c, b.i, dynamicArrayCompute);
-
-                if (s.isFunctionRangeSave) {
-                    execQueue.push(x);
-                    s.execvertex[`r${x.r}c${x.c}i${x.index}`] = x;
-                    queueLen++;
+                if (o = parseInt(o),
+                    o < 1 || o > 100) {
+                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
+                    return
                 }
-            }
-        }
-    }
-
-    // BFS/DFS dependency resolution
-    for (let ptr = 0; ptr < execQueue.length; ptr++) {
-        let node = execQueue[ptr];
-        let childrenMap = {};
-        s.getChildrenVertex(node, vertexMap, childrenMap);
-
-        for (let w in vertexMap) {
-            let child = vertexMap[w];
-            if (!child) continue;
-            if (w in childrenMap) continue;
-
-            let formulaKey = zl(child.r, child.c, child.index);
-            s.isFunctionRangeSave = s.isFunctionRangeSelect(formulaKey, node.r, node.c, node.index, dynamicArrayCompute);
-
-            if (s.isFunctionRangeSave) {
-                if (!(w in s.execvertex)) {
-                    execQueue.push(child);
-                    s.execvertex[w] = child;
+                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][1];
+                !Je.createHookFunction("rowInsertBefore", s, o, "rightbottom", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "rightbottom")
+            }),
+            $("#luckysheet-del-selected, #luckysheet-del-selected_t").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
+                    return
                 }
-                s.execvertex[w].chidren[`r${node.r}c${node.c}i${node.index}`] = 1;
-                queueLen++;
-            }
-        }
-    }
-
-    s.groupValuesRefreshData = [];
-    let processed = 0;
-
-    while (processed < queueLen) {
-        for (let key in s.execvertex) {
-            let node = s.execvertex[key];
-            if (!node) continue;
-
-            if (node.color === "w") s.functionDFS(node);
-            else if (node.color === "b") processed++;
-        }
-    }
-
-    s.execFunctionExist = null;
-}
+                let t = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0]
+                    , l = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][1];
+                !Je.createHookFunction("rowDeleteBefore", t, l, h.luckysheetRightHeadClickIs) || On(h.luckysheetRightHeadClickIs, t, l)
+            }),
+            $("#luckysheet-delRows").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
+                    return
+                }
+                let t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].row[1];
+                !Je.createHookFunction("rowDeleteBefore", t, l, "row") || On("row", t, l)
+            }),
+            $("#luckysheet-delCols").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
+                    return
+                }
+                let t = h.luckysheet_select_save[0].column[0]
+                    , l = h.luckysheet_select_save[0].column[1];
+                On("column", t, l)
+            }),
+            $("#luckysheet-delCellsMoveLeft").click(function (e) {
+                $("body .luckysheet-cols-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(n.noMulti) : U.info(n.noMulti, "");
+                    return
+                }
+                let t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].row[1]
+                    , a = h.luckysheet_select_save[0].column[0]
+                    , o = h.luckysheet_select_save[0].column[1];
+                oa("moveLeft", t, l, a, o)
+            }),
+            $("#luckysheet-delCellsMoveUp").click(function (e) {
+                $("body .luckysheet-cols-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(n.noMulti) : U.info(n.noMulti, "");
+                    return
+                }
+                let t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].row[1]
+                    , a = h.luckysheet_select_save[0].column[0]
+                    , o = h.luckysheet_select_save[0].column[1];
+                oa("moveUp", t, l, a, o)
+            }),
