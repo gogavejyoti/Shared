@@ -1,277 +1,297 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Neumorphic D3 Hexbin World Map - Selected Countries with Region Filter</title>
+         changeSheet: function (e, n, t, l) {
+                if (de())
+                    return;
+                let a = this;
+                if (e == h.currentSheetIndex)
+                    return;
+                ne.allowUpdate && ($("#luckysheet-cell-main #luckysheet-multipleRange-show").empty(),
+                    ne.multipleIndex = 0);
+                let o = h.luckysheetfile[a.getSheetIndex(e)];
+                if (t && Je.createHookFunction("sheetCreateAfter", {
+                    sheet: o
+                }),
+                    l && Je.createHookFunction("sheetCopyAfter", {
+                        sheet: o
+                    }),
+                    Je.createHookFunction("sheetActivate", e, n, t),
+                    $("#luckysheet-filter-selected-sheet" + h.currentSheetIndex + ", #luckysheet-filter-options-sheet" + h.currentSheetIndex).hide(),
+                    $("#luckysheet-filter-selected-sheet" + e + ", #luckysheet-filter-options-sheet" + e).show(),
+                    window.luckysheetCurrentIndex = e,
+                    a.storeSheetParamALL(),
+                    a.setCurSheet(e),
+                    o.isPivotTable ? (h.luckysheetcurrentisPivotTable = !0,
+                        n || Be.changePivotTable(e)) : (h.luckysheetcurrentisPivotTable = !1,
+                            $("#luckysheet-modal-dialog-slider-pivot").hide(),
+                            $t(!1),
+                            this.refreshAllPivotTable(h.currentSheetIndex)),
+                    o.load != null) {
+                    let u = a.buildGridData(o);
+                    o.data = u,
+                        a.mergeCalculation(e),
+                        a.setSheetParam(!0),
+                        a.showSheet(),
+                        setTimeout(function () {
+                            p.execFunctionGroupForce(!0),
+                                He(),
+                                ne.saveParam("shs", null, h.currentSheetIndex)
+                        }, 1)
+                } else {
+                    let u = ne.loadSheetUrl;
+                    if (u == "" || h.luckysheetcurrentisPivotTable || !!t) {
+                        let d = a.buildGridData(o);
+                        o.data = d,
+                            o.load = "1",
+                            a.mergeCalculation(e),
+                            a.setSheetParam(),
+                            a.showSheet(),
+                            setTimeout(function () {
+                                a.restoreCache(),
+                                    p.execFunctionGroupForce(me.forceCalculation),
+                                    a.restoreSheetAll(h.currentSheetIndex),
+                                    He()
+                            }, 1),
+                            ne.saveParam("shs", null, h.currentSheetIndex)
+                    } else {
+                        $("#luckysheet-grid-window-1").append(Fr());
+                        let d = a.checkLoadSheetIndex(o);
+                        $.post(u, {
+                            gridKey: ne.gridKey,
+                            index: d.join(",")
+                        }, function (f) {
+                            let m = new Function("return " + f)();
+                            o.celldata = m[e.toString()];
+                            let g = a.buildGridData(o);
+                            setTimeout(function () {
+                                h.loadingObj.close()
+                            }, 500);
+                            for (let y in m) {
+                                if (y == e)
+                                    continue;
+                                let v = h.luckysheetfile[a.getSheetIndex(y)];
+                                (v.load == null || v.load == "0") && (v.celldata = m[y.toString()],
+                                    v.data = a.buildGridData(v),
+                                    v.load = "1")
+                            }
+                            o.data = g,
+                                o.load = "1",
+                                a.mergeCalculation(e),
+                                a.setSheetParam(),
+                                a.showSheet(),
+                                setTimeout(function () {
+                                    a.restoreCache(),
+                                        p.execFunctionGroupForce(me.forceCalculation),
+                                        a.restoreSheetAll(h.currentSheetIndex),
+                                        He()
+                                }, 1),
+                                ne.saveParam("shs", null, h.currentSheetIndex)
+                        })
+                    }
+                }
+                $("#luckysheet-cell-main .luckysheet-datavisual-selection-set").hide(),
+                    $("#luckysheet-datavisual-selection-set-" + e).show(),
+                    p.hideButton(),
+                    Ic(e),
+                    W.initialFreezen(e),
+                    a.restoreselect(),
+                    rc(o)
+            },
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://d3js.org/topojson.v3.min.js"></script>
-<script src="https://unpkg.com/d3-hexbin@0.2.2"></script>
 
-<style>
-body {
-    font-family: 'Inter', sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #e6e9f2;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-}
-#controls {
-    margin: 20px 0;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-/* MODIFIED STYLES FOR ENHANCED HOVER EFFECT */
-.region-btn {
-    padding: 10px 20px;
-    border-radius: 12px;
-    border: none;
-    background-color: #EEF1FA;
-    /* Base Neumorphic shadow (outset) */
-    box-shadow: -4px -4px 8px #fff, 4px 4px 8px rgba(174,174,192,0.4);
-    cursor: pointer;
-    font-weight: bold;
-    /* Increased transition time for a smoother effect */
-    transition: all 0.3s ease;
-    color: #444; /* Added a default text color for consistency */
-}
-/* Updated Hover Effect: Simulates a press/sink effect */
-.region-btn:hover {
-    /* Changes to inset shadow, making it look 'pressed' */
-    box-shadow: inset 2px 2px 5px rgba(174,174,192,0.6),
-                inset -2px -2px 5px #fff;
-    /* Optional: Slight color change on hover */
-    background-color: #e0e3eb;
-    transform: none; /* Keep size consistent with the 'pressed' look */
-}
-.region-btn.active {
-    background-color: #4a7fd6;
-    color: #fff;
-    /* Active state is already an inset/pressed look */
-    box-shadow: inset -2px -2px 5px #fff, inset 2px 2px 5px rgba(0,0,0,0.1);
-    pointer-events: none; /* Prevent clicking/hovering on the active button */
-}
-/* END MODIFIED STYLES */
 
-#vis {
-    width: 95%;
-    max-width: 1200px;
-    position: relative;
-}
-.map-wrapper {
-    position: relative;
-}
-.map-wrapper svg {
-    display: block;
-    margin: auto;
-    border-radius: 12px;
-    background-color: #EEF1FA;
-    box-shadow: -7px -7px 20px 0px #ffffff, 7px 7px 20px 0px rgba(174,174,192,0.4);
-    padding: 30px;
-}
-.land-hexagon {
-    stroke: #E0E0E7;
-    stroke-width: 0.5px;
-    opacity: 1;
-}
-.data-point {
-    cursor: pointer;
-    transition: r 0.1s ease, opacity 0.2s;
-    opacity: 0.3;
-}
-.point-blue { fill: #4a7fd6; }
-.point-red { fill: #e75454; }
-.point-orange { fill: #ffb74d; }
-.data-point.active { opacity: 1; r:6; }
-.data-point:hover { filter: drop-shadow(0 0 4px rgba(0,0,0,0.4)); }
+            execFunctionGroupForce: function (e) {
+                e ? this.execFunctionGroup(void 0, void 0, void 0, void 0, void 0, !0) : this.execFunctionGroup()
+            },
 
-.tooltip {
-    position: absolute;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s;
-    z-index: 1000;
-}
-.country-label-text {
-    font-size: 13px;
-    font-weight: bold;
-    fill: #444;
-    opacity: 0.6;
-}
-.country-label-text.active { opacity: 1; }
-</style>
-</head>
-<body>
+            execFunctionGroup: function (e, n, t, l, a, o = !1) {
+              
+                const s = this;
 
-<div id="controls"></div>
-<div id="vis">
-    <div class="map-wrapper"></div>
-    <div id="tooltip" class="tooltip"></div>
-</div>
+                // initialize dependencies once (same as original)
+                if (a == null) a = h.flowdata;
 
-<script>
-$(document).ready(function() {
+                if (!window.luckysheet_compareWith) {
+                    window.luckysheet_compareWith = ja;
+                    window.luckysheet_getarraydata = wc;
+                    window.luckysheet_getcelldata = nr;
+                    window.luckysheet_parseData = Ua;
+                    window.luckysheet_getValue = qn;
+                    window.luckysheet_indirect_check = xc;
+                    window.luckysheet_indirect_check_return = _c;
+                    window.luckysheet_offset_check = Cc;
+                    window.luckysheet_calcADPMM = _t;
+                    window.luckysheet_getSpecialReference = Tc;
+                }
 
-  // Selected countries with coordinates, colors, and regions
-  const selectedCountries = [
-    { name: "India", lon: 77.2, lat: 20.5, color: "blue", region:"Asia" },
-    { name: "Philippines", lon: 121.0, lat: 12.9, color: "orange", region:"Asia" },
-    { name: "Colombia", lon: -74.3, lat: 4.6, color: "red", region:"Americas" },
-    { name: "Jamaica", lon: -77.3, lat: 18.1, color: "orange", region:"Americas" },
-    { name: "USA", lon: -98.5, lat: 39.8, color: "blue", region:"Americas" },
-    { name: "Canada", lon: -106.3, lat: 56.1, color: "blue", region:"Americas" },
-    { name: "Egypt", lon: 30.8, lat: 26.8, color: "red", region:"Africa" },
-    { name: "Bulgaria", lon: 25.5, lat: 42.7, color: "orange", region:"Europe" },
-    { name: "Malaysia", lon: 102.2, lat: 4.2, color: "orange", region:"Asia" },
-    { name: "Kosovo", lon: 20.9, lat: 42.6, color: "red", region:"Europe" },
-    { name: "China", lon: 104.2, lat: 35.8, color: "blue", region:"Asia" },
-    { name: "Mexico", lon: -102.5, lat: 23.6, color: "orange", region:"Americas" }
-  ];
+                if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+                if (l == null) l = h.currentSheetIndex;
 
-  // Regions for filter buttons
-  const regions = ["All","Asia","Europe","Americas","Africa"];
+                // If an explicit value is provided, store it (same behavior)
+                if (t != null) {
+                    const tmp = [[{ v: null }]];
+                    At(0, 0, tmp, t);
+                    s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+                }
 
-  // Add region buttons
-  regions.forEach(r => {
-    const btn = $(`<button class="region-btn">${r}</button>`);
-    $("#controls").append(btn);
-    btn.on("click", function(){
-        $(".region-btn").removeClass("active");
-        $(this).addClass("active");
-        filterRegion(r);
-    });
-  });
-  $(".region-btn:first").addClass("active");
+                // Fetch all function group cells and sheet info
+                const allFuncCells = s.getAllFunctionGroup() || [];
+                const sheetsInfo = Ft() || [];
+                const sheetMap = {};
+                for (let i = 0; i < sheetsInfo.length; i++) sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
 
-  // Draw map
-  const mapChart = hexmap(selectedCountries);
-  d3.select('.map-wrapper').call(mapChart);
+                // Build execSet (existing function execution set) - identical semantics
+                const execSet = {};
+                if (s.execFunctionExist == null) {
+                    execSet["r" + e + "c" + n + "i" + l] = 1;
+                } else {
+                    for (let i = 0; i < s.execFunctionExist.length; i++) {
+                        const T = s.execFunctionExist[i];
+                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+                    }
+                }
 
-  // Filter function
-  function filterRegion(region){
-    d3.selectAll(".data-point").classed("active", d=> region=="All" ? true : d.region==region);
-    d3.selectAll(".country-label-text").classed("active", d=> region=="All" ? true : d.region==region);
-  }
+                // nodes: key -> node object
+                const nodes = {};
+                // per-call cache: range rectangle -> list of cell keys (to avoid re-creating lists)
+                const rangeToKeysCache = {};
 
-  filterRegion("All"); // Show all by default
-});
+                // helper to get keys inside a rectangular range (safe per-call cache)
+                function keysForRange(R) {
+                    const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+                    if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+                    const list = [];
+                    for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
+                        for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                            const k = "r" + rr + "c" + cc + "i" + R.sheetIndex;
+                            list.push({ key: k, r: rr, c: cc, sheetIndex: R.sheetIndex });
+                        }
+                    }
+                    rangeToKeysCache[cacheKey] = list;
+                    return list;
+                }
 
-// Hexbin Map Function
-function hexmap(data) {
-  const opts = { width: 960, height: 500 };
-  const hexbin = d3.hexbin().extent([[0,0],[opts.width,opts.height]]).radius(5);
-  const color = d3.scaleLinear().domain([1,255]).range(['#fff','#f5f5f5']);
-  const projection = d3.geoMercator().scale(200).translate([opts.width/2, opts.height/1.5]);
+                // Build nodes by scanning formulas and collecting referenced ranges
+                for (let i = 0; i < allFuncCells.length; i++) {
+                    const T = allFuncCells[i];
+                    const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+                    const R = zl(T.r, T.c, T.index); // original formula retrieval
+                    if (!R) continue;
 
-  function exports(_selection) {
-    const svg = _selection.append('svg').attr('width', opts.width).attr('height', opts.height);
-    const path = d3.geoPath().projection(projection);
-    const dataUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json';
+                    const upper = R.toUpperCase();
+                    const needsIsFunctionRange = upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1;
+                    const formulaRanges = [];
 
-    d3.json(dataUrl).then(world => {
-      const land = topojson.feature(world, world.objects.countries);
+                    if (needsIsFunctionRange) {
+                        // preserve original behavior for INDIRECT/OFFSET/INDEX
+                        this.isFunctionRange(R, null, null, T.index, null, function (ref) {
+                            const rg = s.getcellrange($.trim(ref), T.index);
+                            if (rg) formulaRanges.push(rg);
+                        });
+                    } else if (!(R.substr(0, 2) == '="' && R.substr(R.length - 1, 1) == '"')) {
+                        // faster tokenization compared to many regex / splits in original:
+                        // split by common operators/parens to extract candidate tokens
+                        const tokens = R.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
+                        for (let ti = 0; ti < tokens.length; ti++) {
+                            const tk = tokens[ti].trim();
+                            if (!tk) continue;
+                            // skip tiny tokens unless they are detected as cell-data pattern
+                            if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+                            const rg = s.getcellrange($.trim(tk), T.index);
+                            if (rg) formulaRanges.push(rg);
+                        }
+                    }
 
-      // Draw hex-land background using canvas
-      const canvas = document.createElement('canvas');
-      canvas.width = opts.width; canvas.height = opts.height;
-      const context = canvas.getContext('2d');
-      const canvasPath = d3.geoPath().projection(projection).context(context);
-      context.fillStyle = '#111'; context.beginPath(); canvasPath(land); context.fill();
-      const image = context.getImageData(0,0,opts.width, opts.height);
+                    nodes[nodeKey] = {
+                        formulaArray: formulaRanges,
+                        calc_funcStr: R,
+                        key: nodeKey,
+                        r: T.r,
+                        c: T.c,
+                        index: T.index,
+                        parents: {},
+                        chidren: {},
+                        color: "w"
+                    };
+                }
 
-      const points = [];
-      for (let i=0,n=opts.width*opts.height*4,d=image.data;i<n;i+=4){
-        if(d[i]>0) points.push([i/4%opts.width, Math.floor(i/4/opts.width), d[i]]);
-      }
-      const hexagons = hexbin(points); hexagons.forEach(d=>d.mean=d3.mean(d,p=>p[2]));
+                // Build dependency graph (children/parents) and initial worklist y (same semantics)
+                const y = [];
+                const nodeKeys = Object.keys(nodes);
+                for (let i = 0; i < nodeKeys.length; i++) {
+                    const node = nodes[nodeKeys[i]];
+                    const ranges = node.formulaArray || [];
+                    for (let ri = 0; ri < ranges.length; ri++) {
+                        const rect = ranges[ri];
+                        const keys = keysForRange(rect);
+                        for (let ki = 0; ki < keys.length; ki++) {
+                            const cellInfo = keys[ki];
+                            const A = cellInfo.key;
+                            if (A in nodes) {
+                                node.chidren[A] = 1;
+                                nodes[A].parents[node.key] = 1;
+                            }
+                            if (!o && (A in execSet)) y.push(node);
+                        }
+                    }
+                    if (o) y.push(node);
+                }
 
-      svg.append('g').attr('class','hexagons')
-        .selectAll('path').data(hexagons).enter()
-        .append('path').attr('d', hexbin.hexagon(4.5))
-        .attr('transform', d=>`translate(${d.x},${d.y})`)
-        .attr('class','land-hexagon')
-        .style('fill', d=>color(d.mean));
+                // Topological-like traversal using stack to preserve original push/pop semantics
+                const S = {}; // seen map
+                const stack = y.slice(); // copy
+                const ordered = [];
 
-      // Data dots
-      const dotLayer = svg.append("g").attr("class","data-layer")
-        .selectAll("circle").data(data).enter()
-        .append("circle")
-        .attr("cx", d=>projection([d.lon,d.lat])[0])
-        .attr("cy", d=>projection([d.lon,d.lat])[1])
-        .attr("r",5)
-        .attr("class", d=>`data-point point-${d.color}`)
-        .on("mouseover", (event,d)=>{
-          d3.select("#tooltip")
-            .html(`<strong>${d.name}</strong>`)
-            .style("left",(event.pageX+10)+"px")
-            .style("top",(event.pageY-20)+"px")
-            .style("opacity",1);
-        }).on("mouseout", ()=>d3.select("#tooltip").style("opacity",0));
+                while (stack.length > 0) {
+                    const cur = stack.pop();
+                    if (!cur || S[cur.key]) continue;
 
-      // Labels with collision detection
-      const labelLayer = svg.append("g").attr("class","label-layer");
-      const placedLabels = [];
-      function isOverlapping(a,b){
-        return !(a.x+a.width < b.x || a.x > b.x+b.width || a.y+a.height < b.y || a.y > b.y+b.height);
-      }
+                    if (cur.color === "b") {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                        continue;
+                    }
 
-      data.forEach(d=>{
-        const coords = projection([d.lon,d.lat]);
-        if(!coords) return;
-        let labelX = coords[0], labelY = (d.name ==='Bulgaria' ? coords[1]-20 :  d.name=='Colombia' ? coords[1]+5 : coords[1]-5);
-        const textWidth = d.name.length*7;
-        const labelWidth = textWidth, labelHeight = 22;
-        const tryOffsets = [
-          {x:0,y:-25},{x:25,y:-10},{x:-25,y:-10},
-          {x:0,y:25},{x:35,y:15},{x:-35,y:15}
-        ];
-        let chosen = null;
-        for(const offset of tryOffsets){
-          const candidate = {x:labelX+offset.x-labelWidth/2, y:labelY+offset.y-labelHeight/2, width:labelWidth, height:labelHeight};
-          const overlap = placedLabels.some(existing=>isOverlapping(candidate, existing));
-          if(!overlap){ chosen=offset; placedLabels.push(candidate); break; }
-        }
-        if(!chosen) chosen={x:0,y:-25};
-        const finalX = labelX+chosen.x, finalY=labelY+chosen.y;
+                    const parentKeys = Object.keys(cur.parents || {});
+                    const parentNodes = [];
+                    for (let pi = 0; pi < parentKeys.length; pi++) {
+                        const pk = parentKeys[pi];
+                        if (nodes[pk]) parentNodes.push(nodes[pk]);
+                    }
 
-        // Connector line
-        labelLayer.append("line")
-          .attr("x1", coords[0]).attr("y1", coords[1])
-          .attr("x2", finalX).attr("y2", finalY-10)
-          .attr("stroke","#c4c7d0").attr("stroke-width",1).attr("opacity",0.7);
+                    if (parentNodes.length === 0) {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                    } else {
+                        cur.color = "b";
+                        stack.push(cur);
+                        for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
+                    }
+                }
 
-        // Label background
-        labelLayer.append("rect")
-          .attr("x", finalX-labelWidth/2).attr("y", finalY-labelHeight)
-          .attr("rx",10).attr("ry",10)
-          .attr("width",labelWidth).attr("height",labelHeight)
-          .attr("fill","#e6e9f2").attr("stroke","none");
+                // Preserve original x.reverse() behavior: reverse ordered list
+                ordered.reverse();
 
-        // Label text
-        labelLayer.append("text")
-          .attr("x", finalX).attr("y", finalY-5)
-          .attr("text-anchor","middle")
-          .attr("class","country-label-text")
-          .attr("data-region", d.region) // Added for potential debugging
-          .text(d.name);
-      });
+                // Evaluate nodes using execfunction (preserve side effects)
+                for (let i = 0; i < ordered.length; i++) {
+                    const T = ordered[i];
+                    window.luckysheet_getcelldata_cache = null; // original cleared cache before each eval
 
-    }).catch(err=>console.error("Map load error:",err));
-  }
+                    const A = T.calc_funcStr;
+                    const Rres = s.execfunction(A, T.r, T.c, T.index);
 
-  return exports;
-}
-</script>
+                    s.groupValuesRefreshData.push({
+                        r: T.r,
+                        c: T.c,
+                        v: Rres[1],
+                        f: Rres[2],
+                        spe: Rres[3],
+                        index: T.index
+                    });
 
-</body>
-</html>
+                    s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
+                        v: Rres[1],
+                        f: Rres[2]
+                    };
+                }
+
+                s.execFunctionExist = null;
+            },
