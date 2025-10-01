@@ -1,19 +1,27 @@
- // ✅ cross-sheet reference shift support
-            if (typeof _shiftCrossSheetReference === "function") {
-                let customAction = n.customs[Number(e.currentTarget.dataset.index)];
-                if (customAction.type === "insertRow") {
-                    _shiftCrossSheetReference({
-                        type: "insertRow",
-                        sheetIndex: h.currentSheetIndex,
-                        rowIndex: t,
-                        rowCount: customAction.count || 1
-                    });
-                } else if (customAction.type === "insertCol") {
-                    _shiftCrossSheetReference({
-                        type: "insertCol",
-                        sheetIndex: h.currentSheetIndex,
-                        colIndex: l,
-                        colCount: customAction.count || 1
-                    });
+           $("#luckysheet-bottom-right-add-selected").click(function (e) {
+                if (e.target.nodeName === "INPUT")
+                    return;
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q()
+                    , t = n.drag
+                    , l = n.info;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
+                    return
                 }
-            }
+                let a = $(this)
+                    , o = a.find("input").val();
+                if (!B(o)) {
+                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
+                    return
+                }
+                if (o = parseInt(o),
+                    o < 1 || o > 100) {
+                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
+                    return
+                }
+                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][1];
+                trackSheetChange(h.luckysheetRightHeadClickIs, "insertRow", s, o);
+                !Je.createHookFunction("rowInsertBefore", s, o, "rightbottom", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "rightbottom")
+            }),
