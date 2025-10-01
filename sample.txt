@@ -1,27 +1,10 @@
-           $("#luckysheet-bottom-right-add-selected").click(function (e) {
-                if (e.target.nodeName === "INPUT")
-                    return;
-                $("#luckysheet-rightclick-menu").hide(),
-                    rt();
-                let n = Q()
-                    , t = n.drag
-                    , l = n.info;
-                if (h.luckysheet_select_save.length > 1) {
-                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
-                    return
-                }
-                let a = $(this)
-                    , o = a.find("input").val();
-                if (!B(o)) {
-                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
-                    return
-                }
-                if (o = parseInt(o),
-                    o < 1 || o > 100) {
-                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
-                    return
-                }
-                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][1];
-                trackSheetChange(h.luckysheetRightHeadClickIs, "insertRow", s, o);
-                !Je.createHookFunction("rowInsertBefore", s, o, "rightbottom", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "rightbottom")
-            }),
+  if (typeof _shiftCrossSheetReference === "function") {
+        _shiftCrossSheetReference({
+            type: h.luckysheetRightHeadClickIs === "row" ? "insertRow" : "insertCol",
+            sheetIndex: h.currentSheetIndex,
+            rowIndex: h.luckysheetRightHeadClickIs === "row" ? s : undefined,
+            colIndex: h.luckysheetRightHeadClickIs === "column" ? s : undefined,
+            rowCount: h.luckysheetRightHeadClickIs === "row" ? o : undefined,
+            colCount: h.luckysheetRightHeadClickIs === "column" ? o : undefined
+        });
+    }
