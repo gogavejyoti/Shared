@@ -1,10 +1,64 @@
-  if (typeof _shiftCrossSheetReference === "function") {
-        _shiftCrossSheetReference({
-            type: h.luckysheetRightHeadClickIs === "row" ? "insertRow" : "insertCol",
-            sheetIndex: h.currentSheetIndex,
-            rowIndex: h.luckysheetRightHeadClickIs === "row" ? s : undefined,
-            colIndex: h.luckysheetRightHeadClickIs === "column" ? s : undefined,
-            rowCount: h.luckysheetRightHeadClickIs === "row" ? o : undefined,
-            colCount: h.luckysheetRightHeadClickIs === "column" ? o : undefined
-        });
-    }
+$("#luckysheet-del-selected, #luckysheet-del-selected_t").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
+                    return
+                }
+                let t = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0]
+                    , l = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][1];
+                !Je.createHookFunction("rowDeleteBefore", t, l, h.luckysheetRightHeadClickIs) || On(h.luckysheetRightHeadClickIs, t, l)
+            }),
+            $("#luckysheet-delRows").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
+                    return
+                }
+                let t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].row[1];
+                !Je.createHookFunction("rowDeleteBefore", t, l, "row") || On("row", t, l)
+            }),
+            $("#luckysheet-delCols").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
+                    return
+                }
+                let t = h.luckysheet_select_save[0].column[0]
+                    , l = h.luckysheet_select_save[0].column[1];
+                On("column", t, l)
+            }),
+            $("#luckysheet-delCellsMoveLeft").click(function (e) {
+                $("body .luckysheet-cols-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(n.noMulti) : U.info(n.noMulti, "");
+                    return
+                }
+                let t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].row[1]
+                    , a = h.luckysheet_select_save[0].column[0]
+                    , o = h.luckysheet_select_save[0].column[1];
+                oa("moveLeft", t, l, a, o)
+            }),
+            $("#luckysheet-delCellsMoveUp").click(function (e) {
+                $("body .luckysheet-cols-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(n.noMulti) : U.info(n.noMulti, "");
+                    return
+                }
+                let t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].row[1]
+                    , a = h.luckysheet_select_save[0].column[0]
+                    , o = h.luckysheet_select_save[0].column[1];
+                oa("moveUp", t, l, a, o)
+            }),
