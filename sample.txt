@@ -1,8 +1,11 @@
- if (typeof _shiftCrossSheetReference === "function") {
+// ✅ Shift cross-sheet references before moving cells left
+    if (typeof _shiftCrossSheetReference === "function") {
         _shiftCrossSheetReference({
-            type: "deleteCol",
+            type: "moveLeft",
             sheetIndex: h.currentSheetIndex,
-            colIndex: t,
-            colCount: l - t + 1
+            rowStart: t,
+            rowEnd: l,
+            colStart: a,
+            colEnd: o
         });
     }
