@@ -1,8 +1,19 @@
-if (typeof _shiftCrossSheetReference === "function") {
-        _shiftCrossSheetReference({
-            type: "insertCol",
-            sheetIndex: h.currentSheetIndex,
-            colIndex: n,   // inserting before this column
-            colCount: 1
-        });
-    }
+ // ✅ cross-sheet reference shift support
+            if (typeof _shiftCrossSheetReference === "function") {
+                let customAction = n.customs[Number(e.currentTarget.dataset.index)];
+                if (customAction.type === "insertRow") {
+                    _shiftCrossSheetReference({
+                        type: "insertRow",
+                        sheetIndex: h.currentSheetIndex,
+                        rowIndex: t,
+                        rowCount: customAction.count || 1
+                    });
+                } else if (customAction.type === "insertCol") {
+                    _shiftCrossSheetReference({
+                        type: "insertCol",
+                        sheetIndex: h.currentSheetIndex,
+                        colIndex: l,
+                        colCount: customAction.count || 1
+                    });
+                }
+            }
