@@ -1,16 +1,9 @@
-// ✅ Shift cross-sheet references before deleting
-    if (typeof _shiftCrossSheetReference === "function" && h.luckysheetRightHeadClickIs === "row") {
+ // ✅ Shift cross-sheet references before deleting rows
+    if (typeof _shiftCrossSheetReference === "function") {
         _shiftCrossSheetReference({
             type: "deleteRow",
             sheetIndex: h.currentSheetIndex,
             rowIndex: t,
             rowCount: l - t + 1
-        });
-    } else if (typeof _shiftCrossSheetReference === "function" && h.luckysheetRightHeadClickIs === "column") {
-        _shiftCrossSheetReference({
-            type: "deleteColumn",
-            sheetIndex: h.currentSheetIndex,
-            colIndex: t,
-            colCount: l - t + 1
         });
     }
