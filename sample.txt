@@ -1,21 +1,29 @@
-// Convert 0-based column index → A/B/C
-getColLetter: function (col) {
-    let s = "";
-    col += 1;
-    while (col > 0) {
-        const m = (col - 1) % 26;
-        s = String.fromCharCode(65 + m) + s;
-        col = Math.floor((col - 1) / 26);
-    }
-    return s;
-},
+_shiftCrossSheetReference: function (formulaStr, currentSheetIndex) {
+    const s = this;
+    if (!formulaStr) return formulaStr;
 
-// Convert A/B/C → 0-based index
-getColIndex: function (colStr) {
-    let col = 0;
-    const str = colStr.replace(/\$/g, "").toUpperCase();
-    for (let i = 0; i < str.length; i++) {
-        col = col * 26 + (str.charCodeAt(i) - 64);
-    }
-    return col - 1;
+    const cellRefRegex = /((?:'[^']+'|[A-Za-z0-9_]+)!)?(\$?[A-Z]{1,3})(\$?\d+)/g;
+
+    return formulaStr.replace(cellRefRegex, function (match, sheetPart, colPart, rowPart) {
+        let sheetIndex = currentSheetIndex;
+
+        if (sheetPart) {
+            const sheetName = sheetPart.replace(/'/g, "").replace("!", "");
+            const foundSheet = h.luckysheetfile.find(sh => sh.name === sheetName);
+            if (foundSheet) sheetIndex = foundSheet.index;
+        }
+
+        const shiftData = h.sheetChanges && h.sheetChanges[sheetIndex];
+        if (!shiftData) return match;
+
+        let row = parseInt(rowPart.replace(/\$/, ""));
+        let col = s.getColIndex(colPart);
+
+        if (shiftData.insertedRows) shiftData.insertedRows.forEach(ins => { if (row >= ins) row += 1; });
+        if (shiftData.deletedRows) shiftData.deletedRows.forEach(del => { if (row >= del) row -= 1; });
+        if (shiftData.insertedCols) shiftData.insertedCols.forEach(ins => { if (col >= ins) col += 1; });
+        if (shiftData.deletedCols) shiftData.deletedCols.forEach(del => { if (col >= del) col -= 1; });
+
+        return (sheetPart || "") + s.getColLetter(col) + row;
+    });
 },
