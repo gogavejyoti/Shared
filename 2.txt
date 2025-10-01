@@ -1,37 +1,24 @@
-_shiftCrossSheetReference: function (formulaStr, currentSheetIndex) {
-    const regex = /([^\!\s]+)!\$?([A-Z]+)\$?(\d+)/g;
-    let match;
-    let updatedFormula = formulaStr;
+// Initialize change tracker
+h.sheetChanges = {}; // key = sheetIndex, value = { insertedRows: [], deletedRows: [], insertedCols: [], deletedCols: [] }
 
-    while ((match = regex.exec(formulaStr)) !== null) {
-        const sheetName = match[1];
-        const col = match[2];
-        let row = parseInt(match[3], 10);
-
-        const targetSheet = Ft().find(s => s.name === sheetName);
-        if (!targetSheet) continue;
-
-        const changes = h.sheetChanges[targetSheet.index];
-        if (changes) {
-            // Adjust row for inserted rows
-            if (changes.insertedRows) {
-                changes.insertedRows.forEach(r => {
-                    if (row >= r.start) row += r.count;
-                });
-            }
-            // Adjust row for deleted rows
-            if (changes.deletedRows) {
-                changes.deletedRows.forEach(r => {
-                    if (row >= r.start && row <= r.end) row = r.start; // move to start of deleted range
-                    else if (row > r.end) row -= (r.end - r.start + 1);
-                });
-            }
-            // TODO: similar logic for columns
-        }
-
-        const newRef = `${sheetName}!${col}${row}`;
-        updatedFormula = updatedFormula.replace(match[0], newRef);
+// Function to record sheet changes
+function trackSheetChange(sheetIndex, type, start, endOrCount) {
+    if (!h.sheetChanges[sheetIndex]) {
+        h.sheetChanges[sheetIndex] = { insertedRows: [], deletedRows: [], insertedCols: [], deletedCols: [] };
     }
 
-    return updatedFormula;
+    switch (type) {
+        case "insertRow":
+            h.sheetChanges[sheetIndex].insertedRows.push({ start: start, count: endOrCount });
+            break;
+        case "deleteRow":
+            h.sheetChanges[sheetIndex].deletedRows.push({ start: start, end: endOrCount });
+            break;
+        case "insertCol":
+            h.sheetChanges[sheetIndex].insertedCols.push({ start: start, count: endOrCount });
+            break;
+        case "deleteCol":
+            h.sheetChanges[sheetIndex].deletedCols.push({ start: start, end: endOrCount });
+            break;
+    }
 }
