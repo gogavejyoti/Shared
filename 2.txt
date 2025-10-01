@@ -1,147 +1,37 @@
-    $("#luckysheet-top-left-add-selected").click(function (e) {
-                if (e.target.nodeName === "INPUT")
-                    return;
-                $("#luckysheet-rightclick-menu").hide(),
-                    rt();
-                let n = Q()
-                    , t = n.drag
-                    , l = n.info;
-                if (h.luckysheet_select_save.length > 1) {
-                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
-                    return
-                }
-                let a = $(this)
-                    , o = a.find("input").val();
-                if (!B(o)) {
-                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
-                    return
-                }
-                if (o = parseInt(o),
-                    o < 1 || o > 100) {
-                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
-                    return
-                }
-                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0];
-                !Je.createHookFunction("rowInsertBefore", s, o, "lefttop", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "lefttop")
-            }),
-            $("#luckysheetColsRowsHandleAdd_row").click(function (e) {
-                if ($("#luckysheet-rightclick-menu").hide(),
-                    rt(),
-                    h.allowEdit === !1)
-                    return;
-                let n = h.luckysheet_select_save[0].row[0];
-                !Je.createHookFunction("rowInsertBefore", n, 1, "lefttop", h.luckysheetRightHeadClickIs) || Sr("row", n, 1, "lefttop")
-            }),
-            $("#luckysheetColsRowsHandleAdd_column").click(function (e) {
-                if ($("#luckysheet-rightclick-menu").hide(),
-                    rt(),
-                    h.allowEdit === !1)
-                    return;
-                let n = h.luckysheet_select_save[0].column[0];
-                Sr("column", n, 1, "lefttop")
-            }),
-            $(".luckysheetColsRowsHandleAdd_custom").click(function (e) {
-                $("#luckysheet-rightclick-menu").hide();
-                let n = me.cellRightClickConfig
-                    , t = h.luckysheet_select_save[0].row[0]
-                    , l = h.luckysheet_select_save[0].column[0];
-                if (n.customs[Number(e.currentTarget.dataset.index)])
-                    try {
-                        n.customs[Number(e.currentTarget.dataset.index)].onClick(e, event, {
-                            rowIndex: t,
-                            columnIndex: l
-                        })
-                    } catch (a) {
-                        console.error("custom click error", a)
-                    }
-            }),
-            $("#luckysheet-bottom-right-add-selected").click(function (e) {
-                if (e.target.nodeName === "INPUT")
-                    return;
-                $("#luckysheet-rightclick-menu").hide(),
-                    rt();
-                let n = Q()
-                    , t = n.drag
-                    , l = n.info;
-                if (h.luckysheet_select_save.length > 1) {
-                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
-                    return
-                }
-                let a = $(this)
-                    , o = a.find("input").val();
-                if (!B(o)) {
-                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
-                    return
-                }
-                if (o = parseInt(o),
-                    o < 1 || o > 100) {
-                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
-                    return
-                }
-                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][1];
-                !Je.createHookFunction("rowInsertBefore", s, o, "rightbottom", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "rightbottom")
-            }),
-            $("#luckysheet-del-selected, #luckysheet-del-selected_t").click(function (e) {
-                $("#luckysheet-rightclick-menu").hide(),
-                    rt();
-                let n = Q().drag;
-                if (h.luckysheet_select_save.length > 1) {
-                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
-                    return
-                }
-                let t = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0]
-                    , l = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][1];
-                !Je.createHookFunction("rowDeleteBefore", t, l, h.luckysheetRightHeadClickIs) || On(h.luckysheetRightHeadClickIs, t, l)
-            }),
-            $("#luckysheet-delRows").click(function (e) {
-                $("#luckysheet-rightclick-menu").hide(),
-                    rt();
-                let n = Q().drag;
-                if (h.luckysheet_select_save.length > 1) {
-                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
-                    return
-                }
-                let t = h.luckysheet_select_save[0].row[0]
-                    , l = h.luckysheet_select_save[0].row[1];
-                !Je.createHookFunction("rowDeleteBefore", t, l, "row") || On("row", t, l)
-            }),
-            $("#luckysheet-delCols").click(function (e) {
-                $("#luckysheet-rightclick-menu").hide(),
-                    rt();
-                let n = Q().drag;
-                if (h.luckysheet_select_save.length > 1) {
-                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
-                    return
-                }
-                let t = h.luckysheet_select_save[0].column[0]
-                    , l = h.luckysheet_select_save[0].column[1];
-                On("column", t, l)
-            }),
-            $("#luckysheet-delCellsMoveLeft").click(function (e) {
-                $("body .luckysheet-cols-menu").hide(),
-                    rt();
-                let n = Q().drag;
-                if (h.luckysheet_select_save.length > 1) {
-                    de() ? alert(n.noMulti) : U.info(n.noMulti, "");
-                    return
-                }
-                let t = h.luckysheet_select_save[0].row[0]
-                    , l = h.luckysheet_select_save[0].row[1]
-                    , a = h.luckysheet_select_save[0].column[0]
-                    , o = h.luckysheet_select_save[0].column[1];
-                oa("moveLeft", t, l, a, o)
-            }),
-            $("#luckysheet-delCellsMoveUp").click(function (e) {
-                $("body .luckysheet-cols-menu").hide(),
-                    rt();
-                let n = Q().drag;
-                if (h.luckysheet_select_save.length > 1) {
-                    de() ? alert(n.noMulti) : U.info(n.noMulti, "");
-                    return
-                }
-                let t = h.luckysheet_select_save[0].row[0]
-                    , l = h.luckysheet_select_save[0].row[1]
-                    , a = h.luckysheet_select_save[0].column[0]
-                    , o = h.luckysheet_select_save[0].column[1];
-                oa("moveUp", t, l, a, o)
-            }),
+_shiftCrossSheetReference: function (formulaStr, currentSheetIndex) {
+    const regex = /([^\!\s]+)!\$?([A-Z]+)\$?(\d+)/g;
+    let match;
+    let updatedFormula = formulaStr;
+
+    while ((match = regex.exec(formulaStr)) !== null) {
+        const sheetName = match[1];
+        const col = match[2];
+        let row = parseInt(match[3], 10);
+
+        const targetSheet = Ft().find(s => s.name === sheetName);
+        if (!targetSheet) continue;
+
+        const changes = h.sheetChanges[targetSheet.index];
+        if (changes) {
+            // Adjust row for inserted rows
+            if (changes.insertedRows) {
+                changes.insertedRows.forEach(r => {
+                    if (row >= r.start) row += r.count;
+                });
+            }
+            // Adjust row for deleted rows
+            if (changes.deletedRows) {
+                changes.deletedRows.forEach(r => {
+                    if (row >= r.start && row <= r.end) row = r.start; // move to start of deleted range
+                    else if (row > r.end) row -= (r.end - r.start + 1);
+                });
+            }
+            // TODO: similar logic for columns
+        }
+
+        const newRef = `${sheetName}!${col}${row}`;
+        updatedFormula = updatedFormula.replace(match[0], newRef);
+    }
+
+    return updatedFormula;
+}
