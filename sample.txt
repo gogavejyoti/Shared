@@ -34,7 +34,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         };
     }
 
-    // 1️⃣ First pass: shift references for insert/delete
+    // 1️⃣ Shift references for insert/delete
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
         const data = sheet.data;
@@ -53,13 +53,11 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     if (!refSheet) return match;
 
                     let isRange = refPart.includes(':');
-                    let refs = [];
 
                     if (isRange) {
                         const range = _parseRange(refPart);
                         if (!range) return match;
 
-                        // Shift start/end rows/cols
                         let sr = range.startRow, er = range.endRow;
                         let sc = range.startCol, ec = range.endCol;
                         let rowDeleted = false, colDeleted = false;
@@ -115,8 +113,8 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         }
     }
 
-    // 2️⃣ Build dependency graph
-    const dependencies = new Map(); // key: sheetIndex_r_c, value: Set of keys it depends on
+    // 2️⃣ Build dependency graph for recursive #REF! propagation
+    const dependencies = new Map();
 
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
@@ -167,9 +165,6 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         }
     }
 
-    // 4️⃣ Trigger recalculation if needed
-    if (sheetChanged) {
-        if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
-        else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
-    }
+    // 4️⃣ ✅ No recalculation trigger here
+    // Updates happen in-place and can be safely run at load
 }
