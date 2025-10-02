@@ -2,123 +2,6 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
     const allSheets = Ft() || [];
     let sheetChanged = false;
 
-    // 1️⃣ First pass: adjust references for row/col insert/delete
-    for (let s = 0; s < allSheets.length; s++) {
-        const sheet = allSheets[s];
-        const data = sheet.data;
-
-        for (let r = 0; r < data.length; r++) {
-            for (let c = 0; c < data[r].length; c++) {
-                const cell = data[r][c];
-                if (!cell || !cell.f) continue;
-
-                let originalFormula = cell.f;
-                let modifiedFormula = originalFormula;
-                let errorDetected = false;
-
-                modifiedFormula = modifiedFormula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
-                    const refSheet = allSheets.find(sh => sh.name === sheetName);
-                    if (!refSheet) return match;
-
-                    let refRow = parseInt(rowNumber, 10);
-                    let refCol = _columnLetterToIndex(colLetter);
-                    let colDeleted = false;
-                    let rowDeleted = false;
-
-                    // Row shifts
-                    if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
-                        refRow += rowCount;
-                    } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
-                        if (refRow > rowIndex && refRow <= rowIndex + rowCount) {
-                            rowDeleted = true;
-                            errorDetected = true;
-                        } else if (refRow > rowIndex + rowCount) {
-                            refRow -= rowCount;
-                        }
-                    }
-
-                    // Column shifts
-                    if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
-                        refCol += colCount;
-                    } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
-                        if (refCol >= colIndex && refCol < colIndex + colCount) {
-                            colDeleted = true;
-                            errorDetected = true;
-                        } else if (refCol >= colIndex + colCount) {
-                            refCol -= colCount;
-                        }
-                    }
-
-                    const colPart = colDeleted ? "#REF!" : _columnIndexToLetter(refCol);
-                    const rowPart = rowDeleted ? "#REF!" : refRow;
-                    return `'${sheetName}'!${colPart}${rowPart}`;
-                });
-
-                if (modifiedFormula !== originalFormula) {
-                    cell.f = modifiedFormula;
-                    sheetChanged = true;
-
-                    // Only mark #REF! for deletions
-                    if (errorDetected && (type === "deleteRow" || type === "deleteCol")) {
-                        cell.v = "#REF!";
-                        cell.ct = { fa: "General", t: "e" };
-                    }
-                }
-            }
-        }
-    }
-
-    // 2️⃣ Recursive propagation of #REF! across dependent formulas
-    let refChanged = true;
-    while (refChanged) {
-        refChanged = false;
-
-        for (let s = 0; s < allSheets.length; s++) {
-            const sheet = allSheets[s];
-            const data = sheet.data;
-
-            for (let r = 0; r < data.length; r++) {
-                for (let c = 0; c < data[r].length; c++) {
-                    const cell = data[r][c];
-                    if (!cell || !cell.f) continue;
-                    if (cell.v === "#REF!") continue;
-
-                    let formula = cell.f;
-                    let shouldRef = false;
-
-                    formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
-                        const refSheet = allSheets.find(sh => sh.name === sheetName);
-                        if (!refSheet) return;
-
-                        const refRow = parseInt(rowNumber, 10) - 1;
-                        const refCol = _columnLetterToIndex(colLetter);
-
-                        const refCell = refSheet.data[refRow]?.[refCol];
-                        if (refCell && refCell.v === "#REF!") {
-                            shouldRef = true;
-                        }
-                    });
-
-                    if (shouldRef) {
-                        cell.v = "#REF!";
-                        cell.ct = { fa: "General", t: "e" };
-                        refChanged = true;
-                        sheetChanged = true;
-                    }
-                }
-            }
-        }
-    }
-
-    // 3️⃣ Trigger recalculation if any sheet changed
-    if (sheetChanged) {
-        if (typeof jf !== "undefined" && jf.refresh) {
-            jf.refresh();
-        } else if (typeof luckysheetrefreshgrid === "function") {
-            luckysheetrefreshgrid();
-        }
-    }
-
     // Utility functions
     function _columnLetterToIndex(col) {
         let index = 0;
@@ -137,5 +20,156 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
             index = Math.floor((index - 1) / 26);
         }
         return col;
+    }
+
+    function _parseRange(ref) {
+        // e.g., A1:B5 -> { startRow, endRow, startCol, endCol }
+        const m = ref.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+        if (!m) return null;
+        return {
+            startCol: _columnLetterToIndex(m[1]),
+            startRow: parseInt(m[2], 10) - 1,
+            endCol: _columnLetterToIndex(m[3]),
+            endRow: parseInt(m[4], 10) - 1
+        };
+    }
+
+    // 1️⃣ First pass: shift references for insert/delete
+    for (let s = 0; s < allSheets.length; s++) {
+        const sheet = allSheets[s];
+        const data = sheet.data;
+
+        for (let r = 0; r < data.length; r++) {
+            for (let c = 0; c < data[r].length; c++) {
+                const cell = data[r][c];
+                if (!cell || !cell.f) continue;
+
+                let originalFormula = cell.f;
+                let modifiedFormula = originalFormula;
+                let errorDetected = false;
+
+                modifiedFormula = modifiedFormula.replace(/'([^']+)'!([A-Z]+\d+(:[A-Z]+\d+)?)/g, function(match, sheetName, refPart) {
+                    const refSheet = allSheets.find(sh => sh.name === sheetName);
+                    if (!refSheet) return match;
+
+                    let isRange = refPart.includes(':');
+                    let refs = [];
+
+                    if (isRange) {
+                        const range = _parseRange(refPart);
+                        if (!range) return match;
+
+                        // Shift start/end rows/cols
+                        let sr = range.startRow, er = range.endRow;
+                        let sc = range.startCol, ec = range.endCol;
+                        let rowDeleted = false, colDeleted = false;
+
+                        if (type === "insertRow" && refSheet.index === sheetIndex && sr >= rowIndex) sr += rowCount, er += rowCount;
+                        else if (type === "deleteRow" && refSheet.index === sheetIndex) {
+                            if (er >= rowIndex && sr <= rowIndex + rowCount - 1) rowDeleted = true;
+                            else if (sr > rowIndex + rowCount - 1) sr -= rowCount, er -= rowCount;
+                        }
+
+                        if (type === "insertCol" && refSheet.index === sheetIndex && sc >= colIndex) sc += colCount, ec += colCount;
+                        else if (type === "deleteCol" && refSheet.index === sheetIndex) {
+                            if (ec >= colIndex && sc <= colIndex + colCount - 1) colDeleted = true;
+                            else if (sc > colIndex + colCount - 1) sc -= colCount, ec -= colCount;
+                        }
+
+                        if (rowDeleted || colDeleted) { errorDetected = true; return `'${sheetName}'!#REF!`; }
+
+                        return `'${sheetName}'!${_columnIndexToLetter(sc)}${sr+1}:${_columnIndexToLetter(ec)}${er+1}`;
+                    } else {
+                        // Single cell
+                        let refRow = parseInt(refPart.match(/[0-9]+/)[0], 10);
+                        let refCol = _columnLetterToIndex(refPart.match(/[A-Z]+/)[0]);
+                        let rowDeleted = false, colDeleted = false;
+
+                        if (type === "insertRow" && refSheet.index === sheetIndex && refRow > rowIndex) refRow += rowCount;
+                        else if (type === "deleteRow" && refSheet.index === sheetIndex) {
+                            if (refRow > rowIndex && refRow <= rowIndex + rowCount) rowDeleted = true, errorDetected = true;
+                            else if (refRow > rowIndex + rowCount) refRow -= rowCount;
+                        }
+
+                        if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) refCol += colCount;
+                        else if (type === "deleteCol" && refSheet.index === sheetIndex) {
+                            if (refCol >= colIndex && refCol < colIndex + colCount) colDeleted = true, errorDetected = true;
+                            else if (refCol >= colIndex + colCount) refCol -= colCount;
+                        }
+
+                        const colPart = colDeleted ? "#REF!" : _columnIndexToLetter(refCol);
+                        const rowPart = rowDeleted ? "#REF!" : refRow;
+                        return `'${sheetName}'!${colPart}${rowPart}`;
+                    }
+                });
+
+                if (modifiedFormula !== originalFormula) {
+                    cell.f = modifiedFormula;
+                    sheetChanged = true;
+                    if (errorDetected && (type === "deleteRow" || type === "deleteCol")) {
+                        cell.v = "#REF!";
+                        cell.ct = { fa: "General", t: "e" };
+                    }
+                }
+            }
+        }
+    }
+
+    // 2️⃣ Build dependency graph
+    const dependencies = new Map(); // key: sheetIndex_r_c, value: Set of keys it depends on
+
+    for (let s = 0; s < allSheets.length; s++) {
+        const sheet = allSheets[s];
+        const data = sheet.data;
+
+        for (let r = 0; r < data.length; r++) {
+            for (let c = 0; c < data[r].length; c++) {
+                const cell = data[r][c];
+                if (!cell || !cell.f) continue;
+
+                const key = `${s}_${r}_${c}`;
+                const deps = new Set();
+
+                cell.f.replace(/'([^']+)'!([A-Z]+\d+)/g, (match, sheetName, refPart) => {
+                    const refSheet = allSheets.find(sh => sh.name === sheetName);
+                    if (!refSheet) return;
+                    const refRow = parseInt(refPart.match(/[0-9]+/)[0], 10) - 1;
+                    const refCol = _columnLetterToIndex(refPart.match(/[A-Z]+/)[0]);
+                    deps.add(`${refSheet.index}_${refRow}_${refCol}`);
+                });
+
+                if (deps.size > 0) dependencies.set(key, deps);
+            }
+        }
+    }
+
+    // 3️⃣ Topological propagation of #REF!
+    let changed = true;
+    while (changed) {
+        changed = false;
+
+        for (const [key, deps] of dependencies) {
+            const [s, r, c] = key.split('_').map(Number);
+            const cell = allSheets[s].data[r][c];
+            if (!cell || cell.v === "#REF!") continue;
+
+            for (const depKey of deps) {
+                const [ds, dr, dc] = depKey.split('_').map(Number);
+                const depCell = allSheets[ds].data[dr]?.[dc];
+                if (depCell && depCell.v === "#REF!") {
+                    cell.v = "#REF!";
+                    cell.ct = { fa: "General", t: "e" };
+                    changed = true;
+                    sheetChanged = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 4️⃣ Trigger recalculation if needed
+    if (sheetChanged) {
+        if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
+        else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
     }
 }
