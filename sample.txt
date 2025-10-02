@@ -1,5 +1,6 @@
 function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
     const allSheets = Ft() || [];
+    let sheetChanged = false;
 
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
@@ -10,10 +11,11 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                 const cell = data[r][c];
                 if (!cell || !cell.f) continue;
 
-                let formula = cell.f;
+                let originalFormula = cell.f;
+                let modifiedFormula = originalFormula;
+                let errorDetected = false;
 
-                // Match 'SheetName'!A1 style references
-                formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
+                modifiedFormula = modifiedFormula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
                     const refSheet = allSheets.find(sh => sh.name === sheetName);
                     if (!refSheet) return match;
 
@@ -22,41 +24,59 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     let colDeleted = false;
                     let rowDeleted = false;
 
-                    // ✅ Row shift logic
+                    // ✅ Row shifts
                     if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
                         refRow += rowCount;
                     } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
                         if (refRow > rowIndex && refRow <= rowIndex + rowCount) {
-                            rowDeleted = true; // mark deleted
+                            rowDeleted = true;
+                            errorDetected = true;
                         } else if (refRow > rowIndex + rowCount) {
                             refRow -= rowCount;
                         }
                     }
 
-                    // ✅ Column shift logic
+                    // ✅ Column shifts
                     if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
                         refCol += colCount;
                     } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
                         if (refCol >= colIndex && refCol < colIndex + colCount) {
-                            colDeleted = true; // mark deleted
+                            colDeleted = true;
+                            errorDetected = true;
                         } else if (refCol >= colIndex + colCount) {
                             refCol -= colCount;
                         }
                     }
 
-                    // Build final reference
                     let colPart = colDeleted ? "#REF!" : _columnIndexToLetter(refCol);
                     let rowPart = rowDeleted ? "#REF!" : refRow;
-
                     return `'${sheetName}'!${colPart}${rowPart}`;
                 });
 
-                cell.f = formula;
+                if (modifiedFormula !== originalFormula) {
+                    cell.f = modifiedFormula;
+                    sheetChanged = true;
+
+                    // If the formula now contains REF, set cell value to #REF! to show it immediately
+                    if (errorDetected) {
+                        cell.v = "#REF!";
+                        cell.ct = { fa: "General", t: "e" }; // mark as error type
+                    }
+                }
             }
         }
     }
 
-    // Utility: convert column letter to zero-based index
+    if (sheetChanged) {
+        // Trigger LuckySheet's recalculation engine
+        if (typeof jf !== "undefined" && jf.refresh) {
+            jf.refresh();  // full workbook recalc
+        } else if (typeof luckysheetrefreshgrid === "function") {
+            luckysheetrefreshgrid();
+        }
+    }
+
+    // Utility functions
     function _columnLetterToIndex(col) {
         let index = 0;
         for (let i = 0; i < col.length; i++) {
@@ -65,7 +85,6 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         return index - 1;
     }
 
-    // Utility: convert zero-based index to column letter
     function _columnIndexToLetter(index) {
         let col = "";
         index += 1;
