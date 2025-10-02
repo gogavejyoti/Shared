@@ -2,83 +2,201 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
     const allSheets = Ft() || [];
     let sheetChanged = false;
 
+    // Helper to convert column letter (A..Z, AA..) to 0-based index
+    function _colLetterToIndex(col) {
+        let idx = 0;
+        for (let i = 0; i < col.length; i++) idx = idx * 26 + (col.charCodeAt(i) - 64);
+        return idx - 1;
+    }
+
+    // Helper to convert 0-based index to column letters
+    function _colIndexToLetter(index) {
+        let s = "";
+        index += 1;
+        while (index > 0) {
+            let rem = (index - 1) % 26;
+            s = String.fromCharCode(65 + rem) + s;
+            index = Math.floor((index - 1) / 26);
+        }
+        return s;
+    }
+
+    // Normalize sheet lookup by name -> sheet object (fast map)
+    const sheetByName = {};
+    for (let i = 0; i < allSheets.length; i++) {
+        const sh = allSheets[i];
+        sheetByName[sh.name] = sh;
+    }
+
+    // Patterns:
+    // 1) Range references: 'Sheet Name'!$A$1:$C$3  or Sheet!A1:C3
+    const rangeRegex = /(?:(?:'([^']+)')|([A-Za-z0-9_]+))!(\$?[A-Z]{1,3})(\$?\d+)\s*:\s*(\$?[A-Z]{1,3})(\$?\d+)/g;
+    // 2) Single-cell references: 'Sheet Name'!$A$1  or Sheet!A1
+    const singleRegex = /(?:(?:'([^']+)')|([A-Za-z0-9_]+))!(\$?[A-Z]{1,3})(\$?\d+)/g;
+
+    // Iterate all sheets/cells and update their formula strings
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
-        const data = sheet.data;
-
+        const data = sheet.data || [];
         for (let r = 0; r < data.length; r++) {
-            for (let c = 0; c < data[r].length; c++) {
-                const cell = data[r][c];
-                if (!cell || !cell.f) continue;
+            const row = data[r] || [];
+            for (let c = 0; c < row.length; c++) {
+                const cell = row[c];
+                if (!cell || !cell.f || typeof cell.f !== "string") continue;
 
-                let originalFormula = cell.f;
                 let formula = cell.f;
+                let origFormula = formula;
+                let localChange = false;
 
-                formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
-                    const refSheet = allSheets.find(sh => sh.name === sheetName);
+                // First handle ranges (so we don't double-process their endpoints)
+                formula = formula.replace(rangeRegex, function (match, quotedName, unquotedName, col1, row1, col2, row2) {
+                    const sheetName = quotedName || unquotedName;
+                    const refSheet = sheetByName[sheetName];
                     if (!refSheet) return match;
 
-                    let refRow = parseInt(rowNumber, 10);
-                    let refCol = _columnLetterToIndex(colLetter);
+                    // parse parts, keep $ if present
+                    const absCol1 = col1.startsWith("$");
+                    const absRow1 = row1.startsWith("$");
+                    const absCol2 = col2.startsWith("$");
+                    const absRow2 = row2.startsWith("$");
+                    let c1 = _colLetterToIndex(col1.replace(/\$/g, ""));
+                    let r1 = parseInt(row1.replace(/\$/g, ""), 10);
+                    let c2 = _colLetterToIndex(col2.replace(/\$/g, ""));
+                    let r2 = parseInt(row2.replace(/\$/g, ""), 10);
 
-                    // ✅ Handle row shifts
-                    if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
-                        refRow += rowCount;
-                    } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex && refRow <= rowIndex + rowCount) {
-                        return `#REF!`; // break reference
-                    } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex + rowCount) {
-                        refRow -= rowCount;
+                    let colDeleted = false, rowDeleted = false;
+
+                    // Apply row shifts/deletes to both endpoints
+                    if (type === "insertRow" && refSheet.index === sheetIndex) {
+                        if (r1 >= rowIndex + 1) r1 += rowCount;
+                        if (r2 >= rowIndex + 1) r2 += rowCount;
+                    } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
+                        // if any cell in the range is deleted, mark rowDeleted (range becomes invalid)
+                        if ((r1 > rowIndex && r1 <= rowIndex + rowCount) || (r2 > rowIndex && r2 <= rowIndex + rowCount)) {
+                            rowDeleted = true;
+                        } else {
+                            if (r1 > rowIndex + rowCount) r1 -= rowCount;
+                            if (r2 > rowIndex + rowCount) r2 -= rowCount;
+                        }
                     }
 
-                    // ✅ Handle column shifts
-                    if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
-                        refCol += colCount;
-                    } else if (type === "deleteCol" && refSheet.index === sheetIndex && refCol >= colIndex && refCol < colIndex + colCount) {
-                        return `#REF!`;
-                    } else if (type === "deleteCol" && refSheet.index === sheetIndex && refCol >= colIndex + colCount) {
-                        refCol -= colCount;
+                    // Apply column shifts/deletes to both endpoints
+                    if (type === "insertCol" && refSheet.index === sheetIndex) {
+                        if (c1 >= colIndex) c1 += colCount;
+                        if (c2 >= colIndex) c2 += colCount;
+                    } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
+                        if ((c1 >= colIndex && c1 < colIndex + colCount) || (c2 >= colIndex && c2 < colIndex + colCount)) {
+                            colDeleted = true;
+                        } else {
+                            if (c1 >= colIndex + colCount) c1 -= colCount;
+                            if (c2 >= colIndex + colCount) c2 -= colCount;
+                        }
                     }
 
-                    return `'${sheetName}'!${_columnIndexToLetter(refCol)}${refRow}`;
+                    localChange = localChange || rowDeleted || colDeleted;
+                    sheetChanged = sheetChanged || localChange;
+
+                    // If either endpoint's row/col deleted -> make range invalid: use #REF! in the appropriate position(s)
+                    const outCol1 = colDeleted ? "#REF!" : (absCol1 ? "$" + _colIndexToLetter(c1) : _colIndexToLetter(c1));
+                    const outRow1 = rowDeleted ? "#REF!" : (absRow1 ? "$" + r1 : r1);
+                    const outCol2 = colDeleted ? "#REF!" : (absCol2 ? "$" + _colIndexToLetter(c2) : _colIndexToLetter(c2));
+                    const outRow2 = rowDeleted ? "#REF!" : (absRow2 ? "$" + r2 : r2);
+
+                    // If either endpoint contains #REF!, return sheet!'#REF!#REF!:#REF!#REF! — Excel often simplifies ranges with #REF! (exact formatting can vary)
+                    return `'${sheetName}'!${outCol1}${outRow1}:${outCol2}${outRow2}`;
                 });
 
-                if (formula !== originalFormula) {
+                // Then handle single-cell references
+                formula = formula.replace(singleRegex, function (match, quotedName, unquotedName, colPart, rowPart) {
+                    const sheetName = quotedName || unquotedName;
+                    const refSheet = sheetByName[sheetName];
+                    if (!refSheet) return match;
+
+                    const absCol = colPart.startsWith("$");
+                    const absRow = rowPart.startsWith("$");
+                    let refCol = _colLetterToIndex(colPart.replace(/\$/g, ""));
+                    let refRow = parseInt(rowPart.replace(/\$/g, ""), 10);
+
+                    let colDeleted = false, rowDeleted = false;
+
+                    // Row logic
+                    if (type === "insertRow" && refSheet.index === sheetIndex) {
+                        if (refRow >= rowIndex + 1) refRow += rowCount;
+                    } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
+                        if (refRow > rowIndex && refRow <= rowIndex + rowCount) {
+                            rowDeleted = true;
+                        } else if (refRow > rowIndex + rowCount) {
+                            refRow -= rowCount;
+                        }
+                    }
+
+                    // Col logic
+                    if (type === "insertCol" && refSheet.index === sheetIndex) {
+                        if (refCol >= colIndex) refCol += colCount;
+                    } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
+                        if (refCol >= colIndex && refCol < colIndex + colCount) {
+                            colDeleted = true;
+                        } else if (refCol >= colIndex + colCount) {
+                            refCol -= colCount;
+                        }
+                    }
+
+                    localChange = localChange || rowDeleted || colDeleted;
+                    sheetChanged = sheetChanged || localChange;
+
+                    // Build replacement — if deleted, use #REF! for that part
+                    const colOut = colDeleted ? "#REF!" : (absCol ? "$" + _colIndexToLetter(refCol) : _colIndexToLetter(refCol));
+                    const rowOut = rowDeleted ? "#REF!" : (absRow ? "$" + refRow : refRow);
+
+                    return `'${sheetName}'!${colOut}${rowOut}`;
+                });
+
+                // If formula changed, update cell and mark it for recalculation
+                if (formula !== origFormula) {
+                    // replace formula text
                     cell.f = formula;
-                    sheetChanged = true;
+
+                    // clear cached value so engine will recalc it
+                    if ("v" in cell) cell.v = null;
+                    if ("m" in cell) delete cell.m; // remove displayed formatted value cache if present
+
+                    // mark cell type as general / error? don't force type — let engine evaluate
+                    // but optionally: if formula now includes "#REF!" we can immediately set an error value
+                    if (formula.indexOf("#REF!") !== -1) {
+                        // marking .v as null and forcing recalc below will make dependent formulas evaluate to error
+                        // but set a provisional value to ensure immediate UI shows something if engine didn't run:
+                        cell.v = "#REF!";
+                    }
+
+                    // mark sheet changed
+                    // (we already set sheetChanged/localChange flags)
                 }
             }
         }
     }
 
-    // Utility: convert column letter to zero-based index
-    function _columnLetterToIndex(col) {
-        let index = 0;
-        for (let i = 0; i < col.length; i++) {
-            index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-        }
-        return index - 1;
-    }
+    // Clear potential cached cell-data used by getcelldata helpers
+    try { window.luckysheet_getcelldata_cache = null; } catch (e) {}
 
-    // Utility: convert zero-based index to column letter
-    function _columnIndexToLetter(index) {
-        let col = "";
-        index += 1;
-        while (index > 0) {
-            let rem = (index - 1) % 26;
-            col = String.fromCharCode(65 + rem) + col;
-            index = Math.floor((index - 1) / 26);
-        }
-        return col;
-    }
-
-    // ✅ Force LuckySheet to recalc formulas
+    // Force recalculation/redraw. Try multiple fallbacks used in different builds.
     if (sheetChanged) {
-        if (typeof formula !== "undefined" && formula.execFunctionGroup) {
-            formula.execFunctionGroup(null, null, true);  // full workbook recalc
-        } else if (typeof jf !== "undefined" && jf.refresh) {
-            jf.refresh();  // fallback
-        } else if (typeof luckysheetrefreshgrid === "function") {
-            luckysheetrefreshgrid();
+        // Preferred: call formula engine if available (common variable names in LuckySheet builds)
+        try {
+            if (typeof p !== "undefined" && p && typeof p.execFunctionGroup === "function") {
+                p.execFunctionGroup(); // some builds accept empty args to trigger full recalc
+            } else if (typeof formula !== "undefined" && formula && typeof formula.execFunctionGroup === "function") {
+                formula.execFunctionGroup();
+            } else if (typeof jf !== "undefined" && jf && typeof jf.refresh === "function") {
+                jf.refresh();
+            } else if (typeof luckysheetrefreshgrid === "function") {
+                luckysheetrefreshgrid();
+            } else {
+                // as a last resort, attempt to trigger the main refresh function(s)
+                if (typeof luckysheet == "object" && typeof luckysheet.refresh == "function") luckysheet.refresh();
+            }
+        } catch (err) {
+            console.warn("_shiftCrossSheetReference: recalc failed fallback, err:", err);
+            try { if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid(); } catch (e) {}
         }
     }
 }
