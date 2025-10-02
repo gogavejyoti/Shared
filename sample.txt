@@ -1,26 +1,6 @@
 function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
     const allSheets = Ft() || [];
 
-    function _columnLetterToIndex(col) {
-        let index = 0;
-        for (let i = 0; i < col.length; i++) {
-            index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-        }
-        return index - 1;
-    }
-
-    function _columnIndexToLetter(index) {
-        let col = "";
-        index += 1;
-        while (index > 0) {
-            let rem = (index - 1) % 26;
-            col = String.fromCharCode(65 + rem) + col;
-            index = Math.floor((index - 1) / 26);
-        }
-        return col;
-    }
-
-    // First pass: shift all direct references
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
         const data = sheet.data;
@@ -32,91 +12,73 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
 
                 let formula = cell.f;
 
-                formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
+                // Replace normal references
+                formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function(match, sheetName, colLetter, rowNumber) {
                     const refSheet = allSheets.find(sh => sh.name === sheetName);
-                    if (!refSheet) return "#REF!"; // Sheet missing
+                    if (!refSheet) return match;
 
                     let refRow = parseInt(rowNumber, 10);
                     let refCol = _columnLetterToIndex(colLetter);
+                    let refDeleted = false;
 
-                    // Row shift
+                    // Handle row shifts
                     if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
                         refRow += rowCount;
                     } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
-                        if (refRow > rowIndex && refRow <= rowIndex + rowCount) return "#REF!";
-                        if (refRow > rowIndex + rowCount) refRow -= rowCount;
+                        if (refRow > rowIndex && refRow <= rowIndex + rowCount) {
+                            refDeleted = true;
+                        } else if (refRow > rowIndex + rowCount) {
+                            refRow -= rowCount;
+                        }
                     }
 
-                    // Column shift
+                    // Handle column shifts
                     if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
                         refCol += colCount;
                     } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
-                        if (refCol >= colIndex && refCol < colIndex + colCount) return "#REF!";
-                        if (refCol >= colIndex + colCount) refCol -= colCount;
+                        if (refCol >= colIndex && refCol < colIndex + colCount) {
+                            refDeleted = true;
+                        } else if (refCol >= colIndex + colCount) {
+                            refCol -= colCount;
+                        }
                     }
 
-                    return `'${sheetName}'!${_columnIndexToLetter(refCol)}${refRow}`;
+                    return refDeleted ? "#REF!" : `'${sheetName}'!${_columnIndexToLetter(refCol)}${refRow}`;
                 });
 
-                cell.f = formula;
-
-                // If formula contains #REF!, mark cell value as #REF!
+                // ✅ Check if any part of the formula contains #REF! after replacement
                 if (formula.includes("#REF!")) {
+                    cell.f = "#REF!";
                     cell.v = "#REF!";
                     cell.m = "#REF!";
                 } else {
-                    delete cell.v; // clear cached value
-                    delete cell.m;
+                    cell.f = formula;
                 }
             }
         }
     }
 
-    // Second pass: propagate #REF! to dependent formulas
-    function propagateRef() {
-        let changed = true;
-        while (changed) {
-            changed = false;
-
-            for (let s = 0; s < allSheets.length; s++) {
-                const sheet = allSheets[s];
-                const data = sheet.data;
-
-                for (let r = 0; r < data.length; r++) {
-                    for (let c = 0; c < data[r].length; c++) {
-                        const cell = data[r][c];
-                        if (!cell || !cell.f) continue;
-                        if (cell.v === "#REF!") continue; // already marked
-
-                        const matches = cell.f.match(/'([^']+)'!([A-Z]+)(\d+)/g) || [];
-                        for (let ref of matches) {
-                            const refParts = ref.match(/'([^']+)'!([A-Z]+)(\d+)/);
-                            if (!refParts) continue;
-
-                            const refSheetName = refParts[1];
-                            const refCol = _columnLetterToIndex(refParts[2]);
-                            const refRow = parseInt(refParts[3], 10);
-
-                            const refSheet = allSheets.find(sh => sh.name === refSheetName);
-                            if (!refSheet) continue;
-                            const refCell = refSheet.data[refRow - 1]?.[refCol];
-
-                            if (refCell?.v === "#REF!") {
-                                cell.v = "#REF!";
-                                cell.m = "#REF!";
-                                changed = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    propagateRef();
-
-    // Refresh UI and recalc
-    if (typeof p !== "undefined" && p?.execFunctionGroup) p.execFunctionGroup();
+    // Refresh sheet
     if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
+
+    // Utility: convert column letter to zero-based index
+    function _columnLetterToIndex(col) {
+        let index = 0;
+        for (let i = 0; i < col.length; i++) {
+            index = index * 26 + (col.charCodeAt(i) - 65 + 1);
+        }
+        return index - 1;
+    }
+
+    // Utility: convert zero-based index to column letter
+    function _columnIndexToLetter(index) {
+        let col = "";
+        index += 1;
+        while (index > 0) {
+            let rem = (index - 1) % 26;
+            col = String.fromCharCode(65 + rem) + col;
+            index = Math.floor((index - 1) / 26);
+        }
+        return col;
+    }
 }
