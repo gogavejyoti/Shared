@@ -1,48 +1,36 @@
-            $("#luckysheet-top-left-add-selected").click(function (e) {
-              
-                if (e.target.nodeName === "INPUT")
-                    return;
-                $("#luckysheet-rightclick-menu").hide(),
-                    rt();
-                let n = Q()
-                    , t = n.drag
-                    , l = n.info;
-                if (h.luckysheet_select_save.length > 1) {
-                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
-                    return
-                }
-                let a = $(this)
-                    , o = a.find("input").val();
-                if (!B(o)) {
-                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
-                    return
-                }
-                if (o = parseInt(o),
-                    o < 1 || o > 100) {
-                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
-                    return
-                }
+let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0];
 
-                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0];
+// CAPTURE CROSS-SHEET FORMULAS BEFORE INSERT
+let crossSheetRefs = [];
+if(typeof _shiftCrossSheetReference === "function"){
+    if(h.luckysheetRightHeadClickIs == "column"){
+        crossSheetRefs = captureCrossSheetRefs(
+            h.currentSheetIndex,
+            0,
+            h.flowdata.length - 1,
+            s,
+            s + o - 1
+        );
+    } else {
+        crossSheetRefs = captureCrossSheetRefs(
+            h.currentSheetIndex,
+            s,
+            s + o - 1,
+            0,
+            h.flowdata[0].length - 1
+        );
+    }
+}
 
-                !Je.createHookFunction("rowInsertBefore", s, o, "lefttop", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "lefttop")
-                if (typeof _shiftCrossSheetReference === "function") {
-                
-                    if (h.luckysheetRightHeadClickIs == "column"){
-                        _shiftCrossSheetReference({
-                            type: "insertCol",
-                            sheetIndex: h.currentSheetIndex,
-                            colIndex: s,
-                            colCount: o
-                        });
-                    }
-                    else{
-                _shiftCrossSheetReference({
-                        type: "insertRow",
-                        sheetIndex: h.currentSheetIndex,
-                        rowIndex: s,
-                        rowCount: o
-                    });
-                    }
-                }
-            }),
+// Call the original hook / insert
+!Je.createHookFunction("rowInsertBefore", s, o, "lefttop", h.luckysheetRightHeadClickIs) ||
+Sr(h.luckysheetRightHeadClickIs, s, o, "lefttop");
+
+// SHIFT CROSS-SHEET REFERENCES
+if(crossSheetRefs.length > 0){
+    _shiftCrossSheetReference({
+        type: h.luckysheetRightHeadClickIs == "column" ? "insertCol" : "insertRow",
+        sheetIndex: h.currentSheetIndex,
+        formulas: crossSheetRefs
+    });
+}
