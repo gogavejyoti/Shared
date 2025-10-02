@@ -1,41 +1,43 @@
-else if (n.type == "addRC") {
-    Bn(n.data, n.config, "delRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
+else if (e.type == "addRC") {
+    Bn(e.curData, e.curConfig, "addRC", e.ctrlValue, e.curCalc, e.curFilterObj, e.curCf, e.curAf, e.curFreezen, e.curDataVerification, e.curHyperlink);
 
+    // ✅ Shift cross-sheet references on undo
     if (typeof _shiftCrossSheetReference === "function") {
-        if (l.direction === "rightbottom") {
+        if (e.ctrlValue.direction === "rightbottom") {
             _shiftCrossSheetReference({
-                type: "deleteRow",
+                type: "deleteRow", // undo adding rows = delete
                 sheetIndex: h.currentSheetIndex,
-                rowIndex: l.index,
-                rowCount: l.count || 1
+                rowIndex: e.ctrlValue.index,
+                rowCount: e.ctrlValue.count || 1
             });
-        } else if (l.direction === "lefttop") {
+        } else if (e.ctrlValue.direction === "lefttop") {
             _shiftCrossSheetReference({
-                type: "deleteCol",
+                type: "deleteCol", // undo adding columns = delete
                 sheetIndex: h.currentSheetIndex,
-                colIndex: l.index,
-                colCount: l.count || 1
+                colIndex: e.ctrlValue.index,
+                colCount: e.ctrlValue.count || 1
             });
         }
     }
 }
-else if (n.type == "delRC") {
-    Bn(n.data, n.config, "addRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
+else if (e.type == "delRC") {
+    Bn(e.curData, e.curConfig, "delRC", e.ctrlValue, e.curCalc, e.curFilterObj, e.curCf, e.curAf, e.curFreezen, e.curDataVerification, e.curHyperlink);
 
+    // ✅ Shift cross-sheet references on undo
     if (typeof _shiftCrossSheetReference === "function") {
-        if (l.direction === "lefttop") {
+        if (e.ctrlValue.direction === "lefttop") {
             _shiftCrossSheetReference({
-                type: "insertRow",
+                type: "insertRow", // undo deleting rows = insert
                 sheetIndex: h.currentSheetIndex,
-                rowIndex: l.index,
-                rowCount: l.count || 1
+                rowIndex: e.ctrlValue.index,
+                rowCount: e.ctrlValue.count || 1
             });
-        } else if (l.direction === "rightbottom") {
+        } else if (e.ctrlValue.direction === "rightbottom") {
             _shiftCrossSheetReference({
-                type: "insertCol",
+                type: "insertCol", // undo deleting columns = insert
                 sheetIndex: h.currentSheetIndex,
-                colIndex: l.index,
-                colCount: l.count || 1
+                colIndex: e.ctrlValue.index,
+                colCount: e.ctrlValue.count || 1
             });
         }
     }
