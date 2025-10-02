@@ -1,6 +1,6 @@
 function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
     const allSheets = Ft() || [];
-    let isDeleteCol = type === "deleteCol";
+    let sheetChanged = false;
 
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
@@ -11,47 +11,78 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                 const cell = data[r][c];
                 if (!cell || !cell.f) continue;
 
-                let formula = cell.f;
+                let origFormula = cell.f;
+                let formula = origFormula;
 
-                formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, (match, sheetName, colLetter, rowNumber) => {
+                // ✅ Match cross-sheet references like: 'Sheet A'!D9
+                formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
                     const refSheet = allSheets.find(sh => sh.name === sheetName);
                     if (!refSheet) return match;
 
                     let refRow = parseInt(rowNumber, 10);
                     let refCol = _columnLetterToIndex(colLetter);
 
-                    // Handle row shifts
-                    if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
-                        refRow += rowCount;
-                    } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
-                        if (refRow >= rowIndex + 1 && refRow <= rowIndex + rowCount) return "#REF!";
-                        if (refRow > rowIndex + rowCount) refRow -= rowCount;
+                    // --- Row handling ---
+                    if (refSheet.index === sheetIndex) {
+                        if (type === "insertRow" && refRow >= rowIndex + 1) {
+                            refRow += rowCount;
+                        } else if (type === "deleteRow") {
+                            if (refRow > rowIndex && refRow <= rowIndex + rowCount) {
+                                // deleted row — make reference invalid
+                                return `'${sheetName}'!#REF!`;
+                            } else if (refRow > rowIndex + rowCount) {
+                                refRow -= rowCount;
+                            }
+                        }
                     }
 
-                    // Handle column shifts
-                    if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
-                        refCol += colCount;
-                    } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
-                        if (refCol >= colIndex && refCol < colIndex + colCount) return "#REF!";
-                        if (refCol >= colIndex + colCount) refCol -= colCount;
+                    // --- Column handling ---
+                    if (refSheet.index === sheetIndex) {
+                        if (type === "insertCol" && refCol >= colIndex) {
+                            refCol += colCount;
+                        } else if (type === "deleteCol") {
+                            if (refCol >= colIndex && refCol < colIndex + colCount) {
+                                // deleted col — make reference invalid
+                                return `'${sheetName}'!#REF!`;
+                            } else if (refCol >= colIndex + colCount) {
+                                refCol -= colCount;
+                            }
+                        }
                     }
 
                     return `'${sheetName}'!${_columnIndexToLetter(refCol)}${refRow}`;
                 });
 
-                // Update the formula in the cell
-                luckysheet.setCellValue(r, c, s, { f: formula });
+                if (formula !== origFormula) {
+                    // ✅ Update formula and clear old value cache
+                    cell.f = formula;
+                    delete cell.v;
+                    delete cell.m;
+
+                    // if the formula contains #REF!, set error value
+                    if (formula.includes("#REF!")) {
+                        cell.v = "#REF!";
+                    }
+
+                    sheetChanged = true;
+                }
             }
         }
     }
 
-    // Only recalc formulas and update UI if column deleted
-    if (isDeleteCol) {
-        luckysheet.refreshFormula();
-        luckysheet.updateCellUI();
+    // ✅ After all updates, trigger LuckySheet's recalculation
+    if (sheetChanged) {
+        if (typeof p !== "undefined" && p?.execFunctionGroup) {
+            p.execFunctionGroup();
+        } else if (typeof formula !== "undefined" && formula?.execFunctionGroup) {
+            formula.execFunctionGroup();
+        }
+        if (typeof luckysheetrefreshgrid === "function") {
+            luckysheetrefreshgrid();
+        }
     }
 
-    // Utilities
+    // --- Utility: convert A→0, B→1, AA→26 ---
     function _columnLetterToIndex(col) {
         let index = 0;
         for (let i = 0; i < col.length; i++) {
@@ -60,6 +91,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         return index - 1;
     }
 
+    // --- Utility: convert 0→A, 25→Z, 26→AA ---
     function _columnIndexToLetter(index) {
         let col = "";
         index += 1;
