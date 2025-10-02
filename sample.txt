@@ -2,6 +2,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
     const allSheets = Ft() || [];
     let sheetChanged = false;
 
+    // 1️⃣ First pass: adjust references for row/col insert/delete
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
         const data = sheet.data;
@@ -24,7 +25,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     let colDeleted = false;
                     let rowDeleted = false;
 
-                    // ✅ Row shifts
+                    // Row shifts
                     if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
                         refRow += rowCount;
                     } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
@@ -36,7 +37,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                         }
                     }
 
-                    // ✅ Column shifts
+                    // Column shifts
                     if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
                         refCol += colCount;
                     } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
@@ -48,8 +49,8 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                         }
                     }
 
-                    let colPart = colDeleted ? "#REF!" : _columnIndexToLetter(refCol);
-                    let rowPart = rowDeleted ? "#REF!" : refRow;
+                    const colPart = colDeleted ? "#REF!" : _columnIndexToLetter(refCol);
+                    const rowPart = rowDeleted ? "#REF!" : refRow;
                     return `'${sheetName}'!${colPart}${rowPart}`;
                 });
 
@@ -57,20 +58,62 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     cell.f = modifiedFormula;
                     sheetChanged = true;
 
-                    // If the formula now contains REF, set cell value to #REF! to show it immediately
-                    if (errorDetected) {
+                    // Only mark #REF! for deletions
+                    if (errorDetected && (type === "deleteRow" || type === "deleteCol")) {
                         cell.v = "#REF!";
-                        cell.ct = { fa: "General", t: "e" }; // mark as error type
+                        cell.ct = { fa: "General", t: "e" };
                     }
                 }
             }
         }
     }
 
+    // 2️⃣ Recursive propagation of #REF! across dependent formulas
+    let refChanged = true;
+    while (refChanged) {
+        refChanged = false;
+
+        for (let s = 0; s < allSheets.length; s++) {
+            const sheet = allSheets[s];
+            const data = sheet.data;
+
+            for (let r = 0; r < data.length; r++) {
+                for (let c = 0; c < data[r].length; c++) {
+                    const cell = data[r][c];
+                    if (!cell || !cell.f) continue;
+                    if (cell.v === "#REF!") continue;
+
+                    let formula = cell.f;
+                    let shouldRef = false;
+
+                    formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
+                        const refSheet = allSheets.find(sh => sh.name === sheetName);
+                        if (!refSheet) return;
+
+                        const refRow = parseInt(rowNumber, 10) - 1;
+                        const refCol = _columnLetterToIndex(colLetter);
+
+                        const refCell = refSheet.data[refRow]?.[refCol];
+                        if (refCell && refCell.v === "#REF!") {
+                            shouldRef = true;
+                        }
+                    });
+
+                    if (shouldRef) {
+                        cell.v = "#REF!";
+                        cell.ct = { fa: "General", t: "e" };
+                        refChanged = true;
+                        sheetChanged = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3️⃣ Trigger recalculation if any sheet changed
     if (sheetChanged) {
-        // Trigger LuckySheet's recalculation engine
         if (typeof jf !== "undefined" && jf.refresh) {
-            jf.refresh();  // full workbook recalc
+            jf.refresh();
         } else if (typeof luckysheetrefreshgrid === "function") {
             luckysheetrefreshgrid();
         }
