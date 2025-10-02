@@ -1,111 +1,42 @@
-  $("#luckysheet-top-left-add-selected").click(function (e) {
+else if (n.type == "addRC") {
+    Bn(n.data, n.config, "delRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
 
-let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0];
-
-// CAPTURE CROSS-SHEET FORMULAS BEFORE INSERT
-let crossSheetRefs = [];
-if(typeof _shiftCrossSheetReference === "function"){
-    if(h.luckysheetRightHeadClickIs == "column"){
-        crossSheetRefs = captureCrossSheetRefs(
-            h.currentSheetIndex,
-            0,
-            h.flowdata.length - 1,
-            s,
-            s + o - 1
-        );
-    } else {
-        crossSheetRefs = captureCrossSheetRefs(
-            h.currentSheetIndex,
-            s,
-            s + o - 1,
-            0,
-            h.flowdata[0].length - 1
-        );
-    }
-}
-
-// Call the original hook / insert
-!Je.createHookFunction("rowInsertBefore", s, o, "lefttop", h.luckysheetRightHeadClickIs) ||
-Sr(h.luckysheetRightHeadClickIs, s, o, "lefttop");
-
-// SHIFT CROSS-SHEET REFERENCES
-if(crossSheetRefs.length > 0){
-    _shiftCrossSheetReference({
-        type: h.luckysheetRightHeadClickIs == "column" ? "insertCol" : "insertRow",
-        sheetIndex: h.currentSheetIndex,
-        formulas: crossSheetRefs
-    });
-}
-
-
-
-    function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
-        const allSheets = Ft() || [];
-
-        for (let s = 0; s < allSheets.length; s++) {
-            const sheet = allSheets[s];
-            const data = sheet.data;
-
-            for (let r = 0; r < data.length; r++) {
-                for (let c = 0; c < data[r].length; c++) {
-                    const cell = data[r][c];
-                    if (!cell || !cell.f) continue;
-
-                    let formula = cell.f;
-
-                    // ✅ Match sheet names wrapped in single quotes + cell references
-                    // Example: 'IND R1 Lanco'!D19
-                    formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)/g, function (match, sheetName, colLetter, rowNumber) {
-                        const refSheet = allSheets.find(sh => sh.name === sheetName);
-                        if (!refSheet) return match;
-
-                        let refRow = parseInt(rowNumber, 10);
-                        let refCol = _columnLetterToIndex(colLetter);
-
-                        // Handle row shifts
-                        if (type === "insertRow" && refSheet.index === sheetIndex && refRow >= rowIndex + 1) {
-                            refRow += rowCount;
-                        } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex && refRow <= rowIndex + rowCount) {
-                            refRow = rowIndex;
-                        } else if (type === "deleteRow" && refSheet.index === sheetIndex && refRow > rowIndex + rowCount) {
-                            refRow -= rowCount;
-                        }
-
-                        // Handle column shifts
-                        if (type === "insertCol" && refSheet.index === sheetIndex && refCol >= colIndex) {
-                            refCol += colCount;
-                        } else if (type === "deleteColumn" && refSheet.index === sheetIndex && refCol >= colIndex && refCol < colIndex + colCount) {
-                            refCol = colIndex;
-                        } else if (type === "deleteColumn" && refSheet.index === sheetIndex && refCol >= colIndex + colCount) {
-                            refCol -= colCount;
-                        }
-
-                        return `'${sheetName}'!${_columnIndexToLetter(refCol)}${refRow}`;
-                    });
-
-                    cell.f = formula;
-                }
-            }
-        }
-
-        // Utility: convert column letter to zero-based index
-        function _columnLetterToIndex(col) {
-            let index = 0;
-            for (let i = 0; i < col.length; i++) {
-                index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-            }
-            return index - 1;
-        }
-
-        // Utility: convert zero-based index to column letter
-        function _columnIndexToLetter(index) {
-            let col = "";
-            index += 1;
-            while (index > 0) {
-                let rem = (index - 1) % 26;
-                col = String.fromCharCode(65 + rem) + col;
-                index = Math.floor((index - 1) / 26);
-            }
-            return col;
+    if (typeof _shiftCrossSheetReference === "function") {
+        if (l.direction === "rightbottom") {
+            _shiftCrossSheetReference({
+                type: "deleteRow",
+                sheetIndex: h.currentSheetIndex,
+                rowIndex: l.index,
+                rowCount: l.count || 1
+            });
+        } else if (l.direction === "lefttop") {
+            _shiftCrossSheetReference({
+                type: "deleteCol",
+                sheetIndex: h.currentSheetIndex,
+                colIndex: l.index,
+                colCount: l.count || 1
+            });
         }
     }
+}
+else if (n.type == "delRC") {
+    Bn(n.data, n.config, "addRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
+
+    if (typeof _shiftCrossSheetReference === "function") {
+        if (l.direction === "lefttop") {
+            _shiftCrossSheetReference({
+                type: "insertRow",
+                sheetIndex: h.currentSheetIndex,
+                rowIndex: l.index,
+                rowCount: l.count || 1
+            });
+        } else if (l.direction === "rightbottom") {
+            _shiftCrossSheetReference({
+                type: "insertCol",
+                sheetIndex: h.currentSheetIndex,
+                colIndex: l.index,
+                colCount: l.count || 1
+            });
+        }
+    }
+}
