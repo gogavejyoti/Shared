@@ -1,37 +1,48 @@
-else if (n.type == "addRC") {
-    let l = $.extend(!0, {}, n.ctrlValue);
-    l.direction == "rightbottom" && (l.index = l.index + 1),
-    Bn(n.data, n.config, "delRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
+            $("#luckysheet-top-left-add-selected").click(function (e) {
+              
+                if (e.target.nodeName === "INPUT")
+                    return;
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q()
+                    , t = n.drag
+                    , l = n.info;
+                if (h.luckysheet_select_save.length > 1) {
+                    de() ? alert(t.noMulti) : U.info(t.noMulti, "");
+                    return
+                }
+                let a = $(this)
+                    , o = a.find("input").val();
+                if (!B(o)) {
+                    de() ? alert(l.tipInputNumber) : U.info(l.tipInputNumber, "");
+                    return
+                }
+                if (o = parseInt(o),
+                    o < 1 || o > 100) {
+                    de() ? alert(l.tipInputNumberLimit) : U.info(l.tipInputNumberLimit, "");
+                    return
+                }
 
-    // Redo cross-sheet references
-    if(l.crossSheetRefs){
-        _shiftCrossSheetReference({
-            type: "insertRow", // same as original add
-            sheetIndex: n.sheetIndex,
-            rowStart: l.rowStart,
-            rowEnd: l.rowEnd,
-            colStart: l.colStart,
-            colEnd: l.colEnd,
-            formulas: l.crossSheetRefs
-        });
-    }
-}
-else if (n.type == "delRC") {
-    let l = $.extend(!0, {}, n.ctrlValue);
-    l.restore = !0;
-    l.direction = "lefttop",
-    Bn(n.data, n.config, "addRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
+                let s = h.luckysheet_select_save[0][h.luckysheetRightHeadClickIs][0];
 
-    // Redo cross-sheet references
-    if(l.crossSheetRefs){
-        _shiftCrossSheetReference({
-            type: "deleteRow", // same as original delete
-            sheetIndex: n.sheetIndex,
-            rowStart: l.rowStart,
-            rowEnd: l.rowEnd,
-            colStart: l.colStart,
-            colEnd: l.colEnd,
-            formulas: l.crossSheetRefs
-        });
-    }
-}
+                !Je.createHookFunction("rowInsertBefore", s, o, "lefttop", h.luckysheetRightHeadClickIs) || Sr(h.luckysheetRightHeadClickIs, s, o, "lefttop")
+                if (typeof _shiftCrossSheetReference === "function") {
+                
+                    if (h.luckysheetRightHeadClickIs == "column"){
+                        _shiftCrossSheetReference({
+                            type: "insertCol",
+                            sheetIndex: h.currentSheetIndex,
+                            colIndex: s,
+                            colCount: o
+                        });
+                    }
+                    else{
+                _shiftCrossSheetReference({
+                        type: "insertRow",
+                        sheetIndex: h.currentSheetIndex,
+                        rowIndex: s,
+                        rowCount: o
+                    });
+                    }
+                }
+            }),
