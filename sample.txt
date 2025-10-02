@@ -13,7 +13,6 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                 let formula = cell.f;
                 let containsRef = false;
 
-                // Match both single-cell and range references
                 formula = formula.replace(/'([^']+)'!([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?/g, function (match, sheetName, colStart, rowStart, colEnd, rowEnd) {
                     const refSheet = allSheets.find(sh => sh.name === sheetName);
                     if (!refSheet) return match;
@@ -26,7 +25,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
 
                     let refDeleted = false;
 
-                    // Handle row shifts
+                    // Row adjustments
                     if (type === "insertRow" && refSheet.index === sheetIndex && startRow >= rowIndex + 1) {
                         startRow += rowCount;
                         endRow += rowCount;
@@ -39,7 +38,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                         if (endRow > rowIndex + rowCount) endRow -= rowCount;
                     }
 
-                    // Handle column shifts
+                    // Column adjustments
                     if (type === "insertCol" && refSheet.index === sheetIndex && startCol >= colIndex) {
                         startCol += colCount;
                         endCol += colCount;
@@ -59,19 +58,26 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                         : `'${sheetName}'!${_columnIndexToLetter(startCol)}${startRow}${colEnd ? ":" + _columnIndexToLetter(endCol) + endRow : ""}`;
                 });
 
-                // If any reference became invalid, mark formula as #REF!
                 if (containsRef) {
+                    // Mark formula as error
                     cell.f = "#REF!";
                     cell.v = "#REF!";
                     cell.m = "#REF!";
                 } else {
                     cell.f = formula;
+                    // Clear old value so sheet recalculation will update it
+                    cell.v = null;
+                    cell.m = null;
                 }
             }
         }
     }
 
-    // Utility: convert column letter to zero-based index
+    // Recalculate all sheets after updating formulas
+    if (typeof LuckysheetRecalculateAll === "function") {
+        LuckysheetRecalculateAll();
+    }
+
     function _columnLetterToIndex(col) {
         let index = 0;
         for (let i = 0; i < col.length; i++) {
@@ -80,7 +86,6 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         return index - 1;
     }
 
-    // Utility: convert zero-based index to column letter
     function _columnIndexToLetter(index) {
         let col = "";
         index += 1;
