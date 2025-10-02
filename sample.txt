@@ -1,5 +1,6 @@
 function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
     const allSheets = Ft() || [];
+    let isDeleteCol = type === "deleteCol";
 
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
@@ -44,11 +45,13 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         }
     }
 
-    // Trigger recalculation for all sheets
-    luckysheet.refreshFormula();
-    luckysheet.updateCellUI();
+    // Only recalc formulas and update UI if column deleted
+    if (isDeleteCol) {
+        luckysheet.refreshFormula();
+        luckysheet.updateCellUI();
+    }
 
-    // Utility: convert column letter to zero-based index
+    // Utilities
     function _columnLetterToIndex(col) {
         let index = 0;
         for (let i = 0; i < col.length; i++) {
@@ -57,7 +60,6 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         return index - 1;
     }
 
-    // Utility: convert zero-based index to column letter
     function _columnIndexToLetter(index) {
         let col = "";
         index += 1;
