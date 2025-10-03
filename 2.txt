@@ -1,44 +1,51 @@
-            $("#luckysheet-sheet-area").on("blur", "span.luckysheet-sheets-item-name", function (f) {
-                if (h.allowEdit === !1)
-                    return;
-                let m = $(this)
-                    , g = m.text()
-                    , y = m.data("oldtxt");
-                if ($(this).text().length === 0) {
-                    U.info("", n.sheetNamecannotIsEmptyError),
-                        m.text(y).attr("contenteditable", "false");
-                    return
-                }
-                if (g.length > 31 || g.charAt(0) == "'" || g.charAt(g.length - 1) == "'" || /[：\:\\\/？\?\*\[\]]+/.test(g)) {
-                    U.info("", n.sheetNameSpecCharError),
-                        m.text(y).attr("contenteditable", "false");
-                    return
-                }
-                let v = K(h.currentSheetIndex);
-                for (let k = 0; k < h.luckysheetfile.length; k++)
-                    if (v != k && h.luckysheetfile[k].name == g) {
-                        de() ? alert(n.tipNameRepeat) : U.info("", n.tipNameRepeat),
-                            m.text(y).attr("contenteditable", "false");
-                        return
+/**
+ * Fix all cross-sheet formula references when a sheet is renamed in LuckySheet.
+ * Updates sheet.data, sheet.m, and calcChain efficiently.
+ */
+function fixCrossSheetReferencesAfterRename(oldName, newName) {
+    const files = luckysheet.getLuckysheetfile();
+    if (!files || files.length === 0) return;
+
+    // Match both 'Old Name'! and OldName! in formulas
+    const quoted = oldName.replace(/[-[\]/{}()*+?.\\^$|]/g, '\\$&'); // escape regex specials
+    const pattern = new RegExp(`('?${quoted}'?)!`, 'g');
+
+    for (let s = 0; s < files.length; s++) {
+        const sheet = files[s];
+        if (!sheet || !sheet.data) continue;
+
+        const data = sheet.data;
+        const mMap = sheet.m || {};
+        const calcChain = sheet.calcChain || [];
+
+        for (let r = 0; r < data.length; r++) {
+            const row = data[r];
+            if (!row) continue;
+
+            for (let c = 0; c < row.length; c++) {
+                const cell = row[c];
+                if (!cell || !cell.f) continue;
+
+                if (pattern.test(cell.f)) {
+                    // --- Update formula in data ---
+                    cell.f = cell.f.replace(pattern, `'${newName}'!`);
+
+                    // --- Update formula in m ---
+                    const key = `${r}_${c}`;
+                    if (mMap[key] && mMap[key].f) {
+                        mMap[key].f = mMap[key].f.replace(pattern, `'${newName}'!`);
                     }
-                if (ve.sheetArrowShowAndHide(),
-                    h.luckysheetfile[v].name = g,
-                    ne.saveParam("all", h.currentSheetIndex, g, {
-                        k: "name"
-                    }),
-                    m.attr("contenteditable", "false").removeClass("luckysheet-mousedown-cancel"),
-                    h.clearjfundo) {
-                    let k = {};
-                    k.type = "sheetName",
-                        k.sheetIndex = h.currentSheetIndex,
-                        k.oldtxt = y,
-                        k.txt = g,
-                        h.jfundo.length = 0,
-                        h.jfredo.push(k)
+
+                    // --- Clean calcChain entry ---
+                    const idx = calcChain.findIndex(cc => cc.r === r && cc.c === c);
+                    if (idx !== -1) {
+                        calcChain.splice(idx, 1);
+                    }
                 }
-                Je.createHookFunction("sheetEditNameAfter", {
-                    i: h.luckysheetfile[v].index,
-                    oldName: y,
-                    newName: g
-                })
-            }),
+            }
+        }
+    }
+
+    // Trigger refresh (LuckySheet lazy recalculates)
+    luckysheet.refresh();
+}
