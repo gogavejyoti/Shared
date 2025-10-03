@@ -1,3 +1,5 @@
+fixCrossSheetReferencesAfterRename(y, g);
+
 /**
  * Fix all cross-sheet formula references when a sheet is renamed in LuckySheet.
  * Updates sheet.data, sheet.m, and calcChain efficiently.
@@ -49,3 +51,4 @@ function fixCrossSheetReferencesAfterRename(oldName, newName) {
     // Trigger refresh (LuckySheet lazy recalculates)
     luckysheet.refresh();
 }
+
