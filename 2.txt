@@ -1,16 +1,1 @@
- // ✅ Step 1: Check for dependencies
-    const conflicts = checkDeleteDependencies({
-        type: isRowDelete ? "row" : "column",
-        sheetIndex: h.currentSheetIndex,
-        startIndex: t,
-        endIndex: l
-    });
-
-    if (conflicts.length > 0) {
-        let msg = "❌ Cannot delete. The following formulas depend on these rows/columns:\n\n";
-        conflicts.forEach(c => {
-            msg += `• Sheet: ${c.sheet}, Cell: R${c.cellRow+1}C${c.cellCol+1}, Formula: ${c.formula}\n`;
-        });
-        alert(msg);
-        return; // ⛔ Stop delete
-    }
+This row or column is referenced in one or more formulas across sheets. Please clear all dependent references first, and then try deleting again.
