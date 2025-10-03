@@ -2,9 +2,8 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
     const allSheets = Ft() || [];
     let sheetChanged = false;
 
-    // Regex that matches both single cell & range references like:
-    //  'Sheet1'!A1, 'Sheet1'!A1:B5, 'My Sheet (2)'!Z10:AA20
-    const referenceRegex = /'([^']+)'!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
+    // Match both quoted and unquoted sheet names with optional ranges
+    const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
 
     for (let s = 0; s < allSheets.length; s++) {
         const sheet = allSheets[s];
@@ -22,26 +21,26 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                 let modifiedFormula = originalFormula;
                 let errorDetected = false;
 
-                modifiedFormula = modifiedFormula.replace(referenceRegex, function (match, sheetName, startCol, startRow, _range, endCol, endRow) {
+                modifiedFormula = modifiedFormula.replace(referenceRegex, function(
+                    match, quotedSheet, unquotedSheet, startCol, startRow, _range, endCol, endRow
+                ) {
+                    let sheetName = quotedSheet || unquotedSheet;
                     const refSheet = allSheets.find(sh => sh.name === sheetName);
                     if (!refSheet) return match;
 
+                    // Convert letters to indices
                     let startColIndex = _columnLetterToIndex(startCol);
                     let startRowIndex = parseInt(startRow, 10);
-
                     let endColIndex = endCol ? _columnLetterToIndex(endCol) : startColIndex;
                     let endRowIndex = endRow ? parseInt(endRow, 10) : startRowIndex;
 
-                    let rowDeleted = false;
-                    let colDeleted = false;
+                    let rowDeleted = false, colDeleted = false;
 
-                    // --- Row adjustments ---
+                    // --- Row shifts ---
                     if (type === "insertRow" && refSheet.index === sheetIndex) {
                         if (startRowIndex >= rowIndex + 1) startRowIndex += rowCount;
                         if (endRowIndex >= rowIndex + 1) endRowIndex += rowCount;
-                    } 
-                    else if (type === "deleteRow" && refSheet.index === sheetIndex) {
-                        // inside deleted block → #REF!
+                    } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
                         if ((startRowIndex > rowIndex && startRowIndex <= rowIndex + rowCount) ||
                             (endRowIndex > rowIndex && endRowIndex <= rowIndex + rowCount)) {
                             rowDeleted = true;
@@ -52,12 +51,11 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                         }
                     }
 
-                    // --- Column adjustments ---
+                    // --- Column shifts ---
                     if (type === "insertCol" && refSheet.index === sheetIndex) {
                         if (startColIndex >= colIndex) startColIndex += colCount;
                         if (endColIndex >= colIndex) endColIndex += colCount;
-                    } 
-                    else if (type === "deleteCol" && refSheet.index === sheetIndex) {
+                    } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
                         if ((startColIndex >= colIndex && startColIndex < colIndex + colCount) ||
                             (endColIndex >= colIndex && endColIndex < colIndex + colCount)) {
                             colDeleted = true;
@@ -68,24 +66,19 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                         }
                     }
 
-                    if (rowDeleted || colDeleted) {
-                        return `#REF!`;
-                    }
+                    if (rowDeleted || colDeleted) return `#REF!`;
 
                     let startRef = `${_columnIndexToLetter(startColIndex)}${startRowIndex}`;
                     let endRef = `${_columnIndexToLetter(endColIndex)}${endRowIndex}`;
 
-                    if (startRef === endRef) {
-                        return `'${sheetName}'!${startRef}`;
-                    } else {
-                        return `'${sheetName}'!${startRef}:${endRef}`;
-                    }
+                    return startRef === endRef
+                        ? `'${sheetName}'!${startRef}`
+                        : `'${sheetName}'!${startRef}:${endRef}`;
                 });
 
                 if (modifiedFormula !== originalFormula) {
                     cell.f = modifiedFormula;
                     sheetChanged = true;
-
                     if (errorDetected) {
                         cell.v = "#REF!";
                         cell.ct = { fa: "General", t: "e" };
@@ -103,12 +96,10 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
         }
     }
 
-    // 🧭 helpers
+    // --- Helpers ---
     function _columnLetterToIndex(col) {
         let index = 0;
-        for (let i = 0; i < col.length; i++) {
-            index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-        }
+        for (let i = 0; i < col.length; i++) index = index * 26 + (col.charCodeAt(i) - 65 + 1);
         return index - 1;
     }
 
