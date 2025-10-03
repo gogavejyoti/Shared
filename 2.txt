@@ -1,65 +1,16 @@
-function checkDeleteDependencies({ type, sheetIndex, startIndex, endIndex }) {
-    const allSheets = Ft() || [];
-    const conflicts = [];
+ // ✅ Step 1: Check for dependencies
+    const conflicts = checkDeleteDependencies({
+        type: isRowDelete ? "row" : "column",
+        sheetIndex: h.currentSheetIndex,
+        startIndex: t,
+        endIndex: l
+    });
 
-    // Match formulas that reference other sheets (quoted or unquoted)
-    const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
-
-    for (let s = 0; s < allSheets.length; s++) {
-        const sheet = allSheets[s];
-        const data = sheet.data;
-        if (!data) continue;
-
-        for (let r = 0; r < data.length; r++) {
-            if (!data[r]) continue;
-
-            for (let c = 0; c < data[r].length; c++) {
-                const cell = data[r][c];
-                if (!cell || !cell.f) continue;
-
-                let formula = cell.f;
-                formula.replace(referenceRegex, function(match, quotedSheet, unquotedSheet, startCol, startRow, _range, endCol, endRow) {
-                    const sheetName = quotedSheet || unquotedSheet;
-                    const refSheet = allSheets.find(sh => sh.name === sheetName);
-                    if (!refSheet || refSheet.index !== sheetIndex) return match;
-
-                    let startColIndex = _columnLetterToIndex(startCol);
-                    let startRowIndex = parseInt(startRow, 10) - 1; // 0-based
-                    let endColIndex = endCol ? _columnLetterToIndex(endCol) : startColIndex;
-                    let endRowIndex = endRow ? parseInt(endRow, 10) - 1 : startRowIndex;
-
-                    if (type === "row") {
-                        // Check if formula depends on deleted row range
-                        if (startRowIndex <= endIndex && endRowIndex >= startIndex) {
-                            conflicts.push({
-                                sheet: sheet.name,
-                                cellRow: r,
-                                cellCol: c,
-                                formula: cell.f
-                            });
-                        }
-                    } else if (type === "column") {
-                        // Check if formula depends on deleted column range
-                        if (startColIndex <= endIndex && endColIndex >= startIndex) {
-                            conflicts.push({
-                                sheet: sheet.name,
-                                cellRow: r,
-                                cellCol: c,
-                                formula: cell.f
-                            });
-                        }
-                    }
-                });
-            }
-        }
+    if (conflicts.length > 0) {
+        let msg = "❌ Cannot delete. The following formulas depend on these rows/columns:\n\n";
+        conflicts.forEach(c => {
+            msg += `• Sheet: ${c.sheet}, Cell: R${c.cellRow+1}C${c.cellCol+1}, Formula: ${c.formula}\n`;
+        });
+        alert(msg);
+        return; // ⛔ Stop delete
     }
-
-    return conflicts;
-
-    // --- Helper: Convert letters to 0-based index
-    function _columnLetterToIndex(col) {
-        let index = 0;
-        for (let i = 0; i < col.length; i++) index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-        return index - 1;
-    }
-}
