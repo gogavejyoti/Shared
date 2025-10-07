@@ -199,7 +199,12 @@
     };
 }(jQuery));
 
-
+const sampleData = [
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '01-Sep-25', fteRequired: 120, fteAvailable: 110, delta: -10, staffingPct: 91.7, plannedShrinkage: 10 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '08-Sep-25', fteRequired: 122, fteAvailable: 115, delta: -7, staffingPct: 94.3, plannedShrinkage: 10 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '01-Sep-25', fteRequired: 80, fteAvailable: 78, delta: -2, staffingPct: 97.5, plannedShrinkage: 9 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '08-Sep-25', fteRequired: 82, fteAvailable: 79, delta: -3, staffingPct: 96.3, plannedShrinkage: 9 }
+];
 
 $('#simulator').assumptionSimulator({
   data: sampleData,
@@ -212,3 +217,4 @@ $('#simulator').assumptionSimulator({
     callback(updated);
   }
 });
+
