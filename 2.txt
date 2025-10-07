@@ -1,617 +1,165 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Assumption Simulator — Step 1</title>
+(function ($) {
+    $.fn.assumptionSimulator = function (options) {
+        const settings = $.extend({
+            data: [],
+            weeks: [],
+            metrics: [
+                "FTE Required",
+                "FTE Available",
+                "Staffing %",
+                "Delta",
+                "Planned Shrink %",
+                "Manual Shrink %",
+                "Staffing % (Sim)",
+                "Delta (Sim)",
+                "Staffing % (ML)",
+                "Delta (ML)"
+            ],
+            mlApiUrl: null,       // Optional: URL for ML simulation
+            onSimulation: null    // Callback after simulation
+        }, options);
 
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-  <style>
-    /* Table scroll container and sticky header/first column */
-    .table-responsive {
-      overflow-x: auto;
-      max-width: 100%;
-      margin-bottom: 1rem;
-    }
-    .simTable thead th {
-      position: sticky;
-      top: 0;
-      background: #fff;
-      z-index: 3;
-      border-top: 2px solid #dee2e6;
-    }
-    .simTable th:first-child,
-    .simTable td:first-child {
-      position: sticky;
-      left: 0;
-      background-color: #f8f9fa;
-      z-index: 2;
-      /* visual separation for the frozen column */
-      box-shadow: 2px 0 0 rgba(0,0,0,0.04);
-    }
-    /* small screens adjustments */
-    @media (max-width: 576px) {
-      .controls-row .col { margin-bottom: .5rem; }
-    }
-    /* small visual spacing */
-    .card .row > .col input { height: 38px; }
-  </style>
-</head>
-<body class="bg-light">
-  <div class="container my-3">
-    <h3>Assumption Simulator — Step 1 (Horizontal Scroll Enabled)</h3>
-    <div id="assumptionSimulator"></div>
-  </div>
-
-  <!-- Dependencies -->
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-  <!-- Plugin: AssumptionSimulator (inline for Step 1) -->
-  <script>
-  (function($){
-    $.fn.AssumptionSimulator = function(options){
-      const settings = $.extend({
-        data: [],                // Baseline JSON array
-        apiMLUrl: '',            // C# API endpoint for ML (POST)
-        defaultWeeks: 12,
-        initialAssumptions: { shrinkage: 0.10, attrition: 0.05, hiring: 0 },
-        enableCharts: true,
-        onSimulationApplied: function(){},
-        onMLDataLoaded: function(){}
-      }, options);
-
-      const $container = $(this);
-      let state = {
-        rawData: [],       // baseline raw (normalized)
-        filteredData: [],  // after user filters
-        simData: [],       // working data used for display (baseline + sim fields)
-        mlData: [],        // ml predictions
-        weeks: [],
-        uniqueLOBs: []
-      };
-
-      /* ---------- helpers ---------- */
-      function parseWeekToDate(w){
-        if(!w) return new Date(0);
-        // Try ISO first
-        const iso = Date.parse(w);
-        if(!isNaN(iso)) return new Date(iso);
-        // Expect formats like "29-Sep-25" or "29-Sep-2025"
-        const parts = w.split(/[-\/\s]+/);
-        if(parts.length >= 3){
-          const dd = parseInt(parts[0],10);
-          const mon = parts[1].substring(0,3);
-          let yy = parts[2];
-          let year = parseInt(yy,10);
-          if(year < 100) year += 2000;
-          const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-          const m = months[mon] !== undefined ? months[mon] : 0;
-          return new Date(year,m,dd);
-        }
-        return new Date(w);
-      }
-
-      function getField(obj, names){
-        for(let n of names) if(obj[n] !== undefined) return obj[n];
-        return undefined;
-      }
-
-      function toNumber(v, fallback=0){
-        if(v === null || v === undefined || v === '') return fallback;
-        const n = Number(v);
-        return isNaN(n) ? fallback : n;
-      }
-
-      function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
-
-      /* ---------- initialization ---------- */
-      function init(){
-        $container.empty();
-        buildLayout();
-        loadData(settings.data);
-        bindControls();
-        renderAll();
-      }
-
-      function buildLayout(){
-        // filters row
-        const filters = `
-          <div class="card mb-3 p-3">
-            <div class="row g-2 controls-row">
-              <div class="col"><input id="filterGeo" class="form-control" placeholder="Geo"></div>
-              <div class="col"><input id="filterVertical" class="form-control" placeholder="Vertical"></div>
-              <div class="col"><input id="filterAccount" class="form-control" placeholder="Account"></div>
-              <div class="col"><input id="filterLOB" class="form-control" placeholder="LOB"></div>
-              <div class="col-auto"><button id="applyFiltersBtn" class="btn btn-primary">Apply</button></div>
-            </div>
-          </div>`;
-        $container.append(filters);
-
-        // summary & controls containers
-        const summaryHtml = `
-          <div id="simTop" class="mb-3"></div>
-          <div class="row">
-            <div class="col-lg-8">
-              <div id="overallContainer"></div>
-              <div id="lobContainer"></div>
-            </div>
-            <div class="col-lg-4">
-              <div id="assumptionPanel"></div>
-              <div id="mlPanel" class="mt-3"></div>
-            </div>
-          </div>
-          <div id="chartsContainer" class="mt-3"></div>
-        `;
-        $container.append(summaryHtml);
-      }
-
-      /* ---------- load & normalize data ---------- */
-      function loadData(raw){
-        state.rawData = (raw || []).map(d=>{
-          // normalize keys & types
-          const week = String(getField(d,['week','Week','weekStart']|| d.week || '')) || '';
-          const lob = String(getField(d,['lob','LOB','lineOfBusiness'] || d.lob || '')) || '';
-          const geo = String(getField(d,['geo']|| d.geo || '')) || '';
-          const vertical = String(getField(d,['vertical']|| d.vertical || '')) || '';
-          const account = String(getField(d,['account']|| d.account || '')) || '';
-
-          const fteRequired = toNumber(getField(d,['fteRequired','FTERequired','fte_required','fteReq']));
-          const fteAvailable = toNumber(getField(d,['fteAvailable','FTEAvailable','fte_available','fteAvail']));
-          const delta = toNumber(getField(d,['delta','Delta','fteDelta']));
-          const staffingPct = toNumber(getField(d,['staffingPct','staffingPercent','staffing','staffing%']));
-          const plannedShrinkage = toNumber(getField(d,['plannedShrinkage','planned_shrinkage','plannedShrink'])) ;
-          const manualShrinkage = toNumber(getField(d,['manualShrinkage','manual_shrinkage','manualShrink'])) ;
-
-          return {
-            geo, vertical, account, lob, week,
-            fteRequired, fteAvailable, delta, staffingPct,
-            plannedShrinkage, manualShrinkage
-          };
-        });
-
-        // default filtered = raw
-        state.filteredData = clone(state.rawData);
-        rebuildWorkingData();
-      }
-
-      function rebuildWorkingData(){
-        // compute unique weeks sorted
-        const wkSet = new Set(state.filteredData.map(r=>r.week));
-        state.weeks = Array.from(wkSet).filter(Boolean).sort((a,b)=> parseWeekToDate(a) - parseWeekToDate(b));
-        state.uniqueLOBs = Array.from(new Set(state.filteredData.map(r=>r.lob)));
-
-        // simData is clone + fields for sim & ml
-        state.simData = state.filteredData.map(r=>{
-          return Object.assign({}, r, {
-            // additional computed fields
-            staffingPctSim: undefined,
-            deltaSim: undefined,
-            fteAvailableSim: undefined,
-            staffingPctML: undefined,
-            deltaML: undefined,
-            fteAvailableML: undefined
-          });
-        });
-      }
-
-      /* ---------- controls binding ---------- */
-      function bindControls(){
-        $container.on('click','#applyFiltersBtn', function(){
-          const geo = $('#filterGeo').val().trim();
-          const vertical = $('#filterVertical').val().trim();
-          const account = $('#filterAccount').val().trim();
-          const lob = $('#filterLOB').val().trim();
-          state.filteredData = state.rawData.filter(d=>{
-            return (!geo || d.geo === geo)
-              && (!vertical || d.vertical === vertical)
-              && (!account || d.account === account)
-              && (!lob || d.lob === lob);
-          });
-          rebuildWorkingData();
-          renderAll();
-        });
-
-        // assumption apply and ML run events are created during rendering of panels
-      }
-
-      /* ---------- render all UI pieces ---------- */
-      function renderAll(){
-        renderAssumptionPanel();
-        renderMLPanel();
-        renderOverallPivot();
-        renderLOBPivot();
-        renderCharts();
-      }
-
-      /* ---------- Assumption panel ---------- */
-      function renderAssumptionPanel(){
-        const ia = settings.initialAssumptions;
-        const html = `
-          <div class="card p-3">
-            <h6>Assumption Simulator</h6>
-            <div class="mb-2 small text-muted">Manual scenario adjustments</div>
-            <div class="row g-2">
-              <div class="col"><input id="assumpShrinkage" class="form-control" type="number" step="0.1" value="${ia.shrinkage*100}" placeholder="Shrinkage %"></div>
-              <div class="col"><input id="assumpAttrition" class="form-control" type="number" step="0.1" value="${ia.attrition*100}" placeholder="Attrition %"></div>
-              <div class="col"><input id="assumpHiring" class="form-control" type="number" step="1" value="${ia.hiring}" placeholder="Hiring (heads)"></div>
-            </div>
-            <div class="mt-3 d-grid gap-2">
-              <button id="applyAssumpBtn" class="btn btn-success">Apply Assumptions</button>
-              <button id="resetAssumpBtn" class="btn btn-outline-secondary">Reset to Baseline</button>
-            </div>
-          </div>`;
-        $('#assumptionPanel').html(html);
-
-        $('#applyAssumpBtn').on('click', function(){ applyAssumptions(); });
-        $('#resetAssumpBtn').on('click', function(){ // clear sim fields
-          state.simData.forEach(r=>{
-            r.staffingPctSim = undefined;
-            r.deltaSim = undefined;
-            r.fteAvailableSim = undefined;
-          });
-          renderOverallPivot();
-          renderLOBPivot();
-          renderCharts();
-        });
-      }
-
-      /* ---------- ML panel ---------- */
-      function renderMLPanel(){
-        const html = `
-          <div class="card p-3">
-            <h6>ML Simulation</h6>
-            <div class="mb-2 small text-muted">Call ML service for predicted staffing/shrinkage</div>
-            <div class="d-grid">
-              <button id="runMLBtn" class="btn btn-info">Run ML Prediction</button>
-            </div>
-          </div>`;
-        $('#mlPanel').html(html);
-        $('#runMLBtn').on('click', function(){ runMLPrediction(); });
-      }
-
-      /* ---------- apply manual assumptions ---------- */
-      function applyAssumptions(){
-        const shrink = toNumber($('#assumpShrinkage').val()) / 100;
-        const attrition = toNumber($('#assumpAttrition').val()) / 100;
-        const hiring = toNumber($('#assumpHiring').val(), 0);
-
-        state.simData.forEach(r=>{
-          const baseAvail = toNumber(r.fteAvailable);
-          const effAvail = baseAvail * (1 - shrink) * (1 - attrition) + hiring;
-          r.fteAvailableSim = Number(effAvail.toFixed(2));
-          r.staffingPctSim = r.fteRequired ? Number(((effAvail / r.fteRequired) * 100).toFixed(1)) : undefined;
-          r.deltaSim = Number((effAvail - r.fteRequired).toFixed(0));
-        });
-
-        renderOverallPivot();
-        renderLOBPivot();
-        renderCharts();
-        settings.onSimulationApplied(clone(state.simData));
-      }
-
-      /* ---------- run ML prediction (AJAX) ---------- */
-      function runMLPrediction(){
-        if(!settings.apiMLUrl){
-          alert('apiMLUrl not configured. Provide the C# API endpoint in plugin options.');
-          return;
-        }
-        // Build request payload (example: account/geo/weekrange)
-        const payload = {
-          geo: $('#filterGeo').val() || null,
-          account: $('#filterAccount').val() || null,
-          weeks: state.weeks
+        const $container = $(this);
+        let state = {
+            data: settings.data,
+            weeks: settings.weeks
         };
-        // show loading state
-        $('#runMLBtn').prop('disabled', true).text('Running...');
-        $.ajax({
-          url: settings.apiMLUrl,
-          method: 'POST',
-          contentType: 'application/json',
-          data: JSON.stringify(payload),
-          success: function(res){
-            // Expect res = [ { lob, week, staffingPct, delta, fteAvailable (optional) } ]
-            state.mlData = res || [];
-            // Merge ML into simData by lob+week
-            state.simData.forEach(r=>{
-              const ml = state.mlData.find(x => x.lob === r.lob && x.week === r.week);
-              if(ml){
-                r.staffingPctML = toNumber(ml.staffingPct) || undefined;
-                r.deltaML = (ml.delta !== undefined) ? toNumber(ml.delta) : undefined;
-                r.fteAvailableML = (ml.fteAvailable !== undefined) ? toNumber(ml.fteAvailable) : ((r.fteRequired && r.staffingPctML) ? r.fteRequired * (r.staffingPctML/100) : undefined);
-              } else {
-                r.staffingPctML = undefined;
-                r.deltaML = undefined;
-                r.fteAvailableML = undefined;
-              }
-            });
-            renderOverallPivot();
-            renderLOBPivot();
-            renderCharts();
-            settings.onMLDataLoaded(clone(state.mlData));
-          },
-          error: function(){
-            alert('ML API error. Check console for details.');
-          },
-          complete: function(){
-            $('#runMLBtn').prop('disabled', false).text('Run ML Prediction');
-          }
-        });
-      }
 
-      /* ---------- aggregate overall pivot data ---------- */
-      function aggregateOverallRows(){
-        // produce array of objects: { metric: <name>, '<week1>': value, '<week2>': value, ... }
-        const metrics = [
-          'FTE Required', 'FTE Available', 'Staffing %', 'Delta',
-          'Planned Shrink %', 'Manual Shrink %',
-          'FTE Available (Sim)', 'Staffing % (Sim)', 'Delta (Sim)',
-          'FTE Available (ML)', 'Staffing % (ML)', 'Delta (ML)'
-        ];
-        const rows = [];
-        metrics.forEach(metric=>{
-          const obj = { metric: metric };
-          state.weeks.forEach(w=>{
-            const rowsForWeek = state.simData.filter(x => x.week === w);
-            if(rowsForWeek.length === 0){ obj[w] = '-'; return; }
-
-            if(metric === 'Staffing %' || metric === 'Staffing % (Sim)' || metric === 'Staffing % (ML)'){
-              // weighted staffing% = sum(avail)/sum(req) *100
-              let sumAvail = 0, sumReq = 0;
-              rowsForWeek.forEach(r=>{
-                if(metric === 'Staffing %') { sumAvail += toNumber(r.fteAvailable); }
-                if(metric === 'Staffing % (Sim)') { sumAvail += toNumber(r.fteAvailableSim); }
-                if(metric === 'Staffing % (ML)') { sumAvail += toNumber(r.fteAvailableML); }
-                sumReq += toNumber(r.fteRequired);
-              });
-              obj[w] = sumReq ? ( (sumAvail / sumReq) * 100 ).toFixed(1) + '%' : '-';
-            } else {
-              // sums for numeric totals
-              let val = 0;
-              switch(metric){
-                case 'FTE Required': val = rowsForWeek.reduce((s,r)=>s + toNumber(r.fteRequired),0); break;
-                case 'FTE Available': val = rowsForWeek.reduce((s,r)=>s + toNumber(r.fteAvailable),0); break;
-                case 'Delta': val = rowsForWeek.reduce((s,r)=>s + toNumber(r.delta),0); break;
-                case 'Planned Shrink %': val = (rowsForWeek.reduce((s,r)=>s + toNumber(r.plannedShrinkage),0) / rowsForWeek.length).toFixed(1) + '%'; break;
-                case 'Manual Shrink %': val = (rowsForWeek.reduce((s,r)=>s + toNumber(r.manualShrinkage),0) / rowsForWeek.length).toFixed(1) + '%'; break;
-                case 'FTE Available (Sim)': val = rowsForWeek.reduce((s,r)=>s + toNumber(r.fteAvailableSim),0); break;
-                case 'Delta (Sim)': val = rowsForWeek.reduce((s,r)=>s + toNumber(r.deltaSim),0); break;
-                case 'FTE Available (ML)': val = rowsForWeek.reduce((s,r)=>s + toNumber(r.fteAvailableML),0); break;
-                case 'Delta (ML)': val = rowsForWeek.reduce((s,r)=>s + toNumber(r.deltaML),0); break;
-                default: val = '-';
-              }
-              obj[w] = (val === '-') ? '-' : val;
+        /** --------------------------
+         *  RENDER TABLE FUNCTION
+         * -------------------------- */
+        function renderTable() {
+            if (!state.data || state.data.length === 0) {
+                $container.html(`<div class="p-3 text-muted">No data available</div>`);
+                return;
             }
-          });
-          rows.push(obj);
-        });
-        return rows;
-      }
 
-      /* ---------- render overall pivot ---------- */
-      function renderOverallPivot(){
-        const rows = aggregateOverallRows();
-        let html = `<h5>Overall Summary</h5>`;
-        html += `<div class="table-responsive"><table class="table table-bordered table-sm simTable"><thead><tr><th>Metric</th>`;
-        state.weeks.forEach(w => html += `<th>${w}</th>`);
-        html += `</tr></thead><tbody>`;
-        rows.forEach(r=>{
-          html += `<tr><td>${r.metric}</td>`;
-          state.weeks.forEach(w => { html += `<td>${r[w] !== undefined ? r[w] : '-'}</td>`; });
-          html += `</tr>`;
-        });
-        html += `</tbody></table></div>`;
-        $('#overallContainer').html(html);
-      }
+            // Extract distinct LOBs including 'All'
+            const uniqueLOBs = [...new Set(state.data.map(d => d.lob || 'All'))];
 
-      /* ---------- render LOB pivot ---------- */
-      function renderLOBPivot(){
-        let html = `<h5 class="mt-3">LOB-wise Summary</h5>`;
-        if(!state.uniqueLOBs.length){
-          html += `<div class="text-muted small">No data for selected filters.</div>`;
-          $('#lobContainer').html(html); return;
+            let html = `
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle simulator-table">
+                    <thead>
+                        <tr>
+                            <th>LOB</th>
+                            <th>Metric</th>`;
+            state.weeks.forEach(w => html += `<th>${w}</th>`);
+            html += `</tr></thead><tbody>`;
+
+            uniqueLOBs.forEach(lob => {
+                const lobRows = state.data.filter(r => (r.lob || 'All') === lob);
+                html += settings.metrics.map((metric, idx) => {
+                    let rowHtml = `<tr>`;
+                    if (idx === 0) {
+                        rowHtml += `<td rowspan="${settings.metrics.length}" class="fw-bold">${lob}</td>`;
+                    }
+                    rowHtml += `<td>${metric}</td>`;
+
+                    state.weeks.forEach(week => {
+                        const row = lobRows.find(r => r.week === week);
+                        let val = '-';
+                        if (row) {
+                            switch (metric) {
+                                case 'FTE Required': val = row.fteRequired; break;
+                                case 'FTE Available': val = row.fteAvailable; break;
+                                case 'Staffing %': val = row.staffingPct; break;
+                                case 'Delta': val = row.delta; break;
+                                case 'Planned Shrink %': val = row.plannedShrinkage; break;
+                                case 'Manual Shrink %': val = row.manualShrinkage; break;
+                                case 'Staffing % (Sim)': val = row.staffingPctSim; break;
+                                case 'Delta (Sim)': val = row.deltaSim; break;
+                                case 'Staffing % (ML)': val = row.staffingPctML; break;
+                                case 'Delta (ML)': val = row.deltaML; break;
+                            }
+                            if (val !== null && val !== undefined && !isNaN(val)) {
+                                val = Number(val).toFixed(2);
+                            }
+                        }
+                        rowHtml += `<td class="text-end">${val}</td>`;
+                    });
+
+                    rowHtml += `</tr>`;
+                    return rowHtml;
+                }).join('');
+            });
+
+            html += `</tbody></table></div>`;
+            $container.find('.simulator-table-container').html(html);
         }
-        state.uniqueLOBs.forEach(lob => {
-          const rowsForLOB = state.simData.filter(r => r.lob === lob);
-          html += `<div class="mb-2"><strong>${lob}</strong></div>`;
-          html += `<div class="table-responsive"><table class="table table-bordered table-sm simTable mb-3"><thead><tr><th>Metric</th>`;
-          state.weeks.forEach(w => html += `<th>${w}</th>`);
-          html += `</tr></thead><tbody>`;
-          const metrics = [
-            'FTE Required','FTE Available','Staffing %','Delta','Planned Shrink %','Manual Shrink %',
-            'FTE Available (Sim)','Staffing % (Sim)','Delta (Sim)','FTE Available (ML)','Staffing % (ML)','Delta (ML)'
-          ];
-          metrics.forEach(metric=>{
-            html += `<tr><td>${metric}</td>`;
-            state.weeks.forEach(w=>{
-              const r = rowsForLOB.find(x => x.week === w);
-              let val = '-';
-              if(r){
-                switch(metric){
-                  case 'FTE Required': val = r.fteRequired; break;
-                  case 'FTE Available': val = r.fteAvailable; break;
-                  case 'Staffing %': val = (r.staffingPct !== undefined) ? r.staffingPct + '%' : '-'; break;
-                  case 'Delta': val = r.delta; break;
-                  case 'Planned Shrink %': val = r.plannedShrinkage !== undefined ? r.plannedShrinkage + '%' : '-'; break;
-                  case 'Manual Shrink %': val = r.manualShrinkage !== undefined ? r.manualShrinkage + '%' : '-'; break;
-                  case 'FTE Available (Sim)': val = (r.fteAvailableSim !== undefined) ? r.fteAvailableSim : '-'; break;
-                  case 'Staffing % (Sim)': val = (r.staffingPctSim !== undefined) ? r.staffingPctSim + '%' : '-'; break;
-                  case 'Delta (Sim)': val = (r.deltaSim !== undefined) ? r.deltaSim : '-'; break;
-                  case 'FTE Available (ML)': val = (r.fteAvailableML !== undefined) ? Number(r.fteAvailableML.toFixed(2)) : '-'; break;
-                  case 'Staffing % (ML)': val = (r.staffingPctML !== undefined) ? r.staffingPctML + '%' : '-'; break;
-                  case 'Delta (ML)': val = (r.deltaML !== undefined) ? r.deltaML : '-'; break;
+
+        /** --------------------------
+         *  SIMULATION APPLY FUNCTION
+         * -------------------------- */
+        function applySimulation(assumedShrinkage) {
+            // Apply new Staffing% and Delta based on assumed shrinkage
+            state.data = state.data.map(row => {
+                if (row.fteRequired && row.fteAvailable) {
+                    const effectiveAvailable = row.fteAvailable * (1 - assumedShrinkage / 100);
+                    row.staffingPctSim = (effectiveAvailable / row.fteRequired) * 100;
+                    row.deltaSim = effectiveAvailable - row.fteRequired;
                 }
-              }
-              html += `<td>${val}</td>`;
+                return row;
             });
-            html += `</tr>`;
-          });
-          html += `</tbody></table></div>`;
-        });
-        $('#lobContainer').html(html);
-      }
-
-      /* ---------- charts ---------- */
-      let staffChart = null, deltaChart = null;
-      function renderCharts(){
-        $('#chartsContainer').html('');
-        if(!settings.enableCharts || !state.weeks.length) return;
-
-        const chartsHtml = `
-          <div class="row chart-container">
-            <div class="col-md-6 mb-3"><canvas id="staffChart" height="220"></canvas></div>
-            <div class="col-md-6 mb-3"><canvas id="deltaChart" height="220"></canvas></div>
-          </div>`;
-        $('#chartsContainer').html(chartsHtml);
-
-        // baseline weighted staffing % per week
-        const baselineStaff = state.weeks.map(w=>{
-          const rows = state.simData.filter(r=>r.week===w);
-          const sumReq = rows.reduce((s,r) => s + toNumber(r.fteRequired), 0);
-          const sumAvail = rows.reduce((s,r) => s + toNumber(r.fteAvailable), 0);
-          return sumReq ? Number(((sumAvail / sumReq) * 100).toFixed(2)) : 0;
-        });
-        const simStaff = state.weeks.map(w=>{
-          const rows = state.simData.filter(r=>r.week===w);
-          const sumReq = rows.reduce((s,r) => s + toNumber(r.fteRequired), 0);
-          const sumAvail = rows.reduce((s,r) => s + toNumber(r.fteAvailableSim), 0);
-          return sumReq ? Number(((sumAvail / sumReq) * 100).toFixed(2)) : 0;
-        });
-        const mlStaff = state.weeks.map(w=>{
-          const rows = state.simData.filter(r=>r.week===w);
-          const sumReq = rows.reduce((s,r) => s + toNumber(r.fteRequired), 0);
-          const sumAvail = rows.reduce((s,r) => s + toNumber(r.fteAvailableML), 0);
-          return sumReq ? Number(((sumAvail / sumReq) * 100).toFixed(2)) : 0;
-        });
-
-        // destroy old charts (if any)
-        if(staffChart){ staffChart.destroy(); staffChart = null; }
-        if(deltaChart){ deltaChart.destroy(); deltaChart = null; }
-
-        staffChart = new Chart(document.getElementById('staffChart'), {
-          type: 'line',
-          data: {
-            labels: state.weeks,
-            datasets: [
-              { label: 'Baseline Staffing %', data: baselineStaff, borderColor: '#1976d2', tension: 0.2, spanGaps:true },
-              { label: 'Simulated Staffing %', data: simStaff, borderColor: '#2e7d32', tension: 0.2, spanGaps:true },
-              { label: 'ML Staffing %', data: mlStaff, borderColor: '#ff8f00', tension: 0.2, spanGaps:true }
-            ]
-          },
-          options: { responsive:true, plugins:{legend:{position:'top'}} }
-        });
-
-        // Delta = total delta per week
-        const baselineDelta = state.weeks.map(w =>
-          state.simData.filter(r=>r.week===w).reduce((s,r)=>s + toNumber(r.delta),0)
-        );
-        const simDelta = state.weeks.map(w =>
-          state.simData.filter(r=>r.week===w).reduce((s,r)=>s + toNumber(r.deltaSim),0)
-        );
-        const mlDelta = state.weeks.map(w =>
-          state.simData.filter(r=>r.week===w).reduce((s,r)=>s + toNumber(r.deltaML),0)
-        );
-
-        deltaChart = new Chart(document.getElementById('deltaChart'), {
-          type: 'bar',
-          data: {
-            labels: state.weeks,
-            datasets: [
-              { label: 'Baseline Delta', data: baselineDelta, backgroundColor: '#1976d2' },
-              { label: 'Simulated Delta', data: simDelta, backgroundColor: '#2e7d32' },
-              { label: 'ML Delta', data: mlDelta, backgroundColor: '#ff8f00' }
-            ]
-          },
-          options: { responsive:true, plugins:{legend:{position:'top'}} }
-        });
-      }
-
-      // public API helper to reload data (useful later)
-      this.reloadData = function(newData){
-        loadData(newData);
-        renderAll();
-        return this;
-      };
-
-      // run init
-      init();
-      return this;
-    };
-  })(jQuery);
-  </script>
-
-  <!-- Sample data + plugin initialization -->
-  <script>
-    // sample JSON - include many weeks to test horizontal scroll
-    const sampleData = [
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '01-Sep-25', fteRequired: 120, fteAvailable: 110, delta: -10, staffingPct: 91.7, plannedShrinkage: 10 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '08-Sep-25', fteRequired: 122, fteAvailable: 115, delta: -7, staffingPct: 94.3, plannedShrinkage: 10 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '15-Sep-25', fteRequired: 125, fteAvailable: 118, delta: -7, staffingPct: 94.4, plannedShrinkage: 10 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '22-Sep-25', fteRequired: 130, fteAvailable: 120, delta: -10, staffingPct: 92.3, plannedShrinkage: 10 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '29-Sep-25', fteRequired: 135, fteAvailable: 125, delta: -10, staffingPct: 92.6, plannedShrinkage: 10 },
-
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '01-Sep-25', fteRequired: 80, fteAvailable: 78, delta: -2, staffingPct: 97.5, plannedShrinkage: 9 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '08-Sep-25', fteRequired: 82, fteAvailable: 79, delta: -3, staffingPct: 96.3, plannedShrinkage: 9 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '15-Sep-25', fteRequired: 85, fteAvailable: 82, delta: -3, staffingPct: 96.5, plannedShrinkage: 9 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '22-Sep-25', fteRequired: 86, fteAvailable: 83, delta: -3, staffingPct: 96.5, plannedShrinkage: 9 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '29-Sep-25', fteRequired: 88, fteAvailable: 85, delta: -3, staffingPct: 96.6, plannedShrinkage: 9 },
-
-      // extra weeks to force horizontal scroll
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '06-Oct-25', fteRequired: 136, fteAvailable: 126, delta: -10, staffingPct: 92.6, plannedShrinkage: 10 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '06-Oct-25', fteRequired: 90, fteAvailable: 86, delta: -4, staffingPct: 95.6, plannedShrinkage: 9 },
-
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '13-Oct-25', fteRequired: 140, fteAvailable: 130, delta: -10, staffingPct: 92.8, plannedShrinkage: 10 },
-      { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '13-Oct-25', fteRequired: 92, fteAvailable: 88, delta: -4, staffingPct: 95.7, plannedShrinkage: 9 }
-    ];
-
-    // Demo ML API endpoint stub (for testing locally)
-    // If you don't have a C# API yet, use this stub by setting apiMLUrl: '/dummy-ml'
-    // The plugin will POST { geo, account, weeks } and expects an array of predictions
-    // We'll create a local handler to simulate ML response when '/dummy-ml' is called.
-    $(function(){
-      // simple stub: returns baseline staffingPct - 1% as ML suggestion
-      $(document).on('ajaxSend', function(e, jqXHR, options){
-        if(options.url === '/dummy-ml'){
-          // intercept by abort & return simulated response asynchronously
-          jqXHR.abort(); // prevent a real network call
-          const payload = JSON.parse(options.data || '{}');
-          const resp = [];
-          sampleData.forEach(r=>{
-            if((!payload.geo || payload.geo === r.geo) && (!payload.account || payload.account === r.account) && payload.weeks.includes(r.week)){
-              resp.push({
-                lob: r.lob,
-                week: r.week,
-                staffingPct: (r.staffingPct ? (r.staffingPct - 0.7) : null),
-                delta: (r.delta !== undefined ? r.delta - 1 : null),
-                fteAvailable: (r.fteAvailable ? r.fteAvailable - 1 : null)
-              });
+            renderTable();
+            if (typeof settings.onSimulation === 'function') {
+                settings.onSimulation(assumedShrinkage, state.data);
             }
-          });
-          // simulate network latency
-          setTimeout(()=> {
-            // call success callbacks manually
-            if(typeof options.success === 'function') options.success(resp);
-            if(typeof options.complete === 'function') options.complete();
-          }, 700);
         }
-      });
 
-      // Initialize plugin
-      $('#assumptionSimulator').AssumptionSimulator({
-        data: sampleData,
-        apiMLUrl: '/dummy-ml',       // replace with your C# API endpoint in production
-        initialAssumptions: { shrinkage:0.12, attrition:0.03, hiring: 0 },
-        enableCharts: true,
-        onSimulationApplied: function(updated){
-          console.log('Simulation applied (sample of 3 rows):', updated.slice(0,3));
-        },
-        onMLDataLoaded: function(ml){
-          console.log('ML data loaded (sample):', ml.slice(0,6));
+        /** --------------------------
+         *  OPTIONAL: ML SIMULATION
+         * -------------------------- */
+        function runMLSimulation() {
+            if (!settings.mlApiUrl) return;
+            $.ajax({
+                url: settings.mlApiUrl,
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(state.data),
+                success: function (mlResult) {
+                    // Merge ML results back into state.data
+                    state.data.forEach(row => {
+                        const match = mlResult.find(m => m.lob === row.lob && m.week === row.week);
+                        if (match) {
+                            row.staffingPctML = match.staffingPctML;
+                            row.deltaML = match.deltaML;
+                        }
+                    });
+                    renderTable();
+                }
+            });
         }
-      });
-    });
-  </script>
-</body>
-</html>
 
+        /** --------------------------
+         *  INITIALIZE UI
+         * -------------------------- */
+        function init() {
+            const ui = `
+                <div class="simulator-controls mb-2">
+                    <div class="input-group input-group-sm" style="max-width:200px;">
+                        <span class="input-group-text">Shrinkage %</span>
+                        <input type="number" step="0.1" min="0" max="100" class="form-control" id="simShrinkageInput">
+                        <button class="btn btn-primary btn-sm" id="applySimBtn">Apply</button>
+                        ${settings.mlApiUrl ? `<button class="btn btn-secondary btn-sm" id="runMLBtn">ML Sim</button>` : ''}
+                    </div>
+                </div>
+                <div class="simulator-table-container"></div>
+            `;
+            $container.html(ui);
+            renderTable();
+
+            $container.on('click', '#applySimBtn', function () {
+                const shrinkVal = parseFloat($container.find('#simShrinkageInput').val());
+                if (!isNaN(shrinkVal)) applySimulation(shrinkVal);
+            });
+
+            $container.on('click', '#runMLBtn', function () {
+                runMLSimulation();
+            });
+        }
+
+        init();
+        return this;
+    };
+}(jQuery));
