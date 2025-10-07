@@ -1,35 +1,160 @@
-const sampleData = [
-  // Customer Service
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '01-Sep-25', fteRequired: 120, fteAvailable: 110, delta: -10, staffingPct: 91.7, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '08-Sep-25', fteRequired: 122, fteAvailable: 115, delta: -7, staffingPct: 94.3, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '15-Sep-25', fteRequired: 125, fteAvailable: 118, delta: -7, staffingPct: 94.4, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '22-Sep-25', fteRequired: 130, fteAvailable: 120, delta: -10, staffingPct: 92.3, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '29-Sep-25', fteRequired: 135, fteAvailable: 125, delta: -10, staffingPct: 92.6, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '06-Oct-25', fteRequired: 136, fteAvailable: 126, delta: -10, staffingPct: 92.6, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '13-Oct-25', fteRequired: 140, fteAvailable: 130, delta: -10, staffingPct: 92.8, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '20-Oct-25', fteRequired: 142, fteAvailable: 132, delta: -10, staffingPct: 93.0, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '27-Oct-25', fteRequired: 145, fteAvailable: 134, delta: -11, staffingPct: 92.4, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '03-Nov-25', fteRequired: 147, fteAvailable: 136, delta: -11, staffingPct: 92.5, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '10-Nov-25', fteRequired: 150, fteAvailable: 138, delta: -12, staffingPct: 92.0, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '17-Nov-25', fteRequired: 152, fteAvailable: 140, delta: -12, staffingPct: 92.1, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '24-Nov-25', fteRequired: 155, fteAvailable: 142, delta: -13, staffingPct: 91.6, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '01-Dec-25', fteRequired: 158, fteAvailable: 145, delta: -13, staffingPct: 91.8, plannedShrinkage: 10, plannedAttrition: 5 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '08-Dec-25', fteRequired: 160, fteAvailable: 147, delta: -13, staffingPct: 91.9, plannedShrinkage: 10, plannedAttrition: 5 },
+(function ($) {
+    $.fn.assumptionSimulator = function (options) {
+        const settings = $.extend({
+            data: [], // JSON array
+        }, options);
 
-  // Tech Support
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '01-Sep-25', fteRequired: 80, fteAvailable: 78, delta: -2, staffingPct: 97.5, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '08-Sep-25', fteRequired: 82, fteAvailable: 79, delta: -3, staffingPct: 96.3, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '15-Sep-25', fteRequired: 85, fteAvailable: 82, delta: -3, staffingPct: 96.5, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '22-Sep-25', fteRequired: 86, fteAvailable: 83, delta: -3, staffingPct: 96.5, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '29-Sep-25', fteRequired: 88, fteAvailable: 85, delta: -3, staffingPct: 96.6, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '06-Oct-25', fteRequired: 90, fteAvailable: 86, delta: -4, staffingPct: 95.6, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '13-Oct-25', fteRequired: 92, fteAvailable: 88, delta: -4, staffingPct: 95.7, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '20-Oct-25', fteRequired: 94, fteAvailable: 90, delta: -4, staffingPct: 95.7, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '27-Oct-25', fteRequired: 96, fteAvailable: 92, delta: -4, staffingPct: 95.8, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '03-Nov-25', fteRequired: 98, fteAvailable: 94, delta: -4, staffingPct: 95.9, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '10-Nov-25', fteRequired: 100, fteAvailable: 96, delta: -4, staffingPct: 96.0, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '17-Nov-25', fteRequired: 102, fteAvailable: 98, delta: -4, staffingPct: 96.1, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '24-Nov-25', fteRequired: 104, fteAvailable: 100, delta: -4, staffingPct: 96.2, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '01-Dec-25', fteRequired: 106, fteAvailable: 102, delta: -4, staffingPct: 96.2, plannedShrinkage: 9, plannedAttrition: 4 },
-  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '08-Dec-25', fteRequired: 108, fteAvailable: 104, delta: -4, staffingPct: 96.3, plannedShrinkage: 9, plannedAttrition: 4 }
-];
+        const $container = $(this);
+        $container.empty().addClass('assumption-simulator');
+
+        // Extract weeks sorted
+        const weeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
+
+        // Extract LOBs
+        const lobs = [...new Set(settings.data.map(d => d.lob))];
+
+        // Store simulated shrinkage
+        const simulatedShrinkage = {};
+
+        // Toolbar for input + apply
+        const $toolbar = $(`
+            <div class="sim-toolbar mb-2 flex gap-2 items-center">
+                <label>Simulation Shrinkage %: <input type="number" step="0.1" min="0" class="sim-input-global w-20 p-0.5 border rounded"></label>
+                <button class="btn-apply px-3 py-1 bg-blue-500 text-white rounded">Apply</button>
+            </div>
+        `);
+        $container.append($toolbar);
+
+        // Table wrapper
+        const $tableWrapper = $('<div class="sim-table-wrapper overflow-x-auto"></div>');
+        const $table = $('<table class="table sim-table min-w-max border-collapse border border-gray-200"></table>');
+        $tableWrapper.append($table);
+        $container.append($tableWrapper);
+
+        // Table header
+        let headerHtml = `<thead><tr>
+            <th class="sticky-col bg-white border">LOB / Overall</th>
+            <th class="sticky-col bg-white border">Metric</th>`;
+        weeks.forEach(w => headerHtml += `<th class="border">${w}</th>`);
+        headerHtml += `</tr></thead>`;
+        $table.append(headerHtml);
+
+        const $tbody = $('<tbody></tbody>');
+        $table.append($tbody);
+
+        const fmt = (val) => (val !== null && val !== undefined) ? parseFloat(val).toFixed(2) : '';
+
+        // Helper to get data
+        const getData = (lob, week) => settings.data.find(d => d.lob === lob && d.week === week);
+
+        // Initialize simulatedShrinkage with planned values
+        lobs.forEach(lob => {
+            weeks.forEach(week => {
+                const d = getData(lob, week);
+                if (d) simulatedShrinkage[`${lob}_${week}`] = d.plannedShrinkage;
+            });
+        });
+
+        // Function to render table
+        function renderTable() {
+            $tbody.empty();
+
+            // Overall row
+            const overallMetrics = ['FTE Required', 'FTE Available', 'Delta', 'Staffing %', 'Planned Shrinkage %', 'Simulated Shrinkage %'];
+            overallMetrics.forEach(metric => {
+                const $tr = $('<tr></tr>');
+                if (metric === 'FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-bold" rowspan="${overallMetrics.length}">Overall</td>`);
+                $tr.append(`<td class="sticky-col bg-gray-50">${metric}</td>`);
+
+                weeks.forEach(week => {
+                    let val = '';
+                    const weekData = settings.data.filter(d => d.week === week);
+                    switch (metric) {
+                        case 'FTE Required': val = fmt(weekData.reduce((s, d) => s + d.fteRequired, 0)); break;
+                        case 'FTE Available': val = fmt(weekData.reduce((s, d) => s + d.fteAvailable, 0)); break;
+                        case 'Delta': val = fmt(weekData.reduce((s, d) => s + d.delta, 0)); break;
+                        case 'Staffing %': val = fmt(weekData.reduce((s, d) => s + d.staffingPct, 0) / weekData.length); break;
+                        case 'Planned Shrinkage %': val = fmt(weekData.reduce((s, d) => s + d.plannedShrinkage, 0) / weekData.length); break;
+                        case 'Simulated Shrinkage %':
+                            val = fmt(weekData.reduce((s, d) => s + simulatedShrinkage[`${d.lob}_${week}`], 0) / weekData.length);
+                            break;
+                    }
+                    if (metric === 'Simulated Shrinkage %') {
+                        $tr.append(`<td class="text-right"><input type="number" step="0.1" min="0" class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${val}"></td>`);
+                    } else {
+                        $tr.append(`<td class="text-right">${val}</td>`);
+                    }
+                });
+
+                $tbody.append($tr);
+            });
+
+            // LOB rows
+            lobs.forEach(lob => {
+                overallMetrics.forEach(metric => {
+                    const $tr = $('<tr></tr>');
+                    if (metric === 'FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-semibold" rowspan="${overallMetrics.length}">${lob}</td>`);
+                    $tr.append(`<td class="sticky-col bg-gray-50">${metric}</td>`);
+
+                    weeks.forEach(week => {
+                        const rowData = getData(lob, week);
+                        let val = '';
+                        if (!rowData) val = '';
+                        else switch (metric) {
+                            case 'FTE Required': val = fmt(rowData.fteRequired); break;
+                            case 'FTE Available': val = fmt(rowData.fteAvailable); break;
+                            case 'Delta': val = fmt(rowData.delta); break;
+                            case 'Staffing %': val = fmt(rowData.staffingPct); break;
+                            case 'Planned Shrinkage %': val = fmt(rowData.plannedShrinkage); break;
+                            case 'Simulated Shrinkage %': val = fmt(simulatedShrinkage[`${lob}_${week}`]); break;
+                        }
+
+                        if (metric === 'Simulated Shrinkage %') {
+                            $tr.append(`<td class="text-right"><input type="number" step="0.1" min="0" class="sim-input-cell w-16 p-0.5 border rounded text-right" data-lob="${lob}" data-week="${week}" value="${val}"></td>`);
+                        } else {
+                            $tr.append(`<td class="text-right">${val}</td>`);
+                        }
+                    });
+                    $tbody.append($tr);
+                });
+            });
+        }
+
+        renderTable();
+
+        // Event: individual input change
+        $tbody.on('input', '.sim-input-cell', function () {
+            const lob = $(this).data('lob');
+            const week = $(this).data('week');
+            const val = parseFloat($(this).val()) || 0;
+            simulatedShrinkage[`${lob}_${week}`] = val;
+
+            // Recalculate dependent fields
+            const d = getData(lob, week);
+            if (d) {
+                const fteAvail = d.fteRequired * (1 - val / 100);
+                d.fteAvailable = fteAvail;
+                d.delta = fteAvail - d.fteRequired;
+                d.staffingPct = (fteAvail / d.fteRequired) * 100;
+            }
+
+            renderTable();
+        });
+
+        // Event: Apply global simulation
+        $toolbar.find('.btn-apply').on('click', function () {
+            const val = parseFloat($toolbar.find('.sim-input-global').val()) || 0;
+            lobs.forEach(lob => weeks.forEach(week => simulatedShrinkage[`${lob}_${week}`] = val));
+            settings.data.forEach(d => {
+                if (weeks.includes(d.week)) {
+                    const fteAvail = d.fteRequired * (1 - val / 100);
+                    d.fteAvailable = fteAvail;
+                    d.delta = fteAvail - d.fteRequired;
+                    d.staffingPct = (fteAvail / d.fteRequired) * 100;
+                }
+            });
+            renderTable();
+        });
+
+    };
+}(jQuery));
