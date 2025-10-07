@@ -1,164 +1,35 @@
-(function($){
-    $.fn.assumptionSimulator = function(options){
-        const settings = $.extend({
-            data: [],            // Array of data objects
-            weeks: [],           // Array of week strings (dd-MMM-yy)
-            metrics: [
-                'FTE Required',
-                'FTE Available',
-                'Delta',
-                'Staffing %',
-                'Planned Shrinkage %',
-                'Simulated Shrinkage %',
-                'Planned Attrition %',
-                'Simulated Attrition %'
-            ],
-            decimal: 2
-        }, options);
+const sampleData = [
+  // Customer Service
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '01-Sep-25', fteRequired: 120, fteAvailable: 110, delta: -10, staffingPct: 91.7, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '08-Sep-25', fteRequired: 122, fteAvailable: 115, delta: -7, staffingPct: 94.3, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '15-Sep-25', fteRequired: 125, fteAvailable: 118, delta: -7, staffingPct: 94.4, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '22-Sep-25', fteRequired: 130, fteAvailable: 120, delta: -10, staffingPct: 92.3, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '29-Sep-25', fteRequired: 135, fteAvailable: 125, delta: -10, staffingPct: 92.6, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '06-Oct-25', fteRequired: 136, fteAvailable: 126, delta: -10, staffingPct: 92.6, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '13-Oct-25', fteRequired: 140, fteAvailable: 130, delta: -10, staffingPct: 92.8, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '20-Oct-25', fteRequired: 142, fteAvailable: 132, delta: -10, staffingPct: 93.0, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '27-Oct-25', fteRequired: 145, fteAvailable: 134, delta: -11, staffingPct: 92.4, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '03-Nov-25', fteRequired: 147, fteAvailable: 136, delta: -11, staffingPct: 92.5, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '10-Nov-25', fteRequired: 150, fteAvailable: 138, delta: -12, staffingPct: 92.0, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '17-Nov-25', fteRequired: 152, fteAvailable: 140, delta: -12, staffingPct: 92.1, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '24-Nov-25', fteRequired: 155, fteAvailable: 142, delta: -13, staffingPct: 91.6, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '01-Dec-25', fteRequired: 158, fteAvailable: 145, delta: -13, staffingPct: 91.8, plannedShrinkage: 10, plannedAttrition: 5 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '08-Dec-25', fteRequired: 160, fteAvailable: 147, delta: -13, staffingPct: 91.9, plannedShrinkage: 10, plannedAttrition: 5 },
 
-        const $container = $(this);
-        let simulatedInput = {}; // store user applied simulation % per LOB/week
-
-        function round(value){
-            return Number(value).toFixed(settings.decimal);
-        }
-
-        function buildTable(){
-            $container.empty();
-
-            const lobs = [...new Set(settings.data.map(d=>d.lob))];
-            const overallRow = 'Overall';
-
-            const $table = $('<table>').addClass('assumption-table').css({width:'100%',borderCollapse:'collapse'});
-            const $thead = $('<thead>');
-            const $tbody = $('<tbody>');
-
-            // 1st header row: week spanning 2 columns
-            const $tr1 = $('<tr>');
-            $tr1.append('<th rowspan="2">LOB / Overall</th>');
-            $tr1.append('<th rowspan="2">Metric</th>');
-            settings.weeks.forEach(week=>{
-                $tr1.append(`<th colspan="2">${week}</th>`);
-            });
-            $thead.append($tr1);
-
-            // 2nd header row: Original / Simulated
-            const $tr2 = $('<tr>');
-            settings.weeks.forEach(_=>{
-                $tr2.append('<th>Original</th><th>Simulated</th>');
-            });
-            $thead.append($tr2);
-
-            // Helper to get data object
-            function getData(lob, week){
-                return settings.data.find(d=>d.lob===lob && d.week===week) || null;
-            }
-
-            // Helper to calculate simulated values
-            function calcSimulated(d){
-                const simShrink = simulatedInput[`${d.lob}_${d.week}`] ?? d.simulatedShrinkage ?? d.plannedShrinkage;
-                const simAttr = simulatedInput[`attr_${d.lob}_${d.week}`] ?? d.simulatedAttrition ?? d.plannedAttrition ?? 0;
-
-                const fteAvailable = d.fteRequired * (1 - simShrink/100);
-                const delta = fteAvailable - d.fteRequired;
-                const staffing = d.fteRequired===0 ? 0 : (fteAvailable/d.fteRequired)*100;
-
-                return {
-                    'FTE Required': d.fteRequired,
-                    'FTE Available': round(fteAvailable),
-                    'Delta': round(delta),
-                    'Staffing %': round(staffing),
-                    'Planned Shrinkage %': d.plannedShrinkage ?? 0,
-                    'Simulated Shrinkage %': round(simShrink),
-                    'Planned Attrition %': d.plannedAttrition ?? 0,
-                    'Simulated Attrition %': round(simAttr)
-                };
-            }
-
-            // Rows: Overall + LOBs
-            [overallRow, ...lobs].forEach(lob=>{
-                settings.metrics.forEach(metric=>{
-                    const $tr = $('<tr>');
-                    if(metric === settings.metrics[0]) $tr.append(`<td rowspan="${settings.metrics.length}">${lob}</td>`);
-                    $tr.append(`<td>${metric}</td>`);
-                    settings.weeks.forEach(week=>{
-                        let original = 0, simulated = 0;
-
-                        if(lob===overallRow){
-                            // aggregate over LOBs
-                            const arr = lobs.map(lb=>{
-                                const d = getData(lb, week);
-                                return d ? calcSimulated(d)[metric] : 0;
-                            });
-                            original = arr.reduce((a,b)=>a+Number(b),0);
-                            simulated = arr.reduce((a,b)=>a+Number(b),0);
-                        } else {
-                            const d = getData(lob, week);
-                            if(d){
-                                const sim = calcSimulated(d);
-                                original = sim[metric];
-                                simulated = sim[metric];
-                            }
-                        }
-
-                        $tr.append(`<td>${original}</td>`);
-                        $tr.append(`<td><input type="text" readonly class="sim-input" value="${simulated}" data-lob="${lob}" data-week="${week}" data-metric="${metric}" style="width:60px;text-align:right"/></td>`);
-                    });
-                    $tbody.append($tr);
-                });
-            });
-
-            $table.append($thead).append($tbody);
-            $container.append($table);
-
-            // Apply button
-            const $applyBtn = $('<button>').text('Apply Simulation').addClass('btn btn-primary').css({margin:'10px 0'});
-            $applyBtn.on('click', applySimulation);
-            $container.append($applyBtn);
-        }
-
-        function applySimulation(){
-            // Ask user for shrinkage and attrition simulation %
-            const shrinkInput = prompt('Enter simulated shrinkage % (e.g., 12):', '0');
-            const attrInput = prompt('Enter simulated attrition % (e.g., 5):', '0');
-            const simShrink = parseFloat(shrinkInput) || 0;
-            const simAttr = parseFloat(attrInput) || 0;
-
-            // update simulatedInput object
-            settings.data.forEach(d=>{
-                simulatedInput[`${d.lob}_${d.week}`] = simShrink;
-                simulatedInput[`attr_${d.lob}_${d.week}`] = simAttr;
-            });
-
-            // recalc simulated values in table
-            $container.find('input.sim-input').each(function(){
-                const lob = $(this).data('lob');
-                const week = $(this).data('week');
-                const metric = $(this).data('metric');
-
-                let val = 0;
-                if(lob==='Overall'){
-                    // aggregate
-                    const lobs = [...new Set(settings.data.map(d=>d.lob))];
-                    const arr = lobs.map(lb=>{
-                        const d = settings.data.find(dd=>dd.lob===lb && dd.week===week);
-                        if(!d) return 0;
-                        const sim = calcSimulated(d);
-                        return Number(sim[metric]);
-                    });
-                    val = arr.reduce((a,b)=>a+b,0);
-                } else {
-                    const d = settings.data.find(dd=>dd.lob===lob && dd.week===week);
-                    if(d){
-                        const sim = calcSimulated(d);
-                        val = Number(sim[metric]);
-                    }
-                }
-                $(this).val(round(val));
-            });
-        }
-
-        buildTable();
-        return this;
-    };
-}(jQuery));
+  // Tech Support
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '01-Sep-25', fteRequired: 80, fteAvailable: 78, delta: -2, staffingPct: 97.5, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '08-Sep-25', fteRequired: 82, fteAvailable: 79, delta: -3, staffingPct: 96.3, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '15-Sep-25', fteRequired: 85, fteAvailable: 82, delta: -3, staffingPct: 96.5, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '22-Sep-25', fteRequired: 86, fteAvailable: 83, delta: -3, staffingPct: 96.5, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '29-Sep-25', fteRequired: 88, fteAvailable: 85, delta: -3, staffingPct: 96.6, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '06-Oct-25', fteRequired: 90, fteAvailable: 86, delta: -4, staffingPct: 95.6, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '13-Oct-25', fteRequired: 92, fteAvailable: 88, delta: -4, staffingPct: 95.7, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '20-Oct-25', fteRequired: 94, fteAvailable: 90, delta: -4, staffingPct: 95.7, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '27-Oct-25', fteRequired: 96, fteAvailable: 92, delta: -4, staffingPct: 95.8, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '03-Nov-25', fteRequired: 98, fteAvailable: 94, delta: -4, staffingPct: 95.9, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '10-Nov-25', fteRequired: 100, fteAvailable: 96, delta: -4, staffingPct: 96.0, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '17-Nov-25', fteRequired: 102, fteAvailable: 98, delta: -4, staffingPct: 96.1, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '24-Nov-25', fteRequired: 104, fteAvailable: 100, delta: -4, staffingPct: 96.2, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '01-Dec-25', fteRequired: 106, fteAvailable: 102, delta: -4, staffingPct: 96.2, plannedShrinkage: 9, plannedAttrition: 4 },
+  { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '08-Dec-25', fteRequired: 108, fteAvailable: 104, delta: -4, staffingPct: 96.3, plannedShrinkage: 9, plannedAttrition: 4 }
+];
