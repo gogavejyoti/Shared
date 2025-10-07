@@ -13,7 +13,7 @@
         // Extract LOBs
         const lobs = [...new Set(settings.data.map(d => d.lob))];
 
-        // Store simulated shrinkage and attrition separately
+        // Store simulated shrinkage and attrition
         const simulatedValues = {}; // key: lob_week_metric
 
         // Toolbar for input + apply
@@ -51,27 +51,31 @@
 
         const fmt = (val) => (val !== null && val !== undefined && !isNaN(val)) ? parseFloat(val).toFixed(2) : 'NA';
 
-        // Initialize simulatedValues
-        lobs.forEach(lob => {
-            weeks.forEach(week => {
-                simulatedValues[`${lob}_${week}_shrink`] = 0;
-                simulatedValues[`${lob}_${week}_attr`] = 0;
-            });
-        });
-
         // Helper
         function getData(lob, week) {
             return settings.data.find(d => d.lob === lob && d.week === week);
         }
 
-        // Function to calculate simulated metrics without touching original data
+        // Initialize simulatedValues from planned values
+        lobs.forEach(lob => {
+            weeks.forEach(week => {
+                const d = getData(lob, week);
+                simulatedValues[`${lob}_${week}_shrink`] = d?.plannedShrinkage ?? 0;
+                simulatedValues[`${lob}_${week}_attr`] = d?.plannedAttrition ?? 0;
+            });
+        });
+
+        // Function to calculate simulated metrics
         function calcSimulated(d) {
             if (!d) return {};
             const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`] ?? 0;
             const attr = simulatedValues[`${d.lob}_${d.week}_attr`] ?? 0;
+
+            // FTE Available, Delta, Staffing %
             const fteAvail = (d.fteRequired != null) ? d.fteRequired * (1 - shrink / 100) : null;
             const delta = (fteAvail != null && d.fteRequired != null) ? fteAvail - d.fteRequired : null;
-            const staffing = (d.fteRequired != null && d.fteRequired !== 0 && fteAvail != null) ? fteAvail / d.fteRequired * 100 : null;
+            const staffing = (d.fteRequired != null && fteAvail != null && d.fteRequired !== 0) ? fteAvail / d.fteRequired * 100 : null;
+
             return {
                 'FTE Available': fteAvail,
                 'Delta': delta,
@@ -86,7 +90,7 @@
             $tbody.empty();
             const metrics = ['FTE Required','FTE Available','Delta','Staffing %','Planned Shrinkage %','Simulated Shrinkage %','Planned Attrition %','Simulated Attrition %'];
 
-            // Overall row first
+            // Overall row
             metrics.forEach(metric => {
                 const $tr = $('<tr></tr>');
                 if (metric === 'FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-bold" rowspan="${metrics.length}">Overall</td>`);
@@ -174,7 +178,7 @@
 
         renderTable();
 
-        // Event: Apply global simulation
+        // Apply global simulation
         $toolbar.find('.btn-apply').on('click', function () {
             const shrinkVal = parseFloat($toolbar.find('.sim-input-global-shrink').val()) || 0;
             const attrVal = parseFloat($toolbar.find('.sim-input-global-attr').val()) || 0;
