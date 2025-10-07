@@ -11,9 +11,9 @@
         const lobs = [...new Set(settings.data.map(d => d.lob))];
 
         // Store simulated shrinkage and attrition
-        const simulatedValues = {}; 
+        const simulatedValues = {};
 
-        // Store original metrics
+        // Store original metrics for FTE Available, Delta, Staffing %
         const originalMetrics = {};
         lobs.forEach(lob => {
             weeks.forEach(week => {
@@ -72,22 +72,27 @@
             });
         });
 
-        // Calculate simulated metrics
-        function calcSimulated(d){
-            if(!d) return {};
+        // Calculate simulated metrics considering both shrinkage & attrition
+        function calcSimulated(d) {
+            if (!d) return {};
+
             const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`] ?? 0;
             const attr = simulatedValues[`${d.lob}_${d.week}_attr`] ?? 0;
 
             let fteAvail, delta, staffing;
-            if(shrink === d.plannedShrinkage){
+
+            // If simulated matches planned, keep original values
+            if (shrink === d.plannedShrinkage && attr === d.plannedAttrition) {
                 const orig = originalMetrics[`${d.lob}_${d.week}`];
                 fteAvail = orig?.fteAvailable ?? null;
                 delta = orig?.delta ?? null;
                 staffing = orig?.staffingPct ?? null;
             } else {
-                fteAvail = (d.fteRequired != null) ? d.fteRequired * (1 - shrink/100) : null;
-                delta = (fteAvail != null && d.fteRequired != null) ? fteAvail - d.fteRequired : null;
-                staffing = (d.fteRequired != null && fteAvail != null && d.fteRequired!==0) ? fteAvail / d.fteRequired * 100 : null;
+                if (d.fteRequired != null) {
+                    fteAvail = d.fteRequired * (1 - shrink / 100) * (1 - attr / 100);
+                    delta = fteAvail - d.fteRequired;
+                    staffing = (d.fteRequired !== 0) ? fteAvail / d.fteRequired * 100 : null;
+                } else fteAvail = delta = staffing = null;
             }
 
             return {
@@ -99,28 +104,29 @@
             };
         }
 
-        function renderTable(){
+        function renderTable() {
             $tbody.empty();
-            const metrics = ['FTE Required','FTE Available','Delta','Staffing %','Planned Shrinkage %','Simulated Shrinkage %','Planned Attrition %','Simulated Attrition %'];
-            const simulatedOnlyMetrics = ['Simulated Shrinkage %','Simulated Attrition %'];
+            const metrics = ['FTE Required', 'FTE Available', 'Delta', 'Staffing %', 'Planned Shrinkage %', 'Simulated Shrinkage %', 'Planned Attrition %', 'Simulated Attrition %'];
+            const simulatedOnlyMetrics = ['Simulated Shrinkage %', 'Simulated Attrition %'];
 
             // Overall row
-            metrics.forEach(metric=>{
+            metrics.forEach(metric => {
                 const $tr = $('<tr></tr>');
-                if(metric==='FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-bold" rowspan="${metrics.length}">Overall</td>`);
+                if (metric === 'FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-bold" rowspan="${metrics.length}">Overall</td>`);
                 $tr.append(`<td class="sticky-col bg-gray-50">${metric}</td>`);
 
-                weeks.forEach(week=>{
-                    const weekData = lobs.map(lob=>getData(lob,week)).filter(d=>d);
-                    let original='NA', simulated='NA';
-                    if(weekData.length){
-                        if(simulatedOnlyMetrics.includes(metric)){
-                            original='NA';
-                            const vals = weekData.map(d=>calcSimulated(d)[metric]).filter(v=>v!=null && !isNaN(v));
-                            if(vals.length) simulated= fmt(vals.reduce((a,b)=>a+b,0)/vals.length);
+                weeks.forEach(week => {
+                    const weekData = lobs.map(lob => getData(lob, week)).filter(d => d);
+                    let original = 'NA', simulated = 'NA';
+                    if (weekData.length) {
+                        if (simulatedOnlyMetrics.includes(metric)) {
+                            original = 'NA';
+                            const vals = weekData.map(d => calcSimulated(d)[metric]).filter(v => v != null && !isNaN(v));
+                            if (vals.length) simulated = fmt(vals.reduce((a, b) => a + b, 0) / vals.length);
                         } else {
-                            const origVals = weekData.map(d=>{
-                                switch(metric){
+                            // Original
+                            const origVals = weekData.map(d => {
+                                switch (metric) {
                                     case 'FTE Required': return d.fteRequired;
                                     case 'FTE Available': return d.fteAvailable;
                                     case 'Delta': return d.delta;
@@ -129,52 +135,52 @@
                                     case 'Planned Attrition %': return d.plannedAttrition;
                                     default: return null;
                                 }
-                            }).filter(v=>v!=null && !isNaN(v));
-                            if(origVals.length) original = ['Staffing %','Planned Shrinkage %','Planned Attrition %'].includes(metric)? fmt(origVals.reduce((a,b)=>a+b,0)/origVals.length) : fmt(origVals.reduce((a,b)=>a+b,0));
+                            }).filter(v => v != null && !isNaN(v));
+                            if (origVals.length) original = ['Staffing %', 'Planned Shrinkage %', 'Planned Attrition %'].includes(metric) ? fmt(origVals.reduce((a, b) => a + b, 0) / origVals.length) : fmt(origVals.reduce((a, b) => a + b, 0));
 
-                            const simVals = weekData.map(d=>calcSimulated(d)[metric]).filter(v=>v!=null && !isNaN(v));
-                            if(simVals.length) simulated= ['Staffing %','Planned Shrinkage %','Planned Attrition %'].includes(metric)? fmt(simVals.reduce((a,b)=>a+b,0)/simVals.length) : fmt(simVals.reduce((a,b)=>a+b,0));
+                            // Simulated
+                            const simVals = weekData.map(d => calcSimulated(d)[metric]).filter(v => v != null && !isNaN(v));
+                            if (simVals.length) simulated = ['Staffing %', 'Planned Shrinkage %', 'Planned Attrition %'].includes(metric) ? fmt(simVals.reduce((a, b) => a + b, 0) / simVals.length) : fmt(simVals.reduce((a, b) => a + b, 0));
                         }
                     }
 
-                    if(simulatedOnlyMetrics.includes(metric) || ['FTE Available','Delta','Staffing %'].includes(metric)){
+                    if (simulatedOnlyMetrics.includes(metric) || ['FTE Available', 'Delta', 'Staffing %'].includes(metric))
                         $tr.append(`<td class="text-right">${original}</td><td class="text-right"><input type="text" readonly class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${simulated}"></td>`);
-                    } else {
-                        $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
-                    }
+                    else $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
                 });
                 $tbody.append($tr);
             });
 
             // LOB rows
-            lobs.forEach(lob=>{
-                metrics.forEach(metric=>{
+            lobs.forEach(lob => {
+                metrics.forEach(metric => {
                     const $tr = $('<tr></tr>');
-                    if(metric==='FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-semibold" rowspan="${metrics.length}">${lob}</td>`);
+                    if (metric === 'FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-semibold" rowspan="${metrics.length}">${lob}</td>`);
                     $tr.append(`<td class="sticky-col bg-gray-50">${metric}</td>`);
 
-                    weeks.forEach(week=>{
-                        const d = getData(lob,week);
-                        let original='NA', simulated='NA';
-                        if(d){
-                            if(simulatedOnlyMetrics.includes(metric)) original='NA';
-                            else switch(metric){
-                                case 'FTE Required': original= fmt(d.fteRequired); break;
-                                case 'FTE Available': original= fmt(d.fteAvailable); break;
-                                case 'Delta': original= fmt(d.delta); break;
-                                case 'Staffing %': original= fmt(d.staffingPct); break;
-                                case 'Planned Shrinkage %': original= fmt(d.plannedShrinkage); break;
-                                case 'Planned Attrition %': original= fmt(d.plannedAttrition); break;
+                    weeks.forEach(week => {
+                        const d = getData(lob, week);
+                        let original = 'NA', simulated = 'NA';
+                        if (d) {
+                            if (simulatedOnlyMetrics.includes(metric)) original = 'NA';
+                            else switch (metric) {
+                                case 'FTE Required': original = fmt(d.fteRequired); break;
+                                case 'FTE Available': original = fmt(d.fteAvailable); break;
+                                case 'Delta': original = fmt(d.delta); break;
+                                case 'Staffing %': original = fmt(d.staffingPct); break;
+                                case 'Planned Shrinkage %': original = fmt(d.plannedShrinkage); break;
+                                case 'Planned Attrition %': original = fmt(d.plannedAttrition); break;
                             }
 
-                            if(simulatedOnlyMetrics.includes(metric) || ['FTE Available','Delta','Staffing %'].includes(metric))
+                            if (simulatedOnlyMetrics.includes(metric) || ['FTE Available', 'Delta', 'Staffing %'].includes(metric))
                                 simulated = fmt(calcSimulated(d)[metric]);
                         }
 
-                        if(simulatedOnlyMetrics.includes(metric) || ['FTE Available','Delta','Staffing %'].includes(metric)){
+                        if (simulatedOnlyMetrics.includes(metric) || ['FTE Available', 'Delta', 'Staffing %'].includes(metric))
                             $tr.append(`<td class="text-right">${original}</td><td class="text-right"><input type="text" readonly class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${simulated}"></td>`);
-                        } else $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
+                        else $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
                     });
+
                     $tbody.append($tr);
                 });
             });
@@ -182,20 +188,18 @@
 
         renderTable();
 
-        // Apply button
-        $toolbar.find('.btn-apply').on('click',function(){
+        // Apply global simulation
+        $toolbar.find('.btn-apply').on('click', function () {
             const shrinkInput = $toolbar.find('.sim-input-global-shrink').val();
             const attrInput = $toolbar.find('.sim-input-global-attr').val();
 
-            const shrinkVal = shrinkInput!=='' ? parseFloat(shrinkInput) : null;
-            const attrVal = attrInput!=='' ? parseFloat(attrInput) : null;
+            const shrinkVal = shrinkInput !== '' ? parseFloat(shrinkInput) : null;
+            const attrVal = attrInput !== '' ? parseFloat(attrInput) : null;
 
-            lobs.forEach(lob=>{
-                weeks.forEach(week=>{
-                    if(shrinkVal!==null) simulatedValues[`${lob}_${week}_shrink`] = shrinkVal;
-                    if(attrVal!==null) simulatedValues[`${lob}_${week}_attr`] = attrVal;
-                });
-            });
+            lobs.forEach(lob => weeks.forEach(week => {
+                if (shrinkVal !== null) simulatedValues[`${lob}_${week}_shrink`] = shrinkVal;
+                if (attrVal !== null) simulatedValues[`${lob}_${week}_attr`] = attrVal;
+            }));
 
             renderTable();
         });
