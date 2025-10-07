@@ -203,4 +203,18 @@
         renderTable();
 
         // Apply global simulation
-        $toolbar.find('.btn-apply
+        $toolbar.find('.btn-apply').on('click', function(){
+            const shrinkVal = parseFloat($toolbar.find('.sim-input-global-shrink').val()) || 0;
+            const attrVal = parseFloat($toolbar.find('.sim-input-global-attr').val()) || 0;
+
+            lobs.forEach(lob => {
+                weeks.forEach(week => {
+                    simulatedValues[`${lob}_${week}_shrink`] = shrinkVal;
+                    simulatedValues[`${lob}_${week}_attr`] = attrVal;
+                });
+            });
+
+            renderTable();
+        });
+    };
+}(jQuery));
