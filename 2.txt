@@ -1,175 +1,164 @@
-(function ($) {
-    $.fn.assumptionSimulator = function (options) {
+(function($){
+    $.fn.assumptionSimulator = function(options){
         const settings = $.extend({
-            data: [], // JSON array
+            data: [],            // Array of data objects
+            weeks: [],           // Array of week strings (dd-MMM-yy)
+            metrics: [
+                'FTE Required',
+                'FTE Available',
+                'Delta',
+                'Staffing %',
+                'Planned Shrinkage %',
+                'Simulated Shrinkage %',
+                'Planned Attrition %',
+                'Simulated Attrition %'
+            ],
+            decimal: 2
         }, options);
 
         const $container = $(this);
-        $container.empty().addClass('assumption-simulator');
+        let simulatedInput = {}; // store user applied simulation % per LOB/week
 
-        // Extract weeks sorted
-        const weeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
+        function round(value){
+            return Number(value).toFixed(settings.decimal);
+        }
 
-        // Extract LOBs
-        const lobs = [...new Set(settings.data.map(d => d.lob))];
+        function buildTable(){
+            $container.empty();
 
-        // Store simulated shrinkage
-        const simulatedShrinkage = {};
+            const lobs = [...new Set(settings.data.map(d=>d.lob))];
+            const overallRow = 'Overall';
 
-        // Toolbar for input + apply
-        const $toolbar = $(`
-            <div class="sim-toolbar mb-2 flex gap-2 items-center">
-                <label>Simulation Shrinkage %: <input type="number" step="0.1" min="0" class="sim-input-global w-20 p-0.5 border rounded"></label>
-                <button class="btn-apply px-3 py-1 bg-blue-500 text-white rounded">Apply</button>
-            </div>
-        `);
-        $container.append($toolbar);
+            const $table = $('<table>').addClass('assumption-table').css({width:'100%',borderCollapse:'collapse'});
+            const $thead = $('<thead>');
+            const $tbody = $('<tbody>');
 
-        // Table wrapper
-        const $tableWrapper = $('<div class="sim-table-wrapper overflow-x-auto"></div>');
-        const $table = $('<table class="sim-table min-w-max border-collapse border border-gray-200"></table>');
-        $tableWrapper.append($table);
-        $container.append($tableWrapper);
-
-        // Table header
-        let headerHtml = `<thead><tr>
-            <th class="sticky-col bg-white border">LOB / Overall</th>
-            <th class="sticky-col bg-white border">Metric</th>`;
-        weeks.forEach(w => headerHtml += `<th class="border">${w}</th>`);
-        headerHtml += `</tr></thead>`;
-        $table.append(headerHtml);
-
-        const $tbody = $('<tbody></tbody>');
-        $table.append($tbody);
-
-        const fmt = (val) => (val !== null && val !== undefined) ? parseFloat(val).toFixed(2) : '';
-
-        // Helper to get data
-        const getData = (lob, week) => settings.data.find(d => d.lob === lob && d.week === week);
-
-        // Initialize simulatedShrinkage with planned values
-        lobs.forEach(lob => {
-            weeks.forEach(week => {
-                const d = getData(lob, week);
-                if (d) simulatedShrinkage[`${lob}_${week}`] = d.plannedShrinkage;
+            // 1st header row: week spanning 2 columns
+            const $tr1 = $('<tr>');
+            $tr1.append('<th rowspan="2">LOB / Overall</th>');
+            $tr1.append('<th rowspan="2">Metric</th>');
+            settings.weeks.forEach(week=>{
+                $tr1.append(`<th colspan="2">${week}</th>`);
             });
-        });
+            $thead.append($tr1);
 
-        // Function to render table
-        function renderTable() {
-            $tbody.empty();
-
-            // Overall row
-            const overallMetrics = ['FTE Required', 'FTE Available', 'Delta', 'Staffing %', 'Planned Shrinkage %', 'Simulated Shrinkage %'];
-            overallMetrics.forEach(metric => {
-                const $tr = $('<tr></tr>');
-                if (metric === 'FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-bold" rowspan="${overallMetrics.length}">Overall</td>`);
-                $tr.append(`<td class="sticky-col bg-gray-50">${metric}</td>`);
-
-                weeks.forEach(week => {
-                    let val = '';
-                    const weekData = settings.data.filter(d => d.week === week);
-                    switch (metric) {
-                        case 'FTE Required': val = fmt(weekData.reduce((s,d)=>s+d.fteRequired,0)); break;
-                        case 'FTE Available': val = fmt(weekData.reduce((s,d)=>s+d.fteAvailable,0)); break;
-                        case 'Delta': val = fmt(weekData.reduce((s,d)=>s+d.delta,0)); break;
-                        case 'Staffing %': val = fmt(weekData.reduce((s,d)=>s+d.staffingPct,0)/weekData.length); break;
-                        case 'Planned Shrinkage %': val = fmt(weekData.reduce((s,d)=>s+d.plannedShrinkage,0)/weekData.length); break;
-                        case 'Simulated Shrinkage %':
-                            val = fmt(weekData.reduce((s,d)=>s+simulatedShrinkage[`${d.lob}_${week}`],0)/weekData.length);
-                            break;
-                    }
-                    if (metric === 'Simulated Shrinkage %') {
-                        $tr.append(`<td class="text-right"><input type="number" step="0.1" min="0" class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${val}"></td>`);
-                    } else {
-                        $tr.append(`<td class="text-right">${val}</td>`);
-                    }
-                });
-
-                $tbody.append($tr);
+            // 2nd header row: Original / Simulated
+            const $tr2 = $('<tr>');
+            settings.weeks.forEach(_=>{
+                $tr2.append('<th>Original</th><th>Simulated</th>');
             });
+            $thead.append($tr2);
 
-            // LOB rows
-            lobs.forEach(lob => {
-                overallMetrics.forEach(metric => {
-                    const $tr = $('<tr></tr>');
-                    if (metric === 'FTE Required') $tr.append(`<td class="sticky-col bg-gray-100 font-semibold" rowspan="${overallMetrics.length}">${lob}</td>`);
-                    $tr.append(`<td class="sticky-col bg-gray-50">${metric}</td>`);
+            // Helper to get data object
+            function getData(lob, week){
+                return settings.data.find(d=>d.lob===lob && d.week===week) || null;
+            }
 
-                    weeks.forEach(week => {
-                        const rowData = getData(lob, week);
-                        let val = '';
-                        if (!rowData) val = '';
-                        else switch (metric) {
-                            case 'FTE Required': val = fmt(rowData.fteRequired); break;
-                            case 'FTE Available': val = fmt(rowData.fteAvailable); break;
-                            case 'Delta': val = fmt(rowData.delta); break;
-                            case 'Staffing %': val = fmt(rowData.staffingPct); break;
-                            case 'Planned Shrinkage %': val = fmt(rowData.plannedShrinkage); break;
-                            case 'Simulated Shrinkage %': val = fmt(simulatedShrinkage[`${lob}_${week}`]); break;
-                        }
+            // Helper to calculate simulated values
+            function calcSimulated(d){
+                const simShrink = simulatedInput[`${d.lob}_${d.week}`] ?? d.simulatedShrinkage ?? d.plannedShrinkage;
+                const simAttr = simulatedInput[`attr_${d.lob}_${d.week}`] ?? d.simulatedAttrition ?? d.plannedAttrition ?? 0;
 
-                        if (metric === 'Simulated Shrinkage %') {
-                            $tr.append(`<td class="text-right"><input type="number" step="0.1" min="0" class="sim-input-cell w-16 p-0.5 border rounded text-right" data-lob="${lob}" data-week="${week}" value="${val}"></td>`);
+                const fteAvailable = d.fteRequired * (1 - simShrink/100);
+                const delta = fteAvailable - d.fteRequired;
+                const staffing = d.fteRequired===0 ? 0 : (fteAvailable/d.fteRequired)*100;
+
+                return {
+                    'FTE Required': d.fteRequired,
+                    'FTE Available': round(fteAvailable),
+                    'Delta': round(delta),
+                    'Staffing %': round(staffing),
+                    'Planned Shrinkage %': d.plannedShrinkage ?? 0,
+                    'Simulated Shrinkage %': round(simShrink),
+                    'Planned Attrition %': d.plannedAttrition ?? 0,
+                    'Simulated Attrition %': round(simAttr)
+                };
+            }
+
+            // Rows: Overall + LOBs
+            [overallRow, ...lobs].forEach(lob=>{
+                settings.metrics.forEach(metric=>{
+                    const $tr = $('<tr>');
+                    if(metric === settings.metrics[0]) $tr.append(`<td rowspan="${settings.metrics.length}">${lob}</td>`);
+                    $tr.append(`<td>${metric}</td>`);
+                    settings.weeks.forEach(week=>{
+                        let original = 0, simulated = 0;
+
+                        if(lob===overallRow){
+                            // aggregate over LOBs
+                            const arr = lobs.map(lb=>{
+                                const d = getData(lb, week);
+                                return d ? calcSimulated(d)[metric] : 0;
+                            });
+                            original = arr.reduce((a,b)=>a+Number(b),0);
+                            simulated = arr.reduce((a,b)=>a+Number(b),0);
                         } else {
-                            $tr.append(`<td class="text-right">${val}</td>`);
+                            const d = getData(lob, week);
+                            if(d){
+                                const sim = calcSimulated(d);
+                                original = sim[metric];
+                                simulated = sim[metric];
+                            }
                         }
+
+                        $tr.append(`<td>${original}</td>`);
+                        $tr.append(`<td><input type="text" readonly class="sim-input" value="${simulated}" data-lob="${lob}" data-week="${week}" data-metric="${metric}" style="width:60px;text-align:right"/></td>`);
                     });
                     $tbody.append($tr);
                 });
             });
+
+            $table.append($thead).append($tbody);
+            $container.append($table);
+
+            // Apply button
+            const $applyBtn = $('<button>').text('Apply Simulation').addClass('btn btn-primary').css({margin:'10px 0'});
+            $applyBtn.on('click', applySimulation);
+            $container.append($applyBtn);
         }
 
-        renderTable();
+        function applySimulation(){
+            // Ask user for shrinkage and attrition simulation %
+            const shrinkInput = prompt('Enter simulated shrinkage % (e.g., 12):', '0');
+            const attrInput = prompt('Enter simulated attrition % (e.g., 5):', '0');
+            const simShrink = parseFloat(shrinkInput) || 0;
+            const simAttr = parseFloat(attrInput) || 0;
 
-        // Event: individual input change
-        $tbody.on('input', '.sim-input-cell', function(){
-            const lob = $(this).data('lob');
-            const week = $(this).data('week');
-            const val = parseFloat($(this).val()) || 0;
-            simulatedShrinkage[`${lob}_${week}`] = val;
-
-            // Recalculate dependent fields
-            const d = getData(lob, week);
-            if(d){
-                const fteAvail = d.fteRequired * (1 - val/100);
-                d.fteAvailable = fteAvail;
-                d.delta = fteAvail - d.fteRequired;
-                d.staffingPct = (fteAvail / d.fteRequired)*100;
-            }
-
-            renderTable();
-        });
-
-        // Event: Apply global simulation
-        $toolbar.find('.btn-apply').on('click', function(){
-            const val = parseFloat($toolbar.find('.sim-input-global').val()) || 0;
-            lobs.forEach(lob => weeks.forEach(week => simulatedShrinkage[`${lob}_${week}`]=val));
+            // update simulatedInput object
             settings.data.forEach(d=>{
-                if(weeks.includes(d.week)){
-                    const fteAvail = d.fteRequired*(1-val/100);
-                    d.fteAvailable = fteAvail;
-                    d.delta = fteAvail - d.fteRequired;
-                    d.staffingPct = (fteAvail/d.fteRequired)*100;
-                }
+                simulatedInput[`${d.lob}_${d.week}`] = simShrink;
+                simulatedInput[`attr_${d.lob}_${d.week}`] = simAttr;
             });
-            renderTable();
-        });
 
+            // recalc simulated values in table
+            $container.find('input.sim-input').each(function(){
+                const lob = $(this).data('lob');
+                const week = $(this).data('week');
+                const metric = $(this).data('metric');
+
+                let val = 0;
+                if(lob==='Overall'){
+                    // aggregate
+                    const lobs = [...new Set(settings.data.map(d=>d.lob))];
+                    const arr = lobs.map(lb=>{
+                        const d = settings.data.find(dd=>dd.lob===lb && dd.week===week);
+                        if(!d) return 0;
+                        const sim = calcSimulated(d);
+                        return Number(sim[metric]);
+                    });
+                    val = arr.reduce((a,b)=>a+b,0);
+                } else {
+                    const d = settings.data.find(dd=>dd.lob===lob && dd.week===week);
+                    if(d){
+                        const sim = calcSimulated(d);
+                        val = Number(sim[metric]);
+                    }
+                }
+                $(this).val(round(val));
+            });
+        }
+
+        buildTable();
+        return this;
     };
 }(jQuery));
-
-
-<div id="simulator"></div>
-
-<script>
-const sampleData = [
-    { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '01-Sep-25', fteRequired: 120, fteAvailable: 110, delta: -10, staffingPct: 91.7, plannedShrinkage: 10 },
-    { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Customer Service', week: '08-Sep-25', fteRequired: 122, fteAvailable: 115, delta: -7, staffingPct: 94.3, plannedShrinkage: 10 },
-    { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '01-Sep-25', fteRequired: 80, fteAvailable: 78, delta: -2, staffingPct: 97.5, plannedShrinkage: 9 },
-    { geo: 'India', vertical: 'Retail', account: 'Amazon', lob: 'Tech Support', week: '08-Sep-25', fteRequired: 82, fteAvailable: 79, delta: -3, staffingPct: 96.3, plannedShrinkage: 9 }
-];
-
-$('#simulator').assumptionSimulator({ data: sampleData });
-</script>
-
