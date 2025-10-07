@@ -16,6 +16,21 @@
         // Store simulated shrinkage and attrition
         const simulatedValues = {}; // key: lob_week_metric
 
+        // Store original metrics for exact match
+        const originalMetrics = {};
+        lobs.forEach(lob => {
+            weeks.forEach(week => {
+                const d = settings.data.find(x => x.lob === lob && x.week === week);
+                if (d) {
+                    originalMetrics[`${lob}_${week}`] = {
+                        fteAvailable: d.fteAvailable,
+                        delta: d.delta,
+                        staffingPct: d.staffingPct
+                    };
+                }
+            });
+        });
+
         // Toolbar for input + apply
         const $toolbar = $(`
             <div class="sim-toolbar mb-2 flex gap-2 items-center">
@@ -71,10 +86,19 @@
             const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`] ?? 0;
             const attr = simulatedValues[`${d.lob}_${d.week}_attr`] ?? 0;
 
-            // FTE Available, Delta, Staffing %
-            const fteAvail = (d.fteRequired != null) ? d.fteRequired * (1 - shrink / 100) : null;
-            const delta = (fteAvail != null && d.fteRequired != null) ? fteAvail - d.fteRequired : null;
-            const staffing = (d.fteRequired != null && fteAvail != null && d.fteRequired !== 0) ? fteAvail / d.fteRequired * 100 : null;
+            let fteAvail, delta, staffing;
+
+            if (shrink === d.plannedShrinkage) {
+                // Exact match original metrics
+                const orig = originalMetrics[`${d.lob}_${d.week}`];
+                fteAvail = orig?.fteAvailable ?? null;
+                delta = orig?.delta ?? null;
+                staffing = orig?.staffingPct ?? null;
+            } else {
+                fteAvail = (d.fteRequired != null) ? d.fteRequired * (1 - shrink / 100) : null;
+                delta = (fteAvail != null && d.fteRequired != null) ? fteAvail - d.fteRequired : null;
+                staffing = (d.fteRequired != null && fteAvail != null && d.fteRequired !== 0) ? fteAvail / d.fteRequired * 100 : null;
+            }
 
             return {
                 'FTE Available': fteAvail,
@@ -179,16 +203,4 @@
         renderTable();
 
         // Apply global simulation
-        $toolbar.find('.btn-apply').on('click', function () {
-            const shrinkVal = parseFloat($toolbar.find('.sim-input-global-shrink').val()) || 0;
-            const attrVal = parseFloat($toolbar.find('.sim-input-global-attr').val()) || 0;
-
-            lobs.forEach(lob => weeks.forEach(week => {
-                simulatedValues[`${lob}_${week}_shrink`] = shrinkVal;
-                simulatedValues[`${lob}_${week}_attr`] = attrVal;
-            }));
-
-            renderTable();
-        });
-    };
-}(jQuery));
+        $toolbar.find('.btn-apply
