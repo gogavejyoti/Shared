@@ -13,7 +13,7 @@
         // Store simulated shrinkage and attrition
         const simulatedValues = {};
 
-        // Store original metrics for FTE Available, Delta, Staffing %
+        // Store original metrics
         const originalMetrics = {};
         lobs.forEach(lob => {
             weeks.forEach(week => {
@@ -60,7 +60,7 @@
         const $tbody = $('<tbody></tbody>');
         $table.append($tbody);
 
-        const fmt = (val) => (val !== null && val !== undefined && !isNaN(val)) ? parseFloat(val).toFixed(2) : 'NA';
+        const fmt = (val) => (val !== null && val !== undefined && !isNaN(val)) ? Math.round(val) : 'NA';
 
         function getData(lob, week) {
             return settings.data.find(d => d.lob === lob && d.week === week);
@@ -78,18 +78,17 @@
         }
         initSimulated();
 
-        // Calculate simulated metrics considering both shrinkage & attrition
+        // Calculate simulated metrics
         function calcSimulated(d) {
             if (!d) return {};
-
             const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`] ?? 0;
             const attr = simulatedValues[`${d.lob}_${d.week}_attr`] ?? 0;
 
             let fteAvail, delta, staffing;
+            const orig = originalMetrics[`${d.lob}_${d.week}`];
 
-            // If simulated matches planned, keep original values
+            // Match planned
             if (shrink === d.plannedShrinkage && attr === (d.plannedAttrition ?? 0)) {
-                const orig = originalMetrics[`${d.lob}_${d.week}`];
                 fteAvail = orig?.fteAvailable ?? null;
                 delta = orig?.delta ?? null;
                 staffing = orig?.staffingPct ?? null;
@@ -110,7 +109,6 @@
             };
         }
 
-        // Get arrow based on comparison
         function getArrow(sim, orig) {
             if (sim === 'NA' || orig === 'NA') return '';
             sim = parseFloat(sim);
@@ -160,8 +158,12 @@
 
                     const isNeg = !isNaN(simulated) && parseFloat(simulated) < 0;
                     const arrow = !simulatedOnlyMetrics.includes(metric) && !['NA'].includes(original) ? getArrow(simulated, original) : '';
+                    let bg = '';
+                    if (metric === 'Simulated Shrinkage %') bg = 'background-color:#8A2BE2;color:white;';
+                    if (metric === 'Simulated Attrition %') bg = 'background-color:#b8860b;color:white;';
+
                     if (simulatedOnlyMetrics.includes(metric) || ['FTE Available', 'Delta', 'Staffing %'].includes(metric))
-                        $tr.append(`<td class="text-right ${isNeg ? 'text-red-600' : ''}">${original}</td><td class="text-right ${isNeg ? 'text-red-600' : ''}">${simulated}${arrow}</td>`);
+                        $tr.append(`<td class="text-right ${isNeg ? 'text-red-600' : ''}" style="${bg}">${original}</td><td class="text-right ${isNeg ? 'text-red-600' : ''}" style="${bg}">${simulated}<span style="color:#00FFFF">${arrow}</span></td>`);
                     else $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
                 });
                 $tbody.append($tr);
@@ -178,23 +180,27 @@
                         const d = getData(lob, week);
                         let original = 'NA', simulated = 'NA';
                         if (d) {
-                            if (simulatedOnlyMetrics.includes(metric)) original = 'NA';
-                            else switch (metric) {
-                                case 'FTE Required': original = fmt(d.fteRequired); break;
-                                case 'FTE Available': original = fmt(d.fteAvailable); break;
-                                case 'Delta': original = fmt(d.delta); break;
-                                case 'Staffing %': original = fmt(d.staffingPct); break;
-                                case 'Planned Shrinkage %': original = fmt(d.plannedShrinkage); break;
-                                case 'Planned Attrition %': original = fmt(d.plannedAttrition ?? 0); break;
+                            const calc = calcSimulated(d);
+                            switch (metric) {
+                                case 'FTE Required': original = fmt(d.fteRequired); simulated = fmt(d.fteRequired); break;
+                                case 'FTE Available': original = fmt(d.fteAvailable); simulated = fmt(calc['FTE Available']); break;
+                                case 'Delta': original = fmt(d.delta); simulated = fmt(calc['Delta']); break;
+                                case 'Staffing %': original = fmt(d.staffingPct); simulated = fmt(calc['Staffing %']); break;
+                                case 'Planned Shrinkage %': original = fmt(d.plannedShrinkage); simulated = 'NA'; break;
+                                case 'Simulated Shrinkage %': original = 'NA'; simulated = fmt(calc['Simulated Shrinkage %']); break;
+                                case 'Planned Attrition %': original = fmt(d.plannedAttrition ?? 0); simulated = 'NA'; break;
+                                case 'Simulated Attrition %': original = 'NA'; simulated = fmt(calc['Simulated Attrition %']); break;
                             }
+                        }
 
-                            if (simulatedOnlyMetrics.includes(metric) || ['FTE Available', 'Delta', 'Staffing %'].includes(metric)) {
-                                simulated = fmt(calcSimulated(d)[metric]);
-                                const isNeg = !isNaN(simulated) && parseFloat(simulated) < 0;
-                                const arrow = !simulatedOnlyMetrics.includes(metric) ? getArrow(simulated, original) : '';
-                                $tr.append(`<td class="text-right ${isNeg ? 'text-red-600' : ''}">${original}</td><td class="text-right ${isNeg ? 'text-red-600' : ''}">${simulated}${arrow}</td>`);
-                            } else $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
-                        } else $tr.append(`<td class="text-right" colspan="2">NA</td>`);
+                        const isNeg = !isNaN(simulated) && parseFloat(simulated) < 0;
+                        const arrow = !['NA'].includes(original) && simulatedOnlyMetrics.includes(metric) ? '' : getArrow(simulated, original);
+                        let bg = '';
+                        if (metric === 'Simulated Shrinkage %') bg = 'background-color:#8A2BE2;color:white;';
+                        if (metric === 'Simulated Attrition %') bg = 'background-color:#b8860b;color:white;';
+
+                        $tr.append(`<td class="text-right ${isNeg ? 'text-red-600' : ''}" style="${bg}">${original}</td>
+                                    <td class="text-right ${isNeg ? 'text-red-600' : ''}" style="${bg}"><input type="number" step="0.1" min="0" class="sim-input-cell w-16 p-0.5 border rounded text-right" data-lob="${lob}" data-week="${week}" data-type="${metric.includes('Shrinkage') ? 'shrink' : metric.includes('Attrition') ? 'attr' : ''}" value="${simulated}"><span style="color:#00FFFF">${arrow}</span></td>`);
                     });
                     $tbody.append($tr);
                 });
@@ -207,7 +213,6 @@
         $toolbar.find('.btn-apply').on('click', function () {
             const shrinkInput = $toolbar.find('.sim-input-global-shrink').val();
             const attrInput = $toolbar.find('.sim-input-global-attr').val();
-
             const shrinkVal = shrinkInput !== '' ? parseFloat(shrinkInput) : null;
             const attrVal = attrInput !== '' ? parseFloat(attrInput) : null;
 
@@ -215,7 +220,6 @@
                 if (shrinkVal !== null) simulatedValues[`${lob}_${week}_shrink`] = shrinkVal;
                 if (attrVal !== null) simulatedValues[`${lob}_${week}_attr`] = attrVal;
             }));
-
             renderTable();
         });
 
@@ -225,13 +229,14 @@
             renderTable();
         });
 
-        // Event: individual input change (optional if needed)
+        // Individual input change
         $tbody.on('input', '.sim-input-cell', function () {
             const lob = $(this).data('lob');
             const week = $(this).data('week');
             const val = parseFloat($(this).val()) || 0;
-            const type = $(this).data('type'); // 'shrink' or 'attr'
-            simulatedValues[`${lob}_${week}_${type}`] = val;
+            const type = $(this).data('type'); // shrink or attr
+            if (type === 'shrink') simulatedValues[`${lob}_${week}_shrink`] = val;
+            if (type === 'attr') simulatedValues[`${lob}_${week}_attr`] = val;
             renderTable();
         });
     };
