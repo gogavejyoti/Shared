@@ -51,13 +51,18 @@
 
         const fmt = (val) => (val !== null && val !== undefined && !isNaN(val)) ? parseFloat(val).toFixed(2) : 'NA';
 
-        // Initialize simulatedValues with planned values or 0
+        // Initialize simulatedValues
         lobs.forEach(lob => {
             weeks.forEach(week => {
                 simulatedValues[`${lob}_${week}_shrink`] = 0;
                 simulatedValues[`${lob}_${week}_attr`] = 0;
             });
         });
+
+        // Helper
+        function getData(lob, week) {
+            return settings.data.find(d => d.lob === lob && d.week === week);
+        }
 
         // Function to calculate simulated metrics without touching original data
         function calcSimulated(d) {
@@ -68,13 +73,10 @@
             const delta = (fteAvail != null && d.fteRequired != null) ? fteAvail - d.fteRequired : null;
             const staffing = (d.fteRequired != null && d.fteRequired !== 0 && fteAvail != null) ? fteAvail / d.fteRequired * 100 : null;
             return {
-                'FTE Required': d.fteRequired,
                 'FTE Available': fteAvail,
                 'Delta': delta,
                 'Staffing %': staffing,
-                'Planned Shrinkage %': d.plannedShrinkage ?? 'NA',
                 'Simulated Shrinkage %': shrink,
-                'Planned Attrition %': d.plannedAttrition ?? 'NA',
                 'Simulated Attrition %': attr
             };
         }
@@ -95,29 +97,40 @@
                     let original = 'NA', simulated = 'NA';
                     if (weekData.length) {
                         const sumOriginal = weekData.reduce((sum,d) => {
-                            const val = calcSimulated(d)[metric];
+                            let val = 0;
+                            switch(metric){
+                                case 'FTE Required': val = d.fteRequired; break;
+                                case 'FTE Available': val = d.fteAvailable; break;
+                                case 'Delta': val = d.delta; break;
+                                case 'Staffing %': val = d.staffingPct; break;
+                                case 'Planned Shrinkage %': val = d.plannedShrinkage; break;
+                                case 'Planned Attrition %': val = d.plannedAttrition; break;
+                            }
                             return sum + ((val != null && !isNaN(val)) ? val : 0);
                         },0);
+
                         const sumSimulated = weekData.reduce((sum,d) => {
                             const val = calcSimulated(d)[metric];
                             return sum + ((val != null && !isNaN(val)) ? val : 0);
                         },0);
-                        if (metric === 'Staffing %' || metric.includes('Shrinkage') || metric.includes('Attrition')) {
+
+                        if (['Staffing %','Planned Shrinkage %','Simulated Shrinkage %','Planned Attrition %','Simulated Attrition %'].includes(metric)) {
                             original = fmt(sumOriginal / weekData.length);
                             simulated = fmt(sumSimulated / weekData.length);
-                        } else {
+                        } else if(['FTE Required','FTE Available','Delta'].includes(metric)) {
                             original = fmt(sumOriginal);
                             simulated = fmt(sumSimulated);
                         }
                     }
 
                     const isSimulatedMetric = ['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric);
-                    if (isSimulatedMetric) {
+                    if(isSimulatedMetric){
                         $tr.append(`<td class="text-right">${original}</td><td class="text-right"><input type="text" readonly class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${simulated}"></td>`);
                     } else {
                         $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
                     }
                 });
+
                 $tbody.append($tr);
             });
 
@@ -130,11 +143,24 @@
 
                     weeks.forEach(week => {
                         const d = getData(lob, week);
-                        const simData = calcSimulated(d);
-                        const original = (d && simData[metric] != null) ? fmt(d[metric] ?? simData[metric]) : 'NA';
-                        const simulated = (d && simData[metric] != null && ['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric)) ? fmt(simData[metric]) : 'NA';
+                        let original = 'NA', simulated = 'NA';
 
-                        if (['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric)) {
+                        if(d){
+                            switch(metric){
+                                case 'FTE Required': original = fmt(d.fteRequired); break;
+                                case 'FTE Available': original = fmt(d.fteAvailable); break;
+                                case 'Delta': original = fmt(d.delta); break;
+                                case 'Staffing %': original = fmt(d.staffingPct); break;
+                                case 'Planned Shrinkage %': original = fmt(d.plannedShrinkage); break;
+                                case 'Planned Attrition %': original = fmt(d.plannedAttrition); break;
+                            }
+
+                            if(['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric)){
+                                simulated = fmt(calcSimulated(d)[metric]);
+                            }
+                        }
+
+                        if(['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric)){
                             $tr.append(`<td class="text-right">${original}</td><td class="text-right"><input type="text" readonly class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${simulated}"></td>`);
                         } else {
                             $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
@@ -147,11 +173,6 @@
         }
 
         renderTable();
-
-        // Helper
-        function getData(lob, week) {
-            return settings.data.find(d => d.lob === lob && d.week === week);
-        }
 
         // Event: Apply global simulation
         $toolbar.find('.btn-apply').on('click', function () {
