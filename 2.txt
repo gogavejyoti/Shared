@@ -13,8 +13,8 @@
         // Extract LOBs
         const lobs = [...new Set(settings.data.map(d => d.lob))];
 
-        // Store simulated shrinkage and attrition
-        const simulatedValues = {};
+        // Store simulated shrinkage and attrition separately
+        const simulatedValues = {}; // key: lob_week_metric
 
         // Toolbar for input + apply
         const $toolbar = $(`
@@ -51,27 +51,21 @@
 
         const fmt = (val) => (val !== null && val !== undefined && !isNaN(val)) ? parseFloat(val).toFixed(2) : 'NA';
 
-        // Helper to get data
-        const getData = (lob, week) => settings.data.find(d => d.lob === lob && d.week === week);
-
-        // Initialize simulatedValues with planned values
+        // Initialize simulatedValues with planned values or 0
         lobs.forEach(lob => {
             weeks.forEach(week => {
-                const d = getData(lob, week);
-                if (d) {
-                    simulatedValues[`${lob}_${week}_shrink`] = d.plannedShrinkage || 0;
-                    simulatedValues[`${lob}_${week}_attr`] = d.plannedAttrition || 0;
-                }
+                simulatedValues[`${lob}_${week}_shrink`] = 0;
+                simulatedValues[`${lob}_${week}_attr`] = 0;
             });
         });
 
-        // Function to calculate simulated metrics
+        // Function to calculate simulated metrics without touching original data
         function calcSimulated(d) {
             if (!d) return {};
-            const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`] ?? d.plannedShrinkage ?? 0;
-            const attr = simulatedValues[`${d.lob}_${d.week}_attr`] ?? d.plannedAttrition ?? 0;
-            const fteAvail = d.fteRequired != null ? d.fteRequired * (1 - shrink / 100) : null;
-            const delta = fteAvail != null && d.fteRequired != null ? fteAvail - d.fteRequired : null;
+            const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`] ?? 0;
+            const attr = simulatedValues[`${d.lob}_${d.week}_attr`] ?? 0;
+            const fteAvail = (d.fteRequired != null) ? d.fteRequired * (1 - shrink / 100) : null;
+            const delta = (fteAvail != null && d.fteRequired != null) ? fteAvail - d.fteRequired : null;
             const staffing = (d.fteRequired != null && d.fteRequired !== 0 && fteAvail != null) ? fteAvail / d.fteRequired * 100 : null;
             return {
                 'FTE Required': d.fteRequired,
@@ -100,17 +94,23 @@
                     const weekData = lobs.map(lob => getData(lob, week)).filter(d => d);
                     let original = 'NA', simulated = 'NA';
                     if (weekData.length) {
-                        original = weekData.reduce((sum,d) => sum + (calcSimulated(d)[metric] != null ? calcSimulated(d)[metric] : 0),0);
-                        simulated = weekData.reduce((sum,d) => sum + (calcSimulated(d)[metric] != null ? calcSimulated(d)[metric] : 0),0);
+                        const sumOriginal = weekData.reduce((sum,d) => {
+                            const val = calcSimulated(d)[metric];
+                            return sum + ((val != null && !isNaN(val)) ? val : 0);
+                        },0);
+                        const sumSimulated = weekData.reduce((sum,d) => {
+                            const val = calcSimulated(d)[metric];
+                            return sum + ((val != null && !isNaN(val)) ? val : 0);
+                        },0);
                         if (metric === 'Staffing %' || metric.includes('Shrinkage') || metric.includes('Attrition')) {
-                            original /= weekData.length;
-                            simulated /= weekData.length;
+                            original = fmt(sumOriginal / weekData.length);
+                            simulated = fmt(sumSimulated / weekData.length);
+                        } else {
+                            original = fmt(sumOriginal);
+                            simulated = fmt(sumSimulated);
                         }
-                        original = fmt(original);
-                        simulated = fmt(simulated);
                     }
 
-                    // Determine if simulated column is applicable
                     const isSimulatedMetric = ['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric);
                     if (isSimulatedMetric) {
                         $tr.append(`<td class="text-right">${original}</td><td class="text-right"><input type="text" readonly class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${simulated}"></td>`);
@@ -131,10 +131,10 @@
                     weeks.forEach(week => {
                         const d = getData(lob, week);
                         const simData = calcSimulated(d);
-                        let original = d && simData[metric] != null ? fmt(simData[metric]) : 'NA';
-                        let simulated = 'NA';
+                        const original = (d && simData[metric] != null) ? fmt(d[metric] ?? simData[metric]) : 'NA';
+                        const simulated = (d && simData[metric] != null && ['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric)) ? fmt(simData[metric]) : 'NA';
+
                         if (['FTE Available','Delta','Staffing %','Simulated Shrinkage %','Simulated Attrition %'].includes(metric)) {
-                            simulated = d && simData[metric] != null ? fmt(simData[metric]) : 'NA';
                             $tr.append(`<td class="text-right">${original}</td><td class="text-right"><input type="text" readonly class="sim-input-cell w-16 p-0.5 border rounded text-right" value="${simulated}"></td>`);
                         } else {
                             $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
@@ -148,6 +148,11 @@
 
         renderTable();
 
+        // Helper
+        function getData(lob, week) {
+            return settings.data.find(d => d.lob === lob && d.week === week);
+        }
+
         // Event: Apply global simulation
         $toolbar.find('.btn-apply').on('click', function () {
             const shrinkVal = parseFloat($toolbar.find('.sim-input-global-shrink').val()) || 0;
@@ -160,6 +165,5 @@
 
             renderTable();
         });
-
     };
 }(jQuery));
