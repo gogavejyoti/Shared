@@ -10,19 +10,22 @@
         const weeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
         const lobs = [...new Set(settings.data.map(d => d.lob))];
 
+        // Store simulated shrinkage and attrition
         const simulatedValues = {};
-        const originalMetrics = {};
 
+        // Store original metrics for calculations
+        const originalMetrics = {};
         lobs.forEach(lob => {
             weeks.forEach(week => {
                 const d = settings.data.find(x => x.lob === lob && x.week === week);
                 if (d) {
                     originalMetrics[`${lob}_${week}`] = {
+                        fteRequired: d.fteRequired,
                         fteAvailable: d.fteAvailable,
                         delta: d.delta,
                         staffingPct: d.staffingPct,
-                        shrinkage: d.plannedShrinkage,
-                        attrition: d.plannedAttrition ?? 0
+                        plannedShrinkage: d.plannedShrinkage,
+                        plannedAttrition: d.plannedAttrition ?? 0
                     };
                 }
             });
@@ -31,14 +34,10 @@
         // Toolbar
         const $toolbar = $(`
             <div class="sim-toolbar mb-2 flex gap-2 items-center">
-                <label>Simulation Shrinkage %: 
-                    <input type="number" step="0.1" min="0" class="sim-input-global-shrink w-20 p-0.5 border rounded">
-                </label>
-                <label>Simulation Attrition %: 
-                    <input type="number" step="0.1" min="0" class="sim-input-global-attr w-20 p-0.5 border rounded">
-                </label>
-                <button class="btn-apply px-3 py-1 bg-blue-500 text-white rounded">Apply</button>
-                <button class="btn-reset px-3 py-1 bg-gray-300 rounded">Reset</button>
+                <label>Simulation Shrinkage %: <input type="number" step="0.1" min="0" class="sim-input-global-shrink w-20 p-0.5 border rounded"></label>
+                <label>Simulation Attrition %: <input type="number" step="0.1" min="0" class="sim-input-global-attr w-20 p-0.5 border rounded"></label>
+                <button class="btn-apply px-3 py-1 bg-blue-500  rounded">Apply</button>
+                <button class="btn-reset px-3 py-1 rounded">Reset</button>
             </div>
         `);
         $container.append($toolbar);
@@ -62,95 +61,80 @@
         const $tbody = $('<tbody></tbody>');
         $table.append($tbody);
 
-        const fmt = (val) => {
-            if (val === null || val === undefined || val === '' || isNaN(val)) return 'NA';
-            return parseFloat(val).toFixed(0);
-        };
-
-        function getArrow(sim, orig) {
-            if (sim === 'NA' || orig === 'NA') return '';
-            sim = parseFloat(sim);
-            orig = parseFloat(orig);
-            if (sim > orig) return ' <span style="color:aqua;">🡅</span>';
-            if (sim < orig) return ' <span style="color:aqua;">🡇</span>';
-            return '';
-        }
+        const fmt = (val) => (val !== null && val !== undefined && !isNaN(val)) ? parseFloat(val).toFixed(0) : 'NA';
 
         function getData(lob, week) {
             return settings.data.find(d => d.lob === lob && d.week === week);
         }
 
+        // Initialize simulated values from planned
         function initSimulated() {
             lobs.forEach(lob => {
                 weeks.forEach(week => {
                     const d = getData(lob, week);
-                    simulatedValues[`${lob}_${week}_shrink`] = d?.plannedShrinkage ?? null;
-                    simulatedValues[`${lob}_${week}_attr`] = d?.plannedAttrition ?? null;
+                    simulatedValues[`${lob}_${week}_shrink`] = d?.plannedShrinkage ?? 0;
+                    simulatedValues[`${lob}_${week}_attr`] = d?.plannedAttrition ?? 0;
                 });
             });
         }
         initSimulated();
 
+        // Calculate simulated metrics
         function calcSimulated(d) {
             if (!d) return {};
+            const key = `${d.lob}_${d.week}`;
+            const orig = originalMetrics[key];
+            const shrink = simulatedValues[`${key}_shrink`] ?? 0;
+            const attr = simulatedValues[`${key}_attr`] ?? 0;
 
-            const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`];
-            const attr = simulatedValues[`${d.lob}_${d.week}_attr`];
+            let simFTEReq = 'NA', simFTEAvail = 'NA', simDelta = 'NA', simStaffing = 'NA';
 
-            if (shrink === null || attr === null) return {
-                'FTE Available': null,
-                'Delta': null,
-                'Staffing %': null,
+            if (orig) {
+                // FTE Required based on Sim Shrinkage
+                simFTEReq = orig.fteRequired * (1 + (shrink - orig.plannedShrinkage) / 100);
+
+                // FTE Available based on Sim Attrition
+                simFTEAvail = orig.fteAvailable * (1 + (orig.plannedAttrition - attr) / 100);
+
+                // Delta and Staffing %
+                simDelta = simFTEAvail - simFTEReq;
+                simStaffing = simFTEReq !== 0 ? (simFTEAvail / simFTEReq) * 100 : 'NA';
+
+                // Round
+                simFTEReq = Math.round(simFTEReq);
+                simFTEAvail = Math.round(simFTEAvail);
+                simDelta = Math.round(simDelta);
+                simStaffing = Math.round(simStaffing);
+            }
+
+            return {
+                'FTE Required': simFTEReq,
+                'FTE Available': simFTEAvail,
+                'Delta': simDelta,
+                'Staffing %': simStaffing,
                 'Simulated Shrinkage %': shrink,
                 'Simulated Attrition %': attr
             };
+        }
 
-            // If simulated = planned → match original exactly
-            if (shrink === d.plannedShrinkage && attr === (d.plannedAttrition ?? 0)) {
-                const orig = originalMetrics[`${d.lob}_${d.week}`];
-                return {
-                    'FTE Available': orig?.fteAvailable ?? null,
-                    'Delta': orig?.delta ?? null,
-                    'Staffing %': orig?.staffingPct ?? null,
-                    'Simulated Shrinkage %': shrink,
-                    'Simulated Attrition %': attr
-                };
-            }
-
-            if (d.fteRequired != null) {
-                const fteAvail = d.fteRequired * (1 - shrink / 100) * (1 - attr / 100);
-                const delta = fteAvail - d.fteRequired;
-                const staffing = d.fteRequired !== 0 ? fteAvail / d.fteRequired * 100 : null;
-                return {
-                    'FTE Available': fteAvail,
-                    'Delta': delta,
-                    'Staffing %': staffing,
-                    'Simulated Shrinkage %': shrink,
-                    'Simulated Attrition %': attr
-                };
-            }
-            return { 'FTE Available': null, 'Delta': null, 'Staffing %': null, 'Simulated Shrinkage %': shrink, 'Simulated Attrition %': attr };
+        // Get arrow based on comparison
+        function getArrow(sim, orig) {
+            if (sim === 'NA' || orig === 'NA') return '';
+            sim = parseFloat(sim);
+            orig = parseFloat(orig);
+            if (sim > orig) return '<span style="color:aqua;">🡅</span>';
+            if (sim < orig) return '<span style="color:aqua;">🡇</span>';
+            return '';
         }
 
         function renderTable() {
             $tbody.empty();
-            const metrics = [
-                'FTE Required',
-                'FTE Available',
-                'Delta',
-                'Staffing %',
-                'Planned Shrinkage %',
-                'Simulated Shrinkage %',
-                'Planned Attrition %',
-                'Simulated Attrition %'
-            ];
+            const metrics = ['FTE Required', 'FTE Available', 'Delta', 'Staffing %', 'Planned Shrinkage %', 'Simulated Shrinkage %', 'Planned Attrition %', 'Simulated Attrition %'];
             const simulatedOnlyMetrics = ['Simulated Shrinkage %', 'Simulated Attrition %'];
 
             // Overall row
             metrics.forEach(metric => {
                 const $tr = $('<tr></tr>');
-                if (metric === 'Simulated Shrinkage %') $tr.css('background-color', '#8A2BE2');
-                if (metric === 'Simulated Attrition %') $tr.css('background-color', '#b8860b');
                 if (metric === 'FTE Required') $tr.append(`<td class="sticky-col font-bold" rowspan="${metrics.length}">Overall</td>`);
                 $tr.append(`<td class="sticky-col">${metric}</td>`);
 
@@ -174,26 +158,21 @@
                                     default: return null;
                                 }
                             }).filter(v => v != null && !isNaN(v));
-                            if (origVals.length) {
-                                original = ['Staffing %', 'Planned Shrinkage %', 'Planned Attrition %'].includes(metric)
-                                    ? fmt(origVals.reduce((a, b) => a + b, 0) / origVals.length)
-                                    : fmt(origVals.reduce((a, b) => a + b, 0));
-                            }
+                            if (origVals.length) original = fmt(origVals.reduce((a, b) => a + b, 0));
 
                             const simVals = weekData.map(d => calcSimulated(d)[metric]).filter(v => v != null && !isNaN(v));
-                            if (simVals.length) {
-                                simulated = ['Staffing %', 'Planned Shrinkage %', 'Planned Attrition %'].includes(metric)
-                                    ? fmt(simVals.reduce((a, b) => a + b, 0) / simVals.length)
-                                    : fmt(simVals.reduce((a, b) => a + b, 0));
-                            }
+                            if (simVals.length) simulated = fmt(simVals.reduce((a, b) => a + b, 0));
                         }
                     }
+
                     const isNeg = !isNaN(simulated) && parseFloat(simulated) < 0;
-                    const arrow = !simulatedOnlyMetrics.includes(metric) && !['NA'].includes(original) ? getArrow(simulated, original) : '';
-                    if (simulatedOnlyMetrics.includes(metric) || ['FTE Available', 'Delta', 'Staffing %'].includes(metric))
-                        $tr.append(`<td class="text-right ${isNeg ? 'text-red' : ''}">${original}${original != 'NA' && metric.indexOf('%') > -1 ? '%' : ''}</td>
-                                    <td class="text-right cell-manual-sim ${isNeg ? 'text-red' : ''}">${simulated}${simulated != 'NA' && metric.indexOf('%') > -1 ? '%' : ''}${arrow}</td>`);
-                    else $tr.append(`<td class="text-right" colspan="2">${original}${original != 'NA' && metric.indexOf('%') > -1 ? '%' : ''}</td>`);
+                    const arrow = !simulatedOnlyMetrics.includes(metric) ? getArrow(simulated, original) : '';
+
+                    const bgColor = metric === 'Simulated Shrinkage %' ? '#8A2BE2' :
+                                    metric === 'Simulated Attrition %' ? '#b8860b' : '';
+
+                    $tr.append(`<td class="text-right ${isNeg ? 'text-red' : ''}" style="background:${bgColor};">${original}</td>
+                                <td class="text-right cell-manual-sim ${isNeg ? 'text-red' : ''}" style="background:${bgColor};">${simulated}${arrow}</td>`);
                 });
                 $tbody.append($tr);
             });
@@ -202,37 +181,33 @@
             lobs.forEach(lob => {
                 metrics.forEach(metric => {
                     const $tr = $('<tr></tr>');
-                    if (metric === 'Simulated Shrinkage %') $tr.css('background-color', '#8A2BE2');
-                    if (metric === 'Simulated Attrition %') $tr.css('background-color', '#b8860b');
-                    if (metric === 'FTE Required') $tr.append(`<td nowrap class="sticky-col font-semibold" rowspan="${metrics.length}">${lob}</td>`);
-                    $tr.append(`<td nowrap class="sticky-col">${metric}</td>`);
+                    if (metric === 'FTE Required') $tr.append(`<td class="sticky-col font-semibold" rowspan="${metrics.length}">${lob}</td>`);
+                    $tr.append(`<td class="sticky-col">${metric}</td>`);
 
                     weeks.forEach(week => {
                         const d = getData(lob, week);
                         let original = 'NA', simulated = 'NA';
                         if (d) {
-                            if (!simulatedOnlyMetrics.includes(metric)) {
-                                switch (metric) {
-                                    case 'FTE Required': original = fmt(d.fteRequired); break;
-                                    case 'FTE Available': original = fmt(d.fteAvailable); break;
-                                    case 'Delta': original = fmt(d.delta); break;
-                                    case 'Staffing %': original = fmt(d.staffingPct); break;
-                                    case 'Planned Shrinkage %': original = fmt(d.plannedShrinkage); break;
-                                    case 'Planned Attrition %': original = fmt(d.plannedAttrition ?? 0); break;
-                                }
+                            if (simulatedOnlyMetrics.includes(metric)) original = 'NA';
+                            else switch (metric) {
+                                case 'FTE Required': original = fmt(d.fteRequired); break;
+                                case 'FTE Available': original = fmt(d.fteAvailable); break;
+                                case 'Delta': original = fmt(d.delta); break;
+                                case 'Staffing %': original = fmt(d.staffingPct); break;
+                                case 'Planned Shrinkage %': original = fmt(d.plannedShrinkage); break;
+                                case 'Planned Attrition %': original = fmt(d.plannedAttrition ?? 0); break;
                             }
-                            if (simulatedOnlyMetrics.includes(metric) || ['FTE Available', 'Delta', 'Staffing %'].includes(metric)) {
+
+                            if (simulatedOnlyMetrics.includes(metric) || ['FTE Available','FTE Required','Delta','Staffing %'].includes(metric)) {
                                 simulated = fmt(calcSimulated(d)[metric]);
                                 const isNeg = !isNaN(simulated) && parseFloat(simulated) < 0;
                                 const arrow = !simulatedOnlyMetrics.includes(metric) ? getArrow(simulated, original) : '';
-                                $tr.append(`<td class="text-right ${isNeg ? 'text-red' : ''}">${original}${original != 'NA' && metric.indexOf('%') > -1 ? '%' : ''}</td>
-                                            <td class="text-right cell-manual-sim ${isNeg ? 'text-red' : ''}">${simulated}${simulated != 'NA' && metric.indexOf('%') > -1 ? '%' : ''}${arrow}</td>`);
-                            } else {
-                                $tr.append(`<td class="text-right" colspan="2">${original}${original != 'NA' && metric.indexOf('%') > -1 ? '%' : ''}</td>`);
-                            }
-                        } else {
-                            $tr.append(`<td class="text-right" colspan="2">NA</td>`);
-                        }
+                                const bgColor = metric === 'Simulated Shrinkage %' ? '#8A2BE2' :
+                                                metric === 'Simulated Attrition %' ? '#b8860b' : '';
+                                $tr.append(`<td class="text-right ${isNeg ? 'text-red' : ''}" style="background:${bgColor};">${original}</td>
+                                            <td class="text-right cell-manual-sim ${isNeg ? 'text-red' : ''}" style="background:${bgColor};">${simulated}${arrow}</td>`);
+                            } else $tr.append(`<td class="text-right" colspan="2">${original}</td>`);
+                        } else $tr.append(`<td class="text-right" colspan="2">NA</td>`);
                     });
                     $tbody.append($tr);
                 });
