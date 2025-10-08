@@ -1,21 +1,143 @@
-    public class AssumptionSimulator
+   [HttpPost("simulate")]
+    public ActionResult<List<MlSimulationResult>> Simulate([FromBody] MlSimulationRequest request)
     {
-        public string Account { get; set; }
-        public string Geo { get; set; }
-        public string Site { get; set; }
-        public string ProjectId { get; set; }
-        public string LOB { get; set; }
-        public float? FTERequired { get; set; }
-        public float? FTEAvailable { get; set; }
+        var result = MlSimulationUtility.RunSimulation(
+            request.HistoryData,
+            request.WeekFrom,
+            request.WeekTo
+        );
 
-        public float? Delta => FTEAvailable - FTERequired;
-
-        public float? StaffingPct =>
-            FTERequired == null || FTERequired == 0
-                ? (float?)null
-                : (FTEAvailable / FTERequired) * 100;
-        public float? ActualShrinkage { get; set; }
-        public float? ActualAttrition { get; set; }
-        public DateTime? WeekDate { get; set; }
-        public string Week => WeekDate?.ToString("dd-MMM-yy");
+        return Ok(result);
     }
+
+dotnet add package Microsoft.ML
+dotnet add package Microsoft.ML.TimeSeries
+
+
+using Microsoft.ML;
+using Microsoft.ML.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace YourApp.Utilities
+{
+    public class TimeSeriesSimulationResult
+    {
+        public string LOB { get; set; }
+        public DateTime WeekDate { get; set; }
+        public float PredictedShrinkage { get; set; }
+        public float PredictedAttrition { get; set; }
+    }
+
+    public static class AssumptionSimulationUtility
+    {
+        private const int WindowSize = 4;
+        private const int SeriesLength = 4; // Minimum required data points
+
+        public static List<TimeSeriesSimulationResult> SimulateUsingTrend(
+            List<AssumptionSimulator> historicalData,
+            DateTime weekFrom,
+            DateTime weekTo)
+        {
+            var results = new List<TimeSeriesSimulationResult>();
+            if (historicalData == null || !historicalData.Any())
+                return results;
+
+            var mlContext = new MLContext();
+
+            // 🧮 Determine Forecast Horizon dynamically based on number of weeks between From and To
+            var futureWeeks = GenerateFutureWeeks(weekFrom, weekTo);
+            var forecastHorizon = futureWeeks.Count;
+            if (forecastHorizon == 0)
+                return results;
+
+            var lobGroups = historicalData
+                .GroupBy(x => x.LOB)
+                .ToList();
+
+            foreach (var lobGroup in lobGroups)
+            {
+                var lob = lobGroup.Key;
+
+                // ✅ Filter out nulls
+                var shrinkageValues = lobGroup
+                    .OrderBy(x => x.WeekDate)
+                    .Where(x => x.ActualShrinkage.HasValue)
+                    .Select(x => x.ActualShrinkage.Value)
+                    .ToList();
+
+                var attritionValues = lobGroup
+                    .OrderBy(x => x.WeekDate)
+                    .Where(x => x.ActualAttrition.HasValue)
+                    .Select(x => x.ActualAttrition.Value)
+                    .ToList();
+
+                var shrinkageForecast = ForecastMetric(mlContext, shrinkageValues, forecastHorizon);
+                var attritionForecast = ForecastMetric(mlContext, attritionValues, forecastHorizon);
+
+                for (int i = 0; i < futureWeeks.Count; i++)
+                {
+                    results.Add(new TimeSeriesSimulationResult
+                    {
+                        LOB = lob,
+                        WeekDate = futureWeeks[i],
+                        PredictedShrinkage = shrinkageForecast.Count > i ? shrinkageForecast[i] : shrinkageForecast.LastOrDefault(),
+                        PredictedAttrition = attritionForecast.Count > i ? attritionForecast[i] : attritionForecast.LastOrDefault()
+                    });
+                }
+            }
+
+            return results;
+        }
+
+        private static List<float> ForecastMetric(MLContext mlContext, List<float> values, int forecastHorizon)
+        {
+            if (values == null || values.Count < SeriesLength)
+            {
+                var lastVal = values?.LastOrDefault() ?? 0f;
+                return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
+            }
+
+            var data = values.Select(v => new MetricData { Value = v }).ToList();
+            var dataView = mlContext.Data.LoadFromEnumerable(data);
+
+            var pipeline = mlContext.Forecasting.ForecastBySsa(
+                outputColumnName: nameof(ForecastPrediction.ForecastedValues),
+                inputColumnName: nameof(MetricData.Value),
+                windowSize: WindowSize,
+                seriesLength: values.Count,
+                trainSize: values.Count,
+                horizon: forecastHorizon);
+
+            var model = pipeline.Fit(dataView);
+            var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
+
+            var forecast = forecastEngine.Predict();
+            return forecast.ForecastedValues.ToList();
+        }
+
+        private static List<DateTime> GenerateFutureWeeks(DateTime start, DateTime end)
+        {
+            var weeks = new List<DateTime>();
+            var current = start;
+            while (current <= end)
+            {
+                weeks.Add(current);
+                current = current.AddDays(7);
+            }
+            return weeks;
+        }
+
+        private class MetricData
+        {
+            public float Value { get; set; }
+        }
+
+        private class ForecastPrediction
+        {
+            [VectorType]
+            public float[] ForecastedValues { get; set; }
+        }
+    }
+}
