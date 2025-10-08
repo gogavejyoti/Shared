@@ -1,1 +1,21 @@
-<button class="btn-ml-trend px-3 py-1 bg-green-500 rounded">ML Trend</button>
+    public class AssumptionSimulator
+    {
+        public string Account { get; set; }
+        public string Geo { get; set; }
+        public string Site { get; set; }
+        public string ProjectId { get; set; }
+        public string LOB { get; set; }
+        public float? FTERequired { get; set; }
+        public float? FTEAvailable { get; set; }
+
+        public float? Delta => FTEAvailable - FTERequired;
+
+        public float? StaffingPct =>
+            FTERequired == null || FTERequired == 0
+                ? (float?)null
+                : (FTEAvailable / FTERequired) * 100;
+        public float? ActualShrinkage { get; set; }
+        public float? ActualAttrition { get; set; }
+        public DateTime? WeekDate { get; set; }
+        public string Week => WeekDate?.ToString("dd-MMM-yy");
+    }
