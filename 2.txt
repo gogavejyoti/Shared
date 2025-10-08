@@ -1,8 +1,1 @@
-else {
-                // FTE Required based on simulated shrinkage
-                fteReq = d.fteRequired != null ? d.fteRequired / (1 - d.plannedShrinkage / 100) * (1 - shrink / 100) : null;
-                // FTE Available based on simulated attrition
-                fteAvail = fteReq != null ? fteReq * (1 - attr / 100) : null;
-                delta = fteReq != null && fteAvail != null ? fteAvail - fteReq : null;
-                staffing = fteReq ? (fteAvail / fteReq * 100) : null;
-            }
+<button class="btn-ml-trend px-3 py-1 bg-green-500 rounded">ML Trend</button>
