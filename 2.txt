@@ -18,17 +18,29 @@ private static List<float> ForecastMetric(MLContext mlContext, List<float> value
         return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
     }
 
-    // Step 4: Dynamically calculate window size
-    int trainSize = values.Count;
+    // Step 4: Detect nearly flat series
+    float minVal = values.Min();
+    float maxVal = values.Max();
+    if (maxVal - minVal < 0.05f) // tolerance for flat series
+    {
+        float lastVal = values.Last();
+        return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
+    }
+
+    // Step 5: Scale series to avoid tiny decimal issues (e.g., 0.9–1.1 → 90–110)
+    var scaledValues = values.Select(v => v * 100f).ToList();
+
+    // Step 6: Dynamically calculate window size
+    int trainSize = scaledValues.Count;
     int windowSize = Math.Max(4, trainSize / 3);
     if (trainSize <= 2 * windowSize)
         windowSize = trainSize / 2 - 1;
 
-    // Step 5: Prepare data
-    var data = values.Select(v => new MetricData { Value = v }).ToList();
+    // Step 7: Prepare data for SSA
+    var data = scaledValues.Select(v => new MetricData { Value = v }).ToList();
     var dataView = mlContext.Data.LoadFromEnumerable(data);
 
-    // Step 6: Create SSA pipeline
+    // Step 8: Create SSA pipeline
     var pipeline = mlContext.Forecasting.ForecastBySsa(
         outputColumnName: nameof(ForecastPrediction.ForecastedValues),
         inputColumnName: nameof(MetricData.Value),
@@ -37,15 +49,20 @@ private static List<float> ForecastMetric(MLContext mlContext, List<float> value
         trainSize: trainSize,
         horizon: forecastHorizon);
 
-    // Step 7: Train and forecast
+    // Step 9: Train and forecast
     var model = pipeline.Fit(dataView);
     var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
     var forecast = forecastEngine.Predict();
 
-    // Step 8: Clamp output to 0–100% and handle NaNs
+    // Step 10: Scale back and clamp to historical min/max
     float lastKnown = values.Last();
     var result = forecast.ForecastedValues
-                         .Select(v => float.IsNaN(v) ? lastKnown : Math.Max(0f, Math.Min(100f, v)))
+                         .Select(v =>
+                         {
+                             float val = v / 100f; // scale back
+                             if (float.IsNaN(val)) val = lastKnown;
+                             return Math.Max(minVal, Math.Min(maxVal, val));
+                         })
                          .ToList();
 
     return result;
