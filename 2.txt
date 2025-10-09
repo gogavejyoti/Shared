@@ -1,40 +1,69 @@
-        private static List<float> ForecastMetric_v1(MLContext mlContext, List<float> values, int forecastHorizon)
+using Microsoft.ML;
+using Microsoft.ML.TimeSeries;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public class MetricData
+{
+    public float Value { get; set; }
+}
+
+public class ForecastPrediction
+{
+    public float[] ForecastedValues { get; set; }
+}
+
+public static class ForecastUtils
+{
+    public static List<float> ForecastPercentage(MLContext mlContext, List<float?> rawValues, int forecastHorizon)
+    {
+        if (rawValues == null || rawValues.Count == 0)
+            return Enumerable.Repeat(0f, forecastHorizon).ToList();
+
+        // Step 1: Remove invalid values (null, negative)
+        var values = rawValues.Where(v => v.HasValue && v.Value >= 0).Select(v => v.Value).ToList();
+
+        if (values.Count == 0)
+            return Enumerable.Repeat(0f, forecastHorizon).ToList();
+
+        // Step 2: Remove trailing zeros
+        values = values.Reverse<float>().SkipWhile(v => v == 0).Reverse().ToList();
+
+        // Step 3: Handle very short series
+        if (values.Count < 6)
         {
-            // Step 1: Remove trailing zeros
-            values = values.TakeWhile(v => v != 0).ToList();
-
-            // Step 2: Handle short series
-            if (values == null || values.Count < 6)
-            {
-                var lastVal = values?.LastOrDefault() ?? 0f;
-                return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
-            }
-
-            // Step 3: Dynamically calculate window size
-            int trainSize = values.Count;
-            int windowSize = Math.Max(4, trainSize / 3); // Ensure windowSize is reasonable
-            if (trainSize <= 2 * windowSize)
-            {
-                windowSize = trainSize / 2 - 1; // Adjust to avoid exception
-            }
-
-            // Step 4: Prepare data
-            var data = values.Select(v => new MetricData { Value = v }).ToList();
-            var dataView = mlContext.Data.LoadFromEnumerable(data);
-
-            // Step 5: Create SSA pipeline
-            var pipeline = mlContext.Forecasting.ForecastBySsa(
-                outputColumnName: nameof(ForecastPrediction.ForecastedValues),
-                inputColumnName: nameof(MetricData.Value),
-                windowSize: windowSize,
-                seriesLength: trainSize,
-                trainSize: trainSize,
-                horizon: forecastHorizon);
-
-            // Step 6: Train and forecast
-            var model = pipeline.Fit(dataView);
-            var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
-            var forecast = forecastEngine.Predict();
-
-            return forecast.ForecastedValues.ToList();
+            float lastVal = values.LastOrDefault();
+            return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
         }
+
+        // Step 4: Prepare data
+        var data = values.Select(v => new MetricData { Value = v }).ToList();
+        var dataView = mlContext.Data.LoadFromEnumerable(data);
+
+        // Step 5: Exponential Smoothing Forecast pipeline
+        var pipeline = mlContext.Forecasting.ForecastByExponentialSmoothing(
+            outputColumnName: nameof(ForecastPrediction.ForecastedValues),
+            inputColumnName: nameof(MetricData.Value),
+            horizon: forecastHorizon,
+            smoothingLevel: 0.5f, // alpha, adjust for responsiveness
+            trend: false,
+            seasonal: false
+        );
+
+        // Step 6: Train the model
+        var model = pipeline.Fit(dataView);
+
+        // Step 7: Create forecast engine and predict
+        var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
+        var forecast = forecastEngine.Predict();
+
+        // Step 8: Clamp output to 0–100% and handle NaNs
+        float lastKnown = values.Last();
+        var result = forecast.ForecastedValues
+                             .Select(v => float.IsNaN(v) ? lastKnown : Math.Max(0f, Math.Min(100f, v)))
+                             .ToList();
+
+        return result;
+    }
+}
