@@ -1,28 +1,4 @@
-   [HttpPost("simulate")]
-    public ActionResult<List<MlSimulationResult>> Simulate([FromBody] MlSimulationRequest request)
-    {
-        var result = MlSimulationUtility.RunSimulation(
-            request.HistoryData,
-            request.WeekFrom,
-            request.WeekTo
-        );
-
-        return Ok(result);
-    }
-
-dotnet add package Microsoft.ML
-dotnet add package Microsoft.ML.TimeSeries
-
-
-using Microsoft.ML;
-using Microsoft.ML.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace YourApp.Utilities
-{
-    public class TimeSeriesSimulationResult
+  public class TimeSeriesSimulationResult
     {
         public string LOB { get; set; }
         public DateTime WeekDate { get; set; }
@@ -30,114 +6,299 @@ namespace YourApp.Utilities
         public float PredictedAttrition { get; set; }
     }
 
-    public static class AssumptionSimulationUtility
-    {
-        private const int WindowSize = 4;
-        private const int SeriesLength = 4; // Minimum required data points
 
-        public static List<TimeSeriesSimulationResult> SimulateUsingTrend(
-            List<AssumptionSimulator> historicalData,
-            DateTime weekFrom,
-            DateTime weekTo)
+[HttpPost]
+        public async Task<IActionResult> GetMLTrend([FromBody] RPDataFilter model)
         {
-            var results = new List<TimeSeriesSimulationResult>();
-            if (historicalData == null || !historicalData.Any())
-                return results;
-
-            var mlContext = new MLContext();
-
-            // 🧮 Determine Forecast Horizon dynamically based on number of weeks between From and To
-            var futureWeeks = GenerateFutureWeeks(weekFrom, weekTo);
-            var forecastHorizon = futureWeeks.Count;
-            if (forecastHorizon == 0)
-                return results;
-
-            var lobGroups = historicalData
-                .GroupBy(x => x.LOB)
-                .ToList();
-
-            foreach (var lobGroup in lobGroups)
+            DataTypeConvertor.GetRelevantSundayAndMonday(model.WeekFrom, out DateTime weekFromSunday, out DateTime weekStartMonday);
+            model.WeekFromSunday = weekFromSunday;
+            model.WeekFromMonday = weekStartMonday;
+            model.WeekFrom = model.WeekFromSunday;
+            DateTime fromWeek = model.WeekFrom;
+            model.WeekFrom = fromWeek.AddDays(-7 * 12);
+            model.WeekTo = fromWeek.AddDays(-7);
+            var result = await _resourcePlannerService.GetMLAssumptionSimulatorData(model);
+            var response = new Response<List<TimeSeriesSimulationResult>>()
             {
-                var lob = lobGroup.Key;
+                ResultCode = "200",
+                Data = result
+            };
+            return Ok(response);
+        }
 
-                // ✅ Filter out nulls
-                var shrinkageValues = lobGroup
-                    .OrderBy(x => x.WeekDate)
-                    .Where(x => x.ActualShrinkage.HasValue)
-                    .Select(x => x.ActualShrinkage.Value)
-                    .ToList();
 
-                var attritionValues = lobGroup
-                    .OrderBy(x => x.WeekDate)
-                    .Where(x => x.ActualAttrition.HasValue)
-                    .Select(x => x.ActualAttrition.Value)
-                    .ToList();
 
-                var shrinkageForecast = ForecastMetric(mlContext, shrinkageValues, forecastHorizon);
-                var attritionForecast = ForecastMetric(mlContext, attritionValues, forecastHorizon);
 
-                for (int i = 0; i < futureWeeks.Count; i++)
-                {
-                    results.Add(new TimeSeriesSimulationResult
-                    {
-                        LOB = lob,
-                        WeekDate = futureWeeks[i],
-                        PredictedShrinkage = shrinkageForecast.Count > i ? shrinkageForecast[i] : shrinkageForecast.LastOrDefault(),
-                        PredictedAttrition = attritionForecast.Count > i ? attritionForecast[i] : attritionForecast.LastOrDefault()
-                    });
+(function ($) {
+    $.fn.assumptionSimulator = function (options) {
+        const settings = $.extend({
+            data: [], // JSON array
+        }, options);
+
+        const $container = $(this);
+        $container.empty().addClass('assumption-simulator');
+
+        const weeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
+        const lobs = [...new Set(settings.data.map(d => d.lob))];
+
+        // Store simulated shrinkage and attrition
+        const simulatedValues = {};
+
+        // Store original metrics for FTE Available, Delta, Staffing %
+        const originalMetrics = {};
+        lobs.forEach(lob => {
+            weeks.forEach(week => {
+                const d = settings.data.find(x => x.lob === lob && x.week === week);
+                if (d) {
+                    originalMetrics[`${lob}_${week}`] = {
+                        fteRequired: d.fteRequired,
+                        fteAvailable: d.fteAvailable,
+                        delta: d.delta,
+                        staffingPct: d.staffingPct,
+                        shrinkage: d.plannedShrinkage,
+                        attrition: d.plannedAttrition ?? 0
+                    };
                 }
+            });
+        });
+
+        // Toolbar
+        const $toolbar = $(`
+            <div class="sim-toolbar mb-2 flex gap-2 items-center">
+                <label>Simulation Shrinkage %: <input type="number" step="0.1" min="0" class="sim-input-global-shrink w-20 p-0.5 border rounded"></label>
+                <label>Simulation Attrition %: <input type="number" step="0.1" min="0" class="sim-input-global-attr w-20 p-0.5 border rounded"></label>
+                <button class="btn-apply px-3 py-1 bg-blue-500 rounded">Apply</button>
+                <button class="btn-reset px-3 py-1 rounded">Reset</button>
+                <button class="btn-ml-trend px-3 py-1 bg-green-500 rounded">🧠 ML Trend</button>
+            </div>
+        `);
+        $container.append($toolbar);
+
+        // Table wrapper
+        const $tableWrapper = $('<div class="sim-table-wrapper overflow-x-auto"></div>');
+        const $table = $('<table class="table sim-table min-w-max border-collapse border border-gray-200"></table>');
+        $tableWrapper.append($table);
+        $container.append($tableWrapper);
+
+        // Table header
+        let headerHtml = `<thead><tr>
+            <th class="sticky-col border" nowrap>LOB / Overall</th>
+            <th class="sticky-col border" nowrap>Metric</th>`;
+        weeks.forEach(w => headerHtml += `<th class="border text-center week-cell" colspan="2" nowrap>${w}</th>`);
+        headerHtml += `</tr><tr><th></th><th></th>`;
+        weeks.forEach(_ => headerHtml += `<th nowrap>Original</th><th class="cell-manual-sim" style="min-width:55px;" nowrap>Simulated</th>`);
+        headerHtml += `</tr></thead>`;
+        $table.append(headerHtml);
+
+        const $tbody = $('<tbody></tbody>');
+        $table.append($tbody);
+
+        const fmt = (val, metric) => (val !== null && val !== undefined && !isNaN(val)) ?
+            (metric === "Planned Shrinkage %" || metric === "Simulated Shrinkage %" || metric === "Planned Attrition %" || metric === "Simulated Attrition %") ? parseFloat(val).toFixed(1)  : parseFloat(val).toFixed(0)
+            : 'NA';
+
+        function getData(lob, week) {
+            return settings.data.find(d => d.lob === lob && d.week === week);
+        }
+
+        // Initialize simulated values from planned
+        function initSimulated() {
+            lobs.forEach(lob => {
+                weeks.forEach(week => {
+                    const d = getData(lob, week);
+                    simulatedValues[`${lob}_${week}_shrink`] = d?.plannedShrinkage ?? 0;
+                    simulatedValues[`${lob}_${week}_attr`] = d?.plannedAttrition ?? 0;
+                });
+            });
+        }
+        initSimulated();
+
+        // Calculate simulated metrics considering both shrinkage & attrition
+        function calcSimulated(d) {
+            if (!d) return {};
+
+            const shrink = simulatedValues[`${d.lob}_${d.week}_shrink`] ?? 0;
+            const attr = simulatedValues[`${d.lob}_${d.week}_attr`] ?? 0;
+
+            let fteReq = null, fteAvail = null, delta = null, staffing = null;
+
+            const orig = originalMetrics[`${d.lob}_${d.week}`];
+
+            // If simulated matches planned, keep original values
+            if (shrink === d.plannedShrinkage && attr === (d.plannedAttrition ?? 0)) {
+                fteReq = orig?.fteRequired ?? null;
+                fteAvail = orig?.fteAvailable ?? null;
+                delta = orig?.delta ?? null;
+                staffing = orig?.staffingPct ?? null;
+            } else {
+                // FTE Required based on simulated shrinkage
+                fteReq = d.fteRequired != null ? d.fteRequired * (1 - d.plannedShrinkage / 100) / (1 - shrink / 100) : null;
+                // FTE Available based on simulated attrition
+                fteAvail = d.fteAvailable != null ? d.fteAvailable * (1 - attr / 100) : null;
+                delta = fteReq != null && fteAvail != null ? fteAvail - fteReq : null;
+                staffing = fteReq ? (fteAvail / fteReq * 100) : null;
             }
 
-            return results;
+            return {
+                'FTE Required': fteReq,
+                'FTE Available': fteAvail,
+                'Delta': delta,
+                'Staffing %': staffing,
+                'Simulated Shrinkage %': shrink,
+                'Simulated Attrition %': attr
+            };
         }
 
-        private static List<float> ForecastMetric(MLContext mlContext, List<float> values, int forecastHorizon)
-        {
-            if (values == null || values.Count < SeriesLength)
-            {
-                var lastVal = values?.LastOrDefault() ?? 0f;
-                return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
+        // Get arrow based on comparison
+        function getArrow(sim, orig) {
+            if (sim === 'NA' || orig === 'NA') return '';
+            sim = parseFloat(sim);
+            orig = parseFloat(orig);
+            if (sim > orig) return '🡅';
+            if (sim < orig) return '🡇';
+            return '';
+        }
+
+        function renderTable() {
+            $tbody.empty();
+            const metrics = ['FTE Required', 'FTE Available', 'Delta', 'Staffing %', 'Planned Shrinkage %', 'Simulated Shrinkage %', 'Planned Attrition %', 'Simulated Attrition %'];
+            const simulatedOnlyMetrics = ['Simulated Shrinkage %', 'Simulated Attrition %'];
+            const percentMetrics = ['Staffing %', 'Planned Shrinkage %', 'Simulated Shrinkage %', 'Planned Attrition %', 'Simulated Attrition %'];
+
+            // Overall row
+            metrics.forEach(metric => {
+                const $tr = $('<tr></tr>');
+                if (metric === 'FTE Required') $tr.append(`<td class="sticky-col font-bold" rowspan="${metrics.length}" nowrap>Overall</td>`);
+                $tr.append(`<td class="sticky-col" nowrap>${metric}</td>`);
+
+                weeks.forEach(week => {
+                    const weekData = lobs.map(lob => getData(lob, week)).filter(d => d);
+                    let original = 'NA', simulated = 'NA';
+                    if (weekData.length) {
+                        if (simulatedOnlyMetrics.includes(metric)) {
+                            original = 'NA';
+                            const vals = weekData.map(d => calcSimulated(d)[metric]).filter(v => v != null && !isNaN(v));
+                            if (vals.length) simulated = fmt(vals.reduce((a, b) => a + b, 0) / vals.length, metric);
+                        } else {
+                            const origVals = weekData.map(d => {
+                                switch (metric) {
+                                    case 'FTE Required': return d.fteRequired;
+                                    case 'FTE Available': return d.fteAvailable;
+                                    case 'Delta': return d.delta;
+                                    case 'Staffing %': return d.staffingPct;
+                                    case 'Planned Shrinkage %': return d.plannedShrinkage;
+                                    case 'Planned Attrition %': return d.plannedAttrition ?? 0;
+                                    default: return null;
+                                }
+                            }).filter(v => v != null && !isNaN(v));
+                            if (origVals.length) original = percentMetrics.includes(metric) ? fmt(origVals.reduce((a, b) => a + b, 0) / origVals.length, metric) : fmt(origVals.reduce((a, b) => a + b, 0), metric);
+                            const simVals = weekData.map(d => calcSimulated(d)[metric]).filter(v => v != null && !isNaN(v));
+                            if (simVals.length) simulated = percentMetrics.includes(metric) ? fmt(simVals.reduce((a, b) => a + b, 0) / simVals.length, metric) : fmt(simVals.reduce((a, b) => a + b, 0), metric);
+                        }
+                    }
+
+                    const isNeg = !isNaN(simulated) && parseFloat(simulated) < 0;
+                    const arrow = !simulatedOnlyMetrics.includes(metric) && original !== 'NA' ? getArrow(simulated, original) : '';
+                    const valDisplay = simulated + (percentMetrics.includes(metric) && simulated !== 'NA' ? '%' : '');
+                    $tr.append(`<td class="text-right" nowrap>${original}${percentMetrics.includes(metric) && original !== 'NA' ? '%' : ''}</td>
+                               <td class="text-right cell-manual-sim ${isNeg ? 'text-red' : ''}" nowrap>${valDisplay}<span style="float:right;color:${arrow === '🡅' ? 'green' : arrow === '🡇' ? 'red' : ''}">${arrow}</span></td>`);
+                });
+                $tbody.append($tr);
+            });
+
+            // LOB rows
+            lobs.forEach(lob => {
+                metrics.forEach(metric => {
+                    const $tr = $('<tr></tr>');
+                    if (metric === 'FTE Required') $tr.append(`<td class="sticky-col font-semibold" rowspan="${metrics.length}" nowrap>${lob}</td>`);
+                    $tr.append(`<td class="sticky-col" nowrap>${metric}</td>`);
+
+                    weeks.forEach(week => {
+                        const d = getData(lob, week);
+                        let original = 'NA', simulated = 'NA';
+                        if (d) {
+                            if (simulatedOnlyMetrics.includes(metric)) original = 'NA';
+                            else switch (metric) {
+                                case 'FTE Required': original = fmt(d.fteRequired); break;
+                                case 'FTE Available': original = fmt(d.fteAvailable); break;
+                                case 'Delta': original = fmt(d.delta); break;
+                                case 'Staffing %': original = fmt(d.staffingPct); break;
+                                case 'Planned Shrinkage %': original = fmt(d.plannedShrinkage, metric); break;
+                                case 'Planned Attrition %': original = fmt(d.plannedAttrition ?? 0, metric); break;
+                            }
+
+                            simulated = fmt(calcSimulated(d)[metric], metric);
+                            const isNeg = !isNaN(simulated) && parseFloat(simulated) < 0;
+                            const arrow = !simulatedOnlyMetrics.includes(metric) && original !== 'NA' ? getArrow(simulated, original) : '';
+                            const valDisplay = simulated + (percentMetrics.includes(metric) && simulated !== 'NA' ? '%' : '');
+                            $tr.append(`<td class="text-right" nowrap>${original}${percentMetrics.includes(metric) && original !== 'NA' ? '%' : ''}</td>
+                                       <td class="text-right cell-manual-sim ${isNeg ? 'text-red' : ''}" nowrap>${valDisplay}<span style="float:right;color:${arrow === '🡅' ? 'green' : arrow === '🡇' ? 'red':''}">${arrow}</span></td>`);
+                        } else $tr.append(`<td class="text-right" colspan="2" nowrap>NA</td>`);
+                    });
+                    $tbody.append($tr);
+                });
+            });
+        }
+
+        renderTable();
+
+        // Apply global simulation
+        $toolbar.find('.btn-apply').on('click', function () {
+            const shrinkInput = $toolbar.find('.sim-input-global-shrink').val();
+            const attrInput = $toolbar.find('.sim-input-global-attr').val();
+            const shrinkVal = shrinkInput !== '' ? parseFloat(shrinkInput) : null;
+            const attrVal = attrInput !== '' ? parseFloat(attrInput) : null;
+            lobs.forEach(lob => weeks.forEach(week => {
+                if (shrinkVal !== null) simulatedValues[`${lob}_${week}_shrink`] = shrinkVal;
+                if (attrVal !== null) simulatedValues[`${lob}_${week}_attr`] = attrVal;
+            }));
+            renderTable();
+        });
+
+        // Reset
+        $toolbar.find('.btn-reset').on('click', function () {
+            $toolbar.find('.sim-input-global-shrink').val(null);
+            $toolbar.find('.sim-input-global-attr').val(null);
+            initSimulated();
+            renderTable();
+        });
+
+
+        $toolbar.find('.btn-ml-trend').on('click', function () {
+            getMLTrend();
+        });
+        
+
+        function getMLTrend() {
+            let fromWeek = $('#WeekFrom').val();
+            let toWeek = $('#WeekTo').val();
+            var data = {
+                'vertical': $("#txtVertical").val(),
+                'locationFilter': $('#cmbLocation')[0].getSelectedValues(),
+                'siteFilter': $('#cmbSite')[0].getSelectedValues(),
+                'accountFilter': [$('#txtAccount').val()],
+                'lobFilter': $('#cmbLOB')[0].getSelectedValues(),
+                'projectIdFilter': $('#cmbProjectId')[0].getSelectedValues(),
+                'weekFrom': fromWeek,
+                'WeekTo': toWeek,
             }
-
-            var data = values.Select(v => new MetricData { Value = v }).ToList();
-            var dataView = mlContext.Data.LoadFromEnumerable(data);
-
-            var pipeline = mlContext.Forecasting.ForecastBySsa(
-                outputColumnName: nameof(ForecastPrediction.ForecastedValues),
-                inputColumnName: nameof(MetricData.Value),
-                windowSize: WindowSize,
-                seriesLength: values.Count,
-                trainSize: values.Count,
-                horizon: forecastHorizon);
-
-            var model = pipeline.Fit(dataView);
-            var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
-
-            var forecast = forecastEngine.Predict();
-            return forecast.ForecastedValues.ToList();
+            $.ajax({
+                url: '/resourceplanner/GetMLTrend',
+                type: "Post",
+                async: true,
+                cache: false,
+                data: JSON.stringify(data),
+                contentType: "application/json",
+                dataType: "json",
+                success: function (response) {
+                    if (response.data) {
+                        
+                    }
+                },
+                error: function (XMLHttpRequest, textStatus, errorThrown) {
+                    console.log(errorThrown);
+                }
+            });
         }
-
-        private static List<DateTime> GenerateFutureWeeks(DateTime start, DateTime end)
-        {
-            var weeks = new List<DateTime>();
-            var current = start;
-            while (current <= end)
-            {
-                weeks.Add(current);
-                current = current.AddDays(7);
-            }
-            return weeks;
-        }
-
-        private class MetricData
-        {
-            public float Value { get; set; }
-        }
-
-        private class ForecastPrediction
-        {
-            [VectorType]
-            public float[] ForecastedValues { get; set; }
-        }
-    }
-}
+    };
+}(jQuery));
