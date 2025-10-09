@@ -1,5 +1,3 @@
-using Accord.Statistics.Models.TimeSeries;
-
 public static class AssumptionSimulationUtility
 {
     public static List<TimeSeriesSimulationResult> SimulateUsingTrend(
@@ -37,8 +35,8 @@ public static class AssumptionSimulationUtility
                 .Select(x => x.ActualAttrition.Value)
                 .ToList();
 
-            var shrinkageForecast = ForecastMetric(shrinkageValues, forecastHorizon);
-            var attritionForecast = ForecastMetric(attritionValues, forecastHorizon);
+            var shrinkageForecast = ForecastHoltLinear(shrinkageValues, forecastHorizon);
+            var attritionForecast = ForecastHoltLinear(attritionValues, forecastHorizon);
 
             for (int i = 0; i < futureWeeks.Count; i++)
             {
@@ -55,7 +53,7 @@ public static class AssumptionSimulationUtility
         return results;
     }
 
-    private static List<float> ForecastMetric(List<float> values, int forecastHorizon)
+    private static List<float> ForecastHoltLinear(List<float> values, int forecastHorizon)
     {
         if (values == null || values.Count == 0)
             return Enumerable.Repeat(0f, forecastHorizon).ToList();
@@ -70,24 +68,40 @@ public static class AssumptionSimulationUtility
         float minVal = values.Min();
         float maxVal = values.Max();
 
-        // Short series (<3 points) → repeat last value
-        if (values.Count < 3)
+        int n = values.Count;
+
+        // Short series (<2 points) → repeat last value
+        if (n < 2)
         {
             float lastVal = values.Last();
             return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
         }
 
-        // Holt Linear smoothing using Accord.NET
-        double[] series = values.Select(v => (double)v).ToArray();
-        HoltLinear holt = new HoltLinear(alpha: 0.5, beta: 0.3);
-        holt.Learn(series);
+        // Holt Linear parameters
+        double alpha = 0.5; // level smoothing
+        double beta = 0.3;  // trend smoothing
 
-        double[] forecast = holt.Forecast(forecastHorizon);
+        // Initialize level and trend
+        double level = values[0];
+        double trend = values[1] - values[0];
 
-        // Clamp forecast to historical min/max and convert back to float
-        return forecast
-            .Select(v => (float)Math.Max(minVal, Math.Min(maxVal, v)))
-            .ToList();
+        for (int i = 1; i < n; i++)
+        {
+            double prevLevel = level;
+            level = alpha * values[i] + (1 - alpha) * (level + trend);
+            trend = beta * (level - prevLevel) + (1 - beta) * trend;
+        }
+
+        // Forecast horizon
+        var forecast = new List<float>();
+        for (int h = 1; h <= forecastHorizon; h++)
+        {
+            double val = level + h * trend;
+            val = Math.Max(minVal, Math.Min(maxVal, val)); // clamp to min/max
+            forecast.Add((float)val);
+        }
+
+        return forecast;
     }
 
     private static List<DateTime> GenerateFutureWeeks(DateTime start, DateTime end)
