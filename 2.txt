@@ -1,191 +1,39 @@
-    public static class AssumptionSimulationUtility
+private static List<float> ForecastMetric(List<float> values, int forecastHorizon)
+{
+    if (values == null || values.Count == 0)
+        return Enumerable.Repeat(0f, forecastHorizon).ToList();
+
+    // Remove invalids
+    values = values.Where(v => v >= 0f).ToList();
+    if (values.Count == 0) return Enumerable.Repeat(0f, forecastHorizon).ToList();
+
+    // Remove trailing zeros
+    values = values.Reverse<float>().SkipWhile(v => v == 0f).Reverse().ToList();
+
+    float minVal = values.Min();
+    float maxVal = values.Max();
+    float range = maxVal - minVal;
+
+    // Short or flat series → repeat last value
+    if (values.Count < 6 || range < 0.05f)
     {
-        private const int WindowSize = 4;
-        private const int SeriesLength = 4; // Minimum required data points
-
-        public static List<TimeSeriesSimulationResult> SimulateUsingTrend(
-            List<AssumptionSimulator> historicalData,
-            DateTime weekFrom,
-            DateTime weekTo)
-        {
-            var results = new List<TimeSeriesSimulationResult>();
-            if (historicalData == null || !historicalData.Any())
-                return results;
-
-            var mlContext = new MLContext();
-
-            // 🧮 Determine Forecast Horizon dynamically based on number of weeks between From and To
-            var futureWeeks = GenerateFutureWeeks(weekFrom, weekTo);
-            var forecastHorizon = futureWeeks.Count;
-            if (forecastHorizon == 0)
-                return results;
-
-            var lobGroups = historicalData
-                .GroupBy(x => x.LOB)
-                .ToList();
-
-            foreach (var lobGroup in lobGroups)
-            {
-                var lob = lobGroup.Key;
-
-                // ✅ Filter out nulls
-                var shrinkageValues = lobGroup
-                    .OrderBy(x => x.WeekDate)
-                    .Where(x => x.ActualShrinkage.HasValue)
-                    .Select(x => x.ActualShrinkage.Value)
-                    .ToList();
-
-                var attritionValues = lobGroup
-                    .OrderBy(x => x.WeekDate)
-                    .Where(x => x.ActualAttrition.HasValue)
-                    .Select(x => x.ActualAttrition.Value)
-                    .ToList();
-
-                var shrinkageForecast = ForecastMetric(mlContext, shrinkageValues, forecastHorizon);
-                var attritionForecast = ForecastMetric(mlContext, attritionValues, forecastHorizon);
-
-                for (int i = 0; i < futureWeeks.Count; i++)
-                {
-                    results.Add(new TimeSeriesSimulationResult
-                    {
-                        LOB = lob,
-                        WeekDate = futureWeeks[i],
-                        PredictedShrinkage = shrinkageForecast.Count > i ? shrinkageForecast[i] : shrinkageForecast.LastOrDefault(),
-                        PredictedAttrition = attritionForecast.Count > i ? attritionForecast[i] : attritionForecast.LastOrDefault()
-                    });
-                }
-            }
-
-            return results;
-        }
-
-        private static List<float> ForecastMetric_v1(MLContext mlContext, List<float> values, int forecastHorizon)
-        {
-            // Step 1: Remove trailing zeros
-            values = values.TakeWhile(v => v != 0).ToList();
-
-            // Step 2: Handle short series
-            if (values == null || values.Count < 6)
-            {
-                var lastVal = values?.LastOrDefault() ?? 0f;
-                return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
-            }
-
-            // Step 3: Dynamically calculate window size
-            int trainSize = values.Count;
-            int windowSize = Math.Max(4, trainSize / 3); // Ensure windowSize is reasonable
-            if (trainSize <= 2 * windowSize)
-            {
-                windowSize = trainSize / 2 - 1; // Adjust to avoid exception
-            }
-
-            // Step 4: Prepare data
-            var data = values.Select(v => new MetricData { Value = v }).ToList();
-            var dataView = mlContext.Data.LoadFromEnumerable(data);
-
-            // Step 5: Create SSA pipeline
-            var pipeline = mlContext.Forecasting.ForecastBySsa(
-                outputColumnName: nameof(ForecastPrediction.ForecastedValues),
-                inputColumnName: nameof(MetricData.Value),
-                windowSize: windowSize,
-                seriesLength: trainSize,
-                trainSize: trainSize,
-                horizon: forecastHorizon);
-
-            // Step 6: Train and forecast
-            var model = pipeline.Fit(dataView);
-            var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
-            var forecast = forecastEngine.Predict();
-
-            return forecast.ForecastedValues.ToList();
-        }
-
-
-        private static List<float> ForecastMetric(MLContext mlContext, List<float> values, int forecastHorizon)
-        {
-            if (values == null || values.Count == 0)
-                return Enumerable.Repeat(0f, forecastHorizon).ToList();
-
-            // Step 1: Remove invalid values (negative numbers)
-            values = values.Where(v => v >= 0f).ToList();
-            if (values.Count == 0)
-                return Enumerable.Repeat(0f, forecastHorizon).ToList();
-
-            // Step 2: Remove trailing zeros only
-            values = values.Reverse<float>().SkipWhile(v => v == 0f).Reverse().ToList();
-
-            float minVal = values.Min();
-            float maxVal = values.Max();
-            float range = maxVal - minVal;
-
-            // Step 3: Handle very short or nearly flat series
-            if (values.Count < 6 || range < 0.05f)
-            {
-                float lastVal = values.Last();
-                return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
-            }
-
-            // Step 4: Scale series if all values < 1 (tiny decimals like 0.9–1.1)
-            bool scale = maxVal <= 1.1f;
-            var scaledValues = scale ? values.Select(v => v * 100f).ToList() : new List<float>(values);
-
-            // Step 5: Dynamically calculate window size
-            int trainSize = scaledValues.Count;
-            int windowSize = Math.Max(4, trainSize / 3);
-            if (trainSize <= 2 * windowSize)
-                windowSize = trainSize / 2 - 1;
-
-            // Step 6: Prepare data
-            var data = scaledValues.Select(v => new MetricData { Value = v }).ToList();
-            var dataView = mlContext.Data.LoadFromEnumerable(data);
-
-            // Step 7: SSA pipeline
-            var pipeline = mlContext.Forecasting.ForecastBySsa(
-                outputColumnName: nameof(ForecastPrediction.ForecastedValues),
-                inputColumnName: nameof(MetricData.Value),
-                windowSize: windowSize,
-                seriesLength: trainSize,
-                trainSize: trainSize,
-                horizon: forecastHorizon);
-
-            // Step 8: Train and forecast
-            var model = pipeline.Fit(dataView);
-            var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
-            var forecast = forecastEngine.Predict();
-
-            // Step 9: Scale back if needed and clamp to historical min/max
-            float lastKnown = values.Last();
-            var result = forecast.ForecastedValues
-                .Select(v =>
-                {
-                    float val = float.IsNaN(v) ? lastKnown : (scale ? v / 100f : v);
-                    return Math.Max(minVal, Math.Min(maxVal, val));
-                })
-                .ToList();
-
-            return result;
-        }
-
-        private static List<DateTime> GenerateFutureWeeks(DateTime start, DateTime end)
-        {
-            var weeks = new List<DateTime>();
-            var current = start;
-            while (current <= end)
-            {
-                weeks.Add(current);
-                current = current.AddDays(7);
-            }
-            return weeks;
-        }
-
-        private class MetricData
-        {
-            public float Value { get; set; }
-        }
-
-        private class ForecastPrediction
-        {
-            [VectorType]
-            public float[] ForecastedValues { get; set; }
-        }
+        float lastVal = values.Last();
+        return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
     }
+
+    // Exponential Smoothing
+    float alpha = 0.5f; // smoothing factor
+    float level = values[0];
+
+    for (int i = 1; i < values.Count; i++)
+    {
+        level = alpha * values[i] + (1 - alpha) * level;
+    }
+
+    // Forecast horizon
+    var forecast = Enumerable.Repeat(level, forecastHorizon)
+        .Select(v => Math.Max(minVal, Math.Min(maxVal, v))) // clamp
+        .ToList();
+
+    return forecast;
+}
