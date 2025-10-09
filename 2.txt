@@ -16,19 +16,19 @@ public class ForecastPrediction
 
 public static class ForecastUtils
 {
-    public static List<float> ForecastPercentage(MLContext mlContext, List<float?> rawValues, int forecastHorizon)
+    public static List<float> ForecastPercentage(MLContext mlContext, List<float> rawValues, int forecastHorizon)
     {
         if (rawValues == null || rawValues.Count == 0)
             return Enumerable.Repeat(0f, forecastHorizon).ToList();
 
-        // Step 1: Remove invalid values (null, negative)
-        var values = rawValues.Where(v => v.HasValue && v.Value >= 0).Select(v => v.Value).ToList();
+        // Step 1: Remove invalid values (negative numbers)
+        var values = rawValues.Where(v => v >= 0f).ToList();
 
         if (values.Count == 0)
             return Enumerable.Repeat(0f, forecastHorizon).ToList();
 
         // Step 2: Remove trailing zeros
-        values = values.Reverse<float>().SkipWhile(v => v == 0).Reverse().ToList();
+        values = values.Reverse<float>().SkipWhile(v => v == 0f).Reverse().ToList();
 
         // Step 3: Handle very short series
         if (values.Count < 6)
@@ -37,7 +37,7 @@ public static class ForecastUtils
             return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
         }
 
-        // Step 4: Prepare data
+        // Step 4: Prepare data for ML.NET
         var data = values.Select(v => new MetricData { Value = v }).ToList();
         var dataView = mlContext.Data.LoadFromEnumerable(data);
 
@@ -46,7 +46,7 @@ public static class ForecastUtils
             outputColumnName: nameof(ForecastPrediction.ForecastedValues),
             inputColumnName: nameof(MetricData.Value),
             horizon: forecastHorizon,
-            smoothingLevel: 0.5f, // alpha, adjust for responsiveness
+            smoothingLevel: 0.5f, // alpha
             trend: false,
             seasonal: false
         );
@@ -54,7 +54,7 @@ public static class ForecastUtils
         // Step 6: Train the model
         var model = pipeline.Fit(dataView);
 
-        // Step 7: Create forecast engine and predict
+        // Step 7: Forecast
         var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
         var forecast = forecastEngine.Predict();
 
