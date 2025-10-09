@@ -14,26 +14,29 @@ private static List<float> ForecastMetric(List<float> values, int forecastHorizo
     float maxVal = values.Max();
     float range = maxVal - minVal;
 
-    // Short or flat series → repeat last value
-    if (values.Count < 6 || range < 0.05f)
-    {
-        float lastVal = values.Last();
-        return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
-    }
+    int n = values.Count;
 
-    // Exponential Smoothing
-    float alpha = 0.5f; // smoothing factor
+    // Short series or tiny variation → allow small linear trend
     float level = values[0];
+    float trend = 0f;
+    float alpha = 0.5f; // level smoothing
+    float beta = 0.3f;  // trend smoothing
 
-    for (int i = 1; i < values.Count; i++)
+    for (int i = 1; i < n; i++)
     {
-        level = alpha * values[i] + (1 - alpha) * level;
+        float prevLevel = level;
+        level = alpha * values[i] + (1 - alpha) * (level + trend);
+        trend = beta * (level - prevLevel) + (1 - beta) * trend;
     }
 
     // Forecast horizon
-    var forecast = Enumerable.Repeat(level, forecastHorizon)
-        .Select(v => Math.Max(minVal, Math.Min(maxVal, v))) // clamp
-        .ToList();
+    var forecast = new List<float>();
+    for (int h = 1; h <= forecastHorizon; h++)
+    {
+        float val = level + h * trend;
+        val = Math.Max(minVal, Math.Min(maxVal, val)); // clamp to historical min/max
+        forecast.Add(val);
+    }
 
     return forecast;
 }
