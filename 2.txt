@@ -1,4 +1,4 @@
-private static List<float> ForecastMetric(MLContext mlContext, List<float> values, int forecastHorizon) 
+private static List<float> ForecastMetric(MLContext mlContext, List<float> values, int forecastHorizon)
 {
     if (values == null || values.Count == 0)
         return Enumerable.Repeat(0f, forecastHorizon).ToList();
@@ -11,36 +11,32 @@ private static List<float> ForecastMetric(MLContext mlContext, List<float> value
     // Step 2: Remove trailing zeros only
     values = values.Reverse<float>().SkipWhile(v => v == 0f).Reverse().ToList();
 
-    // Step 3: Handle very short series
-    if (values.Count < 6)
-    {
-        float lastVal = values.LastOrDefault();
-        return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
-    }
-
-    // Step 4: Detect nearly flat series
     float minVal = values.Min();
     float maxVal = values.Max();
-    if (maxVal - minVal < 0.05f) // tolerance for flat series
+    float range = maxVal - minVal;
+
+    // Step 3: Handle very short or nearly flat series
+    if (values.Count < 6 || range < 0.05f)
     {
         float lastVal = values.Last();
         return Enumerable.Repeat(lastVal, forecastHorizon).ToList();
     }
 
-    // Step 5: Scale series to avoid tiny decimal issues (e.g., 0.9–1.1 → 90–110)
-    var scaledValues = values.Select(v => v * 100f).ToList();
+    // Step 4: Scale series if all values < 1 (tiny decimals like 0.9–1.1)
+    bool scale = maxVal <= 1.1f;
+    var scaledValues = scale ? values.Select(v => v * 100f).ToList() : new List<float>(values);
 
-    // Step 6: Dynamically calculate window size
+    // Step 5: Dynamically calculate window size
     int trainSize = scaledValues.Count;
     int windowSize = Math.Max(4, trainSize / 3);
     if (trainSize <= 2 * windowSize)
         windowSize = trainSize / 2 - 1;
 
-    // Step 7: Prepare data for SSA
+    // Step 6: Prepare data
     var data = scaledValues.Select(v => new MetricData { Value = v }).ToList();
     var dataView = mlContext.Data.LoadFromEnumerable(data);
 
-    // Step 8: Create SSA pipeline
+    // Step 7: SSA pipeline
     var pipeline = mlContext.Forecasting.ForecastBySsa(
         outputColumnName: nameof(ForecastPrediction.ForecastedValues),
         inputColumnName: nameof(MetricData.Value),
@@ -49,21 +45,20 @@ private static List<float> ForecastMetric(MLContext mlContext, List<float> value
         trainSize: trainSize,
         horizon: forecastHorizon);
 
-    // Step 9: Train and forecast
+    // Step 8: Train and forecast
     var model = pipeline.Fit(dataView);
     var forecastEngine = model.CreateTimeSeriesEngine<MetricData, ForecastPrediction>(mlContext);
     var forecast = forecastEngine.Predict();
 
-    // Step 10: Scale back and clamp to historical min/max
+    // Step 9: Scale back if needed and clamp to historical min/max
     float lastKnown = values.Last();
     var result = forecast.ForecastedValues
-                         .Select(v =>
-                         {
-                             float val = v / 100f; // scale back
-                             if (float.IsNaN(val)) val = lastKnown;
-                             return Math.Max(minVal, Math.Min(maxVal, val));
-                         })
-                         .ToList();
+        .Select(v =>
+        {
+            float val = float.IsNaN(v) ? lastKnown : (scale ? v / 100f : v);
+            return Math.Max(minVal, Math.Min(maxVal, val));
+        })
+        .ToList();
 
     return result;
 }
