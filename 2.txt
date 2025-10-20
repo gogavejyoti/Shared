@@ -1,19 +1,41 @@
-h.setCellValue = function(row, col, value, triggerUpdate = true) {
-    const oldCell = $.extend(true, {}, this.flowdata[row][col]);
-    let cell = this.flowdata[row][col] || {};
+/**
+ * Set a cell value programmatically on a given sheet
+ * @param {Object} sheetObj - The sheet object (from Ft()[index] or current sheet)
+ * @param {number} row - Row index (0-based)
+ * @param {number} col - Column index (0-based)
+ * @param {any} value - Value to set (string, number, boolean)
+ * @param {boolean} triggerUpdate - Whether to update UI & hooks (default: true)
+ */
+function updateCell(sheetObj, row, col, value, triggerUpdate = true) {
+    if (!sheetObj || !sheetObj.data) return;
 
+    // Backup old cell
+    const oldCell = $.extend(true, {}, sheetObj.data[row][col]);
+    let cell = sheetObj.data[row][col] || {};
+
+    // Clear any formula or dynamic array
     delete cell.f;
     delete cell.spl;
+
+    // Set new value
     cell.v = value;
+
+    // Ensure cell type is General
     if (!cell.ct) cell.ct = {};
     cell.ct.t = "g";
     cell.ct.fa = "General";
 
-    this.flowdata[row][col] = cell;
-    const newFlowData = $.extend(true, {}, this.flowdata);
+    // Save back
+    sheetObj.data[row][col] = cell;
+
+    // Deep copy for recalculation/UI update
+    const newFlowData = $.extend(true, {}, sheetObj.data);
 
     if (triggerUpdate) {
+        // Update UI & recalc formulas
         Ye(newFlowData, [{ row: [row, row], column: [col, col] }], { data: newFlowData }, true);
-        Je.createHookFunction("cellUpdated", row, col, oldCell, this.flowdata[row][col], true);
+
+        // Trigger hooks
+        Je.createHookFunction("cellUpdated", row, col, oldCell, sheetObj.data[row][col], true);
     }
-};
+}
