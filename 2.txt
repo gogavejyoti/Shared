@@ -1,206 +1,356 @@
-    function it(e) {
-        var n = []
-            , t = null
-            , l = {}
-            , a = e;
-        if (e == null)
-            return null;
-        if (/^-?[0-9]{1,}[,][0-9]{3}(.[0-9]{1,2})?$/.test(e)) {
-            t = e,
-                a = Number(e.split(".")[0].replace(",", ""));
-            let x = "#,##0";
-            if (e.split(".")[1]) {
-                x = "#,##0.";
-                for (let C = 0; C < e.split(".")[1].length; C++)
-                    x += 0
-            }
-            l = {
-                fa: x,
-                t: "n"
-            }
-        } else if (e.toString().substr(0, 1) === "'")
-            t = e.toString().substr(1),
-                l = {
-                    fa: "@",
-                    t: "s"
-                };
-        else if (e.toString().toUpperCase() === "TRUE")
-            t = "TRUE",
-                l = {
-                    fa: "General",
-                    t: "b"
-                },
-                a = !0;
-        else if (e.toString().toUpperCase() === "FALSE")
-            t = "FALSE",
-                l = {
-                    fa: "General",
-                    t: "b"
-                },
-                a = !1;
-        else if (H(e))
-            t = e.toString(),
-                l = {
-                    fa: "General",
-                    t: "e"
-                };
-        else if (/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(e))
-            t = e.toString(),
-                l = {
-                    fa: "@",
-                    t: "s"
-                };
-        else if (B(e) && Math.abs(parseFloat(e)) > 0 && (Math.abs(parseFloat(e)) >= 1e11 || Math.abs(parseFloat(e)) < 1e-9))
-            if (e.length > 16)
-                a = e,
-                    l = {
-                        fa: "@",
-                        t: "s"
-                    },
-                    t = vl.format(l.fa, a);
-            else {
-                a = (0,
-                    Or.default)(e).value();
-                var o = a.toExponential();
-                if (o.indexOf(".") > -1) {
-                    var s = o.split(".")[1].split("e")[0].length;
-                    s > 5 && (s = 5),
-                        l = {
-                            fa: "#0." + new Array(s + 1).join("0") + "E+00",
-                            t: "n"
-                        }
-                } else
-                    l = {
-                        fa: "#0.E+00",
-                        t: "n"
-                    };
-                t = vl.format(l.fa, a)
-            }
-        else if (e.toString().indexOf("%") > -1) {
-            var u = e.toString().indexOf("%")
-                , d = e.toString().substr(0, u)
-                , f = d.replace(/,/g, "");
-            if (u == e.toString().length - 1 && B(f))
-                if (d.indexOf(".") > -1)
-                    if (d.indexOf(".") == d.lastIndexOf(".")) {
-                        var m = d.split(".")[0]
-                            , g = d.split(".")[1]
-                            , y = g.length;
-                        if (y > 9 && (y = 9),
-                            m.indexOf(",") > -1) {
-                            for (var v = !0, k = m.split(","), b = 1; b < k.length; b++)
-                                if (k[b].length < 3) {
-                                    v = !1;
-                                    break
-                                }
-                            v ? (l = {
-                                fa: "#,##0." + new Array(y + 1).join("0") + "%",
-                                t: "n"
-                            },
-                                a = (0,
-                                    Or.default)(e).value(),
-                                t = vl.format(l.fa, a)) : (t = e.toString(),
-                                    l = {
-                                        fa: "@",
-                                        t: "s"
-                                    })
-                        } else
-                            l = {
-                                fa: "0." + new Array(y + 1).join("0") + "%",
-                                t: "n"
-                            },
-                                a = (0,
-                                    Or.default)(e).value(),
-                                t = vl.format(l.fa, a)
-                    } else
-                        t = e.toString(),
-                            l = {
-                                fa: "@",
-                                t: "s"
-                            };
-                else if (d.indexOf(",") > -1) {
-                    for (var v = !0, k = d.split(","), b = 1; b < k.length; b++)
-                        if (k[b].length < 3) {
-                            v = !1;
-                            break
-                        }
-                    v ? (l = {
-                        fa: "#,##0%",
-                        t: "n"
-                    },
-                        a = (0,
-                            Or.default)(e).value(),
-                        t = vl.format(l.fa, a)) : (t = e.toString(),
-                            l = {
-                                fa: "@",
-                                t: "s"
-                            })
-                } else
-                    l = {
-                        fa: "0%",
-                        t: "n"
-                    },
-                        a = (0,
-                            Or.default)(e).value(),
-                        t = vl.format(l.fa, a);
-            else
-                t = e.toString(),
-                    l = {
-                        fa: "@",
-                        t: "s"
-                    }
-        } else if (e.toString().indexOf(".") > -1)
-            if (e.toString().indexOf(".") == e.toString().lastIndexOf(".")) {
-                var w = e.toString().split(".")[0]
-                    , d = e.toString().split(".")[1]
-                    , y = d.length;
-                if (y > 9 && (y = 9),
-                    w.indexOf(",") > -1) {
-                    for (var v = !0, k = w.split(","), b = 1; b < k.length; b++)
-                        if (!B(k[b]) || k[b].length < 3) {
-                            v = !1;
-                            break
-                        }
-                    v ? (l = {
-                        fa: "#,##0." + new Array(y + 1).join("0"),
-                        t: "n"
-                    },
-                        a = (0,
-                            Or.default)(e).value(),
-                        t = vl.format(l.fa, a)) : (t = e.toString(),
-                            l = {
-                                fa: "@",
-                                t: "s"
-                            })
-                } else
-                    B(w) && B(d) ? (l = {
-                        fa: "0." + new Array(y + 1).join("0"),
-                        t: "n"
-                    },
-                        a = (0,
-                            Or.default)(e).value(),
-                        t = vl.format(l.fa, a)) : (t = e.toString(),
-                            l = {
-                                fa: "@",
-                                t: "s"
-                            })
-            } else
-                t = e.toString(),
-                    l = {
-                        fa: "@",
-                        t: "s"
-                    };
-        else
-            B(e) ? (t = e.toString(),
-                l = {
-                    fa: "General",
-                    t: "n"
-                },
-                a = parseFloat(e)) : Pt(e) && (e.toString().indexOf(".") > -1 || e.toString().indexOf(":") > -1 || e.toString().length < 16) ? (a = Ws(X2(e.toString().replace(/-/g, "/"))),
-                    a.toString().indexOf(".") > -1 ? e.toString().length > 18 ? l.fa = "yyyy-MM-dd hh:mm:ss" : e.toString().length > 11 ? l.fa = "yyyy-MM-dd hh:mm" : l.fa = "yyyy-MM-dd" : l.fa = "yyyy-MM-dd",
-                    l.t = "d",
-                    t = vl.format(l.fa, a)) : (t = e,
-                        l.fa = "General",
-                        l.t = "g");
-        return [t, l, a]
+<!-- add this inside your .sim-toolbar where other buttons are -->
+<div class="col-auto">
+  <button id="applyToPlanBtn" class="btn btn-success btn-sm mt-3">📊 Apply to Plan</button>
+</div>
+
+// -------------------- APPLY TO PLAN: Start --------------------
+// Add event handler to Apply to Plan button
+$toolbar.find('#applyToPlanBtn').on('click', async function () {
+    try {
+        // 1) Confirm with user
+        if (!confirm("This will overwrite matching cells in the plan with current simulated values. Proceed?")) return;
+
+        // 2) Build structured payload of simulated changes
+        const changes = buildSimulatedChangeList(); // [{lob, week, metric, value}, ...]
+
+        if (!changes.length) {
+            toastr.warning("No simulated changes to apply.");
+            return;
+        }
+
+        // 3) Map changes to sheet cells and apply to LuckySheet
+        // returns array of {sheetName, r, c, oldVal, newVal}
+        const applied = applyChangesToLuckySheet(changes);
+
+        if (!applied.length) {
+            toastr.warning("No matching sheet cells found for the simulated values (check sheet mapping).");
+            return;
+        }
+
+        // 4) Optionally highlight updates in UI (done inside applyChangesToLuckySheet)
+        // 5) Persist to backend
+        // gather minimal payload for backend (you can extend to include full luckysheet file)
+        const planId = (typeof window.planId !== 'undefined') ? window.planId : $('#planId').val() || null;
+        const persistPayload = {
+            planId,
+            appliedChanges: applied, // {sheetName, row, col, oldVal, newVal, lob, week, metric}
+            appliedAt: new Date().toISOString()
+        };
+
+        // Disable button during save
+        const $btn = $(this);
+        $btn.prop('disabled', true).text('Saving...');
+
+        const saved = await persistSimulationToServer(persistPayload);
+
+        $btn.prop('disabled', false).text('📊 Apply to Plan');
+
+        if (saved) {
+            toastr.success("Simulation applied and saved to plan.");
+        } else {
+            toastr.error("Simulation applied locally, but save to server failed. Please try again.");
+        }
+
+    } catch (err) {
+        console.error("Apply to Plan error:", err);
+        toastr.error("An unexpected error occurred while applying the simulation.");
     }
+});
+
+/**
+ * Build flat list of simulated changes from simulatedValues
+ * returns [{ lob, week, metric, value }]
+ */
+function buildSimulatedChangeList() {
+    const list = [];
+    // We're interested in shrink and attr simulated pairs and optionally staffing
+    lobs.forEach(lob => {
+        weeks.forEach(week => {
+            const shrinkKey = `${lob}_${week}_shrink`;
+            const attrKey = `${lob}_${week}_attr`;
+            const shrinkVal = (simulatedValues[shrinkKey] != null) ? simulatedValues[shrinkKey] : null;
+            const attrVal = (simulatedValues[attrKey] != null) ? simulatedValues[attrKey] : null;
+
+            if (shrinkVal !== null) {
+                list.push({ lob, week, metric: 'Simulated Shrinkage %', value: parseFloat(shrinkVal) });
+            }
+            if (attrVal !== null) {
+                list.push({ lob, week, metric: 'Simulated Attrition %', value: parseFloat(attrVal) });
+            }
+
+            // Optionally include Staffing % if you calculate it per-week in calcSimulated()
+            const d = getData(lob, week);
+            if (d) {
+                const staffing = calcSimulated(d)['Staffing %'];
+                if (staffing != null && !isNaN(staffing)) {
+                    list.push({ lob, week, metric: 'Staffing %', value: parseFloat(staffing) });
+                }
+            }
+        });
+    });
+
+    // remove duplicates (metric entries could be pushed twice), ensure numeric values
+    return list.filter(item => item.value !== null && item.value !== undefined && !isNaN(item.value));
+}
+
+/**
+ * Apply mapped changes directly to LuckySheet workbook.
+ * This function tries multiple ways to access LuckySheet and to set cells.
+ *
+ * Returns array of applied change descriptors:
+ * [{ sheetName, row, col, oldVal, newVal, lob, week, metric }]
+ */
+function applyChangesToLuckySheet(changes) {
+    const applied = [];
+
+    // Attempt to find lucky sheet file object(s)
+    // 1) try global function getluckysheetfile()
+    let luckysheetFile = null;
+    let luckysheetInstance = null;
+    if (typeof window.getluckysheetfile === 'function') {
+        luckysheetFile = window.getluckysheetfile();
+    } else if (window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function') {
+        luckysheetFile = window.luckysheet.getluckysheetfile();
+    } else if (Array.isArray(window.luckysheetfile)) {
+        luckysheetFile = window.luckysheetfile;
+    } else if (window.luckysheet && window.luckysheet.getAllSheets) {
+        // some integrations attach API differently
+        luckysheetInstance = window.luckysheet;
+        try { luckysheetFile = luckysheetInstance.getAllSheets(); } catch (e) { /* ignore */ }
+    }
+
+    if (!luckysheetFile || !Array.isArray(luckysheetFile)) {
+        console.warn("LuckySheet: cannot locate workbook via getluckysheetfile / luckysheetfile.");
+        toastr.error("Cannot find LuckySheet workbook in this page. Ensure LuckySheet is initialized.");
+        return applied;
+    }
+
+    // Helper: find a sheet object by LOB (several naming conventions considered)
+    function findSheetForLOB(lob) {
+        // First, try exact match by name
+        let sheet = luckysheetFile.find(s => (s.name || s.sheetName || s.title) === lob);
+        if (sheet) return sheet;
+
+        // Try common suffixes/prefixes: e.g., 'LOB - CardOps', 'CardOps_Lob', etc.
+        const lower = lob.toLowerCase();
+        sheet = luckysheetFile.find(s => (s.name || s.sheetName || s.title || '').toLowerCase().includes(lower));
+        if (sheet) return sheet;
+
+        // Fallback: if you maintain a mapping in window.sheetConfigs (preferred), use it
+        if (window.sheetConfigs && window.sheetConfigs[lob] && window.sheetConfigs[lob].sheetName) {
+            const mappedName = window.sheetConfigs[lob].sheetName;
+            const mapped = luckysheetFile.find(s => (s.name || s.sheetName || s.title) === mappedName);
+            if (mapped) return mapped;
+        }
+
+        return null;
+    }
+
+    // Helper: map metric name to row index using sheetConfigs or headerMappings
+    function findRowForMetric(sheetObj, lob, metricName) {
+        // sheetObj.data is usually 2D array of cells in luckySheet internal representation
+        // Try to use window.sheetConfigs if available: structure should include headerMappings with std metricToHeader
+        if (window.sheetConfigs && window.sheetConfigs[lob] && window.sheetConfigs[lob].headerMappings) {
+            const headerMappings = window.sheetConfigs[lob].headerMappings;
+            // headerMappings might map standard labels to the actual header text in sheet (e.g. "Planned Shrinkage": "Shr %")
+            // Now find row index by searching first column for that header text
+            const targetLabel = headerMappings[metricName] || headerMappings[metricName.replace('Simulated ', 'Planned ')] || null;
+            if (targetLabel) {
+                const colIndex = (function () {
+                    // header column specified in config as A or 1 etc.
+                    const cfg = window.sheetConfigs[lob];
+                    const headerCol = cfg && cfg.headerCol;
+                    if (!headerCol) return 0;
+                    if (isNaN(headerCol)) return headerCol.toUpperCase().charCodeAt(0) - 65;
+                    return parseInt(headerCol) - 1;
+                })();
+                const sheetData = sheetObj.data || sheetObj.rows || sheetObj;
+                for (let r = 0; r < sheetData.length; r++) {
+                    try {
+                        const cell = sheetData[r][colIndex];
+                        const cellText = cell ? (cell.m || cell.v || '').toString().trim() : '';
+                        if (cellText === targetLabel || cellText.indexOf(targetLabel) !== -1) return r;
+                    } catch (e) { /* ignore */ }
+                }
+            }
+        }
+
+        // Fallback: search first 200 rows of first few columns for metric label
+        const fallBackLabels = [metricName, metricName.replace('Simulated ', 'Planned '), metricName.replace('%', '').trim()];
+        const sData = sheetObj.data || sheetObj.rows || sheetObj;
+        for (let r = 0; r < Math.min(200, (sData.length || 0)); r++) {
+            for (let c = 0; c < Math.min(6, (sData[r] ? sData[r].length : 0)); c++) {
+                const cell = sData[r][c];
+                const text = cell ? (cell.m || cell.v || '').toString().trim() : '';
+                if (!text) continue;
+                for (const lbl of fallBackLabels) if (lbl && (text === lbl || text.indexOf(lbl) !== -1)) return r;
+            }
+        }
+
+        return null;
+    }
+
+    // Helper: find column for week date (week header row mapping)
+    function findColForWeek(sheetObj, weekStr) {
+        // If window.sheetConfigs has weekRow set, use it to read week header row
+        const sheetNameKey = (sheetObj.name || sheetObj.sheetName || sheetObj.title);
+        let weekRowIndex = null;
+        if (window.sheetConfigs) {
+            // attempt to find matching config by sheet name or LOB
+            const cfgEntry = Object.values(window.sheetConfigs).find(cfg => {
+                const target = (cfg.sheetName || cfg.sheet || cfg.sheetName);
+                return target && target === sheetNameKey;
+            });
+            if (cfgEntry && cfgEntry.weekRow) {
+                weekRowIndex = parseInt(cfgEntry.weekRow) - 1; // config is 1-based
+            }
+        }
+        // fallback: try common week rows (2 or 3 or 4)
+        if (weekRowIndex === null) {
+            const possible = [2, 3, 4, 5].map(x => x - 1);
+            for (const rowi of possible) {
+                const headerRow = sheetObj.data && sheetObj.data[rowi];
+                if (!headerRow) continue;
+                for (let c = 0; c < headerRow.length; c++) {
+                    const cell = headerRow[c];
+                    const text = cell ? (cell.m || cell.v || '').toString().trim() : '';
+                    if (!text) continue;
+                    // Try to parse both as Date objects or match formatting
+                    try {
+                        const a = new Date(text);
+                        const b = new Date(weekStr);
+                        if (!isNaN(a) && !isNaN(b) && a.toDateString() === b.toDateString()) return c;
+                        // match dd-MMM-yy style where weekStr may be same format
+                        if (text.indexOf(weekStr) !== -1 || weekStr.indexOf(text) !== -1) return c;
+                    } catch (e) {}
+                }
+            }
+        } else {
+            // use the configured weekRowIndex to search for weekStr
+            const headerRow = sheetObj.data && sheetObj.data[weekRowIndex];
+            if (headerRow) {
+                for (let c = 0; c < headerRow.length; c++) {
+                    const cell = headerRow[c];
+                    const text = cell ? (cell.m || cell.v || '').toString().trim() : '';
+                    if (!text) continue;
+                    if (text === weekStr || text.indexOf(weekStr) !== -1) return c;
+                    // try Date equality
+                    const a = new Date(text);
+                    const b = new Date(weekStr);
+                    if (!isNaN(a) && !isNaN(b) && a.toDateString() === b.toDateString()) return c;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // Helper: actually set value into the sheet object. This modifies the in-memory sheet structure.
+    function setSheetCellValue(sheetObj, r, c, value) {
+        if (!sheetObj) return false;
+        // Ensure row exists
+        if (!sheetObj.data) sheetObj.data = sheetObj.rows || [];
+        while (sheetObj.data.length <= r) sheetObj.data.push([]);
+        while (sheetObj.data[r].length <= c) sheetObj.data[r].push(null);
+
+        const existing = sheetObj.data[r][c] || {};
+        const oldVal = existing.v !== undefined ? existing.v : (existing.m !== undefined ? existing.m : null);
+
+        // Create cell object
+        const newCell = {
+            v: value,
+            m: (typeof value === 'number') ? value.toString() : (value === null ? '' : value.toString())
+        };
+
+        // copy style if you want - here we just replace value
+        sheetObj.data[r][c] = Object.assign({}, existing, newCell);
+
+        return { oldVal, newVal: value };
+    }
+
+    // Iterate changes and apply
+    for (const ch of changes) {
+        const { lob, week, metric, value } = ch;
+        const sheet = findSheetForLOB(lob);
+        if (!sheet) {
+            console.warn("No sheet found for LOB:", lob);
+            continue;
+        }
+
+        const rowIdx = findRowForMetric(sheet, lob, metric);
+        const colIdx = findColForWeek(sheet, week);
+
+        if (rowIdx === null || colIdx === null) {
+            console.warn("Could not map metric/week to sheet cell:", { lob, week, metric, rowIdx, colIdx, sheetName: sheet.name || sheet.sheetName });
+            continue;
+        }
+
+        const res = setSheetCellValue(sheet, rowIdx, colIdx, value);
+        if (res) {
+            // mark the cell visually by adding style object (if luckySheet supports it)
+            try {
+                // some luckySheet versions use "bg" inside cell.s or cell.bg
+                sheet.data[rowIdx][colIdx].bg = "#DFF0D8"; // light green
+                // or style: sheet.data[rowIdx][colIdx].s = { ... }
+            } catch (e) { /* ignore */ }
+
+            applied.push({
+                sheetName: sheet.name || sheet.sheetName || sheet.title,
+                row: rowIdx,
+                col: colIdx,
+                oldVal: res.oldVal,
+                newVal: res.newVal,
+                lob, week, metric
+            });
+        }
+    }
+
+    // After applying in-memory changes, attempt to refresh LuckySheet UI using known APIs
+    try {
+        if (window.luckysheet && typeof window.luckysheet.refresh === 'function') {
+            window.luckysheet.refresh();
+        } else if (typeof window.refreshLuckySheet === 'function') {
+            window.refreshLuckySheet();
+        } else if (typeof window.luckysheet_draw === 'function') {
+            // older API
+            window.luckysheet_draw();
+        } else {
+            // Last resort: try to reassign global luckysheetfile and call getluckysheetfile setter if exists
+            if (typeof window.setluckysheetfile === 'function') {
+                window.setluckysheetfile(luckysheetFile);
+            }
+        }
+    } catch (e) {
+        console.warn("Could not trigger LuckySheet UI refresh automatically. You may need to refresh the sheet manually.", e);
+    }
+
+    return applied;
+}
+
+/**
+ * Persist applied simulation to server. Returns true/false
+ * You can modify endpoint and payload to match your .NET/Dapper API.
+ */
+function persistSimulationToServer(payload) {
+    return new Promise((resolve, reject) => {
+        $.ajax({
+            url: '/resourceplanner/ApplySimulationToPlan', // replace with your save endpoint
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function (resp) {
+                // expect { success: true }
+                if (resp && (resp.success === true || resp.status === 'ok')) resolve(true);
+                else {
+                    console.warn("Server responded with error:", resp);
+                    resolve(false);
+                }
+            },
+            error: function (xhr, status, err) {
+                console.error("Error saving simulation to server:", status, err);
+                resolve(false);
+            }
+        });
+    });
+}
+// -------------------- APPLY TO PLAN: End --------------------
