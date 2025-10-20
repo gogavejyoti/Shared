@@ -1,41 +1,160 @@
 /**
- * Set a cell value programmatically on a given sheet
- * @param {Object} sheetObj - The sheet object (from Ft()[index] or current sheet)
- * @param {number} row - Row index (0-based)
- * @param {number} col - Column index (0-based)
- * @param {any} value - Value to set (string, number, boolean)
- * @param {boolean} triggerUpdate - Whether to update UI & hooks (default: true)
+ * Programmatically update a cell in any sheet (with full LuckySheet behavior)
+ * @param {Object} sheetObj - The sheet object (Ft()[index] or current sheet)
+ * @param {number} sheetIndex - Index of the sheet in Ft()
+ * @param {number} r - Row index (0-based)
+ * @param {number} c - Column index (0-based)
+ * @param {any} value - Value to set (string, number, object, formula, etc.)
+ * @param {boolean} triggerUpdate - Whether to trigger recalculation/UI update (default: true)
  */
-function updateCell(sheetObj, row, col, value, triggerUpdate = true) {
+function updateCellBySheetObj(sheetObj, sheetIndex, r, c, value, triggerUpdate = true) {
     if (!sheetObj || !sheetObj.data) return;
 
-    // Backup old cell
-    const oldCell = $.extend(true, {}, sheetObj.data[row][col]);
-    let cell = sheetObj.data[row][col] || {};
+    const a = this;
+    const h = sheetObj;
 
-    // Clear any formula or dynamic array
-    delete cell.f;
-    delete cell.spl;
+    if (!bn(r, c, sheetIndex)) return;
 
-    // Set new value
-    cell.v = value;
-
-    // Ensure cell type is General
-    if (!cell.ct) cell.ct = {};
-    cell.ct.t = "g";
-    cell.ct.fa = "General";
-
-    // Save back
-    sheetObj.data[row][col] = cell;
-
-    // Deep copy for recalculation/UI update
-    const newFlowData = $.extend(true, {}, sheetObj.data);
-
-    if (triggerUpdate) {
-        // Update UI & recalc formulas
-        Ye(newFlowData, [{ row: [row, row], column: [col, col] }], { data: newFlowData }, true);
-
-        // Trigger hooks
-        Je.createHookFunction("cellUpdated", row, col, oldCell, sheetObj.data[row][col], true);
+    // --- Data verification check (if enabled) ---
+    if (Xe.dataVerification != null) {
+        const verificationRule = Xe.dataVerification[r + "_" + c];
+        if (verificationRule != null && verificationRule.prohibitInput && !Xe.validateCellData(value, verificationRule)) {
+            const msg = Xe.getFailureText(verificationRule);
+            U.info(msg, "");
+            a.cancelNormalSelected && a.cancelNormalSelected();
+            return;
+        }
     }
+
+    let d = h.flowdata[r][c],
+        f = JSON.stringify(d),
+        m = xl(d),
+        v = true,
+        dynamicArrayData = null;
+
+    const k = we.deepCopyFlowData(h.flowdata);
+
+    // --- Formula / inline string handling ---
+    if (L(d) == "object") {
+        if (L(value) == "string" && value.slice(0, 1) == "=" && value.length > 1) {
+            const result = a.execfunction(value, r, c, undefined, true);
+            v = false;
+            d = $.extend(true, {}, k[r][c]);
+            d.v = result[1];
+            d.f = result[2];
+            if (result.length === 4 && result[3].type === "sparklines") {
+                delete d.m; delete d.v;
+                const T = result[3].data;
+                L(T) == "array" && L(T[0]) != "object" ? d.v = T[0] : d.spl = result[3].data;
+            } else if (result.length === 4 && result[3].type === "dynamicArrayItem") {
+                dynamicArrayData = result[3].data;
+            }
+        } else if (L(value) == "object") {
+            const formula = value.f;
+            if (L(formula) == "string" && formula.slice(0, 1) == "=" && formula.length > 1) {
+                const T = a.execfunction(formula, r, c, undefined, true);
+                v = false;
+                d = $.extend(true, {}, k[r][c]);
+                d.v = T[1];
+                d.f = T[2];
+                if (T.length === 4 && T[3].type === "sparklines") {
+                    delete d.m; delete d.v;
+                    const A = T[3].data;
+                    L(A) == "array" && L(A[0]) != "object" ? d.v = A[0] : d.spl = T[3].data;
+                } else if (T.length === 4 && T[3].type === "dynamicArrayItem") {
+                    dynamicArrayData = T[3].data;
+                }
+            } else {
+                for (let key in value) d[key] = value[key];
+            }
+        } else {
+            a.delFunctionGroup && a.delFunctionGroup(r, c);
+            a.execFunctionGroup && a.execFunctionGroup(r, c, value);
+            v = false;
+            d = $.extend(true, {}, k[r][c]);
+            d.v = value;
+            delete d.f;
+            delete d.spl;
+            if (d.qp == 1 && ("" + value).substr(0, 1) != "'") {
+                d.qp = 0;
+                if (d.ct != null) {
+                    d.ct.fa = "General";
+                    d.ct.t = "n";
+                }
+            }
+        }
+        value = d;
+    } else if (L(value) == "string" && value.slice(0, 1) == "=" && value.length > 1) {
+        const result = a.execfunction(value, r, c, undefined, true);
+        v = false;
+        value = { v: result[1], f: result[2] };
+        if (result.length === 4 && result[3].type === "sparklines") {
+            const T = result[3].data;
+            L(T) == "array" && L(T[0]) != "object" ? value.v = T[0] : value.spl = result[3].data;
+        } else if (result.length === 4 && result[3].type === "dynamicArrayItem") {
+            dynamicArrayData = result[3].data;
+        }
+    } else if (L(value) == "object") {
+        const formula = value.f;
+        if (L(formula) == "string" && formula.slice(0, 1) == "=" && formula.length > 1) {
+            const T = a.execfunction(formula, r, c, undefined, true);
+            v = false;
+            value.v = T[1];
+            value.f = T[2];
+            if (T.length === 4 && T[3].type === "sparklines") {
+                const A = T[3].data;
+                L(A) == "array" && L(A[0]) != "object" ? value.v = A[0] : value.spl = T[3].data;
+            } else if (T.length === 4 && T[3].type === "dynamicArrayItem") {
+                dynamicArrayData = T[3].data;
+            }
+        } else {
+            const old = d;
+            value.v == null && (value.v = old);
+        }
+    } else {
+        a.delFunctionGroup && a.delFunctionGroup(r, c);
+        a.execFunctionGroup && a.execFunctionGroup(r, c, value);
+        v = false;
+    }
+
+    // --- Update cell data ---
+    At(r, c, k, value);
+
+    // --- Row height auto-adjustment ---
+    let rowChange = false;
+    const x = $.extend(true, {}, sheetObj.config || {});
+    if (x.rowlen == null) x.rowlen = {};
+    if (k[r][c].tb == "2" && k[r][c].v != null || xl(k[r][c]) && typeof k[r][c].mc == "undefined") {
+        const defaultRowLen = h.defaultrowlen || 19;
+        const ctx = $("#luckysheetTableContent").get(0).getContext("2d");
+        if (!(x.customHeight && x.customHeight[r] == 1)) {
+            const colWidth = Rt(c)[1] - Rt(c)[0] - 2;
+            const textMetrics = Tr(k[r][c], ctx, { r, c, cellWidth: colWidth });
+            let height = defaultRowLen;
+            if (textMetrics != null) height = textMetrics.textHeightAll + 2;
+            if (height > defaultRowLen) {
+                x.rowlen[r] = height;
+                rowChange = true;
+            }
+        }
+    }
+
+    // --- Dynamic array insert if needed ---
+    let dyn = null;
+    if (dynamicArrayData) dyn = $.extend(true, [], this.insertUpdateDynamicArray(dynamicArrayData));
+
+    // --- Compose parameters for Ye() ---
+    let updateParams = { dynamicArray: dyn };
+    if (rowChange) updateParams = { cfg: x, dynamicArray: dyn, RowlChange: rowChange };
+
+    // --- Fire cellUpdated hook ---
+    setTimeout(() => {
+        Je.createHookFunction("cellUpdated", r, c, JSON.parse(f), h.flowdata[r][c], triggerUpdate);
+    }, 0);
+
+    // --- Apply data update ---
+    if (triggerUpdate)
+        Ye(k, [{ row: [r, r], column: [c, c] }], updateParams, v);
+    else
+        return { data: k, allParam: updateParams };
 }
