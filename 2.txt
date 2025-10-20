@@ -1,160 +1,190 @@
-/**
- * Programmatically update a cell in any sheet (with full LuckySheet behavior)
- * @param {Object} sheetObj - The sheet object (Ft()[index] or current sheet)
- * @param {number} sheetIndex - Index of the sheet in Ft()
- * @param {number} r - Row index (0-based)
- * @param {number} c - Column index (0-based)
- * @param {any} value - Value to set (string, number, object, formula, etc.)
- * @param {boolean} triggerUpdate - Whether to trigger recalculation/UI update (default: true)
- */
-function updateCellBySheetObj(sheetObj, sheetIndex, r, c, value, triggerUpdate = true) {
+updateCellProgrammatically: function (sheetObj, row, col, value, triggerUpdate = true) {
+    let a = this;
+
+    // Safety check
     if (!sheetObj || !sheetObj.data) return;
+    let flowdata = sheetObj.data;
 
-    const a = this;
-    const h = sheetObj;
+    // Clone cell
+    let d = flowdata[row][col];
+    if (!d) d = {};
+    let f = JSON.stringify(d);
+    let m = xl(d);
+    let t = value;
+    let g = false;
+    let y = false;
 
-    if (!bn(r, c, sheetIndex)) return;
-
-    // --- Data verification check (if enabled) ---
-    if (Xe.dataVerification != null) {
-        const verificationRule = Xe.dataVerification[r + "_" + c];
-        if (verificationRule != null && verificationRule.prohibitInput && !Xe.validateCellData(value, verificationRule)) {
-            const msg = Xe.getFailureText(verificationRule);
-            U.info(msg, "");
-            a.cancelNormalSelected && a.cancelNormalSelected();
-            return;
-        }
+    // === same pre-check logic ===
+    if (!t && !g && m) {
+        delete d.ct?.s;
+        d.ct.t = "g";
+        d.ct.fa = "General";
+        t = "";
+    } else {
+        if (L(d) != "object") d = {};
+        delete d.f;
+        delete d.v;
+        delete d.m;
+        d.ct ??= {};
+        d.ct.fa = "General";
+        d.ct.t = "inlineStr";
+        d.ct.s = [{ v: String(t) }];
     }
 
-    let d = h.flowdata[r][c],
-        f = JSON.stringify(d),
-        m = xl(d),
-        v = true,
-        dynamicArrayData = null;
+    if (!Je.createHookFunction("cellUpdateBefore", row, col, t, triggerUpdate)) {
+        a.cancelNormalSelected();
+        return;
+    }
 
-    const k = we.deepCopyFlowData(h.flowdata);
-
-    // --- Formula / inline string handling ---
-    if (L(d) == "object") {
-        if (L(value) == "string" && value.slice(0, 1) == "=" && value.length > 1) {
-            const result = a.execfunction(value, r, c, undefined, true);
-            v = false;
-            d = $.extend(true, {}, k[r][c]);
-            d.v = result[1];
-            d.f = result[2];
-            if (result.length === 4 && result[3].type === "sparklines") {
-                delete d.m; delete d.v;
-                const T = result[3].data;
-                L(T) == "array" && L(T[0]) != "object" ? d.v = T[0] : d.spl = result[3].data;
-            } else if (result.length === 4 && result[3].type === "dynamicArrayItem") {
-                dynamicArrayData = result[3].data;
+    if (!g) {
+        if (fe(t) && !m) {
+            if (d == null || (fe(d.v) && d.spl == null && d.f == null)) {
+                a.cancelNormalSelected();
+                return;
             }
-        } else if (L(value) == "object") {
-            const formula = value.f;
-            if (L(formula) == "string" && formula.slice(0, 1) == "=" && formula.length > 1) {
-                const T = a.execfunction(formula, r, c, undefined, true);
+        } else if (d != null && d.qp != 1) {
+            if (L(d) == "object" && (t == d.f || t == d.v || t == d.m)) {
+                a.cancelNormalSelected();
+                return;
+            } else if (t == d) {
+                a.cancelNormalSelected();
+                return;
+            }
+        }
+        L(t) == "string" && t.slice(0, 1) == "=" && t.length > 1 ||
+        (L(d) == "object" && d.ct != null && d.ct.fa != null && d.ct.fa != "@" && !fe(t)) &&
+        (delete d.m, d.f != null && (delete d.f, delete d.spl));
+    }
+
+    window.luckysheet_getcelldata_cache = null;
+
+    let v = true;
+    let k = we.deepCopyFlowData(flowdata);
+    let b = null;
+
+    if (L(d) == "object") {
+        if (!g) {
+            if (L(t) == "string" && t.slice(0, 1) == "=" && t.length > 1) {
+                let _ = a.execfunction(t, row, col, void 0, true);
                 v = false;
-                d = $.extend(true, {}, k[r][c]);
-                d.v = T[1];
-                d.f = T[2];
-                if (T.length === 4 && T[3].type === "sparklines") {
-                    delete d.m; delete d.v;
-                    const A = T[3].data;
-                    L(A) == "array" && L(A[0]) != "object" ? d.v = A[0] : d.spl = T[3].data;
-                } else if (T.length === 4 && T[3].type === "dynamicArrayItem") {
-                    dynamicArrayData = T[3].data;
+                d = $.extend(true, {}, k[row][col]);
+                d.v = _[1];
+                d.f = _[2];
+                if (_.length == 4 && _[3].type == "sparklines") {
+                    delete d.m;
+                    delete d.v;
+                    let T = _[3].data;
+                    L(T) == "array" && L(T[0]) != "object" ? (d.v = T[0]) : (d.spl = _[3].data);
+                } else if (_.length == 4 && _[3].type == "dynamicArrayItem") {
+                    b = _[3].data;
+                }
+            } else if (L(t) == "object") {
+                let _ = t.f;
+                if (L(_) == "string" && _.slice(0, 1) == "=" && _.length > 1) {
+                    let T = a.execfunction(_, row, col, void 0, true);
+                    v = false;
+                    d = $.extend(true, {}, k[row][col]);
+                    d.v = T[1];
+                    d.f = T[2];
+                    if (T.length == 4 && T[3].type == "sparklines") {
+                        delete d.m;
+                        delete d.v;
+                        let A = T[3].data;
+                        L(A) == "array" && L(A[0]) != "object" ? (d.v = A[0]) : (d.spl = T[3].data);
+                    } else if (T.length == 4 && T[3].type == "dynamicArrayItem") {
+                        b = T[3].data;
+                    }
+                } else {
+                    for (let T in t) d[T] = t[T];
                 }
             } else {
-                for (let key in value) d[key] = value[key];
-            }
-        } else {
-            a.delFunctionGroup && a.delFunctionGroup(r, c);
-            a.execFunctionGroup && a.execFunctionGroup(r, c, value);
-            v = false;
-            d = $.extend(true, {}, k[r][c]);
-            d.v = value;
-            delete d.f;
-            delete d.spl;
-            if (d.qp == 1 && ("" + value).substr(0, 1) != "'") {
-                d.qp = 0;
-                if (d.ct != null) {
-                    d.ct.fa = "General";
-                    d.ct.t = "n";
+                a.delFunctionGroup(row, col);
+                a.execFunctionGroup(row, col, t);
+                v = false;
+                d = $.extend(true, {}, k[row][col]);
+                d.v = t;
+                delete d.f;
+                delete d.spl;
+                if (d.qp == 1 && ("" + t).substr(0, 1) != "'") {
+                    d.qp = 0;
+                    d.ct != null && ((d.ct.fa = "General"), (d.ct.t = "n"));
                 }
             }
+            t = d;
         }
-        value = d;
-    } else if (L(value) == "string" && value.slice(0, 1) == "=" && value.length > 1) {
-        const result = a.execfunction(value, r, c, undefined, true);
+    } else if (L(t) == "string" && t.slice(0, 1) == "=" && t.length > 1) {
+        let _ = a.execfunction(t, row, col, void 0, true);
         v = false;
-        value = { v: result[1], f: result[2] };
-        if (result.length === 4 && result[3].type === "sparklines") {
-            const T = result[3].data;
-            L(T) == "array" && L(T[0]) != "object" ? value.v = T[0] : value.spl = result[3].data;
-        } else if (result.length === 4 && result[3].type === "dynamicArrayItem") {
-            dynamicArrayData = result[3].data;
+        t = { v: _[1], f: _[2] };
+        if (_.length == 4 && _[3].type == "sparklines") {
+            let T = _[3].data;
+            L(T) == "array" && L(T[0]) != "object" ? (t.v = T[0]) : (t.spl = _[3].data);
+        } else if (_.length == 4 && _[3].type == "dynamicArrayItem") {
+            b = _[3].data;
         }
-    } else if (L(value) == "object") {
-        const formula = value.f;
-        if (L(formula) == "string" && formula.slice(0, 1) == "=" && formula.length > 1) {
-            const T = a.execfunction(formula, r, c, undefined, true);
+    } else if (L(t) == "object") {
+        let _ = t.f;
+        if (L(_) == "string" && _.slice(0, 1) == "=" && _.length > 1) {
+            let T = a.execfunction(_, row, col, void 0, true);
             v = false;
-            value.v = T[1];
-            value.f = T[2];
-            if (T.length === 4 && T[3].type === "sparklines") {
-                const A = T[3].data;
-                L(A) == "array" && L(A[0]) != "object" ? value.v = A[0] : value.spl = T[3].data;
-            } else if (T.length === 4 && T[3].type === "dynamicArrayItem") {
-                dynamicArrayData = T[3].data;
+            t.v = T[1];
+            t.f = T[2];
+            if (T.length == 4 && T[3].type == "sparklines") {
+                let A = T[3].data;
+                L(A) == "array" && L(A[0]) != "object" ? (t.v = A[0]) : (t.spl = T[3].data);
+            } else if (T.length == 4 && T[3].type == "dynamicArrayItem") {
+                b = T[3].data;
             }
         } else {
-            const old = d;
-            value.v == null && (value.v = old);
+            let T = d;
+            if (t.v == null) t.v = T;
         }
     } else {
-        a.delFunctionGroup && a.delFunctionGroup(r, c);
-        a.execFunctionGroup && a.execFunctionGroup(r, c, value);
+        a.delFunctionGroup(row, col);
+        a.execFunctionGroup(row, col, t);
         v = false;
     }
 
-    // --- Update cell data ---
-    At(r, c, k, value);
+    // Write back
+    At(row, col, k, t);
+    a.cancelNormalSelected();
 
-    // --- Row height auto-adjustment ---
-    let rowChange = false;
-    const x = $.extend(true, {}, sheetObj.config || {});
+    // Handle row height recalculation
+    let w = false;
+    let x = $.extend(true, {}, sheetObj.config || {});
     if (x.rowlen == null) x.rowlen = {};
-    if (k[r][c].tb == "2" && k[r][c].v != null || xl(k[r][c]) && typeof k[r][c].mc == "undefined") {
-        const defaultRowLen = h.defaultrowlen || 19;
-        const ctx = $("#luckysheetTableContent").get(0).getContext("2d");
-        if (!(x.customHeight && x.customHeight[r] == 1)) {
-            const colWidth = Rt(c)[1] - Rt(c)[0] - 2;
-            const textMetrics = Tr(k[r][c], ctx, { r, c, cellWidth: colWidth });
-            let height = defaultRowLen;
-            if (textMetrics != null) height = textMetrics.textHeightAll + 2;
-            if (height > defaultRowLen) {
-                x.rowlen[r] = height;
-                rowChange = true;
+    if (
+        (k[row][col].tb == "2" && k[row][col].v != null) ||
+        (xl(k[row][col]) && typeof k[row][col].mc == "undefined")
+    ) {
+        let _ = h.defaultrowlen;
+        let T = $("#luckysheetTableContent").get(0).getContext("2d");
+        if (!(x.customHeight && x.customHeight[row] == 1)) {
+            let A = Rt(col)[1] - Rt(col)[0] - 2;
+            let R = Tr(k[row][col], T, { r: row, c: col, cellWidth: A });
+            let I = _;
+            if (R != null) I = R.textHeightAll + 2;
+            if (I > _) {
+                x.rowlen[row] = I;
+                w = true;
             }
         }
     }
 
-    // --- Dynamic array insert if needed ---
-    let dyn = null;
-    if (dynamicArrayData) dyn = $.extend(true, [], this.insertUpdateDynamicArray(dynamicArrayData));
+    let C = null;
+    if (b) C = $.extend(true, [], this.insertUpdateDynamicArray(b));
 
-    // --- Compose parameters for Ye() ---
-    let updateParams = { dynamicArray: dyn };
-    if (rowChange) updateParams = { cfg: x, dynamicArray: dyn, RowlChange: rowChange };
+    let S = { dynamicArray: C };
+    if (w) S = { cfg: x, dynamicArray: C, RowlChange: w };
 
-    // --- Fire cellUpdated hook ---
     setTimeout(() => {
-        Je.createHookFunction("cellUpdated", r, c, JSON.parse(f), h.flowdata[r][c], triggerUpdate);
+        Je.createHookFunction("cellUpdated", row, col, JSON.parse(f), k[row][col], triggerUpdate);
     }, 0);
 
-    // --- Apply data update ---
-    if (triggerUpdate)
-        Ye(k, [{ row: [r, r], column: [c, c] }], updateParams, v);
-    else
-        return { data: k, allParam: updateParams };
+    if (triggerUpdate) {
+        Ye(k, [{ row: [row, row], column: [col, col] }], S, v);
+        a.execFunctionGlobalData = null;
+    } else {
+        return { data: k, allParam: S };
+    }
 }
