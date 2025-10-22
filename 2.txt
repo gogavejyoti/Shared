@@ -1,10 +1,53 @@
-{
-    "r": 12,
-    "c": 2,
-    "index": "Sheet_caa9ff2619de4dd59bd005f36ddb41fd_1755682063653",
-    "func": [
-        true,
-        0,
-        "=IFERROR(C10-C9,0)"
-    ]
+function getAllDependents(sheetIndex, row, col, visited = new Set()) {
+    const dependents = [];
+
+    const targetSheet = Store.luckysheetfile.find(s => s.index === sheetIndex);
+    if (!targetSheet) return [];
+
+    const targetSheetName = targetSheet.name;
+
+    // Loop over all sheets and all formula cells
+    for (const s of Store.luckysheetfile) {
+        if (!s.calcChain) continue;
+
+        for (const chain of s.calcChain) {
+            const formulaStr = chain.func?.[2];
+            if (!formulaStr) continue;
+
+            // Parse all cell/range references in this formula
+            const refs = formula.getcellrange(formulaStr);
+            if (!refs || refs.length === 0) continue;
+
+            for (const ref of refs) {
+                // Resolve sheet name for the reference
+                const refSheetName = ref.sheetName || s.name;
+                const refSheet = Store.luckysheetfile.find(x => x.name === refSheetName);
+                if (!refSheet) continue;
+
+                // Check if target cell lies inside the reference range
+                if (
+                    refSheet.index === sheetIndex &&
+                    row >= ref.row[0] && row <= ref.row[1] &&
+                    col >= ref.column[0] && col <= ref.column[1]
+                ) {
+                    const depKey = `${chain.index}_${chain.r}_${chain.c}`;
+                    if (!visited.has(depKey)) {
+                        visited.add(depKey);
+
+                        dependents.push({
+                            sheetIndex: chain.index,
+                            r: chain.r,
+                            c: chain.c
+                        });
+
+                        // Recurse into next-level dependents
+                        const deeper = getAllDependents(chain.index, chain.r, chain.c, visited);
+                        dependents.push(...deeper);
+                    }
+                }
+            }
+        }
+    }
+
+    return dependents;
 }
