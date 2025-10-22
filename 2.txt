@@ -2,7 +2,7 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
     const allSheets = Ft() || [];
     let sheetChanged = false;
 
-    // Match both quoted and unquoted sheet names with optional ranges
+    // Regex to match sheet references like 'Sheet 1'!A1 or Sheet1!A1:B2
     const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
 
     for (let s = 0; s < allSheets.length; s++) {
@@ -86,28 +86,28 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                 }
             }
         }
+    }
 
-        // 🔄 --- Sync calcChain for this sheet ---
-        if (sheet.calcChain && Array.isArray(sheet.calcChain)) {
-            for (let i = sheet.calcChain.length - 1; i >= 0; i--) {
-                const chain = sheet.calcChain[i];
-                const cell = sheet.data?.[chain.r]?.[chain.c];
-                if (!cell || !cell.f || cell.f === "#REF!") {
-                    // Remove invalid chain entry
-                    sheet.calcChain.splice(i, 1);
-                    continue;
-                }
-                // If the formula text changed in data, update the calcChain entry
-                if (chain.f !== cell.f) {
-                    chain.f = cell.f;
-                    sheetChanged = true;
+    // --- Rebuild calcChain ---
+    allSheets.forEach((sheet, sIdx) => {
+        if (!sheet.data) return;
+        sheet.calcChain = [];
+        for (let r = 0; r < sheet.data.length; r++) {
+            const row = sheet.data[r];
+            if (!row) continue;
+            for (let c = 0; c < row.length; c++) {
+                const cell = row[c];
+                if (cell && cell.f && cell.f.startsWith("=")) {
+                    sheet.calcChain.push({ r, c, index: sIdx, f: cell.f });
                 }
             }
         }
-    }
+    });
 
-    // Optionally trigger a light grid refresh (if you’re deleting visible rows/cols)
-    // if (sheetChanged) ul.luckysheetrefreshgrid();
+    // --- Rebuild dependency graph if execFunctionGroup exists ---
+    if (typeof p !== "undefined" && typeof p.execFunctionGroup === "function") {
+        p.execFunctionGroup();
+    }
 
     // --- Helpers ---
     function _columnLetterToIndex(col) {
