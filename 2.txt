@@ -1,66 +1,26 @@
-       getAllDependents: function (sheetIndex, row, col, visited = new Set()) {
-                const dependents = [];
-                if (!h || !h.luckysheetfile) return dependents;
+getAllDependentSheetsFromSheet: function (sheetIndex) {
+    const dependentSheets = new Set();
+    dependentSheets.add(sheetIndex); // include current sheet
 
-                const sheets = h.luckysheetfile;
+    if (!h || !h.luckysheetfile) return Array.from(dependentSheets);
 
-                for (const sheet of sheets) {
-                    let calcChain = sheet.calcChain || [];
-                    // Parse any JSON strings
-                    calcChain = calcChain.map(u => typeof u === "string" ? JSON.parse(u) : u);
+    const sheets = h.luckysheetfile;
 
-                    for (const funcCell of calcChain) {
-                        const formulaText = funcCell.func && funcCell.func[2];
-                        if (!formulaText) continue;
+    for (const sheet of sheets) {
+        let calcChain = sheet.calcChain || [];
+        calcChain = calcChain.map(u => typeof u === "string" ? JSON.parse(u) : u);
 
-                        // Match all references like A1, $B$2, Sheet2!A1, 'Sheet Name'!B2:B5
-                        const matches = formulaText.match(/(?:'([^']+)'|([A-Za-z0-9_]+))?!?\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?/g);
-                        if (!matches) continue;
+        for (const funcCell of calcChain) {
+            const formulaText = funcCell.func && funcCell.func[2];
+            if (!formulaText) continue;
 
-                        for (const ref of matches) {
-                            let refSheetName = null, refRange = null;
+            // Check if formula contains reference to current sheet
+            const regex = new RegExp(`(?:'[^']+'|${sheetIndex})!`, 'i');
+            if (regex.test(formulaText)) {
+                dependentSheets.add(sheet.index);
+            }
+        }
+    }
 
-                            if (ref.includes("!")) {
-                                [refSheetName, refRange] = ref.split("!");
-                                refSheetName = refSheetName.replace(/'/g, "");
-                            } else {
-                                refRange = ref;
-                            }
-
-                            // Parse range string to row/col
-                            const ranges = p.getcellrange(refRange, sheet.index);
-                            if (!ranges) continue;
-
-                            const refSheet = refSheetName
-                                ? sheets.find(s => s.name === refSheetName)
-                                : sheets.find(s => s.index === sheetIndex);
-
-                            if (!refSheet) continue;
-
-                            for (let r = ranges.row[0]; r <= ranges.row[1]; r++) {
-                                for (let c = ranges.column[0]; c <= ranges.column[1]; c++) {
-                                    if (refSheet.index === sheetIndex && r === row && c === col) {
-                                        const key = `${funcCell.index}_${funcCell.r}_${funcCell.c}`;
-                                        if (!visited.has(key)) {
-                                            visited.add(key);
-
-                                            dependents.push({
-                                                sheetIndex: funcCell.index,
-                                                row: funcCell.r,
-                                                col: funcCell.c,
-                                                formula: formulaText
-                                            });
-
-                                            // Recursive lookup
-                                            const deeper = this.getAllDependents(funcCell.index, funcCell.r, funcCell.c, visited);
-                                            dependents.push(...deeper);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return dependents;
-            },
+    return Array.from(dependentSheets);
+}
