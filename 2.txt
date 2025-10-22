@@ -1,156 +1,538 @@
-function _shiftCrossSheetReference({
-    type,
-    sheetIndex,
-    rowIndex,
-    rowCount = 1,
-    colIndex,
-    colCount = 1
-}) {
-    const allSheets = Ft() || [];
-    let sheetChanged = false;
+ $("#luckysheet-delRows").click(function (e) {
+                $("#luckysheet-rightclick-menu").hide(),
+                    rt();
+                let n = Q().drag;
+                if (h.luckysheet_select_save.length > 1) {
+                    h.luckysheetRightHeadClickIs == "row" ? de() ? alert(n.noMulti) : U.info(n.noMulti, "") : h.luckysheetRightHeadClickIs == "column" && (de() ? alert(n.noMulti) : U.info(n.noMulti, ""));
+                    return
+                }
+                let t = h.luckysheet_select_save[0].row[0]
+                    , l = h.luckysheet_select_save[0].row[1];
+                if (typeof _shiftCrossSheetReference === "function") {
+                    _shiftCrossSheetReference({
+                        type: "deleteRow",
+                        sheetIndex: h.currentSheetIndex,
+                        rowIndex: t,
+                        rowCount: l - t + 1
+                    });
+                }
+                !Je.createHookFunction("rowDeleteBefore", t, l, "row") || On("row", t, l)
+            }),
 
-    // Match both quoted and unquoted sheet names with optional ranges
-    const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
 
-    for (let s = 0; s < allSheets.length; s++) {
-        const sheet = allSheets[s];
-        const data = sheet.data;
-        if (!data) continue;
 
-        const calcChain = sheet.calcChain || [];
+    function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
+        const allSheets = Ft() || [];
+        let sheetChanged = false;
 
-        for (let r = 0; r < data.length; r++) {
-            if (!data[r]) continue;
+        // Match both quoted and unquoted sheet names with optional ranges
+        const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
 
-            for (let c = 0; c < data[r].length; c++) {
-                const cell = data[r][c];
-                if (!cell || !cell.f) continue;
+        for (let s = 0; s < allSheets.length; s++) {
+            const sheet = allSheets[s];
+            const data = sheet.data;
+            if (!data) continue;
 
-                let originalFormula = cell.f;
-                let modifiedFormula = originalFormula;
-                let errorDetected = false;
+            for (let r = 0; r < data.length; r++) {
+                if (!data[r]) continue;
 
-                modifiedFormula = modifiedFormula.replace(referenceRegex, function (
-                    match,
-                    quotedSheet,
-                    unquotedSheet,
-                    startCol,
-                    startRow,
-                    _range,
-                    endCol,
-                    endRow
-                ) {
-                    let sheetName = quotedSheet || unquotedSheet;
-                    const refSheet = allSheets.find(sh => sh.name === sheetName);
-                    if (!refSheet) return match;
+                for (let c = 0; c < data[r].length; c++) {
+                    const cell = data[r][c];
+                    if (!cell || !cell.f) continue;
 
-                    // Convert letters to indices
-                    let startColIndex = _columnLetterToIndex(startCol);
-                    let startRowIndex = parseInt(startRow, 10);
-                    let endColIndex = endCol ? _columnLetterToIndex(endCol) : startColIndex;
-                    let endRowIndex = endRow ? parseInt(endRow, 10) : startRowIndex;
+                    let originalFormula = cell.f;
+                    let modifiedFormula = originalFormula;
+                    let errorDetected = false;
 
-                    let rowDeleted = false,
-                        colDeleted = false;
+                    modifiedFormula = modifiedFormula.replace(referenceRegex, function (
+                        match, quotedSheet, unquotedSheet, startCol, startRow, _range, endCol, endRow
+                    ) {
+                        let sheetName = quotedSheet || unquotedSheet;
+                        const refSheet = allSheets.find(sh => sh.name === sheetName);
+                        if (!refSheet) return match;
 
-                    // --- Row shifts ---
-                    if (type === "insertRow" && refSheet.index === sheetIndex) {
-                        if (startRowIndex >= rowIndex + 1) startRowIndex += rowCount;
-                        if (endRowIndex >= rowIndex + 1) endRowIndex += rowCount;
-                    } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
-                        if (
-                            (startRowIndex > rowIndex && startRowIndex <= rowIndex + rowCount) ||
-                            (endRowIndex > rowIndex && endRowIndex <= rowIndex + rowCount)
-                        ) {
-                            rowDeleted = true;
-                            errorDetected = true;
-                        } else {
-                            if (startRowIndex > rowIndex + rowCount) startRowIndex -= rowCount;
-                            if (endRowIndex > rowIndex + rowCount) endRowIndex -= rowCount;
+                        // Convert letters to indices
+                        let startColIndex = _columnLetterToIndex(startCol);
+                        let startRowIndex = parseInt(startRow, 10);
+                        let endColIndex = endCol ? _columnLetterToIndex(endCol) : startColIndex;
+                        let endRowIndex = endRow ? parseInt(endRow, 10) : startRowIndex;
+
+                        let rowDeleted = false, colDeleted = false;
+
+                        // --- Row shifts ---
+                        if (type === "insertRow" && refSheet.index === sheetIndex) {
+                            if (startRowIndex >= rowIndex + 1) startRowIndex += rowCount;
+                            if (endRowIndex >= rowIndex + 1) endRowIndex += rowCount;
+                        } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
+                            if ((startRowIndex > rowIndex && startRowIndex <= rowIndex + rowCount) ||
+                                (endRowIndex > rowIndex && endRowIndex <= rowIndex + rowCount)) {
+                                rowDeleted = true;
+                                errorDetected = true;
+                            } else {
+                                if (startRowIndex > rowIndex + rowCount) startRowIndex -= rowCount;
+                                if (endRowIndex > rowIndex + rowCount) endRowIndex -= rowCount;
+                            }
                         }
-                    }
 
-                    // --- Column shifts ---
-                    if (type === "insertCol" && refSheet.index === sheetIndex) {
-                        if (startColIndex >= colIndex) startColIndex += colCount;
-                        if (endColIndex >= colIndex) endColIndex += colCount;
-                    } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
-                        if (
-                            (startColIndex >= colIndex && startColIndex < colIndex + colCount) ||
-                            (endColIndex >= colIndex && endColIndex < colIndex + colCount)
-                        ) {
-                            colDeleted = true;
-                            errorDetected = true;
-                        } else {
-                            if (startColIndex >= colIndex + colCount) startColIndex -= colCount;
-                            if (endColIndex >= colIndex + colCount) endColIndex -= colCount;
+                        // --- Column shifts ---
+                        if (type === "insertCol" && refSheet.index === sheetIndex) {
+                            if (startColIndex >= colIndex) startColIndex += colCount;
+                            if (endColIndex >= colIndex) endColIndex += colCount;
+                        } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
+                            if ((startColIndex >= colIndex && startColIndex < colIndex + colCount) ||
+                                (endColIndex >= colIndex && endColIndex < colIndex + colCount)) {
+                                colDeleted = true;
+                                errorDetected = true;
+                            } else {
+                                if (startColIndex >= colIndex + colCount) startColIndex -= colCount;
+                                if (endColIndex >= colIndex + colCount) endColIndex -= colCount;
+                            }
                         }
-                    }
 
-                    if (rowDeleted || colDeleted) return `#REF!`;
+                        if (rowDeleted || colDeleted) return `#REF!`;
 
-                    let startRef = `${_columnIndexToLetter(startColIndex)}${startRowIndex}`;
-                    let endRef = `${_columnIndexToLetter(endColIndex)}${endRowIndex}`;
+                        let startRef = `${_columnIndexToLetter(startColIndex)}${startRowIndex}`;
+                        let endRef = `${_columnIndexToLetter(endColIndex)}${endRowIndex}`;
 
-                    return startRef === endRef
-                        ? `'${sheetName}'!${startRef}`
-                        : `'${sheetName}'!${startRef}:${endRef}`;
-                });
+                        return startRef === endRef
+                            ? `'${sheetName}'!${startRef}`
+                            : `'${sheetName}'!${startRef}:${endRef}`;
+                    });
 
-                // --- Update if formula changed ---
-                if (modifiedFormula !== originalFormula) {
-                    cell.f = modifiedFormula;
-                    sheetChanged = true;
-
-                    // --- Update calcChain ---
-                    const chainIndex = calcChain.findIndex(
-                        ch => ch.r === r && ch.c === c && ch.index === sheet.index
-                    );
-
-                    if (errorDetected) {
-                        cell.v = "#REF!";
-                        cell.ct = { fa: "General", t: "e" };
-
-                        // Remove from calcChain
-                        if (chainIndex !== -1) {
-                            calcChain.splice(chainIndex, 1);
-                        }
-                    } else {
-                        if (chainIndex !== -1) {
-                            calcChain[chainIndex].f = modifiedFormula;
-                        } else {
-                            // Add new entry if missing
-                            calcChain.push({ r, c, index: sheet.index, f: modifiedFormula });
+                    if (modifiedFormula !== originalFormula) {
+                        cell.f = modifiedFormula;
+                        sheetChanged = true;
+                        if (errorDetected) {
+                            cell.v = "#REF!";
+                            cell.ct = { fa: "General", t: "e" };
                         }
                     }
                 }
             }
         }
 
-        // reassign updated calcChain
-        sheet.calcChain = calcChain;
-    }
+        //if (sheetChanged) {
+        //    ul.luckysheetrefreshgrid();
+        //}
 
-    // optional grid refresh
-    // if (sheetChanged) {
-    //     ul.luckysheetrefreshgrid();
-    // }
-
-    // --- Helpers ---
-    function _columnLetterToIndex(col) {
-        let index = 0;
-        for (let i = 0; i < col.length; i++) index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-        return index - 1;
-    }
-
-    function _columnIndexToLetter(index) {
-        let col = "";
-        index += 1;
-        while (index > 0) {
-            let rem = (index - 1) % 26;
-            col = String.fromCharCode(65 + rem) + col;
-            index = Math.floor((index - 1) / 26);
+        // --- Helpers ---
+        function _columnLetterToIndex(col) {
+            let index = 0;
+            for (let i = 0; i < col.length; i++) index = index * 26 + (col.charCodeAt(i) - 65 + 1);
+            return index - 1;
         }
-        return col;
+
+        function _columnIndexToLetter(index) {
+            let col = "";
+            index += 1;
+            while (index > 0) {
+                let rem = (index - 1) % 26;
+                col = String.fromCharCode(65 + rem) + col;
+                index = Math.floor((index - 1) / 26);
+            }
+            return col;
+        }
     }
-}
+
+
+
+    function On(e, n, t, l) {
+        if (l = l || h.currentSheetIndex,
+            e == "row" && !It(l, "deleteRows"))
+            return;
+        if (e == "column" && !It(l, "deleteColumns"))
+            return;
+        let a = K(l)
+            , o = h.luckysheetfile[a]
+            , s = $.extend(!0, [], o.data);
+        if (n < 0 && (n = 0),
+            t < 0 && (t = 0),
+            e == "row" ? (n > s.length - 1 && (n = s.length - 1),
+                t > s.length - 1 && (t = s.length - 1)) : (n > s[0].length - 1 && (n = s[0].length - 1),
+                    t > s[0].length - 1 && (t = s[0].length - 1)),
+            n > t)
+            return;
+        let u = t - n + 1
+            , d = $.extend(!0, {}, o.config);
+        d.merge == null && (d.merge = {});
+        let f = {};
+        for (let F in d.merge) {
+            let N = d.merge[F]
+                , D = N.r
+                , E = N.c
+                , P = N.rs
+                , z = N.cs;
+            e == "row" ? D < n ? D + P - 1 < n ? f[D + "_" + E] = {
+                r: D,
+                c: E,
+                rs: P,
+                cs: z
+            } : D + P - 1 >= n && D + P - 1 < t ? f[D + "_" + E] = {
+                r: D,
+                c: E,
+                rs: n - D,
+                cs: z
+            } : D + P - 1 >= t && (f[D + "_" + E] = {
+                r: D,
+                c: E,
+                rs: P - u,
+                cs: z
+            }) : D >= n && D <= t ? D + P - 1 > t && (f[n + "_" + E] = {
+                r: n,
+                c: E,
+                rs: D + P - 1 - t,
+                cs: z
+            }) : D > t && (f[D - u + "_" + E] = {
+                r: D - u,
+                c: E,
+                rs: P,
+                cs: z
+            }) : e == "column" && (E < n ? E + z - 1 < n ? f[D + "_" + E] = {
+                r: D,
+                c: E,
+                rs: P,
+                cs: z
+            } : E + z - 1 >= n && E + z - 1 < t ? f[D + "_" + E] = {
+                r: D,
+                c: E,
+                rs: P,
+                cs: n - E
+            } : E + z - 1 >= t && (f[D + "_" + E] = {
+                r: D,
+                c: E,
+                rs: P,
+                cs: z - u
+            }) : E >= n && E <= t ? E + z - 1 > t && (f[D + "_" + n] = {
+                r: D,
+                c: n,
+                rs: P,
+                cs: E + z - 1 - t
+            }) : E > t && (f[D + "_" + (E - u)] = {
+                r: D,
+                c: E - u,
+                rs: P,
+                cs: z
+            }))
+        }
+        d.merge = f;
+        let m = o.calcChain
+            , g = [];
+        if (m != null && m.length > 0)
+            for (let F = 0; F < m.length; F++) {
+                let N = $.extend(!0, {}, m[F])
+                    , D = N.r
+                    , E = N.c
+                    , P = N.index
+                    , z = zl(D, E, P);
+                if (!!z) {
+                    if (e == "row") {
+                        if (D < n || D > t) {
+                            let O = "=" + p.functionStrChange(z, "del", "row", null, n, u);
+                            s[D][E] && s[D][E].f == z && (s[D][E].f = O),
+                                D > t && (N.r = D - u),
+                                g.push(N)
+                        }
+                    } else if (e == "column" && (E < n || E > t)) {
+                        let O = "=" + p.functionStrChange(z, "del", "col", null, n, u);
+                        s[D][E] && s[D][E].f == z && (s[D][E].f = O),
+                            E > t && (N.c = E - u),
+                            g.push(N)
+                    }
+                }
+            }
+        let y = o.filter_select
+            , v = o.filter
+            , k = null;
+        if (y != null && JSON.stringify(y) != "{}") {
+            k = {
+                filter_select: null,
+                filter: null
+            };
+            let F = y.row[0]
+                , N = y.row[1]
+                , D = y.column[0]
+                , E = y.column[1];
+            if (e == "row") {
+                if (F > t ? (F -= u,
+                    N -= u,
+                    k.filter_select = {
+                        row: [F, N],
+                        column: [D, E]
+                    }) : F < n && (N < n || (N <= t ? N = n - 1 : N -= u),
+                        k.filter_select = {
+                            row: [F, N],
+                            column: [D, E]
+                        }),
+                    k.filter_select != null && v != null)
+                    for (let P in v) {
+                        let z = v[P].rowhidden
+                            , O = {};
+                        for (let V in z)
+                            V < n ? O[V] = 0 : V > t && (O[V - u] = 0);
+                        JSON.stringify(O) != "{}" && (k.filter == null && (k.filter = {}),
+                            k.filter[P] = $.extend(!0, {}, v[P]),
+                            k.filter[P].rowhidden = O,
+                            k.filter[P].str = F,
+                            k.filter[P].edr = N)
+                    }
+            } else if (e == "column" && (D > t ? (D -= u,
+                E -= u,
+                k.filter_select = {
+                    row: [F, N],
+                    column: [D, E]
+                }) : D < n ? (E < n || (E <= t ? E = n - 1 : E -= u),
+                    k.filter_select = {
+                        row: [F, N],
+                        column: [D, E]
+                    }) : E > t && (D = n,
+                        E -= u,
+                        k.filter_select = {
+                            row: [F, N],
+                            column: [D, E]
+                        }),
+                k.filter_select != null && v != null))
+                for (let P in v) {
+                    let z = v[P].cindex;
+                    z < n ? (k.filter == null && (k.filter = {}),
+                        k.filter[z - D] = $.extend(!0, {}, v[P]),
+                        k.filter[z - D].edc = E) : z > t && (z -= u,
+                            k.filter == null && (k.filter = {}),
+                            k.filter[z - D] = $.extend(!0, {}, v[P]),
+                            k.filter[z - D].cindex = z,
+                            k.filter[z - D].stc = D,
+                            k.filter[z - D].edc = E)
+                }
+        }
+        if (k != null && k.filter != null) {
+            d.rowhidden == null && (d.rowhidden = {});
+            for (let F in k.filter) {
+                let N = k.filter[F].rowhidden;
+                for (let D in N)
+                    d.rowhidden[D] = 0
+            }
+        }
+        let b = o.luckysheet_conditionformat_save
+            , w = [];
+        if (b != null && b.length > 0)
+            for (let F = 0; F < b.length; F++) {
+                let N = b[F].cellrange
+                    , D = [];
+                for (let E = 0; E < N.length; E++) {
+                    let P = N[E].row[0]
+                        , z = N[E].row[1]
+                        , O = N[E].column[0]
+                        , V = N[E].column[1];
+                    e == "row" ? P >= n && z <= t || (P > t ? (P -= u,
+                        z -= u) : P < n ? z < n || (z <= t ? z = n - 1 : z -= u) : z > t && (P = n,
+                            z -= u),
+                        D.push({
+                            row: [P, z],
+                            column: [O, V]
+                        })) : e == "column" && (O >= n && V <= t || (O > t ? (O -= u,
+                            V -= u) : O < n ? V < n || (V <= t ? V = n - 1 : V -= u) : V > t && (O = n,
+                                V -= u),
+                            D.push({
+                                row: [P, z],
+                                column: [O, V]
+                            })))
+                }
+                if (D.length > 0) {
+                    let E = $.extend(!0, {}, b[F]);
+                    E.cellrange = D,
+                        w.push(E)
+                }
+            }
+        let x = o.luckysheet_alternateformat_save
+            , C = [];
+        if (x != null && x.length > 0)
+            for (let F = 0; F < x.length; F++) {
+                let N = x[F].cellrange.row[0]
+                    , D = x[F].cellrange.row[1]
+                    , E = x[F].cellrange.column[0]
+                    , P = x[F].cellrange.column[1];
+                if (e == "row") {
+                    if (!(N >= n && D <= t)) {
+                        let z = $.extend(!0, {}, x[F]);
+                        N > t ? (N -= u,
+                            D -= u) : N < n ? D < n || (D <= t ? D = n - 1 : D -= u) : D > t && (N = n,
+                                D -= u),
+                            z.cellrange = {
+                                row: [N, D],
+                                column: [E, P]
+                            },
+                            C.push(z)
+                    }
+                } else if (e == "column" && !(E >= n && P <= t)) {
+                    let z = $.extend(!0, {}, x[F]);
+                    E > t ? (E -= u,
+                        P -= u) : E < n ? P < n || (P <= t ? P = n - 1 : P -= u) : P > t && (E = n,
+                            P -= u),
+                        z.cellrange = {
+                            row: [N, D],
+                            column: [E, P]
+                        },
+                        C.push(z)
+                }
+            }
+        let S = {
+            freezenhorizontaldata: null,
+            freezenverticaldata: null
+        };
+        if (W.freezenhorizontaldata != null && e == "row") {
+            let F = W.freezenhorizontaldata[2]
+                , N = ot(h.visibledatarow, F);
+            N == -1 && (N = 0);
+            let D = W.freezenhorizontaldata[1] - 1;
+            D >= n && (D < t ? D = n - 1 : D -= u),
+                D < N && (D = N);
+            let E = h.visibledatarow[D] - 2 - F + h.columnHeaderHeight;
+            S.freezenhorizontaldata = [h.visibledatarow[D], D + 1, F, W.cutVolumn(h.visibledatarow, D + 1), E]
+        } else
+            S.freezenhorizontaldata = W.freezenhorizontaldata;
+        if (W.freezenverticaldata != null && e == "column") {
+            let F = W.freezenverticaldata[2]
+                , N = ot(h.visibledatacolumn, F);
+            N == -1 && (N = 0);
+            let D = W.freezenverticaldata[1] - 1;
+            D >= n && (D < t ? D = n - 1 : D -= u),
+                D < N && (D = N);
+            let E = h.visibledatacolumn[D] - 2 - F + h.rowHeaderWidth;
+            S.freezenverticaldata = [h.visibledatacolumn[D], D + 1, F, W.cutVolumn(h.visibledatacolumn, D + 1), E]
+        } else
+            S.freezenverticaldata = W.freezenverticaldata;
+        let _ = o.dataVerification
+            , T = {};
+        if (_ != null)
+            for (let F in _) {
+                let N = Number(F.split("_")[0])
+                    , D = Number(F.split("_")[1])
+                    , E = _[F];
+                e == "row" ? N < n ? T[N + "_" + D] = E : N > t && (T[N - u + "_" + D] = E) : e == "column" && (D < n ? T[N + "_" + D] = E : D > t && (T[N + "_" + (D - u)] = E))
+            }
+        let A = o.hyperlink
+            , R = {};
+        if (A != null)
+            for (let F in A) {
+                let N = Number(F.split("_")[0])
+                    , D = Number(F.split("_")[1])
+                    , E = A[F];
+                e == "row" ? N < n ? R[N + "_" + D] = E : N > t && (R[N - u + "_" + D] = E) : e == "column" && (D < n ? R[N + "_" + D] = E : D > t && (R[N + "_" + (D - u)] = E))
+            }
+        let I;
+        if (e == "row") {
+            I = "r",
+                d.rowlen == null && (d.rowlen = {});
+            let F = {};
+            for (let D in d.rowlen)
+                D < n ? F[D] = d.rowlen[D] : D > t && (F[D - u] = d.rowlen[D]);
+            d.rowlen = F,
+                d.rowhidden == null && (d.rowhidden = {});
+            let N = {};
+            for (let D in d.rowhidden)
+                D < n ? N[D] = d.rowhidden[D] : D > t && (N[D - u] = d.rowhidden[D]);
+            if (d.rowhidden = N,
+                d.borderInfo && d.borderInfo.length > 0) {
+                let D = [];
+                for (let E = 0; E < d.borderInfo.length; E++) {
+                    let P = d.borderInfo[E].rangeType;
+                    if (P == "range") {
+                        let z = d.borderInfo[E].range
+                            , O = [];
+                        for (let V = 0; V < z.length; V++) {
+                            let q = z[V].row[0]
+                                , Y = z[V].row[1];
+                            for (let X = n; X <= t; X++)
+                                X < z[V].row[0] ? (q -= 1,
+                                    Y -= 1) : X <= z[V].row[1] && (Y -= 1);
+                            Y >= q && O.push({
+                                row: [q, Y],
+                                column: z[V].column
+                            })
+                        }
+                        if (O.length > 0) {
+                            let V = {
+                                rangeType: "range",
+                                borderType: d.borderInfo[E].borderType,
+                                style: d.borderInfo[E].style,
+                                color: d.borderInfo[E].color,
+                                range: O
+                            };
+                            D.push(V)
+                        }
+                    } else if (P == "cell") {
+                        let z = d.borderInfo[E].value.row_index;
+                        z < n ? D.push(d.borderInfo[E]) : z > t && (d.borderInfo[E].value.row_index = z - (t - n + 1),
+                            D.push(d.borderInfo[E]))
+                    }
+                }
+                d.borderInfo = D
+            }
+            s.splice(n, u)
+        } else {
+            I = "c",
+                d.columnlen == null && (d.columnlen = {});
+            let F = {};
+            for (let D in d.columnlen)
+                D < n ? F[D] = d.columnlen[D] : D > t && (F[D - u] = d.columnlen[D]);
+            d.columnlen = F,
+                d.colhidden == null && (d.colhidden = {});
+            let N = {};
+            for (let D in d.colhidden)
+                D < n ? N[D] = d.colhidden[D] : D > t && (N[D - u] = d.colhidden[D]);
+            if (d.colhidden = N,
+                d.borderInfo && d.borderInfo.length > 0) {
+                let D = [];
+                for (let E = 0; E < d.borderInfo.length; E++) {
+                    let P = d.borderInfo[E].rangeType;
+                    if (P == "range") {
+                        let z = d.borderInfo[E].range
+                            , O = [];
+                        for (let V = 0; V < z.length; V++) {
+                            let q = z[V].column[0]
+                                , Y = z[V].column[1];
+                            for (let X = n; X <= t; X++)
+                                X < z[V].column[0] ? (q -= 1,
+                                    Y -= 1) : X <= z[V].column[1] && (Y -= 1);
+                            Y >= q && O.push({
+                                row: z[V].row,
+                                column: [q, Y]
+                            })
+                        }
+                        if (O.length > 0) {
+                            let V = {
+                                rangeType: "range",
+                                borderType: d.borderInfo[E].borderType,
+                                style: d.borderInfo[E].style,
+                                color: d.borderInfo[E].color,
+                                range: O
+                            };
+                            D.push(V)
+                        }
+                    } else if (P == "cell") {
+                        let z = d.borderInfo[E].value.col_index;
+                        z < n ? D.push(d.borderInfo[E]) : z > t && (d.borderInfo[E].value.col_index = z - (t - n + 1),
+                            D.push(d.borderInfo[E]))
+                    }
+                }
+                d.borderInfo = D
+            }
+            for (let D = 0; D < s.length; D++) {
+                let E = [].concat(JSON.parse(JSON.stringify(s[D])));
+                E.splice(n, u),
+                    s[D] = E
+            }
+        }
+        o.index == h.currentSheetIndex ? Bn(s, d, "delRC", {
+            index: n,
+            len: t - n + 1,
+            rc: I
+        }, g, k, w, C, S, T, R) : (o.data = s,
+            o.config = d,
+            o.calcChain = g,
+            o.filter = k.filter,
+            o.filter_select = k.filter_select,
+            o.luckysheet_conditionformat_save = w,
+            o.luckysheet_alternateformat_save = C,
+            o.dataVerification = T,
+            o.hyperlink = R)
+    }
