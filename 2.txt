@@ -1,29 +1,10 @@
-getAllFunctionGroup: function () {
-                let e = Ft()
-                    , n = [];
-                for (let t = 0; t < e.length; t++) {
-                    let l = e[t]
-                        , a = l.calcChain;
-                    if (a) {
-                        let s = [];
-                        a.forEach((u, d) => {
-                            typeof u == "string" ? s.push(JSON.parse(u)) : s.push(u)
-                        }
-                        ),
-                            a = l.calcChain = s
-                    }
-                    let o = l.dynamicArray_compute;
-                    a == null && (a = []),
-                        o == null && (o = []),
-                        n = n.concat(a);
-                    for (let s = 0; s < o.length; s++) {
-                        let u = o[0];
-                        n.push({
-                            r: u.r,
-                            c: u.c,
-                            index: u.index
-                        })
-                    }
-                }
-                return n
-            },
+{
+    "r": 12,
+    "c": 2,
+    "index": "Sheet_caa9ff2619de4dd59bd005f36ddb41fd_1755682063653",
+    "func": [
+        true,
+        0,
+        "=IFERROR(C10-C9,0)"
+    ]
+}
