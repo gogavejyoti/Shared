@@ -1,1 +1,36 @@
- /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
+getAllDependentSheetsFromSheet: function (sheetIndex) {
+    const dependentSheets = new Set();
+    dependentSheets.add(sheetIndex); // include current sheet
+
+    if (!h || !h.luckysheetfile) return Array.from(dependentSheets);
+
+    const sheets = h.luckysheetfile;
+
+    // Find the sheet name for the current sheetIndex
+    const currentSheet = sheets.find(s => s.index === sheetIndex);
+    if (!currentSheet) return Array.from(dependentSheets);
+    const currentSheetName = currentSheet.name;
+
+    // Regex to detect cross-sheet references
+    const sheetRefRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?/g;
+
+    for (const sheet of sheets) {
+        let calcChain = sheet.calcChain || [];
+        calcChain = calcChain.map(u => typeof u === "string" ? JSON.parse(u) : u);
+
+        for (const funcCell of calcChain) {
+            const formulaText = funcCell.func && funcCell.func[2];
+            if (!formulaText) continue;
+
+            let match;
+            while ((match = sheetRefRegex.exec(formulaText)) !== null) {
+                const refSheetName = match[1] || match[2]; // captured sheet name in formula
+                if (refSheetName === currentSheetName) {
+                    dependentSheets.add(sheet.index); // store sheet index
+                }
+            }
+        }
+    }
+
+    return Array.from(dependentSheets);
+}
