@@ -1,64 +1,28 @@
-function getCellDependencies(sheetIndex, row, col) {
-    if (!window.luckysheet || !luckysheetfile) return [];
-
-    let dependents = [];
-    let targetCell = luckysheetfile[sheetIndex];
-    if (!targetCell || !targetCell.data) return [];
-
-    // Normalize all sheets for lookup
-    let allSheets = luckysheetfile;
-
-    // Iterate calcChain (list of all formula cells)
-    for (let chain of luckysheet_calcChain) {
-        let formulaText = chain.func && chain.func[2];
-        if (!formulaText || typeof formulaText !== "string") continue;
-
-        // Extract all possible cell/range references
-        // Examples handled: A1, $B$2, Sheet1!A1, Sheet1!$B$2:$C$5, 'My Sheet'!A1, etc.
-        let matches = formulaText.match(/(?:'([^']+)'|([A-Za-z0-9_]+))?!?\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?/g);
-        if (!matches) continue;
-
-        for (let ref of matches) {
-            let refSheetName = null;
-            let refRange = null;
-
-            if (ref.includes("!")) {
-                [refSheetName, refRange] = ref.split("!");
-                refSheetName = refSheetName.replace(/'/g, "");
-            } else {
-                refRange = ref;
-            }
-
-            // Convert range (like A1 or A1:B2) into row/col pairs
-            let ranges = formula.getcellrange(refRange);
-            if (!ranges) continue;
-
-            // Default to current sheet if no external sheet name
-            let targetSheet = refSheetName
-                ? allSheets.find(s => s.name === refSheetName)
-                : targetCell;
-
-            if (!targetSheet) continue;
-
-            for (let r = ranges.row[0]; r <= ranges.row[1]; r++) {
-                for (let c = ranges.column[0]; c <= ranges.column[1]; c++) {
-                    // If this referenced cell matches our (row,col,sheet)
-                    if (
-                        targetSheet.index === targetCell.index &&
-                        r === row && c === col
-                    ) {
-                        // Add this formula cell as dependent
-                        dependents.push({
-                            sheetIndex: chain.index,
-                            row: chain.r,
-                            col: chain.c,
-                            formula: formulaText
-                        });
+  getAllFunctionGroup: function () {
+                let e = Ft()
+                    , n = [];
+                for (let t = 0; t < e.length; t++) {
+                    let l = e[t]
+                        , a = l.calcChain;
+                    if (a) {
+                        let s = [];
+                        a.forEach((u, d) => {
+                            typeof u == "string" ? s.push(JSON.parse(u)) : s.push(u)
+                        }
+                        ),
+                            a = l.calcChain = s
+                    }
+                    let o = l.dynamicArray_compute;
+                    a == null && (a = []),
+                        o == null && (o = []),
+                        n = n.concat(a);
+                    for (let s = 0; s < o.length; s++) {
+                        let u = o[0];
+                        n.push({
+                            r: u.r,
+                            c: u.c,
+                            index: u.index
+                        })
                     }
                 }
-            }
-        }
-    }
-
-    return dependents;
-}
+                
