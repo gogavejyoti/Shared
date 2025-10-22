@@ -1,28 +1,66 @@
-  getAllFunctionGroup: function () {
-                let e = Ft()
-                    , n = [];
-                for (let t = 0; t < e.length; t++) {
-                    let l = e[t]
-                        , a = l.calcChain;
-                    if (a) {
-                        let s = [];
-                        a.forEach((u, d) => {
-                            typeof u == "string" ? s.push(JSON.parse(u)) : s.push(u)
+function getDependentsByCell(luckysheetInstance, sheetIndex, row, col, visited = new Set()) {
+    const dependents = [];
+    if (!luckysheetInstance || !luckysheetInstance.luckysheetfile) return dependents;
+
+    const sheets = luckysheetInstance.luckysheetfile;
+
+    for (const sheet of sheets) {
+        let calcChain = sheet.calcChain || [];
+        // Parse any JSON strings
+        calcChain = calcChain.map(u => typeof u === "string" ? JSON.parse(u) : u);
+
+        for (const funcCell of calcChain) {
+            const formulaText = funcCell.func && funcCell.func[2];
+            if (!formulaText) continue;
+
+            // Match all references like A1, $B$2, Sheet2!A1, 'Sheet Name'!B2:B5
+            const matches = formulaText.match(/(?:'([^']+)'|([A-Za-z0-9_]+))?!?\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?/g);
+            if (!matches) continue;
+
+            for (const ref of matches) {
+                let refSheetName = null, refRange = null;
+
+                if (ref.includes("!")) {
+                    [refSheetName, refRange] = ref.split("!");
+                    refSheetName = refSheetName.replace(/'/g, "");
+                } else {
+                    refRange = ref;
+                }
+
+                // Parse range string to row/col
+                const ranges = luckysheetInstance.formula.getcellrange(refRange);
+                if (!ranges) continue;
+
+                const refSheet = refSheetName
+                    ? sheets.find(s => s.name === refSheetName)
+                    : sheets.find(s => s.index === sheetIndex);
+
+                if (!refSheet) continue;
+
+                for (let r = ranges.row[0]; r <= ranges.row[1]; r++) {
+                    for (let c = ranges.column[0]; c <= ranges.column[1]; c++) {
+                        if (refSheet.index === sheetIndex && r === row && c === col) {
+                            const key = `${funcCell.index}_${funcCell.r}_${funcCell.c}`;
+                            if (!visited.has(key)) {
+                                visited.add(key);
+
+                                dependents.push({
+                                    sheetIndex: funcCell.index,
+                                    row: funcCell.r,
+                                    col: funcCell.c,
+                                    formula: formulaText
+                                });
+
+                                // Recursive lookup
+                                const deeper = getDependentsByCell(luckysheetInstance, funcCell.index, funcCell.r, funcCell.c, visited);
+                                dependents.push(...deeper);
+                            }
                         }
-                        ),
-                            a = l.calcChain = s
-                    }
-                    let o = l.dynamicArray_compute;
-                    a == null && (a = []),
-                        o == null && (o = []),
-                        n = n.concat(a);
-                    for (let s = 0; s < o.length; s++) {
-                        let u = o[0];
-                        n.push({
-                            r: u.r,
-                            c: u.c,
-                            index: u.index
-                        })
                     }
                 }
-                
+            }
+        }
+    }
+
+    return dependents;
+}
