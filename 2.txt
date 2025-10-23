@@ -13,7 +13,7 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
         // Filter out invalid sheet indexes
         cachedRefs = cachedRefs.filter(idx => validSheetIndexes.has(idx));
 
-        // If formulaOrValue passed, update cache of referenced sheets
+        // Update referenced sheets’ cache from formulaOrValue
         if (formulaOrValue && typeof formulaOrValue === "string" && formulaOrValue.includes("!")) {
             const matches = formulaOrValue.matchAll(/(?:'([^']+)'|([A-Za-z0-9_]+))!/g);
             for (const match of matches) {
@@ -31,7 +31,7 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
             }
         }
 
-        // Update cache with filtered valid indexes
+        // Update cache and return
         window.luckysheet_dependentsheets_cache[sheetIndex] = cachedRefs;
         return cachedRefs;
     }
@@ -71,7 +71,25 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
         }
     }
 
-    // Step 5: Update cache for current sheet
+    // Step 5: Update caches for sheets referenced in formulaOrValue
+    if (formulaOrValue && typeof formulaOrValue === "string" && formulaOrValue.includes("!")) {
+        const matches = formulaOrValue.matchAll(/(?:'([^']+)'|([A-Za-z0-9_]+))!/g);
+        for (const match of matches) {
+            const refSheetName = match[1] || match[2];
+            const refSheet = allSheets.find(s => s.name === refSheetName);
+            if (refSheet && refSheet.index !== sheetIndex) {
+                if (!window.luckysheet_dependentsheets_cache[refSheet.index]) {
+                    window.luckysheet_dependentsheets_cache[refSheet.index] = [];
+                }
+                const depSet = new Set(window.luckysheet_dependentsheets_cache[refSheet.index]);
+                depSet.add(sheetIndex);
+                window.luckysheet_dependentsheets_cache[refSheet.index] = Array.from(depSet)
+                    .filter(idx => validSheetIndexes.has(idx));
+            }
+        }
+    }
+
+    // Step 6: Update cache for current sheet
     const finalResult = Array.from(result).filter(idx => validSheetIndexes.has(idx));
     window.luckysheet_dependentsheets_cache[sheetIndex] = finalResult;
 
