@@ -1,43 +1,99 @@
-            getAllDependentSheetsFromSheet: function (sheetIndex) {
-            const allSheets = Ft() || [];
-            const dependencyMap = new Map(); // sheetIndex -> Set of referenced sheetIndices
-            // Step 1: Build dependency graph
-            for (const sheet of allSheets) {
-                if (!sheet.data || !sheet.name) continue;
-
-                const references = new Set();
-                for (const row of sheet.data) {
-                    if (!row) continue;
-                    for (const cell of row) {
-                        if (!cell?.f) continue;
-
-                        for (const targetSheet of allSheets) {
-                            if (!targetSheet.name || targetSheet.index === sheet.index) continue;
-
-                            const refRegex = new RegExp(`(?:'${targetSheet.name}'|${targetSheet.name})!\\$?[A-Z]+\\$?\\d+(?::\\$?[A-Z]+\\$?\\d+)?`, 'g');
-                            if (refRegex.test(cell.f)) {
-                                references.add(targetSheet.index);
+ getAllDependentSheetsFromSheet: function (sheetIndex, formulaOrValue) {
+                // Step 1: Initialize cache if not present
+                if (!window.luckysheet_dependentsheets_cache) {
+                    window.luckysheet_dependentsheets_cache = {};
+                }
+                const allSheets = Ft() || [];
+                // Step 2: Get cached result if available
+                let cachedRefs = window.luckysheet_dependentsheets_cache[sheetIndex] || [];
+                if (cachedRefs.length > 1) {
+                    const referencedSheetNames = new Set();
+                    // Step 3: Extract sheet names from formula
+                    if (formulaOrValue && typeof formulaOrValue === "string" && formulaOrValue.includes("!")) {
+                        const matches = formulaOrValue.match(/(?:'([^']+)'|([A-Za-z0-9_]+))!/g);
+                        if (matches) {
+                            for (const match of matches) {
+                                const sheetName = match.replace(/['!]/g, "");
+                                referencedSheetNames.add(sheetName);
                             }
                         }
                     }
-                }
-                dependencyMap.set(sheet.index, references);
-            }
-
-            // Step 2: Traverse reverse dependencies
-            const result = new Set([sheetIndex]); // Always include the original sheet
-            const queue = [sheetIndex];
-
-            while (queue.length > 0) {
-                const current = queue.shift();
-
-                for (const [sheetIdx, refs] of dependencyMap.entries()) {
-                    if (refs.has(current) && !result.has(sheetIdx)) {
-                        result.add(sheetIdx);
-                        queue.push(sheetIdx);
+                    // Step 4: Add new references to cache if not already present
+                    for (const sheetName of referencedSheetNames) {
+                        const refSheet = allSheets.find(s => s.name === sheetName);
+                        if (refSheet && !cachedRefs.includes(refSheet.index)) {
+                            cachedRefs.push(refSheet.index);
+                        }
                     }
-                }
-            }
+                    // Step 5: Validate cached references
+                    const validSheetIndexes = allSheets.map(s => s.index);
+                    cachedRefs = cachedRefs.filter(idx => validSheetIndexes.includes(idx));
 
-            return Array.from(result);
-        },
+                    // Step 6: Update cache with only valid references
+                    window.luckysheet_dependentsheets_cache[sheetIndex] = cachedRefs;
+
+                    return cachedRefs;
+                
+                }
+                // Step 7: If no cache existed before, traverse and initialize
+                else {
+                    const dependencyMap = new Map(); // sheetIndex -> Set of referenced sheetIndices
+                    // Step 1: Build dependency graph
+                    for (const sheet of allSheets) {
+                        if (!sheet.data || !sheet.name) continue;
+
+                        const references = new Set();
+                        for (const row of sheet.data) {
+                            if (!row) continue;
+                            for (const cell of row) {
+                                if (!cell?.f) continue;
+
+                                for (const targetSheet of allSheets) {
+                                    if (!targetSheet.name || targetSheet.index === sheet.index) continue;
+
+                                    const refRegex = new RegExp(`(?:'${targetSheet.name}'|${targetSheet.name})!\\$?[A-Z]+\\$?\\d+(?::\\$?[A-Z]+\\$?\\d+)?`, 'g');
+                                    if (refRegex.test(cell.f)) {
+                                        references.add(targetSheet.index);
+                                    }
+                                }
+                            }
+                        }
+                        dependencyMap.set(sheet.index, references);
+                    }
+
+                    // Step 2: Traverse reverse dependencies
+                    const result = new Set([sheetIndex]); // Always include the original sheet
+                    const queue = [sheetIndex];
+
+                    while (queue.length > 0) {
+                        const current = queue.shift();
+
+                        for (const [sheetIdx, refs] of dependencyMap.entries()) {
+                            if (refs.has(current) && !result.has(sheetIdx)) {
+                                result.add(sheetIdx);
+                                queue.push(sheetIdx);
+                            }
+                        }
+                    }
+                    // Step 3: Extract sheet names from formula
+                    const referencedSheetNames = new Set();
+                    if (formulaOrValue && typeof formulaOrValue === "string" && formulaOrValue.includes("!")) {
+                        const matches = formulaOrValue.match(/(?:'([^']+)'|([A-Za-z0-9_]+))!/g);
+                        if (matches) {
+                            for (const match of matches) {
+                                const sheetName = match.replace(/['!]/g, "");
+                                referencedSheetNames.add(sheetName);
+                            }
+                        }
+                    }
+                    // Step 4: Add new references to cache if not already present
+                    for (const sheetName of referencedSheetNames) {
+                        const refSheet = allSheets.find(s => s.name === sheetName);
+                        if (refSheet && !cachedRefs.includes(refSheet.index)) {
+                            result.add(refSheet.index);
+                        }
+                    }
+                    window.luckysheet_dependentsheets_cache[sheetIndex] = Array.from(result);
+                    return window.luckysheet_dependentsheets_cache[sheetIndex];
+                }
+            },
