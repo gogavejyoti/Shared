@@ -1,5 +1,4 @@
 getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
-    // Step 1: Initialize cache
     if (!window.luckysheet_dependentsheets_cache) {
         window.luckysheet_dependentsheets_cache = {};
     }
@@ -7,13 +6,38 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
     const allSheets = Ft() || [];
     const validSheetIndexes = new Set(allSheets.map(s => s.index));
 
-    // Step 2: Check if cache exists and is valid
+    // Helper: recursively collect all dependents from cachedRefs
+    function getRecursiveDependents(refIndexes) {
+        const resultSet = new Set(refIndexes);
+        const queue = [...refIndexes];
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            const deps = window.luckysheet_dependentsheets_cache[current] || [];
+            for (const dep of deps) {
+                if (!resultSet.has(dep) && validSheetIndexes.has(dep)) {
+                    resultSet.add(dep);
+                    queue.push(dep);
+                }
+            }
+        }
+
+        return Array.from(resultSet).filter(idx => validSheetIndexes.has(idx));
+    }
+
+    // Step 1: If cache exists, expand recursively
     let cachedRefs = window.luckysheet_dependentsheets_cache[sheetIndex];
     if (cachedRefs && cachedRefs.length > 0) {
-        // Filter out invalid sheet indexes
+        // Filter invalid indexes
         cachedRefs = cachedRefs.filter(idx => validSheetIndexes.has(idx));
 
-        // Update referenced sheets’ cache from formulaOrValue
+        // Expand recursively to include all indirect dependents
+        const allDependents = getRecursiveDependents(cachedRefs.concat(sheetIndex));
+
+        // Update cache for current sheet
+        window.luckysheet_dependentsheets_cache[sheetIndex] = allDependents;
+
+        // Update cache for sheets referenced in formulaOrValue
         if (formulaOrValue && typeof formulaOrValue === "string" && formulaOrValue.includes("!")) {
             const matches = formulaOrValue.matchAll(/(?:'([^']+)'|([A-Za-z0-9_]+))!/g);
             for (const match of matches) {
@@ -31,12 +55,10 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
             }
         }
 
-        // Update cache and return
-        window.luckysheet_dependentsheets_cache[sheetIndex] = cachedRefs;
-        return cachedRefs;
+        return allDependents;
     }
 
-    // Step 3: Build full dependency graph (sheet -> sheets it references)
+    // Step 2: Build dependency graph if cache doesn't exist
     const dependencyMap = new Map();
     for (const sheet of allSheets) {
         if (!sheet.data || !sheet.name) continue;
@@ -57,7 +79,7 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
         dependencyMap.set(sheet.index, references);
     }
 
-    // Step 4: Traverse reverse dependencies
+    // Step 3: Traverse reverse dependencies
     const result = new Set([sheetIndex]);
     const queue = [sheetIndex];
 
@@ -71,7 +93,7 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
         }
     }
 
-    // Step 5: Update caches for sheets referenced in formulaOrValue
+    // Step 4: Update caches for sheets referenced in formulaOrValue
     if (formulaOrValue && typeof formulaOrValue === "string" && formulaOrValue.includes("!")) {
         const matches = formulaOrValue.matchAll(/(?:'([^']+)'|([A-Za-z0-9_]+))!/g);
         for (const match of matches) {
@@ -89,7 +111,7 @@ getAllDependentSheetsFromSheet: function(sheetIndex, formulaOrValue) {
         }
     }
 
-    // Step 6: Update cache for current sheet
+    // Step 5: Update cache for current sheet and return
     const finalResult = Array.from(result).filter(idx => validSheetIndexes.has(idx));
     window.luckysheet_dependentsheets_cache[sheetIndex] = finalResult;
 
