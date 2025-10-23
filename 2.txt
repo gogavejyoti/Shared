@@ -1,54 +1,69 @@
 getAllDependentSheetsFromSheet: function (sheetIndex, formulaOrValue) {
+    // Initialize cache storage
     if (!window.luckysheet_dependentsheets_cache) {
         window.luckysheet_dependentsheets_cache = {};
     }
 
     const allSheets = Ft() || [];
-    let cachedRefs = window.luckysheet_dependentsheets_cache[sheetIndex] || [];
+    const cache = window.luckysheet_dependentsheets_cache;
+    let cachedRefs = cache[sheetIndex] || [];
 
-    // Helper to extract sheet names from a formula string
+    // --- Helper: Extract sheet names from a formula ---
     const extractSheetNames = (formula) => {
-        const sheetNames = new Set();
+        const names = new Set();
         if (formula && typeof formula === "string" && formula.includes("!")) {
             const matches = formula.match(/(?:'([^']+)'|([A-Za-z0-9_]+))!/g);
             if (matches) {
                 for (const match of matches) {
-                    sheetNames.add(match.replace(/['!]/g, ""));
+                    names.add(match.replace(/['!]/g, ""));
                 }
             }
         }
-        return sheetNames;
+        return names;
     };
 
-    // Step 1: Update cache for referenced sheets in formulaOrValue
+    // --- Step 1: Update reverse cache for referenced sheets ---
     const referencedSheetNames = extractSheetNames(formulaOrValue);
     for (const sheetName of referencedSheetNames) {
         const refSheet = allSheets.find(s => s.name === sheetName);
-        if (refSheet) {
-            if (!window.luckysheet_dependentsheets_cache[refSheet.index]) {
-                window.luckysheet_dependentsheets_cache[refSheet.index] = [];
-            }
-            if (!window.luckysheet_dependentsheets_cache[refSheet.index].includes(sheetIndex)) {
-                window.luckysheet_dependentsheets_cache[refSheet.index].push(sheetIndex);
-            }
+        if (!refSheet) continue;
+
+        if (!cache[refSheet.index]) {
+            cache[refSheet.index] = [];
+        }
+        if (!cache[refSheet.index].includes(sheetIndex)) {
+            cache[refSheet.index].push(sheetIndex);
         }
     }
 
-    // Step 2: Use cached references if available
-    if (cachedRefs.length > 1) {
-        // Validate cached references against current sheets
+    // --- Step 2: If cached and valid, return transitive closure directly ---
+    if (cachedRefs.length > 0) {
         const validSheetIndexes = new Set(allSheets.map(s => s.index));
         cachedRefs = cachedRefs.filter(idx => validSheetIndexes.has(idx));
 
-        window.luckysheet_dependentsheets_cache[sheetIndex] = cachedRefs;
-        return cachedRefs;
+        // Compute transitive closure from cache
+        const result = new Set([sheetIndex]);
+        const queue = [...cachedRefs];
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (!result.has(current)) {
+                result.add(current);
+                const nextRefs = cache[current] || [];
+                for (const n of nextRefs) {
+                    if (!result.has(n)) queue.push(n);
+                }
+            }
+        }
+        cache[sheetIndex] = Array.from(result);
+        return cache[sheetIndex];
     }
 
-    // Step 3: Build full dependency map (sheet -> referenced sheets)
-    const dependencyMap = new Map();
+    // --- Step 3: Build dependency graph (who references whom) ---
+    const dependencyMap = new Map(); // key = sheet.index, value = Set of referenced sheet indexes
     for (const sheet of allSheets) {
         if (!sheet.data || !sheet.name) continue;
-        const references = new Set();
+        const refs = new Set();
+
         for (const row of sheet.data) {
             if (!row) continue;
             for (const cell of row) {
@@ -56,30 +71,31 @@ getAllDependentSheetsFromSheet: function (sheetIndex, formulaOrValue) {
 
                 for (const targetSheet of allSheets) {
                     if (!targetSheet.name || targetSheet.index === sheet.index) continue;
-                    const refRegex = new RegExp(`(?:'${targetSheet.name}'|${targetSheet.name})!\\$?[A-Z]+\\$?\\d+(?::\\$?[A-Z]+\\$?\\d+)?`, 'g');
-                    if (refRegex.test(cell.f)) {
-                        references.add(targetSheet.index);
+                    const regex = new RegExp(`(?:'${targetSheet.name}'|${targetSheet.name})!\\$?[A-Z]+\\$?\\d+(?::\\$?[A-Z]+\\$?\\d+)?`, 'g');
+                    if (regex.test(cell.f)) {
+                        refs.add(targetSheet.index);
                     }
                 }
             }
         }
-        dependencyMap.set(sheet.index, references);
+        dependencyMap.set(sheet.index, refs);
     }
 
-    // Step 4: Traverse reverse dependencies to get all dependent sheets
+    // --- Step 4: Reverse dependency traversal (find who uses current sheet directly or indirectly) ---
     const result = new Set([sheetIndex]);
     const queue = [sheetIndex];
     while (queue.length > 0) {
         const current = queue.shift();
-        for (const [sIdx, refs] of dependencyMap.entries()) {
-            if (refs.has(current) && !result.has(sIdx)) {
-                result.add(sIdx);
-                queue.push(sIdx);
+
+        for (const [sheetIdx, refs] of dependencyMap.entries()) {
+            if (refs.has(current) && !result.has(sheetIdx)) {
+                result.add(sheetIdx);
+                queue.push(sheetIdx);
             }
         }
     }
 
-    // Step 5: Add referenced sheets from formula to result
+    // --- Step 5: Include formula-based references (for immediate update) ---
     for (const sheetName of referencedSheetNames) {
         const refSheet = allSheets.find(s => s.name === sheetName);
         if (refSheet) {
@@ -87,7 +103,17 @@ getAllDependentSheetsFromSheet: function (sheetIndex, formulaOrValue) {
         }
     }
 
-    // Step 6: Update cache and return
-    window.luckysheet_dependentsheets_cache[sheetIndex] = Array.from(result);
-    return window.luckysheet_dependentsheets_cache[sheetIndex];
+    // --- Step 6: Store transitive dependents in cache for all involved sheets ---
+    const finalList = Array.from(result);
+    for (const idx of finalList) {
+        if (!cache[idx]) cache[idx] = [];
+        for (const ref of finalList) {
+            if (!cache[idx].includes(ref)) {
+                cache[idx].push(ref);
+            }
+        }
+    }
+
+    cache[sheetIndex] = finalList;
+    return finalList;
 },
