@@ -1,24 +1,56 @@
-  showSheet: function () {
-                $("#luckysheet-cell-flow_0").css({
-                    width: h.ch_width,
-                    top: "-1px"
-                }),
-                    $("#luckysheet-sheettable_0").css({
-                        width: h.ch_width - 1,
-                        height: h.rh_height
-                    }),
-                    $("#luckysheetrowHeader_0").css("height", h.rh_height),
-                    $("#luckysheet-cols-h-cells_0").css("width", h.ch_width),
-                    $("#luckysheet-scrollbar-x div").width(h.ch_width),
-                    $("#luckysheet-scrollbar-y div").height(h.rh_height + h.columnHeaderHeight - h.cellMainSrollBarSize - 3);
-                let e = this.getSheetIndex(h.currentSheetIndex)
-                    , n = h.luckysheetfile[e];
-                h.scrollRefreshSwitch = !1,
-                    n.scrollLeft != null && n.scrollLeft > 0 ? $("#luckysheet-scrollbar-x").scrollLeft(n.scrollLeft * h.zoomRatio) : $("#luckysheet-scrollbar-x").scrollLeft(0),
-                    n.scrollTop != null && n.scrollTop > 0 ? $("#luckysheet-scrollbar-y").scrollTop(n.scrollTop -10) * h.zoomRatio) : $("#luckysheet-scrollbar-y").scrollTop(0),
-                    setTimeout(() => {
-                        h.scrollRefreshSwitch = !0
-                    }
-                        , 0),
-                    ar(h.zoomRatio)
-            },
+showSheet: function () {
+    // --- 1. Recalculate total grid dimensions (important fix) ---
+    let e = this.getSheetIndex(h.currentSheetIndex),
+        n = h.luckysheetfile[e];
+
+    if (!n) return;
+
+    // Recalculate width/height dynamically from current data
+    const flowdata = n.data || [];
+    const maxRow = flowdata.length;
+    const maxCol = flowdata[0] ? flowdata[0].length : 0;
+
+    // Ensure LuckySheet config is in sync
+    h.rh_height = h.defaultRowHeight * maxRow + h.columnHeaderHeight;
+    h.ch_width = h.defaultColWidth * maxCol + h.rowHeaderWidth;
+
+    // --- 2. Apply recalculated dimensions ---
+    $("#luckysheet-cell-flow_0").css({
+        width: h.ch_width,
+        top: "-1px"
+    });
+
+    $("#luckysheet-sheettable_0").css({
+        width: h.ch_width - 1,
+        height: h.rh_height
+    });
+
+    $("#luckysheetrowHeader_0").css("height", h.rh_height);
+    $("#luckysheet-cols-h-cells_0").css("width", h.ch_width);
+
+    $("#luckysheet-scrollbar-x div").width(h.ch_width);
+    $("#luckysheet-scrollbar-y div").height(
+        h.rh_height + h.columnHeaderHeight - h.cellMainSrollBarSize - 3
+    );
+
+    // --- 3. Restore scroll positions safely ---
+    h.scrollRefreshSwitch = !1;
+
+    if (n.scrollLeft != null && n.scrollLeft > 0)
+        $("#luckysheet-scrollbar-x").scrollLeft(n.scrollLeft * h.zoomRatio);
+    else
+        $("#luckysheet-scrollbar-x").scrollLeft(0);
+
+    if (n.scrollTop != null && n.scrollTop > 0)
+        $("#luckysheet-scrollbar-y").scrollTop(n.scrollTop * h.zoomRatio);
+    else
+        $("#luckysheet-scrollbar-y").scrollTop(0);
+
+    // --- 4. Re-enable scroll event refresh ---
+    setTimeout(() => {
+        h.scrollRefreshSwitch = !0;
+    }, 0);
+
+    // --- 5. Trigger viewport/zoom adjustment ---
+    if (typeof ar === "function") ar(h.zoomRatio);
+}
