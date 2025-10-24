@@ -1,49 +1,24 @@
-showSheet: function () {
-    // Apply base layout
-    $("#luckysheet-cell-flow_0").css({
-        width: h.ch_width,
-        top: "-1px"
-    });
-    $("#luckysheet-sheettable_0").css({
-        width: h.ch_width - 1,
-        height: h.rh_height
-    });
-    $("#luckysheetrowHeader_0").css("height", h.rh_height);
-    $("#luckysheet-cols-h-cells_0").css("width", h.ch_width);
-    $("#luckysheet-scrollbar-x div").width(h.ch_width);
-    $("#luckysheet-scrollbar-y div").height(
-        h.rh_height + h.columnHeaderHeight - h.cellMainSrollBarSize - 3
-    );
-
-    // Get current sheet object
-    let e = this.getSheetIndex(h.currentSheetIndex),
-        n = h.luckysheetfile[e];
-
-    h.scrollRefreshSwitch = !1;
-
-    // --- Fix: detect if scrolls are outdated (after paste or resize) ---
-    const currentX = $("#luckysheet-scrollbar-x").scrollLeft();
-    const currentY = $("#luckysheet-scrollbar-y").scrollTop();
-
-    // Only restore saved scroll if sheet size hasn't changed drastically
-    const validScroll =
-        n && n.visibledatarow && n.visibledatacolumn &&
-        n.visibledatacolumn.length === Store.visibledatacolumn.length &&
-        n.visibledatarow.length === Store.visibledatarow.length;
-
-    if (validScroll && n.scrollLeft != null && n.scrollLeft > 0)
-        $("#luckysheet-scrollbar-x").scrollLeft(n.scrollLeft * h.zoomRatio);
-    else
-        $("#luckysheet-scrollbar-x").scrollLeft(currentX || 0);
-
-    if (validScroll && n.scrollTop != null && n.scrollTop > 0)
-        $("#luckysheet-scrollbar-y").scrollTop(n.scrollTop * h.zoomRatio);
-    else
-        $("#luckysheet-scrollbar-y").scrollTop(currentY || 0);
-
-    // Re-enable scroll sync
-    setTimeout(() => { h.scrollRefreshSwitch = !0; }, 0);
-
-    // Refresh visible viewport
-    if (typeof ar === "function") ar(h.zoomRatio);
-}
+ showSheet: function () {
+                $("#luckysheet-cell-flow_0").css({
+                    width: h.ch_width,
+                    top: "-1px"
+                }),
+                    $("#luckysheet-sheettable_0").css({
+                        width: h.ch_width - 1,
+                        height: h.rh_height
+                    }),
+                    $("#luckysheetrowHeader_0").css("height", h.rh_height),
+                    $("#luckysheet-cols-h-cells_0").css("width", h.ch_width),
+                    $("#luckysheet-scrollbar-x div").width(h.ch_width),
+                    $("#luckysheet-scrollbar-y div").height(h.rh_height + h.columnHeaderHeight - h.cellMainSrollBarSize - 3);
+                let e = this.getSheetIndex(h.currentSheetIndex)
+                    , n = h.luckysheetfile[e];
+                h.scrollRefreshSwitch = !1,
+                    null,
+                    null,
+                    setTimeout(() => {
+                        h.scrollRefreshSwitch = !0
+                    }
+                        , 0),
+                    ar(h.zoomRatio)
+            },
