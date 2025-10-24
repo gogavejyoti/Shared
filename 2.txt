@@ -1,41 +1,49 @@
 showSheet: function () {
-    // --- 1. Recalculate total grid dimensions (important fix) ---
     let e = this.getSheetIndex(h.currentSheetIndex),
         n = h.luckysheetfile[e];
-
     if (!n) return;
 
-    // Recalculate width/height dynamically from current data
-    const flowdata = n.data || [];
-    const maxRow = flowdata.length;
-    const maxCol = flowdata[0] ? flowdata[0].length : 0;
+    // 🩹 Force LuckySheet to recalc column/row positions if missing or outdated
+    if (!Store.visibledatacolumn || Store.visibledatacolumn.length === 0) {
+        Store.visibledatacolumn = [];
+        let totalWidth = 0;
+        for (let c = 0; c < Store.cols; c++) {
+            totalWidth += Store.defaultcolumnlen;
+            Store.visibledatacolumn.push(totalWidth);
+        }
+    }
 
-    // Ensure LuckySheet config is in sync
-    h.rh_height = h.defaultRowHeight * maxRow + h.columnHeaderHeight;
-    h.ch_width = h.defaultColWidth * maxCol + h.rowHeaderWidth;
+    if (!Store.visibledatarow || Store.visibledatarow.length === 0) {
+        Store.visibledatarow = [];
+        let totalHeight = 0;
+        for (let r = 0; r < Store.rows; r++) {
+            totalHeight += Store.defaultrowlen;
+            Store.visibledatarow.push(totalHeight);
+        }
+    }
 
-    // --- 2. Apply recalculated dimensions ---
+    // 🧮 Recalculate total sheet dimensions accurately
+    h.ch_width = Store.visibledatacolumn[Store.visibledatacolumn.length - 1] + Store.rowHeaderWidth;
+    h.rh_height = Store.visibledatarow[Store.visibledatarow.length - 1] + Store.columnHeaderHeight;
+
+    // 🧭 Update core DOM elements
     $("#luckysheet-cell-flow_0").css({
         width: h.ch_width,
         top: "-1px"
     });
-
     $("#luckysheet-sheettable_0").css({
         width: h.ch_width - 1,
         height: h.rh_height
     });
-
     $("#luckysheetrowHeader_0").css("height", h.rh_height);
     $("#luckysheet-cols-h-cells_0").css("width", h.ch_width);
-
     $("#luckysheet-scrollbar-x div").width(h.ch_width);
     $("#luckysheet-scrollbar-y div").height(
         h.rh_height + h.columnHeaderHeight - h.cellMainSrollBarSize - 3
     );
 
-    // --- 3. Restore scroll positions safely ---
+    // 🧷 Restore scroll positions
     h.scrollRefreshSwitch = !1;
-
     if (n.scrollLeft != null && n.scrollLeft > 0)
         $("#luckysheet-scrollbar-x").scrollLeft(n.scrollLeft * h.zoomRatio);
     else
@@ -46,11 +54,9 @@ showSheet: function () {
     else
         $("#luckysheet-scrollbar-y").scrollTop(0);
 
-    // --- 4. Re-enable scroll event refresh ---
-    setTimeout(() => {
-        h.scrollRefreshSwitch = !0;
-    }, 0);
+    setTimeout(() => { h.scrollRefreshSwitch = !0; }, 0);
 
-    // --- 5. Trigger viewport/zoom adjustment ---
+    // 🔁 Force visible area recalculation
+    if (typeof jfrefreshgrid_rhcw === "function") jfrefreshgrid_rhcw(); // LuckySheet built-in
     if (typeof ar === "function") ar(h.zoomRatio);
 }
