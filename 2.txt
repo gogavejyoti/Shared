@@ -1,32 +1,5 @@
 showSheet: function () {
-    let e = this.getSheetIndex(h.currentSheetIndex),
-        n = h.luckysheetfile[e];
-    if (!n) return;
-
-    // 🩹 Force LuckySheet to recalc column/row positions if missing or outdated
-    if (!Store.visibledatacolumn || Store.visibledatacolumn.length === 0) {
-        Store.visibledatacolumn = [];
-        let totalWidth = 0;
-        for (let c = 0; c < Store.cols; c++) {
-            totalWidth += Store.defaultcolumnlen;
-            Store.visibledatacolumn.push(totalWidth);
-        }
-    }
-
-    if (!Store.visibledatarow || Store.visibledatarow.length === 0) {
-        Store.visibledatarow = [];
-        let totalHeight = 0;
-        for (let r = 0; r < Store.rows; r++) {
-            totalHeight += Store.defaultrowlen;
-            Store.visibledatarow.push(totalHeight);
-        }
-    }
-
-    // 🧮 Recalculate total sheet dimensions accurately
-    h.ch_width = Store.visibledatacolumn[Store.visibledatacolumn.length - 1] + Store.rowHeaderWidth;
-    h.rh_height = Store.visibledatarow[Store.visibledatarow.length - 1] + Store.columnHeaderHeight;
-
-    // 🧭 Update core DOM elements
+    // Apply base layout
     $("#luckysheet-cell-flow_0").css({
         width: h.ch_width,
         top: "-1px"
@@ -42,21 +15,35 @@ showSheet: function () {
         h.rh_height + h.columnHeaderHeight - h.cellMainSrollBarSize - 3
     );
 
-    // 🧷 Restore scroll positions
+    // Get current sheet object
+    let e = this.getSheetIndex(h.currentSheetIndex),
+        n = h.luckysheetfile[e];
+
     h.scrollRefreshSwitch = !1;
-    if (n.scrollLeft != null && n.scrollLeft > 0)
+
+    // --- Fix: detect if scrolls are outdated (after paste or resize) ---
+    const currentX = $("#luckysheet-scrollbar-x").scrollLeft();
+    const currentY = $("#luckysheet-scrollbar-y").scrollTop();
+
+    // Only restore saved scroll if sheet size hasn't changed drastically
+    const validScroll =
+        n && n.visibledatarow && n.visibledatacolumn &&
+        n.visibledatacolumn.length === Store.visibledatacolumn.length &&
+        n.visibledatarow.length === Store.visibledatarow.length;
+
+    if (validScroll && n.scrollLeft != null && n.scrollLeft > 0)
         $("#luckysheet-scrollbar-x").scrollLeft(n.scrollLeft * h.zoomRatio);
     else
-        $("#luckysheet-scrollbar-x").scrollLeft(0);
+        $("#luckysheet-scrollbar-x").scrollLeft(currentX || 0);
 
-    if (n.scrollTop != null && n.scrollTop > 0)
+    if (validScroll && n.scrollTop != null && n.scrollTop > 0)
         $("#luckysheet-scrollbar-y").scrollTop(n.scrollTop * h.zoomRatio);
     else
-        $("#luckysheet-scrollbar-y").scrollTop(0);
+        $("#luckysheet-scrollbar-y").scrollTop(currentY || 0);
 
+    // Re-enable scroll sync
     setTimeout(() => { h.scrollRefreshSwitch = !0; }, 0);
 
-    // 🔁 Force visible area recalculation
-    if (typeof jfrefreshgrid_rhcw === "function") jfrefreshgrid_rhcw(); // LuckySheet built-in
+    // Refresh visible viewport
     if (typeof ar === "function") ar(h.zoomRatio);
 }
