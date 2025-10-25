@@ -1,16 +1,17 @@
-function removeDollarInSheetRefs(formula) {
-    if (!formula || typeof formula !== "string") return formula;
+function removeDollarFromCrossSheet(formula) {
+    // Matches any sheet-qualified reference (quoted or unquoted), including ranges
+    return formula.replace(/('([^']+)'|([A-Za-z0-9_]+))!([A-Z$]+)(\d+)(:([A-Z$]+)(\d+))?/g, (match, p1, p2, p3, col1, row1, p6, col2, row2) => {
+        // Keep sheet name as-is
+        const sheetName = p1;
+        // Remove $ only from column/row part
+        const newRef = col1.replace(/\$/g, '') + row1;
+        let newRange = newRef;
 
-    // Matches sheet references (quoted or unquoted) with optional ranges
-    const sheetRefRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+\$?\d+)(?::([A-Z]+\$?\d+))?/g;
+        // Handle ranges like A1:B10
+        if (col2 && row2) {
+            newRange += ':' + col2.replace(/\$/g, '') + row2;
+        }
 
-    return formula.replace(sheetRefRegex, (match, quotedSheet, unquotedSheet, startRef, endRef) => {
-        const sheetName = quotedSheet || unquotedSheet;
-
-        // Remove $ from the startRef and endRef
-        const cleanStart = startRef.replace(/\$/g, "");
-        const cleanEnd = endRef ? endRef.replace(/\$/g, "") : null;
-
-        return cleanEnd ? `${sheetName}!${cleanStart}:${cleanEnd}` : `${sheetName}!${cleanStart}`;
+        return sheetName + '!' + newRange;
     });
 }
