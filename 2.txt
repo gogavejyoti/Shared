@@ -28,16 +28,26 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     _range,
                     endCol, endRow
                 ) {
-                    // --- Extract $ signs to preserve absolute references ---
-                    const absColStart = /\$[A-Z]+/.test(match.split("!")[1]?.split(":")[0]) ? "$" : "";
-                    const absRowStart = /\$\d+/.test(match.split("!")[1]?.split(":")[0]) ? "$" : "";
-                    const absColEnd = _range && /\$[A-Z]+/.test(match.split(":")[1]) ? "$" : "";
-                    const absRowEnd = _range && /\$\d+/.test(match.split(":")[1]) ? "$" : "";
-
                     let sheetName = quotedSheet || unquotedSheet;
                     const refSheet = allSheets.find(sh => sh.name === sheetName);
                     if (!refSheet) return match;
 
+                    // --- Detect absolute $ markers properly ---
+                    const startAbsCol = /\$[A-Z]+/.test(match.split("!")[1]) ? (/\$[A-Z]+/.exec(match.split("!")[1])[0].includes("$") ? "$" : "") : "";
+                    const startAbsRow = /\$\d+/.test(match.split("!")[1]) ? (/\$\d+/.exec(match.split("!")[1])[0].includes("$") ? "$" : "") : "";
+
+                    // For range end, detect only if exists
+                    let endAbsCol = "";
+                    let endAbsRow = "";
+                    if (endCol || endRow) {
+                        const rangePart = match.split(":")[1];
+                        if (rangePart) {
+                            endAbsCol = /\$[A-Z]+/.test(rangePart) ? "$" : "";
+                            endAbsRow = /\$\d+/.test(rangePart) ? "$" : "";
+                        }
+                    }
+
+                    // --- Convert letters to indices ---
                     let startColIndex = _columnLetterToIndex(startCol);
                     let startRowIndex = parseInt(startRow, 10);
                     let endColIndex = endCol ? _columnLetterToIndex(endCol) : startColIndex;
@@ -78,12 +88,15 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
                     if (rowDeleted || colDeleted) return `#REF!`;
 
                     // --- Rebuild references preserving $ signs ---
-                    let startRef = `${absColStart}${_columnIndexToLetter(startColIndex)}${absRowStart}${startRowIndex}`;
-                    let endRef = `${absColEnd}${_columnIndexToLetter(endColIndex)}${absRowEnd}${endRowIndex}`;
+                    const startRef = `${startAbsCol}${_columnIndexToLetter(startColIndex)}${startAbsRow}${startRowIndex}`;
+                    const endRef = `${endAbsCol}${_columnIndexToLetter(endColIndex)}${endAbsRow}${endRowIndex}`;
 
-                    return startRef === endRef
-                        ? `'${sheetName}'!${startRef}`
-                        : `'${sheetName}'!${startRef}:${endRef}`;
+                    // ✅ Return correct form: single or range
+                    if (!endCol && !endRow) {
+                        return `'${sheetName}'!${startRef}`;
+                    } else {
+                        return `'${sheetName}'!${startRef}:${endRef}`;
+                    }
                 });
 
                 if (modifiedFormula !== originalFormula) {
@@ -99,11 +112,8 @@ function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, c
     }
 
     if (sheetChanged) {
-        if (typeof jf !== "undefined" && jf.refresh) {
-            jf.refresh();
-        } else if (typeof luckysheetrefreshgrid === "function") {
-            luckysheetrefreshgrid();
-        }
+        if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
+        else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
     }
 
     // --- Helpers ---
