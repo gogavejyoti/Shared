@@ -1,1 +1,6 @@
-=B10+'Sheet5'!D12+'Sheet6'!D13
+formula = (formula || "").replace(/((?:'[^']+'|[A-Za-z0-9_]+)!)\$([A-Z]+)\$?(\d+)(?::\$([A-Z]+)\$?(\d+))?/g,
+    (m, sheet, col1, row1, col2, row2) =>
+        col2 && row2
+            ? `${sheet}${col1}${row1}:${col2}${row2}`
+            : `${sheet}${col1}${row1}`
+);
