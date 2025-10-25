@@ -1,8 +1,10 @@
-formula = (formula || "").replace(
-    /(?<=\b(?:'[^']+'|[A-Za-z0-9_]+)!)\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?/g,
-    (match, col1, row1, col2, row2) =>
-        col2 && row2
-            ? `${col1}${row1}:${col2}${row2}`
-            : `${col1}${row1}`
-);
+function removeDollarFromCrossSheet(formula) {
+    // Regex to match any sheet-qualified reference, including ranges
+    const sheetRefRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z$]+)(\d+$|(\:[A-Z$]+\d+))/g;
 
+    return formula.replace(sheetRefRegex, (match, quotedSheet, unquotedSheet, colPart, rowPart) => {
+        // Remove $ from column and row parts
+        const cleanedPart = match.replace(/\$/g, '');
+        return cleanedPart;
+    });
+}
