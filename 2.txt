@@ -1,7 +1,8 @@
 formula = (formula || "").replace(
-    /((?:'[^']+'|[A-Za-z0-9_]+)!)\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?/g,
-    (match, sheet, col1, row1, col2, row2) =>
+    /(?<=\b(?:'[^']+'|[A-Za-z0-9_]+)!)\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?/g,
+    (match, col1, row1, col2, row2) =>
         col2 && row2
-            ? `${sheet}${col1}${row1}:${col2}${row2}`
-            : `${sheet}${col1}${row1}`
+            ? `${col1}${row1}:${col2}${row2}`
+            : `${col1}${row1}`
 );
+
