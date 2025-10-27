@@ -1,216 +1,36 @@
-<!-- Bootstrap CSS (if not already included) -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+[RoutePrefix("api/Notes")]
+public class NotesController : ApiController
+{
+    private readonly IDbConnection _db = new SqlConnection(ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString);
 
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-<!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- Summernote -->
-<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote.min.js"></script>
-
-<!-- Floating Sticky Note Button -->
-<div id="notesToggleButton" class="notes-floating-btn" title="Open Notes">
-  📝
-</div>
-
-<!-- Notes Slide Panel -->
-<div id="notesPanel">
-  <div class="notes-header bg-primary text-white d-flex justify-content-between align-items-center p-2">
-    <h6 class="m-0">My Notes</h6>
-    <div>
-      <button id="btnRefreshNotes" class="btn btn-light btn-sm" title="Refresh">🔄</button>
-      <button id="btnSaveNotes" class="btn btn-success btn-sm" title="Save">💾</button>
-      <button id="btnCloseNotes" class="btn btn-danger btn-sm" title="Close">✖</button>
-    </div>
-  </div>
-
-  <div class="notes-body p-2">
-    <div id="txtNotes"></div>
-  </div>
-</div>
-
-
-<style>
-  /* Right Slide Notes Panel */
-  #notesPanel {
-    position: fixed;
-    top: 0;
-    right: -400px; /* Hidden by default */
-    width: 400px;
-    height: 100%;
-    background: #fff;
-    border-left: 2px solid #ccc;
-    box-shadow: -3px 0 10px rgba(0, 0, 0, 0.2);
-    transition: right 0.3s ease;
-    z-index: 1049;
-    overflow-y: auto;
-  }
-
-  #notesPanel.active {
-    right: 0;
-  }
-
-  .notes-header h6 {
-    font-weight: 600;
-  }
-
-  .note-editor.note-frame {
-    border: none !important;
-  }
-
-  /* Floating Sticky Button */
-  .notes-floating-btn {
-    position: fixed;
-    bottom: 25px;
-    right: 25px;
-    background: #007bff;
-    color: white;
-    border-radius: 50%;
-    width: 55px;
-    height: 55px;
-    font-size: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-    z-index: 1050;
-    transition: all 0.3s ease;
-  }
-
-  .notes-floating-btn:hover {
-    transform: scale(1.1);
-    background: #0056b3;
-  }
-
-  /* Optional blur overlay (if you want to dim background when open) */
-  #notesOverlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.2);
-    z-index: 1048;
-  }
-
-  #notesOverlay.active {
-    display: block;
-  }
-</style>
-
-
-$(document).ready(function () {
-    const apiUrl = '/api/Notes';
-    const userId = currentUserId; // Replace with your actual user ID
-    let localNotesCache = null;
-
-    // Initialize Summernote
-    $('#txtNotes').summernote({
-        height: 400,
-        placeholder: 'Write your notes here...',
-        toolbar: [
-            ['style', ['bold', 'italic', 'underline', 'clear']],
-            ['font', ['fontsize', 'color']],
-            ['para', ['ul', 'ol', 'paragraph']],
-            ['insert', ['link', 'picture']],
-            ['view', ['fullscreen', 'codeview']]
-        ]
-    });
-
-    // Floating button toggle
-    $('#notesToggleButton').click(function () {
-        $('#notesPanel').toggleClass('active');
-        if ($('#notesPanel').hasClass('active')) {
-            if (localNotesCache !== null) {
-                $('#txtNotes').summernote('code', localNotesCache);
-            } else {
-                loadNotesFromDB();
-            }
-        }
-    });
-
-    // Close button
-    $('#btnCloseNotes').click(function () {
-        $('#notesPanel').removeClass('active');
-    });
-
-    // Save notes
-    $('#btnSaveNotes').click(function () {
-        const notesHtml = $('#txtNotes').summernote('code');
-        localNotesCache = notesHtml;
-
-        $.ajax({
-            url: apiUrl + '/SaveUserNotes',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                UserId: userId,
-                NotesText: notesHtml
-            }),
-            success: function () {
-                showToast('✅ Notes saved successfully!');
-            },
-            error: function () {
-                showToast('❌ Failed to save notes.');
-            }
-        });
-    });
-
-    // Refresh from DB
-    $('#btnRefreshNotes').click(function () {
-        if (confirm('Discard unsaved changes and reload from the database?')) {
-            loadNotesFromDB();
-        }
-    });
-
-    // Auto cache updates
-    $('#txtNotes').on('summernote.change', function () {
-        localNotesCache = $('#txtNotes').summernote('code');
-    });
-
-    // Load notes helper
-    function loadNotesFromDB() {
-        $.ajax({
-            url: apiUrl + '/GetUserNotes',
-            type: 'GET',
-            data: { userId },
-            success: function (data) {
-                const html = data?.NotesText || '';
-                $('#txtNotes').summernote('code', html);
-                localNotesCache = html;
-            },
-            error: function () {
-                $('#txtNotes').summernote('code', '');
-                localNotesCache = '';
-                console.error('Failed to load notes.');
-            }
-        });
+    [HttpGet]
+    [Route("GetUserNotes")]
+    public IHttpActionResult GetUserNotes(int userId)
+    {
+        var sql = "SELECT TOP 1 NotesText FROM UserNotes WHERE UserId = @UserId";
+        var note = _db.QueryFirstOrDefault<string>(sql, new { UserId = userId });
+        return Ok(new { NotesText = note ?? "" });
     }
 
-    // Optional: simple toast popup for feedback
-    function showToast(message) {
-        const toast = $('<div>')
-            .addClass('toast-msg')
-            .text(message)
-            .css({
-                position: 'fixed',
-                bottom: '90px',
-                right: '30px',
-                background: '#333',
-                color: '#fff',
-                padding: '10px 20px',
-                borderRadius: '6px',
-                zIndex: 1060,
-                opacity: 0,
-                transition: 'opacity 0.3s'
-            });
-        $('body').append(toast);
-        setTimeout(() => toast.css('opacity', 1), 50);
-        setTimeout(() => toast.fadeOut(400, () => toast.remove()), 2500);
+    [HttpPost]
+    [Route("SaveUserNotes")]
+    public IHttpActionResult SaveUserNotes([FromBody] UserNote note)
+    {
+        if (note == null) return BadRequest("Invalid data.");
+
+        var sql = @"
+            IF EXISTS (SELECT 1 FROM UserNotes WHERE UserId = @UserId)
+                UPDATE UserNotes SET NotesText = @NotesText, UpdatedOn = GETDATE() WHERE UserId = @UserId
+            ELSE
+                INSERT INTO UserNotes (UserId, NotesText, CreatedOn) VALUES (@UserId, @NotesText, GETDATE())";
+
+        _db.Execute(sql, note);
+        return Ok();
     }
-});
+}
+
+public class UserNote
+{
+    public int UserId { get; set; }
+    public string NotesText { get; set; }
+}
