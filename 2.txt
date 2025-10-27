@@ -1,36 +1,97 @@
-[RoutePrefix("api/Notes")]
-public class NotesController : ApiController
-{
-    private readonly IDbConnection _db = new SqlConnection(ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString);
+<!-- Include Summernote CSS/JS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-lite.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-lite.min.js"></script>
 
-    [HttpGet]
-    [Route("GetUserNotes")]
-    public IHttpActionResult GetUserNotes(int userId)
-    {
-        var sql = "SELECT TOP 1 NotesText FROM UserNotes WHERE UserId = @UserId";
-        var note = _db.QueryFirstOrDefault<string>(sql, new { UserId = userId });
-        return Ok(new { NotesText = note ?? "" });
+<script>
+$(document).ready(function () {
+    const apiUrl = '/api/Notes';
+    const userId = currentUserId; // your logged-in user ID
+    let localNotesCache = null;
+    let autoSaveTimer = null;
+    const autoSaveDelay = 3000; // 3 seconds of inactivity
+
+    // Initialize Summernote
+    $('#notesEditor').summernote({
+        placeholder: 'Write your notes here...',
+        tabsize: 2,
+        height: $(window).height() - 160,
+        toolbar: [
+            ['style', ['bold', 'italic', 'underline', 'clear']],
+            ['para', ['ul', 'ol', 'paragraph']],
+            ['insert', ['link']],
+            ['view', ['codeview']]
+        ]
+    });
+
+    // 🟢 Toggle Notes Panel
+    $('#btnStickyNotes').click(function () {
+        const panel = $('#stickyNotesPanel');
+        if (panel.css('right') === '0px') {
+            panel.css('right', '-420px');
+        } else {
+            panel.css('right', '0px');
+            if (localNotesCache === null) loadNotesFromDB();
+            else $('#notesEditor').summernote('code', localNotesCache);
+        }
+    });
+
+    // ❌ Close Button
+    $('#btnCloseNotes').click(() => $('#stickyNotesPanel').css('right', '-420px'));
+
+    // 🔄 Refresh Button
+    $('#btnRefreshNotes').click(function () {
+        if (confirm('This will discard unsaved changes and reload from DB. Continue?')) {
+            loadNotesFromDB();
+        }
+    });
+
+    // ✍️ Detect Edits → Auto-save Trigger
+    $('#notesEditor').on('summernote.change', function () {
+        localNotesCache = $('#notesEditor').summernote('code');
+        scheduleAutoSave();
+    });
+
+    // 🧠 Auto-Save Logic
+    function scheduleAutoSave() {
+        $('#autosaveStatus').text('Typing...');
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+            saveNotes(localNotesCache);
+        }, autoSaveDelay);
     }
 
-    [HttpPost]
-    [Route("SaveUserNotes")]
-    public IHttpActionResult SaveUserNotes([FromBody] UserNote note)
-    {
-        if (note == null) return BadRequest("Invalid data.");
-
-        var sql = @"
-            IF EXISTS (SELECT 1 FROM UserNotes WHERE UserId = @UserId)
-                UPDATE UserNotes SET NotesText = @NotesText, UpdatedOn = GETDATE() WHERE UserId = @UserId
-            ELSE
-                INSERT INTO UserNotes (UserId, NotesText, CreatedOn) VALUES (@UserId, @NotesText, GETDATE())";
-
-        _db.Execute(sql, note);
-        return Ok();
+    function saveNotes(content) {
+        $.ajax({
+            url: apiUrl + '/SaveUserNotes',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ UserId: userId, NotesText: content }),
+            success: function () {
+                $('#autosaveStatus').text('💾 Auto-saved at ' + new Date().toLocaleTimeString());
+            },
+            error: function () {
+                $('#autosaveStatus').text('⚠️ Auto-save failed.');
+            }
+        });
     }
-}
 
-public class UserNote
-{
-    public int UserId { get; set; }
-    public string NotesText { get; set; }
-}
+    function loadNotesFromDB() {
+        $.ajax({
+            url: apiUrl + '/GetUserNotes',
+            type: 'GET',
+            data: { userId },
+            success: function (data) {
+                const text = data?.NotesText || '';
+                $('#notesEditor').summernote('code', text);
+                localNotesCache = text;
+                $('#autosaveStatus').text('✅ Loaded from DB');
+            },
+            error: function () {
+                $('#notesEditor').summernote('code', '');
+                localNotesCache = '';
+                $('#autosaveStatus').text('⚠️ Failed to load notes');
+            }
+        });
+    }
+});
+</script>
