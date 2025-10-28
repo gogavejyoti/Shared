@@ -1,12 +1,36 @@
-<div class="card shadow-sm h-100" style="
-    background-image: linear-gradient(to bottom right, #00bfad, #99a3d4);
-">
-                                 <div class="card-body">
-                                            <h5 class="card-title" style="
-    color: #fff;
-">BLOCK#Square</h5>
-                                             <div class="d-flex justify-content-center align-items-center gap-3">
-                                                                                             <a href="/rpreport/dataentry?vertical=QkFOS0lORyBBTkQgRklOQU5DRQ==&amp;account=QkxPQ0sjU3F1YXJl">Existing</a>
-                                                                                                     <span class="mx-2">|</span>
-                                                                                                      <a href="/ResourcePlanner/ViewPlans?vertical=QkFOS0lORyBBTkQgRklOQU5DRQ==&amp;account=QkxPQ0sjU3F1YXJl">New</a>
-                                                                                             </div></div></div>
+<div class="card border-0 shadow-lg rounded-4 overflow-hidden hover-scale text-white" style="max-width: 300px;">
+  <!-- SVG Header -->
+  <div class="position-relative d-flex justify-content-center align-items-center" style="height: 150px; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);">
+    <!-- Colorful SVG icon -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="80" height="80">
+      <circle cx="32" cy="32" r="30" fill="url(#grad1)"/>
+      <defs>
+        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#00c6ff;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#0072ff;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <path d="M32 16L12 26v12l20 10 20-10V26L32 16zm0 4.7l14 7v6.6l-14 7-14-7v-6.6l14-7z" fill="white"/>
+    </svg>
+
+    <!-- Account name overlay -->
+    <div class="position-absolute bottom-0 start-0 w-100 p-3" style="background: rgba(0,0,0,0.4);">
+      <h5 class="fw-bold mb-0 text-uppercase">BLOCK#Square</h5>
+      <small class="text-white-50">Account</small>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="card-body text-center bg-light text-dark">
+    <div class="d-flex justify-content-center align-items-center gap-3">
+      <a href="/rpreport/dataentry?vertical=QkFOS0lORyBBTkQgRklOQU5DRQ==&account=QkxPQ0sjU3F1YXJl"
+         class="btn btn-sm btn-primary px-4 fw-semibold rounded-pill shadow-sm">
+        Existing
+      </a>
+      <a href="/ResourcePlanner/ViewPlans?vertical=QkFOS0lORyBBTkQgRklOQU5DRQ==&account=QkxPQ0sjU3F1YXJl"
+         class="btn btn-sm btn-outline-primary px-4 fw-semibold rounded-pill">
+        New
+      </a>
+    </div>
+  </div>
+</div>
