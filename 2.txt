@@ -1,97 +1,12 @@
-<!-- Include Summernote CSS/JS -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-lite.min.css" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-lite.min.js"></script>
-
-<script>
-$(document).ready(function () {
-    const apiUrl = '/api/Notes';
-    const userId = currentUserId; // your logged-in user ID
-    let localNotesCache = null;
-    let autoSaveTimer = null;
-    const autoSaveDelay = 3000; // 3 seconds of inactivity
-
-    // Initialize Summernote
-    $('#notesEditor').summernote({
-        placeholder: 'Write your notes here...',
-        tabsize: 2,
-        height: $(window).height() - 160,
-        toolbar: [
-            ['style', ['bold', 'italic', 'underline', 'clear']],
-            ['para', ['ul', 'ol', 'paragraph']],
-            ['insert', ['link']],
-            ['view', ['codeview']]
-        ]
-    });
-
-    // 🟢 Toggle Notes Panel
-    $('#btnStickyNotes').click(function () {
-        const panel = $('#stickyNotesPanel');
-        if (panel.css('right') === '0px') {
-            panel.css('right', '-420px');
-        } else {
-            panel.css('right', '0px');
-            if (localNotesCache === null) loadNotesFromDB();
-            else $('#notesEditor').summernote('code', localNotesCache);
-        }
-    });
-
-    // ❌ Close Button
-    $('#btnCloseNotes').click(() => $('#stickyNotesPanel').css('right', '-420px'));
-
-    // 🔄 Refresh Button
-    $('#btnRefreshNotes').click(function () {
-        if (confirm('This will discard unsaved changes and reload from DB. Continue?')) {
-            loadNotesFromDB();
-        }
-    });
-
-    // ✍️ Detect Edits → Auto-save Trigger
-    $('#notesEditor').on('summernote.change', function () {
-        localNotesCache = $('#notesEditor').summernote('code');
-        scheduleAutoSave();
-    });
-
-    // 🧠 Auto-Save Logic
-    function scheduleAutoSave() {
-        $('#autosaveStatus').text('Typing...');
-        if (autoSaveTimer) clearTimeout(autoSaveTimer);
-        autoSaveTimer = setTimeout(() => {
-            saveNotes(localNotesCache);
-        }, autoSaveDelay);
-    }
-
-    function saveNotes(content) {
-        $.ajax({
-            url: apiUrl + '/SaveUserNotes',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ UserId: userId, NotesText: content }),
-            success: function () {
-                $('#autosaveStatus').text('💾 Auto-saved at ' + new Date().toLocaleTimeString());
-            },
-            error: function () {
-                $('#autosaveStatus').text('⚠️ Auto-save failed.');
-            }
-        });
-    }
-
-    function loadNotesFromDB() {
-        $.ajax({
-            url: apiUrl + '/GetUserNotes',
-            type: 'GET',
-            data: { userId },
-            success: function (data) {
-                const text = data?.NotesText || '';
-                $('#notesEditor').summernote('code', text);
-                localNotesCache = text;
-                $('#autosaveStatus').text('✅ Loaded from DB');
-            },
-            error: function () {
-                $('#notesEditor').summernote('code', '');
-                localNotesCache = '';
-                $('#autosaveStatus').text('⚠️ Failed to load notes');
-            }
-        });
-    }
-});
-</script>
+<div class="card shadow-sm h-100" style="
+    background-image: linear-gradient(to bottom right, #00bfad, #99a3d4);
+">
+                                 <div class="card-body">
+                                            <h5 class="card-title" style="
+    color: #fff;
+">BLOCK#Square</h5>
+                                             <div class="d-flex justify-content-center align-items-center gap-3">
+                                                                                             <a href="/rpreport/dataentry?vertical=QkFOS0lORyBBTkQgRklOQU5DRQ==&amp;account=QkxPQ0sjU3F1YXJl">Existing</a>
+                                                                                                     <span class="mx-2">|</span>
+                                                                                                      <a href="/ResourcePlanner/ViewPlans?vertical=QkFOS0lORyBBTkQgRklOQU5DRQ==&amp;account=QkxPQ0sjU3F1YXJl">New</a>
+                                                                                             </div></div></div>
