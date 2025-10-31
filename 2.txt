@@ -1,44 +1,61 @@
+<script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js"></script>
+
+
 $(document).ready(function () {
+    let editor;
     let localNotesOldCache = null;
     let localNotesCache = null;
     let autoSaveTimer = null;
-    const autoSaveDelay = 10000; // 3 seconds of inactivity
+    const autoSaveDelay = 10000; // 10 seconds
 
-    // Initialize Summernote
-    $('#txtNotes').summernote({
-        height: 400,
-        placeholder: 'Write your notes here...',
-        toolbar: [
-            ['style', ['bold', 'italic', 'underline', 'clear']],
-            ['font', ['fontsize', 'color']],
-            ['para', ['ul', 'ol', 'paragraph']],
-          
-        ]
-    });
+    // Initialize CKEditor when panel opens
+    function initEditor() {
+        if (!editor) {
+            editor = CKEDITOR.replace('txtNotes', {
+                height: 400,
+                removePlugins: 'elementspath',
+                resize_enabled: false,
+                toolbar: [
+                    { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', '-', 'RemoveFormat'] },
+                    { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent'] },
+                    { name: 'styles', items: ['Format', 'FontSize'] },
+                    { name: 'colors', items: ['TextColor', 'BGColor'] },
+                    { name: 'tools', items: ['Maximize'] }
+                ]
+            });
 
-    // Floating button toggle
+            // Detect changes
+            editor.on('change', function () {
+                localNotesCache = editor.getData();
+                if (localNotesOldCache != localNotesCache) {
+                    scheduleAutoSave();
+                    localNotesOldCache = localNotesCache;
+                }
+            });
+        }
+    }
+
+    // Toggle button
     $('#notesToggleButton').click(function () {
         $('#notesPanel').toggleClass('active');
         if ($('#notesPanel').hasClass('active')) {
+            initEditor();
             if (localNotesCache !== null) {
-                $('#txtNotes').summernote('code', localNotesCache);
+                editor.setData(localNotesCache);
             } else {
                 loadNotesFromDB();
             }
         }
     });
 
-
-
-
-    // Close button
+    // Close
     $('#btnCloseNotes').click(function () {
         $('#notesPanel').removeClass('active');
     });
 
-    // Save notes
+    // Save
     $('#btnSaveNotes').click(function () {
-        const notesHtml = $('#txtNotes').summernote('code');
+        const notesHtml = editor.getData();
         localNotesCache = notesHtml;
 
         $.ajax({
@@ -58,22 +75,14 @@ $(document).ready(function () {
         });
     });
 
-    // Refresh from DB
+    // Refresh
     $('#btnRefreshNotes').click(function () {
         if (confirm('Discard unsaved changes and reload from the database?')) {
             loadNotesFromDB();
         }
     });
 
-    // Auto cache updates
-    $('#txtNotes').on('summernote.change', function () {
-        localNotesCache = $('#txtNotes').summernote('code');
-        if (localNotesOldCache != localNotesCache) {
-            scheduleAutoSave();
-            localNotesOldCache = localNotesCache;
-        }
-    });
-
+    // Auto-save
     function scheduleAutoSave() {
         if (autoSaveTimer) clearTimeout(autoSaveTimer);
         autoSaveTimer = setTimeout(() => {
@@ -81,7 +90,7 @@ $(document).ready(function () {
         }, autoSaveDelay);
     }
 
-    // Load notes helper
+    // Load from DB
     function loadNotesFromDB() {
         $.ajax({
             url: '/ResourcePlanner/GetUserNotes',
@@ -90,37 +99,23 @@ $(document).ready(function () {
             success: function (data) {
                 const html = data?.notesText || '';
                 localNotesCache = html;
-                localNotesOldCache = localNotesCache;
-                $('#txtNotes').summernote('code', html);
-            
-
+                localNotesOldCache = html;
+                if (editor) editor.setData(html);
             },
             error: function () {
                 localNotesCache = '';
                 localNotesOldCache = '';
-                $('#txtNotes').summernote('code', '');
+                if (editor) editor.setData('');
                 console.error('Failed to load notes.');
             }
         });
     }
 
-    // Optional: simple toast popup for feedback
+    // Toast
     function showToast(message) {
         const toast = $('<div>')
             .addClass('toast-msg')
-            .text(message)
-            .css({
-                position: 'fixed',
-                bottom: '90px',
-                right: '30px',
-                background: '#333',
-                color: '#fff',
-                padding: '10px 20px',
-                borderRadius: '6px',
-                zIndex: 1060,
-                opacity: 0,
-                transition: 'opacity 0.3s'
-            });
+            .text(message);
         $('body').append(toast);
         setTimeout(() => toast.css('opacity', 1), 50);
         setTimeout(() => toast.fadeOut(400, () => toast.remove()), 2500);
