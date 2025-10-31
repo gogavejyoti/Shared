@@ -1,151 +1,128 @@
-    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+$(document).ready(function () {
+    let localNotesOldCache = null;
+    let localNotesCache = null;
+    let autoSaveTimer = null;
+    const autoSaveDelay = 10000; // 3 seconds of inactivity
 
-$("#luckysheet-icon-excel").click(async function () {
-     try {
-         // ========== Internal helpers ==========
-         function hexToARGB(hex) {
-             if (!hex) return undefined;
-             hex = hex.replace('#', '');
-             if (hex.length === 3) hex = hex.split('').map(h => h + h).join('');
-             return 'FF' + hex.toUpperCase();
-         }
+    // Initialize Summernote
+    $('#txtNotes').summernote({
+        height: 400,
+        placeholder: 'Write your notes here...',
+        toolbar: [
+            ['style', ['bold', 'italic', 'underline', 'clear']],
+            ['font', ['fontsize', 'color']],
+            ['para', ['ul', 'ol', 'paragraph']],
+          
+        ]
+    });
 
-         function pxToExcelWidth(px) {
-             if (!px) return 10;
-             return Math.max(3, Math.round(px / 7));
-         }
+    // Floating button toggle
+    $('#notesToggleButton').click(function () {
+        $('#notesPanel').toggleClass('active');
+        if ($('#notesPanel').hasClass('active')) {
+            if (localNotesCache !== null) {
+                $('#txtNotes').summernote('code', localNotesCache);
+            } else {
+                loadNotesFromDB();
+            }
+        }
+    });
 
-         function normalizeFormula(formula, sheetNames) {
-             if (!formula) return formula;
-             sheetNames.forEach(name => {
-                 if (/\s/.test(name) && formula.includes(name + "!")) {
-                     const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '!', 'g');
-                     formula = formula.replace(re, `'${name}'!`);
-                 }
-             });
-             return formula;
-         }
 
-         // ========== Start workbook export ==========
-         const sheets = luckysheet.getAllSheets();
-         const workbook = new ExcelJS.Workbook();
-         workbook.creator = "LuckySheet Export";
-         workbook.created = new Date();
-         const sheetNames = sheets.map(s => s.name || 'Sheet');
 
-         for (let si = 0; si < sheets.length; si++) {
-             const sheet = sheets[si];
-             const ws = workbook.addWorksheet(sheet.name || `Sheet${si + 1}`);
-             const data = sheet.data || [];
 
-             // ---- Column widths
-             if (sheet.config?.columnlen) {
-                 const colLens = sheet.config.columnlen;
-                 ws.columns = Object.keys(colLens).map(k => ({
-                     width: pxToExcelWidth(colLens[k])
-                 }));
-             }
+    // Close button
+    $('#btnCloseNotes').click(function () {
+        $('#notesPanel').removeClass('active');
+    });
 
-             // ---- Fill data and styles
-             for (let r = 0; r < data.length; r++) {
-                 const row = data[r] || [];
-                 for (let c = 0; c < row.length; c++) {
-                     const cell = row[c];
-                     if (!cell) continue;
-                     const cellRef = ws.getCell(r + 1, c + 1);
+    // Save notes
+    $('#btnSaveNotes').click(function () {
+        const notesHtml = $('#txtNotes').summernote('code');
+        localNotesCache = notesHtml;
 
-                     // Value / Formula
-                     if (cell.f) {
-                         const f = normalizeFormula(cell.f, sheetNames);
-                         cellRef.value = { formula: f, result: cell.v ?? null };
-                     } else {
-                         cellRef.value = cell.v ?? null;
-                     }
+        $.ajax({
+            url: '/ResourcePlanner/SaveUserNotes',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                notesText: notesHtml,
+                rpPlanId: $('#planId').val()
+            }),
+            success: function () {
+                showToast('✅ Notes saved successfully!');
+            },
+            error: function () {
+                showToast('❌ Failed to save notes.');
+            }
+        });
+    });
 
-                     // ----- Font
-                     if (cell.fc || cell.bl || cell.it || cell.ff || cell.fs) {
-                         const font = {};
-                         if (cell.fc) font.color = { argb: hexToARGB(cell.fc) };
-                         if (cell.bl) font.bold = true;
-                         if (cell.it) font.italic = true;
-                         if (cell.ff) font.name = cell.ff;
-                         if (cell.fs) font.size = Number(cell.fs);
-                         cellRef.font = font;
-                     }
+    // Refresh from DB
+    $('#btnRefreshNotes').click(function () {
+        if (confirm('Discard unsaved changes and reload from the database?')) {
+            loadNotesFromDB();
+        }
+    });
 
-                     // ----- Fill (Background)
-                     if (cell.bg) {
-                         cellRef.fill = {
-                             type: 'pattern',
-                             pattern: 'solid',
-                             fgColor: { argb: hexToARGB(cell.bg) }
-                         };
-                     }
+    // Auto cache updates
+    $('#txtNotes').on('summernote.change', function () {
+        localNotesCache = $('#txtNotes').summernote('code');
+        if (localNotesOldCache != localNotesCache) {
+            scheduleAutoSave();
+            localNotesOldCache = localNotesCache;
+        }
+    });
 
-                     // ----- Alignment
-                     if (cell.ht || cell.vt || cell.wrap) {
-                         const alignment = {};
-                         if (cell.ht) {
-                             const h = String(cell.ht).toLowerCase();
-                             alignment.horizontal = (h === 'centre') ? 'center' : h;
-                         }
-                         if (cell.vt) {
-                             const v = String(cell.vt).toLowerCase();
-                             alignment.vertical = (v === 'center') ? 'middle' : v;
-                         }
-                         if (cell.wrap === 1 || cell.wrap === true) alignment.wrapText = true;
-                         cellRef.alignment = alignment;
-                     }
+    function scheduleAutoSave() {
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+            $('#btnSaveNotes').click();
+        }, autoSaveDelay);
+    }
 
-                     // ----- Borders
-                     if (cell.border) {
-                         const borderLine = {
-                             style: 'thin',
-                             color: { argb: 'FF000000' }
-                         };
-                         cellRef.border = {
-                             top: borderLine,
-                             left: borderLine,
-                             bottom: borderLine,
-                             right: borderLine
-                         };
-                     }
-                 }
-             }
+    // Load notes helper
+    function loadNotesFromDB() {
+        $.ajax({
+            url: '/ResourcePlanner/GetUserNotes',
+            type: 'GET',
+            data: { rpPlanId: $('#planId').val() },
+            success: function (data) {
+                const html = data?.notesText || '';
+                localNotesCache = html;
+                localNotesOldCache = localNotesCache;
+                $('#txtNotes').summernote('code', html);
+            
 
-             // ---- Merge cells (Fixed logic)
-             if (sheet.config?.merge) {
-                 Object.values(sheet.config.merge).forEach(m => {
-                     if (m && m.rowspan && m.colspan) {
-                         try {
-                             const startRow = m.r + 1;
-                             const startCol = m.c + 1;
-                             const endRow = startRow + m.rowspan - 1;
-                             const endCol = startCol + m.colspan - 1;
-                             ws.mergeCells(startRow, startCol, endRow, endCol);
-                         } catch (err) {
-                             console.warn("Merge failed for:", m, err);
-                         }
-                     }
-                 });
-             }
+            },
+            error: function () {
+                localNotesCache = '';
+                localNotesOldCache = '';
+                $('#txtNotes').summernote('code', '');
+                console.error('Failed to load notes.');
+            }
+        });
+    }
 
-             // ---- Row heights
-             if (sheet.config?.rowlen) {
-                 Object.entries(sheet.config.rowlen).forEach(([k, px]) => {
-                     ws.getRow(Number(k) + 1).height = Math.round(px / 1.3333);
-                 });
-             }
-         }
-
-         // ---- Save as Excel
-         const buf = await workbook.xlsx.writeBuffer();
-         const fileName = (luckysheet.getluckysheetfile?.().title || 'Luckysheet_Export') + '.xlsx';
-         saveAs(new Blob([buf], { type: "application/octet-stream" }), fileName);
-
-     } catch (err) {
-         console.error("❌ Export failed:", err);
-         alert("Export failed. Check console for details.");
-     }
- }),
+    // Optional: simple toast popup for feedback
+    function showToast(message) {
+        const toast = $('<div>')
+            .addClass('toast-msg')
+            .text(message)
+            .css({
+                position: 'fixed',
+                bottom: '90px',
+                right: '30px',
+                background: '#333',
+                color: '#fff',
+                padding: '10px 20px',
+                borderRadius: '6px',
+                zIndex: 1060,
+                opacity: 0,
+                transition: 'opacity 0.3s'
+            });
+        $('body').append(toast);
+        setTimeout(() => toast.css('opacity', 1), 50);
+        setTimeout(() => toast.fadeOut(400, () => toast.remove()), 2500);
+    }
+});
