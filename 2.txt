@@ -1,126 +1,16 @@
-https://cdn.tiny.cloud/1/qagffr3pkuv17a8on1afax661irst1hbr4e6tbv888sz91jc/tinymce/4/tinymce.min.js
-
-<script>
-$(document).ready(function () {
-  let localNotesCache = null;
-  let localNotesOldCache = null;
-  let autoSaveTimer = null;
-  const autoSaveDelay = 10000; // 10s
-
-  // Initialize TinyMCE only when needed
-  function initEditor(callback) {
-    if (tinymce.get('txtNotes')) {
-      callback();
-      return;
-    }
-
-    tinymce.init({
-      selector: '#txtNotes',
-      height: 420,
-      menubar: false,
-      branding: false,
-      statusbar: false,
-      plugins: 'lists advlist autolink link code',
-      toolbar:
-        'undo redo | bold italic underline forecolor backcolor | ' +
-        'bullist numlist | alignleft aligncenter alignright alignjustify | removeformat | code',
-      setup: function (editor) {
-        editor.on('Change KeyUp Undo Redo', function () {
-          localNotesCache = editor.getContent();
-          if (localNotesOldCache != localNotesCache) {
-            scheduleAutoSave();
-            localNotesOldCache = localNotesCache;
-          }
-        });
-        editor.on('init', function () {
-          if (callback) callback();
-        });
-      }
-    });
-  }
-
-  // Floating toggle
-  $('#notesToggleButton').click(function () {
-    $('#notesPanel').toggleClass('active');
-    if ($('#notesPanel').hasClass('active')) {
-      initEditor(() => {
-        if (localNotesCache !== null) {
-          tinymce.get('txtNotes').setContent(localNotesCache);
-        } else {
-          loadNotesFromDB();
-        }
-      });
-    }
-  });
-
-  // Close
-  $('#btnCloseNotes').click(function () {
-    $('#notesPanel').removeClass('active');
-  });
-
-  // Save
-  $('#btnSaveNotes').click(function () {
-    const notesHtml = tinymce.get('txtNotes').getContent();
-    localNotesCache = notesHtml;
-
-    $.ajax({
-      url: '/ResourcePlanner/SaveUserNotes',
-      type: 'POST',
-      contentType: 'application/json',
-      data: JSON.stringify({
-        notesText: notesHtml,
-        rpPlanId: $('#planId').val()
-      }),
-      success: function () {
-        showToast('✅ Notes saved successfully!');
-      },
-      error: function () {
-        showToast('❌ Failed to save notes.');
-      }
-    });
-  });
-
-  // Refresh
-  $('#btnRefreshNotes').click(function () {
-    if (confirm('Discard unsaved changes and reload from the database?')) {
-      loadNotesFromDB();
-    }
-  });
-
-  // Auto-save
-  function scheduleAutoSave() {
-    if (autoSaveTimer) clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(() => $('#btnSaveNotes').click(), autoSaveDelay);
-  }
-
-  // Load notes
-  function loadNotesFromDB() {
-    $.ajax({
-      url: '/ResourcePlanner/GetUserNotes',
-      type: 'GET',
-      data: { rpPlanId: $('#planId').val() },
-      success: function (data) {
-        const html = data?.notesText || '';
-        localNotesCache = html;
-        localNotesOldCache = html;
-        if (tinymce.get('txtNotes')) tinymce.get('txtNotes').setContent(html);
-      },
-      error: function () {
-        localNotesCache = '';
-        localNotesOldCache = '';
-        if (tinymce.get('txtNotes')) tinymce.get('txtNotes').setContent('');
-        console.error('Failed to load notes.');
-      }
-    });
-  }
-
-  // Toast
-  function showToast(message) {
-    const toast = $('<div>').addClass('toast-msg').text(message);
-    $('body').append(toast);
-    setTimeout(() => toast.css('opacity', 1), 50);
-    setTimeout(() => toast.fadeOut(400, () => toast.remove()), 2500);
-  }
-});
-</script>
-
+tinymce.init({
+  selector: 'textarea',
+  height: 500,
+  theme: 'modern',
+  plugins: 'print preview fullpage powerpaste searchreplace autolink directionality advcode visualblocks visualchars fullscreen image link media template codesample table charmap hr pagebreak nonbreaking anchor toc insertdatetime advlist lists textcolor wordcount tinymcespellchecker a11ychecker imagetools mediaembed  linkchecker contextmenu colorpicker textpattern help',
+  toolbar1: 'formatselect | bold italic strikethrough forecolor backcolor | link | alignleft aligncenter alignright alignjustify  | numlist bullist outdent indent  | removeformat',
+  image_advtab: true,
+  templates: [
+    { title: 'Test template 1', content: 'Test 1' },
+    { title: 'Test template 2', content: 'Test 2' }
+  ],
+  content_css: [
+    '//fonts.googleapis.com/css?family=Lato:300,300i,400,400i',
+    '//www.tinymce.com/css/codepen.min.css'
+  ]
+ });
