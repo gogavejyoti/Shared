@@ -1,123 +1,126 @@
-<script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js"></script>
+https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js
 
 
+<script>
 $(document).ready(function () {
-    let editor;
-    let localNotesOldCache = null;
-    let localNotesCache = null;
-    let autoSaveTimer = null;
-    const autoSaveDelay = 10000; // 10 seconds
+  let localNotesCache = null;
+  let localNotesOldCache = null;
+  let autoSaveTimer = null;
+  const autoSaveDelay = 10000; // 10s
 
-    // Initialize CKEditor when panel opens
-    function initEditor() {
-        if (!editor) {
-            editor = CKEDITOR.replace('txtNotes', {
-                height: 400,
-                removePlugins: 'elementspath',
-                resize_enabled: false,
-                toolbar: [
-                    { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', '-', 'RemoveFormat'] },
-                    { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent'] },
-                    { name: 'styles', items: ['Format', 'FontSize'] },
-                    { name: 'colors', items: ['TextColor', 'BGColor'] },
-                    { name: 'tools', items: ['Maximize'] }
-                ]
-            });
-
-            // Detect changes
-            editor.on('change', function () {
-                localNotesCache = editor.getData();
-                if (localNotesOldCache != localNotesCache) {
-                    scheduleAutoSave();
-                    localNotesOldCache = localNotesCache;
-                }
-            });
-        }
+  // Initialize TinyMCE only when needed
+  function initEditor(callback) {
+    if (tinymce.get('txtNotes')) {
+      callback();
+      return;
     }
 
-    // Toggle button
-    $('#notesToggleButton').click(function () {
-        $('#notesPanel').toggleClass('active');
-        if ($('#notesPanel').hasClass('active')) {
-            initEditor();
-            if (localNotesCache !== null) {
-                editor.setData(localNotesCache);
-            } else {
-                loadNotesFromDB();
-            }
-        }
-    });
-
-    // Close
-    $('#btnCloseNotes').click(function () {
-        $('#notesPanel').removeClass('active');
-    });
-
-    // Save
-    $('#btnSaveNotes').click(function () {
-        const notesHtml = editor.getData();
-        localNotesCache = notesHtml;
-
-        $.ajax({
-            url: '/ResourcePlanner/SaveUserNotes',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                notesText: notesHtml,
-                rpPlanId: $('#planId').val()
-            }),
-            success: function () {
-                showToast('✅ Notes saved successfully!');
-            },
-            error: function () {
-                showToast('❌ Failed to save notes.');
-            }
+    tinymce.init({
+      selector: '#txtNotes',
+      height: 420,
+      menubar: false,
+      branding: false,
+      statusbar: false,
+      plugins: 'lists advlist autolink link code',
+      toolbar:
+        'undo redo | bold italic underline forecolor backcolor | ' +
+        'bullist numlist | alignleft aligncenter alignright alignjustify | removeformat | code',
+      setup: function (editor) {
+        editor.on('Change KeyUp Undo Redo', function () {
+          localNotesCache = editor.getContent();
+          if (localNotesOldCache != localNotesCache) {
+            scheduleAutoSave();
+            localNotesOldCache = localNotesCache;
+          }
         });
-    });
-
-    // Refresh
-    $('#btnRefreshNotes').click(function () {
-        if (confirm('Discard unsaved changes and reload from the database?')) {
-            loadNotesFromDB();
-        }
-    });
-
-    // Auto-save
-    function scheduleAutoSave() {
-        if (autoSaveTimer) clearTimeout(autoSaveTimer);
-        autoSaveTimer = setTimeout(() => {
-            $('#btnSaveNotes').click();
-        }, autoSaveDelay);
-    }
-
-    // Load from DB
-    function loadNotesFromDB() {
-        $.ajax({
-            url: '/ResourcePlanner/GetUserNotes',
-            type: 'GET',
-            data: { rpPlanId: $('#planId').val() },
-            success: function (data) {
-                const html = data?.notesText || '';
-                localNotesCache = html;
-                localNotesOldCache = html;
-                if (editor) editor.setData(html);
-            },
-            error: function () {
-                localNotesCache = '';
-                localNotesOldCache = '';
-                if (editor) editor.setData('');
-                console.error('Failed to load notes.');
-            }
+        editor.on('init', function () {
+          if (callback) callback();
         });
-    }
+      }
+    });
+  }
 
-    // Toast
-    function showToast(message) {
-        const toast = $('<div>')
-            .addClass('toast-msg')
-            .text(message);
-        $('body').append(toast);
-        setTimeout(() => toast.css('opacity', 1), 50);
-        setTimeout(() => toast.fadeOut(400, () => toast.remove()), 2500);
+  // Floating toggle
+  $('#notesToggleButton').click(function () {
+    $('#notesPanel').toggleClass('active');
+    if ($('#notesPanel').hasClass('active')) {
+      initEditor(() => {
+        if (localNotesCache !== null) {
+          tinymce.get('txtNotes').setContent(localNotesCache);
+        } else {
+          loadNotesFromDB();
+        }
+      });
     }
+  });
+
+  // Close
+  $('#btnCloseNotes').click(function () {
+    $('#notesPanel').removeClass('active');
+  });
+
+  // Save
+  $('#btnSaveNotes').click(function () {
+    const notesHtml = tinymce.get('txtNotes').getContent();
+    localNotesCache = notesHtml;
+
+    $.ajax({
+      url: '/ResourcePlanner/SaveUserNotes',
+      type: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        notesText: notesHtml,
+        rpPlanId: $('#planId').val()
+      }),
+      success: function () {
+        showToast('✅ Notes saved successfully!');
+      },
+      error: function () {
+        showToast('❌ Failed to save notes.');
+      }
+    });
+  });
+
+  // Refresh
+  $('#btnRefreshNotes').click(function () {
+    if (confirm('Discard unsaved changes and reload from the database?')) {
+      loadNotesFromDB();
+    }
+  });
+
+  // Auto-save
+  function scheduleAutoSave() {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => $('#btnSaveNotes').click(), autoSaveDelay);
+  }
+
+  // Load notes
+  function loadNotesFromDB() {
+    $.ajax({
+      url: '/ResourcePlanner/GetUserNotes',
+      type: 'GET',
+      data: { rpPlanId: $('#planId').val() },
+      success: function (data) {
+        const html = data?.notesText || '';
+        localNotesCache = html;
+        localNotesOldCache = html;
+        if (tinymce.get('txtNotes')) tinymce.get('txtNotes').setContent(html);
+      },
+      error: function () {
+        localNotesCache = '';
+        localNotesOldCache = '';
+        if (tinymce.get('txtNotes')) tinymce.get('txtNotes').setContent('');
+        console.error('Failed to load notes.');
+      }
+    });
+  }
+
+  // Toast
+  function showToast(message) {
+    const toast = $('<div>').addClass('toast-msg').text(message);
+    $('body').append(toast);
+    setTimeout(() => toast.css('opacity', 1), 50);
+    setTimeout(() => toast.fadeOut(400, () => toast.remove()), 2500);
+  }
 });
+</script>
