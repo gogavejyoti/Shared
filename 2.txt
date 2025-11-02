@@ -1,2 +1,78 @@
-    private static readonly ConcurrentDictionary<string, (string UserId, DateTime LockTime)> _locks
-        = new ConcurrentDictionary<string, (string, DateTime)>();
+CREATE PROCEDURE dbo.GetLockedDocuments
+    @Locks AS dbo.LockList READONLY -- Table type
+AS
+BEGIN
+    SELECT 
+        d.DocumentId,
+        d.DocumentName,
+        u.UserId,
+        u.UserName,
+        l.LockTime
+    FROM @Locks l
+    JOIN Documents d ON d.DocumentId = l.DocumentId
+    JOIN Users u ON u.UserId = l.UserId
+END
+GO
+
+
+CREATE TYPE dbo.LockList AS TABLE
+(
+    DocumentId NVARCHAR(100),
+    UserId NVARCHAR(100),
+    LockTime DATETIME
+)
+GO
+
+
+[HttpGet("api/locked-documents")]
+public async Task<IActionResult> GetLockedDocuments()
+{
+    var locks = _locks.Select(l => new
+    {
+        DocumentId = l.Key,
+        UserId = l.Value.UserId,
+        LockTime = l.Value.LockTime
+    }).ToList();
+
+    if (!locks.Any())
+        return Ok(new List<object>());
+
+    using (var connection = new SqlConnection(_connectionString))
+    {
+        var dt = new DataTable();
+        dt.Columns.Add("DocumentId", typeof(string));
+        dt.Columns.Add("UserId", typeof(string));
+        dt.Columns.Add("LockTime", typeof(DateTime));
+
+        foreach (var l in locks)
+            dt.Rows.Add(l.DocumentId, l.UserId, l.LockTime);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("@Locks", dt.AsTableValuedParameter("dbo.LockList"));
+
+        var result = await connection.QueryAsync(new CommandDefinition(
+            "dbo.GetLockedDocuments", 
+            parameters, 
+            commandType: CommandType.StoredProcedure
+        ));
+
+        return Ok(result);
+    }
+}
+
+
+<button id="btnLoadLocks" class="btn btn-primary">🔄 Load Locks</button>
+
+<table id="tblLocks" class="table table-bordered table-striped mt-3">
+    <thead>
+        <tr>
+            <th>Document ID</th>
+            <th>Document Name</th>
+            <th>User ID</th>
+            <th>User Name</th>
+            <th>Lock Time</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
