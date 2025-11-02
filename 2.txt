@@ -1,78 +1,44 @@
-CREATE PROCEDURE dbo.GetLockedDocuments
-    @Locks AS dbo.LockList READONLY -- Table type
-AS
-BEGIN
-    SELECT 
-        d.DocumentId,
-        d.DocumentName,
-        u.UserId,
-        u.UserName,
-        l.LockTime
-    FROM @Locks l
-    JOIN Documents d ON d.DocumentId = l.DocumentId
-    JOIN Users u ON u.UserId = l.UserId
-END
-GO
+$(document).ready(function () {
 
+    // When modal is opened, fetch data dynamically
+    $('#lockedDocsModal').on('show.bs.modal', function () {
+        loadLockedDocuments();
+    });
 
-CREATE TYPE dbo.LockList AS TABLE
-(
-    DocumentId NVARCHAR(100),
-    UserId NVARCHAR(100),
-    LockTime DATETIME
-)
-GO
+    function loadLockedDocuments() {
+        const $tbody = $("#tblLocks tbody");
+        $tbody.html('<tr><td colspan="5" class="text-center text-muted">Fetching locks...</td></tr>');
 
-
-[HttpGet("api/locked-documents")]
-public async Task<IActionResult> GetLockedDocuments()
-{
-    var locks = _locks.Select(l => new
-    {
-        DocumentId = l.Key,
-        UserId = l.Value.UserId,
-        LockTime = l.Value.LockTime
-    }).ToList();
-
-    if (!locks.Any())
-        return Ok(new List<object>());
-
-    using (var connection = new SqlConnection(_connectionString))
-    {
-        var dt = new DataTable();
-        dt.Columns.Add("DocumentId", typeof(string));
-        dt.Columns.Add("UserId", typeof(string));
-        dt.Columns.Add("LockTime", typeof(DateTime));
-
-        foreach (var l in locks)
-            dt.Rows.Add(l.DocumentId, l.UserId, l.LockTime);
-
-        var parameters = new DynamicParameters();
-        parameters.Add("@Locks", dt.AsTableValuedParameter("dbo.LockList"));
-
-        var result = await connection.QueryAsync(new CommandDefinition(
-            "dbo.GetLockedDocuments", 
-            parameters, 
-            commandType: CommandType.StoredProcedure
-        ));
-
-        return Ok(result);
+        $.ajax({
+            url: '/api/locked-documents',
+            type: 'GET',
+            success: function (data) {
+                let rows = "";
+                if (data && data.length > 0) {
+                    data.forEach(function (item) {
+                        rows += `<tr>
+                            <td>${item.DocumentId}</td>
+                            <td>${item.DocumentName || '-'}</td>
+                            <td>${item.UserId}</td>
+                            <td>${item.UserName || '-'}</td>
+                            <td>${formatDate(item.LockTime)}</td>
+                        </tr>`;
+                    });
+                } else {
+                    rows = `<tr><td colspan="5" class="text-center text-muted">No active locks</td></tr>`;
+                }
+                $tbody.html(rows);
+            },
+            error: function (xhr) {
+                console.error(xhr.responseText);
+                $tbody.html(`<tr><td colspan="5" class="text-danger text-center">Error loading locks</td></tr>`);
+            }
+        });
     }
-}
 
-
-<button id="btnLoadLocks" class="btn btn-primary">🔄 Load Locks</button>
-
-<table id="tblLocks" class="table table-bordered table-striped mt-3">
-    <thead>
-        <tr>
-            <th>Document ID</th>
-            <th>Document Name</th>
-            <th>User ID</th>
-            <th>User Name</th>
-            <th>Lock Time</th>
-        </tr>
-    </thead>
-    <tbody></tbody>
-</table>
-
+    function formatDate(dateStr) {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+        return date.toLocaleString();
+    }
+});
