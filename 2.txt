@@ -1,9 +1,5 @@
 $("#luckysheet-icon-excel").click(async function () {
     try {
-        // toggle: export dates as text exactly as shown (true) or convert to Excel dates (false)
-        const exportDatesAsText = true;
-
-        // --- Helpers ---
         function hexToARGB(hex) {
             if (!hex) return undefined;
             hex = hex.replace('#', '');
@@ -27,19 +23,10 @@ $("#luckysheet-icon-excel").click(async function () {
             return formula;
         }
 
-        // optional: createLocalDate if you later want to convert to real Date (not used when exportDatesAsText=true)
-        function createLocalDate(y, m, d) {
-            const dt = new Date();
-            dt.setFullYear(y, m, d);
-            dt.setHours(0, 0, 0, 0);
-            return dt;
-        }
-
         const sheets = luckysheet.getAllSheets();
         const workbook = new ExcelJS.Workbook();
         workbook.creator = "LuckySheet";
         workbook.created = new Date();
-
         const sheetNames = sheets.map(s => s.name || 'Sheet');
 
         for (let si = 0; si < sheets.length; si++) {
@@ -47,7 +34,7 @@ $("#luckysheet-icon-excel").click(async function () {
             const ws = workbook.addWorksheet(sheet.name || `Sheet${si + 1}`);
             const data = sheet.data || [];
 
-            // Column widths
+            // --- Column widths ---
             if (sheet.config?.columnlen) {
                 const colLens = sheet.config.columnlen;
                 ws.columns = Object.keys(colLens).map(k => ({
@@ -55,7 +42,6 @@ $("#luckysheet-icon-excel").click(async function () {
                 }));
             }
 
-            // Fill cells
             for (let r = 0; r < data.length; r++) {
                 const row = data[r] || [];
                 for (let c = 0; c < row.length; c++) {
@@ -63,120 +49,46 @@ $("#luckysheet-icon-excel").click(async function () {
                     if (!cell) continue;
                     const cellRef = ws.getCell(r + 1, c + 1);
 
-                    // use both raw value and formatted/display value (m)
+                    const displayVal = cell.m ?? cell.v;
                     const rawVal = cell.v;
-                    const displayVal = (cell.m !== undefined && cell.m !== null) ? cell.m : cell.v;
-                    const strDisplay = String(displayVal ?? "").trim();
 
-                    // --- Formulas ---
+                    // --- Formula ---
                     if (cell.f) {
                         const f = normalizeFormula(cell.f, sheetNames);
-                        // keep formula result as rawVal if available, else displayVal
-                        const resultForFormula = (rawVal !== undefined && rawVal !== null) ? rawVal : displayVal ?? null;
-                        cellRef.value = { formula: f, result: resultForFormula };
+                        cellRef.value = { formula: f, result: rawVal ?? null };
                     } else {
-                        // Priority 1: If cell.ct.fa explicitly indicates percentage, honor it
-                        const explicitFmt = cell.ct && cell.ct.fa ? String(cell.ct.fa) : null;
-                        let handled = false;
+                        const text = String(displayVal ?? "").trim();
 
-                        if (explicitFmt && explicitFmt.includes('%')) {
-                            // Prefer raw numeric if available, otherwise try parsing display
-                            let num = (typeof rawVal === 'number') ? rawVal : null;
-                            if (num === null && typeof displayVal === 'string') {
-                                // remove commas, percent sign
-                                const tmp = String(displayVal).replace(/,/g, '').replace('%', '').trim();
-                                const parsed = parseFloat(tmp);
-                                if (!isNaN(parsed)) num = parsed / 100;
-                            } else if (typeof rawVal === 'string' && rawVal.trim().endsWith('%')) {
-                                const parsed = parseFloat(rawVal.replace('%', '').replace(/,/g, '').trim());
-                                if (!isNaN(parsed)) num = parsed / 100;
-                            }
-
-                            if (num !== null && !isNaN(num)) {
-                                cellRef.value = num;
-                                cellRef.numFmt = explicitFmt || "0.00%";
-                                handled = true;
-                            } else {
-                                // fallback: export displayed text as-is (keeps the %)
-                                cellRef.value = String(displayVal ?? "");
-                                handled = true;
-                            }
-                        }
-
-                        // Priority 2: If display looks like percent (e.g., "12%"), handle it
-                        if (!handled && /^-?\d+(\.\d+)?%$/.test(strDisplay)) {
-                            const parsed = parseFloat(strDisplay.replace('%', '').replace(/,/g, '').trim());
+                        // ✅ Percentages
+                        if (text.endsWith("%")) {
+                            const parsed = parseFloat(text.replace("%", "").replace(/,/g, ""));
                             if (!isNaN(parsed)) {
                                 cellRef.value = parsed / 100;
-                                cellRef.numFmt = explicitFmt || "0.00%";
-                                handled = true;
+                                cellRef.numFmt = cell.ct?.fa || "0.00%";
                             } else {
-                                cellRef.value = strDisplay;
-                                handled = true;
+                                cellRef.value = text;
                             }
                         }
 
-                        // Priority 3: Dates — if exportDatesAsText -> export displayed value exactly as text
-                        if (!handled && (
-                            /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strDisplay) ||        // 2025-08-20
-                            /^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{2,4}$/.test(strDisplay)  // 02-Mar-2025
-                        )) {
-                            if (exportDatesAsText) {
-                                cellRef.value = strDisplay; // exact text shown
-                                handled = true;
-                            } else {
-                                // attempt converting to Date (local) — keep previous createLocalDate logic
-                                let dateVal = null;
-                                if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strDisplay)) {
-                                    const parts = strDisplay.split(/[-/]/);
-                                    const year = parseInt(parts[0], 10);
-                                    const month = parseInt(parts[1], 10) - 1;
-                                    const day = parseInt(parts[2], 10);
-                                    dateVal = createLocalDate(year, month, day);
-                                } else {
-                                    const [d, monStr, yStr] = strDisplay.split("-");
-                                    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                                    const month = months.findIndex(m => m.toLowerCase() === monStr.toLowerCase());
-                                    const year = parseInt(yStr.length === 2 ? "20" + yStr : yStr, 10);
-                                    const day = parseInt(d, 10);
-                                    dateVal = createLocalDate(year, month, day);
-                                }
-                                if (dateVal && !isNaN(dateVal.getTime())) {
-                                    cellRef.value = dateVal;
-                                    // set numFmt if provided
-                                    if (explicitFmt) cellRef.numFmt = explicitFmt;
-                                    else cellRef.numFmt = "dd-mmm-yyyy";
-                                    handled = true;
-                                } else {
-                                    cellRef.value = strDisplay;
-                                    handled = true;
-                                }
+                        // ✅ Dates — keep “as-is” (text), no timezone shift
+                        else if (
+                            /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(text) ||           // 2025-08-20
+                            /^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{2,4}$/.test(text)     // 02-Mar-2025
+                        ) {
+                            cellRef.value = text; // keep as plain text
+                        }
+
+                        // ✅ Numeric values (not percentage/date)
+                        else if (!isNaN(text) && text !== "") {
+                            cellRef.value = parseFloat(text);
+                            if (cell.ct?.fa && !cell.ct.fa.includes('%')) {
+                                cellRef.numFmt = cell.ct.fa;
                             }
                         }
 
-                        // Priority 4: If rawVal is numeric, use it (and apply explicit fmt if present)
-                        if (!handled && typeof rawVal === 'number' && !isNaN(rawVal)) {
-                            cellRef.value = rawVal;
-                            if (explicitFmt && !explicitFmt.includes('%')) cellRef.numFmt = explicitFmt;
-                            handled = true;
-                        }
-
-                        // Priority 5: If display is numeric-like, convert to number
-                        if (!handled && /^-?\d+(\.\d+)?$/.test(strDisplay)) {
-                            const parsed = parseFloat(strDisplay.replace(/,/g, ''));
-                            if (!isNaN(parsed)) {
-                                cellRef.value = parsed;
-                                if (explicitFmt && !explicitFmt.includes('%')) cellRef.numFmt = explicitFmt;
-                                handled = true;
-                            } else {
-                                cellRef.value = strDisplay || null;
-                                handled = true;
-                            }
-                        }
-
-                        // Final fallback: write display as text (or null)
-                        if (!handled) {
-                            cellRef.value = (displayVal !== undefined && displayVal !== null) ? String(displayVal) : null;
+                        // ✅ Everything else
+                        else {
+                            cellRef.value = text || null;
                         }
                     }
 
@@ -220,15 +132,10 @@ $("#luckysheet-icon-excel").click(async function () {
                         }
                         cellRef.border = border;
                     }
-
-                    // If there's an explicit cell.ct.fa for non-% numeric formats and the cellRef.value is a number, ensure numFmt is applied
-                    if (cell.ct?.fa && typeof cellRef.value === 'number' && !(cell.ct.fa.includes('%'))) {
-                        cellRef.numFmt = cell.ct.fa;
-                    }
                 }
             }
 
-            // Merged cells
+            // --- Merged cells ---
             if (sheet.config?.merge) {
                 Object.values(sheet.config.merge).forEach(m => {
                     if (m) {
@@ -246,7 +153,7 @@ $("#luckysheet-icon-excel").click(async function () {
                 });
             }
 
-            // Row heights
+            // --- Row heights ---
             if (sheet.config?.rowlen) {
                 Object.entries(sheet.config.rowlen).forEach(([k, px]) => {
                     ws.getRow(Number(k) + 1).height = Math.round(px / 1.3333);
@@ -254,7 +161,6 @@ $("#luckysheet-icon-excel").click(async function () {
             }
         }
 
-        // Save as Excel
         const buf = await workbook.xlsx.writeBuffer();
         const fileName = (luckysheet.getluckysheetfile?.().title || 'Luckysheet_Export') + '.xlsx';
         saveAs(new Blob([buf], { type: "application/octet-stream" }), fileName);
