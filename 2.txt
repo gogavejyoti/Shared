@@ -1,197 +1,210 @@
-    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+$("#luckysheet-icon-excel").click(async function () {
+    try {
+        // --- Helpers ---
+        function hexToARGB(hex) {
+            if (!hex) return undefined;
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(h => h + h).join('');
+            return 'FF' + hex.toUpperCase();
+        }
 
+        function pxToExcelWidth(px) {
+            if (!px) return 10;
+            return Math.max(3, Math.round(px / 7));
+        }
 
-               $("#luckysheet-icon-excel").click(async function () {
-                   try {
-                       function hexToARGB(hex) {
-                           if (!hex) return undefined;
-                           hex = hex.replace('#', '');
-                           if (hex.length === 3) hex = hex.split('').map(h => h + h).join('');
-                           return 'FF' + hex.toUpperCase();
-                       }
+        function normalizeFormula(formula, sheetNames) {
+            if (!formula) return formula;
+            sheetNames.forEach(name => {
+                if (/\s/.test(name) && formula.includes(name + "!")) {
+                    const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, '\\$&') + '!', 'g');
+                    formula = formula.replace(re, `'${name}'!`);
+                }
+            });
+            return formula;
+        }
 
-                       function pxToExcelWidth(px) {
-                           if (!px) return 10;
-                           return Math.max(3, Math.round(px / 7));
-                       }
+        // ✅ Prevent timezone shift (local date creation)
+        function createLocalDate(y, m, d) {
+            const dt = new Date();
+            dt.setFullYear(y, m, d);
+            dt.setHours(0, 0, 0, 0);
+            return dt;
+        }
 
-                       function normalizeFormula(formula, sheetNames) {
-                           if (!formula) return formula;
-                           sheetNames.forEach(name => {
-                               if (/\s/.test(name) && formula.includes(name + "!")) {
-                                   const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, '\\$&') + '!', 'g');
-                                   formula = formula.replace(re, `'${name}'!`);
-                               }
-                           });
-                           return formula;
-                       }
+        const sheets = luckysheet.getAllSheets();
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "LuckySheet";
+        workbook.created = new Date();
 
-                       const sheets = luckysheet.getAllSheets();
-                       const workbook = new ExcelJS.Workbook();
-                       workbook.creator = "LuckySheet";
-                       workbook.created = new Date();
+        const sheetNames = sheets.map(s => s.name || 'Sheet');
 
-                       const sheetNames = sheets.map(s => s.name || 'Sheet');
+        for (let si = 0; si < sheets.length; si++) {
+            const sheet = sheets[si];
+            const ws = workbook.addWorksheet(sheet.name || `Sheet${si + 1}`);
+            const data = sheet.data || [];
 
-                       for (let si = 0; si < sheets.length; si++) {
-                           const sheet = sheets[si];
-                           const ws = workbook.addWorksheet(sheet.name || `Sheet${si + 1}`);
-                           const data = sheet.data || [];
+            // 🔹 Column widths
+            if (sheet.config?.columnlen) {
+                const colLens = sheet.config.columnlen;
+                ws.columns = Object.keys(colLens).map(k => ({
+                    width: pxToExcelWidth(colLens[k])
+                }));
+            }
 
-                           // 🔹 Column widths
-                           if (sheet.config?.columnlen) {
-                               const colLens = sheet.config.columnlen;
-                               ws.columns = Object.keys(colLens).map(k => ({
-                                   width: pxToExcelWidth(colLens[k])
-                               }));
-                           }
+            // 🔹 Fill cell data
+            for (let r = 0; r < data.length; r++) {
+                const row = data[r] || [];
+                for (let c = 0; c < row.length; c++) {
+                    const cell = row[c];
+                    if (!cell) continue;
+                    const cellRef = ws.getCell(r + 1, c + 1);
 
-                           // 🔹 Fill cell data
-                           for (let r = 0; r < data.length; r++) {
-                               const row = data[r] || [];
-                               for (let c = 0; c < row.length; c++) {
-                                   const cell = row[c];
-                                   if (!cell) continue;
-                                   const cellRef = ws.getCell(r + 1, c + 1);
+                    // --- Normalize numeric, percentage, and date-like values ---
+                    if (!cell.f && cell.v !== null && cell.v !== undefined) {
+                        let val = cell.v;
+                        const strVal = String(val).trim();
 
-                                   // --- Normalize numeric, percentage, and date-like values ---
-                                   if (!cell.f && cell.v !== null && cell.v !== undefined) {
-                                       let val = cell.v;
-                                       const strVal = String(val).trim();
+                        // Detect % values like "12%" → 0.12
+                        if (/^-?\d+(\.\d+)?%$/.test(strVal)) {
+                            const num = parseFloat(strVal.replace('%', ''));
+                            cell.v = num / 100;
+                            cell.ct = cell.ct || {};
+                            cell.ct.fa = "0.00%";
+                        }
+                        // Detect numeric strings → number
+                        else if (/^-?\d+(\.\d+)?$/.test(strVal)) {
+                            cell.v = parseFloat(strVal);
+                        }
+                        // Detect date-like strings
+                        else if (
+                            /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strVal) || // 2025-08-20 or 2025/08/20
+                            /^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{2,4}$/.test(strVal) // 02-Mar-25
+                        ) {
+                            let dateVal = null;
 
-                                       // Detect % values like "12%" → 0.12
-                                       if (/^-?\d+(\.\d+)?%$/.test(strVal)) {
-                                           const num = parseFloat(strVal.replace('%', ''));
-                                           cell.v = num / 100;
-                                           cell.ct = cell.ct || {};
-                                           cell.ct.fa = "0.00%";
-                                       }
-                                       // Detect numeric strings → number
-                                       else if (/^-?\d+(\.\d+)?$/.test(strVal)) {
-                                           cell.v = parseFloat(strVal);
-                                       }
-                                       // Detect date-like strings
-                                       else if (
-                                           /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strVal) || // 2025-08-20 or 2025/08/20
-                                           /^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{2,4}$/.test(strVal) // 20-Aug-25
-                                       ) {
-                                           let dateVal = null;
+                            // Case: 2025-08-20 or 2025/08/20
+                            if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strVal)) {
+                                const parts = strVal.split(/[-/]/);
+                                const year = parseInt(parts[0], 10);
+                                const month = parseInt(parts[1], 10) - 1;
+                                const day = parseInt(parts[2], 10);
+                                dateVal = createLocalDate(year, month, day);
+                            }
+                            // Case: 02-Mar-25 or 02-Mar-2025
+                            else {
+                                const [d, monStr, yStr] = strVal.split("-");
+                                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                                const month = months.findIndex(m => m.toLowerCase() === monStr.toLowerCase());
+                                const year = parseInt(yStr.length === 2 ? "20" + yStr : yStr, 10);
+                                const day = parseInt(d, 10);
+                                dateVal = createLocalDate(year, month, day);
+                            }
 
-                                           if (/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strVal)) {
-                                               const parts = strVal.split(/[-/]/);
-                                               const year = parseInt(parts[0], 10);
-                                               const month = parseInt(parts[1], 10) - 1;
-                                               const day = parseInt(parts[2], 10);
-                                               dateVal = new Date(year, month, day);
-                                           } else {
-                                               dateVal = new Date(strVal);
-                                           }
+                            if (dateVal && !isNaN(dateVal.getTime())) {
+                                cell.v = dateVal;
+                                cell.ct = cell.ct || {};
+                                cell.ct.fa = "dd-mmm-yyyy";
+                            }
+                        }
+                    }
 
-                                           if (dateVal && !isNaN(dateVal.getTime())) {
-                                               cell.v = dateVal;
-                                               cell.ct = cell.ct || {};
-                                               cell.ct.fa = "dd-mmm-yyyy";
-                                           }
-                                       }
-                                   }
+                    // --- Value / Formula
+                    if (cell.f) {
+                        const f = normalizeFormula(cell.f, sheetNames);
+                        cellRef.value = { formula: f, result: cell.v ?? null };
+                    } else {
+                        cellRef.value = cell.v ?? null;
+                    }
 
-                                   // --- Value / Formula
-                                   if (cell.f) {
-                                       const f = normalizeFormula(cell.f, sheetNames);
-                                       cellRef.value = { formula: f, result: cell.v ?? null };
-                                   } else {
-                                       cellRef.value = cell.v ?? null;
-                                   }
+                    // --- Font
+                    if (cell.fc || cell.bl || cell.it || cell.ff || cell.fs) {
+                        cellRef.font = {};
+                        if (cell.fc) cellRef.font.color = { argb: hexToARGB(cell.fc) };
+                        if (cell.bl) cellRef.font.bold = true;
+                        if (cell.it) cellRef.font.italic = true;
+                        if (cell.ff) cellRef.font.name = cell.ff;
+                        if (cell.fs) cellRef.font.size = Number(cell.fs);
+                    }
 
-                                   // --- Font
-                                   if (cell.fc || cell.bl || cell.it || cell.ff || cell.fs) {
-                                       cellRef.font = {};
-                                       if (cell.fc) cellRef.font.color = { argb: hexToARGB(cell.fc) };
-                                       if (cell.bl) cellRef.font.bold = true;
-                                       if (cell.it) cellRef.font.italic = true;
-                                       if (cell.ff) cellRef.font.name = cell.ff;
-                                       if (cell.fs) cellRef.font.size = Number(cell.fs);
-                                   }
+                    // --- Fill
+                    if (cell.bg) {
+                        cellRef.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: hexToARGB(cell.bg) }
+                        };
+                    }
 
-                                   // --- Fill
-                                   if (cell.bg) {
-                                       cellRef.fill = {
-                                           type: 'pattern',
-                                           pattern: 'solid',
-                                           fgColor: { argb: hexToARGB(cell.bg) }
-                                       };
-                                   }
+                    // --- Alignment
+                    if (cell.ht || cell.vt || cell.tb) {
+                        cellRef.alignment = {};
+                        if (cell.ht) cellRef.alignment.horizontal = cell.ht;
+                        if (cell.vt) cellRef.alignment.vertical = cell.vt;
+                        if (cell.tb) cellRef.alignment.wrapText = cell.tb === 2;
+                    }
 
-                                   // --- Alignment
-                                   if (cell.ht || cell.vt || cell.tb) {
-                                       cellRef.alignment = {};
-                                       if (cell.ht) cellRef.alignment.horizontal = cell.ht;
-                                       if (cell.vt) cellRef.alignment.vertical = cell.vt;
-                                       if (cell.tb) cellRef.alignment.wrapText = cell.tb === 2;
-                                   }
+                    // --- Border
+                    if (cell.border) {
+                        const border = {};
+                        for (const [side, val] of Object.entries(cell.border)) {
+                            if (val?.color) {
+                                border[side] = {
+                                    style: 'thin',
+                                    color: { argb: hexToARGB(val.color) }
+                                };
+                            }
+                        }
+                        cellRef.border = border;
+                    }
 
-                                   // --- Border
-                                   if (cell.border) {
-                                       const border = {};
-                                       for (const [side, val] of Object.entries(cell.border)) {
-                                           if (val?.color) {
-                                               border[side] = {
-                                                   style: 'thin',
-                                                   color: { argb: hexToARGB(val.color) }
-                                               };
-                                           }
-                                       }
-                                       cellRef.border = border;
-                                   }
+                    // --- Number format
+                    if (cell.ct?.fa) {
+                        const fmt = cell.ct.fa;
+                        const val = cell.v;
 
-                                   // --- Number format
-                                   if (cell.ct?.fa) {
-                                       const fmt = cell.ct.fa;
-                                       const val = cell.v;
+                        if (typeof val === "number") {
+                            cellRef.numFmt = fmt;
+                        } else if (val instanceof Date) {
+                            cellRef.numFmt = fmt || "dd-mmm-yyyy";
+                        }
+                    }
+                }
+            }
 
-                                       if (typeof val === "number") {
-                                           cellRef.numFmt = fmt;
-                                       } else if (val instanceof Date) {
-                                           cellRef.numFmt = fmt || "dd-mmm-yyyy";
-                                       }
-                                   }
-                               }
-                           }
+            // 🔹 Merged cells
+            if (sheet.config?.merge) {
+                Object.values(sheet.config.merge).forEach(m => {
+                    if (m) {
+                        try {
+                            ws.mergeCells(
+                                m.r + 1,
+                                m.c + 1,
+                                m.r + (m.rowspan || 1),
+                                m.c + (m.colspan || 1)
+                            );
+                        } catch (e) {
+                            console.warn("Merge skipped:", e);
+                        }
+                    }
+                });
+            }
 
-                           // 🔹 Merged cells
-                           if (sheet.config?.merge) {
-                               Object.values(sheet.config.merge).forEach(m => {
-                                   if (m) {
-                                       try {
-                                           ws.mergeCells(
-                                               m.r + 1,
-                                               m.c + 1,
-                                               m.r + (m.rowspan || 1),
-                                               m.c + (m.colspan || 1)
-                                           );
-                                       } catch (e) {
-                                           console.warn("Merge skipped:", e);
-                                       }
-                                   }
-                               });
-                           }
+            // 🔹 Row heights
+            if (sheet.config?.rowlen) {
+                Object.entries(sheet.config.rowlen).forEach(([k, px]) => {
+                    ws.getRow(Number(k) + 1).height = Math.round(px / 1.3333);
+                });
+            }
+        }
 
-                           // 🔹 Row heights
-                           if (sheet.config?.rowlen) {
-                               Object.entries(sheet.config.rowlen).forEach(([k, px]) => {
-                                   ws.getRow(Number(k) + 1).height = Math.round(px / 1.3333);
-                               });
-                           }
-                       }
+        // 🔹 Save as Excel
+        const buf = await workbook.xlsx.writeBuffer();
+        const fileName = (luckysheet.getluckysheetfile?.().title || 'Luckysheet_Export') + '.xlsx';
+        saveAs(new Blob([buf], { type: "application/octet-stream" }), fileName);
 
-                       // 🔹 Save as Excel
-                       const buf = await workbook.xlsx.writeBuffer();
-                       const fileName = (luckysheet.getluckysheetfile?.().title || 'Luckysheet_Export') + '.xlsx';
-                       saveAs(new Blob([buf], { type: "application/octet-stream" }), fileName);
-
-                   } catch (err) {
-                       console.error("❌ Export failed:", err);
-                       alert("Export failed. See console for details.");
-                   }
-               }),
+    } catch (err) {
+        console.error("❌ Export failed:", err);
+        alert("Export failed. See console for details.");
+    }
+});
