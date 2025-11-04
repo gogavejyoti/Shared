@@ -1,32 +1,4 @@
-function initializeDropdown($dropdown, label) {
-    const $btn = $dropdown.find('.dropdown-btn');
-    const $menu = $dropdown.find('.dropdown-menu');
-    const $selectAll = $menu.find('input.select-all');
-    const $checkboxes = $menu.find('input[type="checkbox"]').not('.select-all');
-
-    // Handle individual checkbox change
-    $checkboxes.on('change', function () {
-        const total = $checkboxes.length;
-        const checked = $checkboxes.filter(':checked').length;
-
-        // If all individual checkboxes are checked, check "Select All"
-        $selectAll.prop('checked', checked === total);
-        updateLabel($btn, label, checked);
-    });
-
-    // Handle Select All change
-    $selectAll.on('change', function () {
-        const isChecked = $(this).is(':checked');
-        $checkboxes.prop('checked', isChecked);
-        updateLabel($btn, label, isChecked ? $checkboxes.length : 0);
-    });
-}
-
-// Helper function to update dropdown label text
-function updateLabel($btn, label, count) {
-    if (count === 0) {
-        $btn.text(`Select ${label}`);
-    } else {
-        $btn.text(`${count} ${label} selected`);
-    }
-}
+<div class="dropdown">
+                                <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select (2) selected</button>
+                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"><label><label><input type="checkbox" class="lobSelectAll" checked=""> <b>Select All</b></label><br></label><label><input type="checkbox" class="lobCheckbox" value="AirCover_BAN" checked=""> AirCover_BAN</label><br><label><input type="checkbox" class="lobCheckbox" value="AirCover_LV" checked=""> AirCover_LV</label><br></div>
+                            </div>
