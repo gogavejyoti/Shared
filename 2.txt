@@ -1,154 +1,279 @@
-		Jun-24		Jul-24		Jul-24		Jul-24		Jul-24		Aug-24
-		30-Jun-24	07-Jul-24	14-Jul-24	21-Jul-24	28-Jul-24	04-Aug-24
-		06-Jul-24	13-Jul-24	20-Jul-24	27-Jul-24	03-Aug-24	10-Aug-24	
-AirCover BAN
-Summary 
-Client FTE Lock
-Client Locked Hours
-Required FTE With Shrinkage
-Available FTE
-Projected Hours
-FTE (Delta Client Required)
-FTE (Delta Sutherland Required)
-Delta in Hours
-Staffing % (Client Req)
-Staffing % (SGS Req)
-Overall HC available
-Production HC Available
-Training HC
-AL HC
-Nesting HC
-Production HC (P1 + P2)
-Over Time (Tenured)/WK - Hrs
-Tenured HC Available 30+ Day %
-Planned Assumptions 
-Planned Overall Shrinkage
-Planned Shrinkage Out Of Office
-PTO/UTO
-Absenteeism + Tardy
-Planned Absence (MAT/PAT/LTS)
-Planned Shrinkage In Office
-Break/Lunch
-Coaching
-Meeting/One-on-one
-Mentor/Floor Support
-Training
-System Downtime/Issues (Airbnb)
-Planned Production Attrition%
-Planned Production Attrition FTE
-Planned Training Attrition%
-Planned Training Attrition FTE
-Concurrency
-Scheduling InFlex
-Work Days
-Work Hours
-Overtime Hours
-Actuals Shrinkage
-Actual Overall Shrinkage
-Actual Shrinkage Out Of Office
-PTO/UTO
-Absenteeism + Tardy
-Planned Absence (MAT/PAT/LTS)
-Sub Out Of Office
-Actual Shrinkage In Office
-Break/Lunch
-Coaching
-Meeting
-Training
-System Donwtime (Airbnb + Partner)
-Mentor/Floor Support
-Actual Production Attrition%
-Actual Production Attrition FTE
-Actual Training Attrition%
-Actual Training Attrition FTE
-Scheduling Inflex
-Overtime Hours
-Resource Supply:
-Movement Out
-Attrition
-Ramp Down
-LOA
-Production to support
-Production to training
-Transfer out to other LOB
-Movement In
-Back from LOA
-Support to production
-Transfer in from other LOB
-Training to Production
-Hiring Summary
-Service Order#
-Service Order Status
-Hiring Target
-Actual Hired
-Fullfillment Rate%
-L1
-L2
-Wave No
-FX - WK 1
-FX - WK 2
-PST WK 1
-PST WK 2
-PST WK 3
-PST WK 4
-PST WK 5
-PST WK 6
-PST WK 7
-Applied Learning
-Nesting WK1
-Nesting WK2
-Transition Week 1
-Transition Week 2
-New Waves Golive HC
-Actuals Delivered
-Locked Hours
-Scheduled Hours
-Actual Production Hours Delivered
-Delivered v/s Locked%
-Productive Hours
-Actual Out Of Office Hours
-PTO/UTO
-Absenteeism + Tardy
-Planned Absence (MAT/PAT/LTS)
-Place Holder
-Actual In Office Hours
-Break/Lunch
-Coaching
-Meeting
-Training
-System Donwtime (Airbnb + Partner)
-Mentor/Floor Support
-Support Summary
-Support Requirement
-Team Manager - Production
-Nesting Team Manager
-Team Coordinator
-Trainer
-Quality 
-RTA
-Nesting TC
-Production TC
-Nesting QA
-Transition QA
-Nesting Trainer
-Support Available
-Team Manager
-Team Coordinator
-Trainer
-Quality 
-RTA
-Support Delta
-Team Manager
-Team Coordinator
-Trainer
-Quality 
-RTA
-SAP HC Recon
-SAP Billable HC
-Attrition not removed from SAP
-Referred to HR
-Redeployment
-LOA
-Resigned to be exempted from Scheduling
-Support HC on billable role
-Active HC
+            redo: function (e) {
+                if (h.jfredo.length == 0)
+                    return;
+                let n = h.jfredo.pop();
+                if (h.jfundo.push(n),
+                    h.clearjfundo = !1,
+                    ve.hasSheet(n.sheetIndex) && h.currentSheetIndex != n.sheetIndex && ve.changeSheetExec(n.sheetIndex),
+                    n.type == "datachange") {
+                    Mo(n);
+                    let l = {
+                        cfg: n.config,
+                        RowlChange: n.RowlChange,
+                        cdformat: n.cdformat,
+                        dataVerification: n.dataVerification,
+                        dynamicArray: n.dynamicArray,
+                        hyperlink: n.hyperlink
+                    };
+                    Ye(n.data, n.dataRange, l)
+                } else if (n.type == "pasteCut") {
+                    let l = {
+                        sheetIndex: n.source.sheetIndex,
+                        data: n.source.curData,
+                        curData: n.source.data,
+                        config: n.source.curConfig,
+                        curConfig: n.source.config,
+                        cdformat: n.source.curCdformat,
+                        curCdformat: n.source.cdformat,
+                        dataVerification: n.source.curDataVerification,
+                        curDataVerification: n.source.dataVerification,
+                        range: n.source.range
+                    }
+                        , a = {
+                            sheetIndex: n.target.sheetIndex,
+                            data: n.target.curData,
+                            curData: n.target.data,
+                            config: n.target.curConfig,
+                            curConfig: n.target.config,
+                            cdformat: n.target.curCdformat,
+                            curCdformat: n.target.cdformat,
+                            dataVerification: n.target.curDataVerification,
+                            curDataVerification: n.target.dataVerification,
+                            range: n.target.range
+                        };
+                    Va(l, a, n.RowlChange)
+                } else if (n.type == "rangechange")
+                    Mo(n),
+                        Aa(n.data, n.range, n.cdformat);
+                else if (n.type == "resize") {
+                    h.config = n.config,
+                        h.luckysheetfile[K(n.sheetIndex)].config = h.config,
+                        n.ctrlType == "resizeR" ? ne.saveParam("cg", n.sheetIndex, n.config.rowlen, {
+                            k: "rowlen"
+                        }) : n.ctrlType == "resizeC" && ne.saveParam("cg", n.sheetIndex, n.config.columnlen, {
+                            k: "columnlen"
+                        });
+                    let l = $.extend(!0, {}, n.images);
+                    h.luckysheetfile[K(n.sheetIndex)].images = l,
+                        ne.saveParam("all", n.sheetIndex, l, {
+                            k: "images"
+                        }),
+                        Re.images = l,
+                        Re.allImagesShow(),
+                        Ct(h.flowdata.length, h.flowdata[0].length)
+                } else if (n.type == "cellRowChange")
+                    Yl(n.data[0].length, n.data.length, n.data, n.config, n.range, n.ctrlType, n.ctrlValue, n.cdformat);
+                else if (n.type == "extend")
+                    Yl(n.data[0].length, n.data.length, n.data, n.config, n.range, "dele", n.ctrlValue);
+                else if (n.type == "dele") {
+                    let l = $.extend(!0, {}, n.ctrlValue);
+                    l.restore = !0,
+                        Yl(n.data[0].length, n.data.length, n.data, n.config, n.range, "extend", l)
+                } else if (n.type == "addRC") {
+                    let l = $.extend(!0, {}, n.ctrlValue);
+                    l.direction == "rightbottom" && (l.index = l.index + 1),
+                        Bn(n.data, n.config, "delRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink)
+                    if (typeof _shiftCrossSheetReference === "function") {
+                        if (l.rc == "r") {
+                            _shiftCrossSheetReference({
+                                type: "deleteRow",
+                                sheetIndex: h.currentSheetIndex,
+                                rowIndex: l.index,
+                                rowCount: l.len || 1
+                            });
+                        }
+                        if (l.rc == "c") {
+                            _shiftCrossSheetReference({
+                                type: "deleteCol",
+                                sheetIndex: h.currentSheetIndex,
+                                colIndex: l.index,
+                                colCount: l.len || 1
+                            });
+                        }
+
+                    }
+                } else if (n.type == "delRC") {
+                    let l = $.extend(!0, {}, n.ctrlValue);
+                    l.restore = !0,
+                        l.direction = "lefttop",
+                        Bn(n.data, n.config, "addRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink)
+                    if (typeof _shiftCrossSheetReference === "function") {
+                        if (l.rc == "r") {
+                            _shiftCrossSheetReference({
+                                type: "insertRow",
+                                sheetIndex: h.currentSheetIndex,
+                                rowIndex: l.index,
+                                rowCount: l.len || 1
+                            });
+                        }
+                        if (l.rc == "c") {
+                            _shiftCrossSheetReference({
+                                type: "insertCol",
+                                sheetIndex: h.currentSheetIndex,
+                                colIndex: l.index,
+                                colCount: l.len || 1
+                            });
+                        }
+
+                    }
+
+                } else if (n.type == "deleteCell")
+                    $i(n.data, n.config, n.ctrl, n.calc, n.filterObj, n.cf, n.dataVerification, n.hyperlink);
+                else if (n.type == "showHidRows")
+                    h.config = n.config,
+                        h.luckysheetfile[K(n.sheetIndex)].config = n.config,
+                        ne.saveParam("cg", n.sheetIndex, n.config.rowhidden, {
+                            k: "rowhidden"
+                        }),
+                        Ct(h.flowdata.length, h.flowdata[0].length);
+                else if (n.type == "showHidCols")
+                    h.config = n.config,
+                        h.luckysheetfile[K(n.sheetIndex)].config = n.config,
+                        ne.saveParam("cg", n.sheetIndex, n.config.colhidden, {
+                            k: "colhidden"
+                        }),
+                        Ct(h.flowdata.length, h.flowdata[0].length);
+                else if (n.type == "datachangeAll")
+                    p.execFunctionGroup(),
+                        Yl(n.data[0].length, n.data.length, n.data, null, n.range, "datachangeAll", n.ctrlValue);
+                else if (n.type == "datachangeAll_filter_clear")
+                    Dl(n.filter_save),
+                        $("#luckysheet-filter-options-sheet" + h.currentSheetIndex + " .luckysheet-filter-options").each(function (l) {
+                            let a = $(this)
+                                , o = n.optiongroups[l];
+                            zn(a, o.optionstate, o.rowhidden, o.caljs, !1, o.st_r, o.ed_r, o.cindex, o.st_c, o.ed_c)
+                        }),
+                        ne.saveParam("fsr", h.currentSheetIndex, {
+                            filter: n.optiongroups,
+                            filter_select: n.filter_save
+                        }),
+                        h.config = n.config,
+                        h.luckysheetfile[K(h.currentSheetIndex)].config = h.config,
+                        h.config.rowhidden == null && (h.config.rowhidden = {}),
+                        ne.saveParam("cg", h.currentSheetIndex, h.config.rowhidden, {
+                            k: "rowhidden"
+                        }),
+                        Ct(h.flowdata.length, h.flowdata[0].length),
+                        $("#luckysheet-filter-menu, #luckysheet-filter-submenu").hide();
+                else if (n.type == "datachangeAll_filter") {
+                    let l = $("#luckysheet-filter-options-sheet" + h.currentSheetIndex + " .luckysheet-filter-options").eq(n.optionsindex)
+                        , a = l.data("str")
+                        , o = l.data("edr")
+                        , s = l.data("cindex")
+                        , u = l.data("stc")
+                        , d = l.data("edc");
+                    zn(l, Ln.hasKey(n.rowhidenPre), n.rowhidenPre, n.caljs, !0, a, o, s, u, d),
+                        h.config = n.config,
+                        h.luckysheetfile[K(h.currentSheetIndex)].config = h.config,
+                        h.config.rowhidden == null && (h.config.rowhidden = {}),
+                        ne.saveParam("cg", h.currentSheetIndex, h.config.rowhidden, {
+                            k: "rowhidden"
+                        }),
+                        Ct(h.flowdata.length, h.flowdata[0].length),
+                        $("#luckysheet-filter-menu, #luckysheet-filter-submenu").hide()
+                } else if (n.type == "filtershow")
+                    $("#luckysheet-filter-selected-sheet" + n.sheetIndex + ", #luckysheet-filter-options-sheet" + n.sheetIndex).remove(),
+                        ne.allowUpdate && ne.saveParam("all", n.sheetIndex, null, {
+                            k: "filter_select"
+                        });
+                else if (n.type == "pivotTable_change")
+                    h.luckysheetfile[K(n.sheetIndex)].pivotTable = n.pivotTable,
+                        Be.getCellData(n.sheetIndex),
+                        Be.initialPivotManage(!0),
+                        Be.refreshPivotTable();
+                else if (n.type == "addSheet")
+                    ve.deleteSheet(n.index),
+                        ve.changeSheetExec(n.currentSheetIndex),
+                        $("#luckysheet-input-box").removeAttr("style"),
+                        $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
+                else if (n.type == "copySheet")
+                    ve.deleteSheet(n.index),
+                        ve.changeSheetExec(n.copyindex);
+                else if (n.type == "deleteSheet") {
+                    let l = !1;
+                    for (let a = 0; a < h.luckysheetfile.length; a++)
+                        h.luckysheetfile[a].name == n.name && (l = !0);
+                    l || (ve.createSheetbydata(n, "isrenew"),
+                        $("#luckysheet-input-box").removeAttr("style"),
+                        $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide())
+                } else if (n.type == "sheetName")
+                    h.luckysheetfile[K(n.sheetIndex)].name = n.oldtxt,
+                        $("#luckysheet-sheets-item" + n.sheetIndex).find(".luckysheet-sheets-item-name").html(n.oldtxt),
+                        ne.saveParam("all", n.sheetIndex, n.oldtxt, {
+                            k: "name"
+                        });
+                else if (n.type == "sheetColor") {
+                    h.luckysheetfile[K(n.sheetIndex)].color = n.oldcolor;
+                    let l = $("#luckysheet-sheets-item" + n.sheetIndex);
+                    l.find(".luckysheet-sheets-item-color").remove(),
+                        n.oldcolor != null && l.append('<div class="luckysheet-sheets-item-color" style=" position: absolute; width: 100%; height: 3px; bottom: 0px; left: 0px; background-color: ' + n.oldcolor + ';"></div>'),
+                        ne.saveParam("all", n.sheetIndex, n.oldcolor, {
+                            k: "color"
+                        })
+                } else if (n.type == "mergeChange") {
+                    let l = {
+                        cfg: n.config,
+                        calc: n.calc,
+                        hyperlink: n.hyperlink
+                    };
+                    Ye(n.data, n.range, l)
+                } else if (n.type == "updateDataVerification")
+                    Xe.ref(n.currentDataVerification, n.historyDataVerification, n.sheetIndex);
+                else if (n.type == "updateDataVerificationOfCheckbox")
+                    Xe.refOfCheckbox(n.currentDataVerification, n.historyDataVerification, n.sheetIndex, n.data, n.range);
+                else if (n.type == "updateHyperlink")
+                    Cl.ref(n.currentHyperlink, n.historyHyperlink, n.sheetIndex, n.data, n.range);
+                else if (n.type == "updateCF") {
+                    let l = n.data.historyRules;
+                    for (let a = 0; a < l.length; a++) {
+                        let o = l[a].sheetIndex;
+                        h.luckysheetfile[K(o)].luckysheet_conditionformat_save = l[a].luckysheet_conditionformat_save,
+                            ne.allowUpdate && ne.saveParam("all", o, l[a].luckysheet_conditionformat_save, {
+                                k: "luckysheet_conditionformat_save"
+                            })
+                    }
+                    $e.ref()
+                } else if (n.type == "updateAF") {
+                    let l = n.data.historyRules
+                        , a = K(n.sheetIndex);
+                    h.luckysheetfile[a].luckysheet_alternateformat_save = $.extend(!0, [], l),
+                        setTimeout(function () {
+                            He()
+                        }, 1)
+                } else if (n.type == "borderChange")
+                    n.config.borderInfo == null ? ne.saveParam("cg", n.sheetIndex, [], {
+                        k: "borderInfo"
+                    }) : ne.saveParam("cg", n.sheetIndex, n.config.borderInfo, {
+                        k: "borderInfo"
+                    }),
+                        h.config = n.config,
+                        h.luckysheetfile[K(n.sheetIndex)].config = h.config,
+                        setTimeout(function () {
+                            He()
+                        }, 1);
+                else if (n.type == "postil") {
+                    Ve.ref(n.data, n.rc);
+                    for (let l = 0; l < n.rc.length; l++) {
+                        let a = n.rc[l].split("_")[0]
+                            , o = n.rc[l].split("_")[1];
+                        n.data[a][o] != null && n.data[a][o].ps != null ? Ve.buildPs(a, o, n.data[a][o].ps) : Ve.buildPs(a, o, null)
+                    }
+                } else
+                    n.type == "imageCtrl" ? (Re.images = $.extend(!0, {}, n.images),
+                        Re.allImagesShow(),
+                        Re.ref()) : n.type == "zoomChange" && (h.zoomRatio = n.zoomRatio,
+                            ne.saveParam("all", n.currentSheetIndex, n.zoomRatio, {
+                                k: "zoomRatio"
+                            }),
+                            ar(),
+                            Wa());
+                tl(e),
+                    n.range && (h.luckysheet_select_save = n.range,
+                        tt()),
+                    h.clearjfundo = !0;
+                let t = cu(je({}, n), {
+                    data: n.curdata,
+                    curdata: n.data
+                });
+                Je.createHookFunction("updated", t)
+            },
