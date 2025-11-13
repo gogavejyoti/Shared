@@ -216,3 +216,140 @@ namespace YourNamespace.Controllers
         }
     }
 }
+
+
+
+// Example function to send planner data to AI API
+function sendPlannerDataToAI() {
+    // --- SAMPLE DATA (replace this with your LuckySheet JSON) ---
+    const plannerData = {
+        weeks: {
+            actual: ["24-Aug-25","31-Aug-25","07-Sep-25","14-Sep-25","21-Sep-25"],
+            forecast: ["28-Sep-25","05-Oct-25","12-Oct-25","19-Oct-25","26-Oct-25"],
+            nextWeek: "28-Sep-25"
+        },
+        data: [
+            {
+                geo: "India",
+                site: "Hyderabad",
+                sheetName: "IND EN R1 Lanco",
+                projectId: "10789",
+                planId: "79",
+                header: "Required HC",
+                values: [
+                    { week: "24-Aug-25", value: 150 },
+                    { week: "31-Aug-25", value: 152 },
+                    { week: "07-Sep-25", value: 148 }
+                ]
+            },
+            {
+                geo: "India",
+                site: "Hyderabad",
+                sheetName: "IND EN R1 Lanco",
+                projectId: "10789",
+                planId: "79",
+                header: "Available HC",
+                values: [
+                    { week: "24-Aug-25", value: 145 },
+                    { week: "31-Aug-25", value: 147 },
+                    { week: "07-Sep-25", value: 140 }
+                ]
+            },
+            {
+                geo: "India",
+                site: "Hyderabad",
+                sheetName: "IND EN R1 Lanco",
+                projectId: "10789",
+                planId: "79",
+                header: "Planned Attrition",
+                values: [
+                    { week: "24-Aug-25", value: 2.5 },
+                    { week: "31-Aug-25", value: 2.2 },
+                    { week: "07-Sep-25", value: 2.1 }
+                ]
+            },
+            {
+                geo: "India",
+                site: "Hyderabad",
+                sheetName: "IND EN R1 Lanco",
+                projectId: "10789",
+                planId: "79",
+                header: "Actual Attrition",
+                values: [
+                    { week: "24-Aug-25", value: 2.7 },
+                    { week: "31-Aug-25", value: 2.4 },
+                    { week: "07-Sep-25", value: 2.3 }
+                ]
+            }
+        ]
+    };
+
+    // --- DERIVED METRICS CALCULATION (FTE Delta & Staffing %) ---
+    const required = plannerData.data.find(d => d.header === "Required HC");
+    const available = plannerData.data.find(d => d.header === "Available HC");
+
+    if (required && available) {
+        const deltaData = {
+            geo: required.geo,
+            site: required.site,
+            sheetName: required.sheetName,
+            projectId: required.projectId,
+            planId: required.planId,
+            header: "FTE Delta",
+            values: []
+        };
+
+        const staffingData = {
+            geo: required.geo,
+            site: required.site,
+            sheetName: required.sheetName,
+            projectId: required.projectId,
+            planId: required.planId,
+            header: "Staffing %",
+            values: []
+        };
+
+        required.values.forEach((reqVal, i) => {
+            const availVal = available.values[i];
+            if (availVal) {
+                const delta = availVal.value - reqVal.value;
+                const staffingPercent = reqVal.value ? ((availVal.value / reqVal.value) * 100).toFixed(2) : 0;
+                deltaData.values.push({ week: reqVal.week, value: delta });
+                staffingData.values.push({ week: reqVal.week, value: staffingPercent });
+            }
+        });
+
+        plannerData.data.push(deltaData);
+        plannerData.data.push(staffingData);
+    }
+
+    // --- API CALL ---
+    $.ajax({
+        url: "/api/PlannerAI/analyze",  // Your C# API endpoint
+        method: "POST",
+        data: JSON.stringify(plannerData),
+        contentType: "application/json",
+        beforeSend: function() {
+            console.log("Sending planner data to AI engine...");
+        },
+        success: function(response) {
+            console.log("AI Insights:", response);
+
+            // Example: show alerts on screen
+            if (response && response.insights) {
+                let html = "<h4>AI Recommendations</h4><ul>";
+                response.insights.forEach(insight => {
+                    html += `<li><b>${insight.metric}</b>: ${insight.message} <br><em>${insight.recommendation}</em></li>`;
+                });
+                html += "</ul>";
+                $("#aiResult").html(html);
+            }
+        },
+        error: function(xhr) {
+            console.error("AI API call failed:", xhr.responseText);
+            alert("Error sending data to AI API.");
+        }
+    });
+}
+
+
