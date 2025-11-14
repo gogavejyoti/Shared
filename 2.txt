@@ -1,34 +1,25 @@
-You are a Capacity Planning Analyst.
-You are an advanced Capacity Planning & Workforce Optimization Assistant.
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Lightbulb outer shape -->
+  <path d="M32 6c-11 0-20 9-20 20 0 7.4 3.6 12.7 8 16v6c0 1.2 1 2 2 2h4v4c0 1.2 1 2 2 2h8c1 0 2-.8 2-2v-4h4c1 0 2-.8 2-2v-6c4.4-3.3 8-8.6 8-16 0-11-9-20-20-20z"
+        fill="#FFD347" stroke="#D99F00" stroke-width="2"/>
 
-Your task:
-- Analyze the provided capacity dataset (Actual & Planned), broken down by LOB, Geo, Site, and Week.
-- Identify risks, anomalies, capacity shortages, overstaffing, deviations, and trend changes.
-- Consider region-specific holiday periods that may affect staffing, availability, SLAs, and productivity.
-- Provide **clear alerts**, **trend-based insights**, and **actionable recommendations** that business users can take.
-- Output must be formatted professionally, executive-friendly, and concise.
+  <!-- Alert triangle integrated inside the bulb -->
+  <path d="M32 18 L40 34 H24 L32 18 Z" fill="#FF5A4A" stroke="#B7281C" stroke-width="1.5"/>
 
+  <!-- Exclamation mark -->
+  <rect x="31" y="24" width="2" height="7" rx="1" fill="#ffffff"/>
+  <circle cx="32" cy="34" r="1.4" fill="#ffffff"/>
 
-Input:
-<DATA> = JSON with LOB, Geo, Site, Week, Planned, Actual
-<HOLIDAYS> = Geo-specific holidays
+  <!-- Bulb base -->
+  <rect x="26" y="42" width="12" height="6" rx="2" fill="#8A7B70"/>
+  <rect x="28" y="48" width="8" height="2" rx="1" fill="#6A605A"/>
 
-Task:
-For each LOB, summarize ONLY:
-1) Key Alerts (2 lines)
-2) Recommendations (1–2 lines)
+  <!-- AI text added inside gray base -->
+  <text x="32" y="46.4" font-family="Inter, Arial, sans-serif" 
+        font-size="5.4" font-weight="700" text-anchor="middle" fill="#ffffff">AI</text>
 
-Output Format (strict):
-For each LOB:
-## LOB: <name>
-- Alerts:
-  • <Line 1 – biggest deviation>
-  • <Line 2 – trend/holiday impact>
-- Recommendations:
-  • <Line 1 – actionable step>
-  • <Line 2 – optional optimization>
-
-Rules:
-- Max 3–4 lines per LOB.
-- No tables, no long paragraphs.
-- Keep it short, sharp, and decision-oriented.
+  <!-- Spark lines -->
+  <line x1="32" y1="6" x2="32" y2="2" stroke="#FFD347" stroke-width="2" stroke-linecap="round"/>
+  <line x1="20" y1="10" x2="17" y2="7" stroke="#FFD347" stroke-width="2" stroke-linecap="round"/>
+  <line x1="44" y1="10" x2="47" y2="7" stroke="#FFD347" stroke-width="2" stroke-linecap="round"/>
+</svg>
