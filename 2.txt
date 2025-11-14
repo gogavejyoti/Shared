@@ -1,13 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Bell outline -->
-  <path d="M32 8c-11 0-20 9-20 20v10l-5 8h50l-5-8V28c0-11-9-20-20-20z"
-        fill="#FFC636" stroke="#1F2937" stroke-width="3" stroke-linejoin="round"/>
-
-  <!-- Clapper -->
-  <circle cx="32" cy="50" r="5" fill="#1F2937"/>
-
-  <!-- AI text -->
-  <text x="32" y="34" font-family="Inter, Arial, sans-serif"
-        font-size="14" font-weight="700" text-anchor="middle"
-        fill="#1F2937">AI</text>
-</svg>
+  if (response && response.insights) {
+                let html = "<h4>AI Recommendations</h4><ul>";
+                response.insights.forEach(insight => {
+                    html += `<li><b>${insight.metric}</b>: ${insight.message} <br><em>${insight.recommendation}</em></li>`;
+                });
+                html += "</ul>";
+                $("#aiResult").html(html);
+            }
