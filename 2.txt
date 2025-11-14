@@ -1,112 +1,34 @@
-/**
- * Send flat planner data to C# AI API.
- * @param {Object} plannerData  // Your JSON in flat format (header, week, value)
- */
-function sendPlannerDataToAI(plannerData) {
-    if (!plannerData || !plannerData.data || !plannerData.data.length) {
-        console.warn("Planner data is empty or invalid.");
-        return;
-    }
+You are a Capacity Planning Analyst.
+You are an advanced Capacity Planning & Workforce Optimization Assistant.
 
-    // STEP 1: Group by sheetName + header
-    const groupedMap = {};
-    plannerData.data.forEach(item => {
-        const key = `${item.sheetName}_${item.header}`;
-        if (!groupedMap[key]) {
-            groupedMap[key] = {
-                geo: item.geo,
-                site: item.site,
-                projectId: item.projectId,
-                planId: item.planId,
-                sheetName: item.sheetName,
-                header: item.header,
-                values: []
-            };
-        }
-        groupedMap[key].values.push({
-            week: item.week,
-            value: item.value
-        });
-    });
+Your task:
+- Analyze the provided capacity dataset (Actual & Planned), broken down by LOB, Geo, Site, and Week.
+- Identify risks, anomalies, capacity shortages, overstaffing, deviations, and trend changes.
+- Consider region-specific holiday periods that may affect staffing, availability, SLAs, and productivity.
+- Provide **clear alerts**, **trend-based insights**, and **actionable recommendations** that business users can take.
+- Output must be formatted professionally, executive-friendly, and concise.
 
-    const groupedData = Object.values(groupedMap);
 
-    // STEP 2: Compute FTE Delta and Staffing % for each sheetName
-    const sheetNames = [...new Set(groupedData.map(d => d.sheetName))];
-    sheetNames.forEach(sheet => {
-        const required = groupedData.find(d => d.sheetName === sheet && d.header === "Required HC");
-        const available = groupedData.find(d => d.sheetName === sheet && d.header === "Available HC");
+Input:
+<DATA> = JSON with LOB, Geo, Site, Week, Planned, Actual
+<HOLIDAYS> = Geo-specific holidays
 
-        if (required && available) {
-            const deltaData = {
-                geo: required.geo,
-                site: required.site,
-                projectId: required.projectId,
-                planId: required.planId,
-                sheetName: required.sheetName,
-                header: "FTE Delta",
-                values: []
-            };
+Task:
+For each LOB, summarize ONLY:
+1) Key Alerts (2 lines)
+2) Recommendations (1–2 lines)
 
-            const staffingData = {
-                geo: required.geo,
-                site: required.site,
-                projectId: required.projectId,
-                planId: required.planId,
-                sheetName: required.sheetName,
-                header: "Staffing %",
-                values: []
-            };
+Output Format (strict):
+For each LOB:
+## LOB: <name>
+- Alerts:
+  • <Line 1 – biggest deviation>
+  • <Line 2 – trend/holiday impact>
+- Recommendations:
+  • <Line 1 – actionable step>
+  • <Line 2 – optional optimization>
 
-            required.values.forEach(req => {
-                const avail = available.values.find(v => v.week === req.week);
-                if (avail) {
-                    const delta = avail.value - req.value;
-                    const staffingPercent = req.value ? ((avail.value / req.value) * 100).toFixed(2) : 0;
-                    deltaData.values.push({ week: req.week, value: delta });
-                    staffingData.values.push({ week: req.week, value: staffingPercent });
-                }
-            });
-
-            groupedData.push(deltaData);
-            groupedData.push(staffingData);
-        }
-    });
-
-    // STEP 3: Prepare payload for C# API
-    const payload = {
-        weeks: plannerData.weeks,
-        data: groupedData
-    };
-
-    // STEP 4: AJAX POST to API
-    $.ajax({
-        url: "/api/PlannerAI/analyze",   // <-- your actual API endpoint
-        method: "POST",
-        data: JSON.stringify(payload),
-        contentType: "application/json",
-        beforeSend: function() {
-            console.log("Sending planner data to AI analyzer...");
-            $("#aiResult").html("<em>Analyzing data with AI...</em>");
-        },
-        success: function(response) {
-            console.log("AI Response:", response);
-
-            if (response && response.insights && response.insights.length) {
-                let html = "<h4>AI Recommendations</h4><ul>";
-                response.insights.forEach(insight => {
-                    html += `<li><b>${insight.metric}</b> (${insight.lob || insight.sheetName || ""}): 
-                             ${insight.message}<br><em>${insight.recommendation}</em></li>`;
-                });
-                html += "</ul>";
-                $("#aiResult").html(html);
-            } else {
-                $("#aiResult").html("<em>No major alerts detected.</em>");
-            }
-        },
-        error: function(xhr) {
-            console.error("AI API Error:", xhr.responseText);
-            $("#aiResult").html("<strong style='color:red'>Failed to contact AI service.</strong>");
-        }
-    });
-}
+Rules:
+- Max 3–4 lines per LOB.
+- No tables, no long paragraphs.
+- Keep it short, sharp, and decision-oriented.
