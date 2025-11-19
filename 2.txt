@@ -1,41 +1,64 @@
-            WEEKNUM: function () {
-                if (arguments.length < this.m[0] || arguments.length > this.m[1])
-                    return p.error.na;
-                for (var e = 0; e < arguments.length; e++) {
-                    var n = p.errorParamCheck(this.p, arguments[e], e);
-                    if (!n[0])
-                        return p.error.v
-                }
-                try {
-                    var t = [void 0, 7, 1, void 0, void 0, void 0, void 0, void 0, void 0, void 0, void 0, 1, 2, 3, 4, 5, 6, 7]
-                        , l = M.getCellDate(arguments[0]);
-                    if (H(l))
-                        return l;
-                    if (!(0,
-                        j.default)(l).isValid())
-                        return p.error.v;
-                    var a = 1;
-                    if (arguments.length == 2) {
-                        if (a = M.getFirstValue(arguments[1]),
-                            H(a))
-                            return a;
-                        if (!B(a))
-                            return p.error.v;
-                        a = parseInt(a)
-                    }
-                    if (a == 21)
-                        return window.luckysheet_function.ISOWEEKNUM.f(arguments[0]);
-                    if ([1, 2, 11, 12, 13, 14, 15, 16, 17].indexOf(a) == -1)
-                        return p.error.nm;
-                    var o = t[a]
-                        , s = (0,
-                            j.default)(l).isoWeekday() >= o ? 1 : 0
-                        , u = (0,
-                            j.default)(l).isoWeeks() + s;
-                    return u
-                } catch (f) {
-                    var d = f;
-                    return d = p.errorInfo(d),
-                        [p.error.v, d]
-                }
-            },
+WEEKNUM: function () {
+    if (arguments.length < this.m[0] || arguments.length > this.m[1])
+        return p.error.na;
+
+    // Parameter validation
+    for (var e = 0; e < arguments.length; e++) {
+        var n = p.errorParamCheck(this.p, arguments[e], e);
+        if (!n[0]) return p.error.v;
+    }
+
+    try {
+        var t = [void 0, 7, 1, void 0, void 0, void 0, void 0, void 0, void 0, void 0, void 0, 1, 2, 3, 4, 5, 6, 7];
+        var l = M.getCellDate(arguments[0]);
+        if (H(l)) return l;
+        if (!(0, j.default)(l).isValid()) return p.error.v;
+
+        var a = 1;
+        if (arguments.length == 2) {
+            a = M.getFirstValue(arguments[1]);
+            if (H(a)) return a;
+            if (!B(a)) return p.error.v;
+            a = parseInt(a);
+        }
+
+        // Excel ISO rule
+        if (a == 21)
+            return window.luckysheet_function.ISOWEEKNUM.f(arguments[0]);
+
+        if ([1, 2, 11, 12, 13, 14, 15, 16, 17].indexOf(a) == -1)
+            return p.error.nm;
+
+        var o = t[a];
+
+        // ---------- INLINE FUNCTIONS ----------
+        const isoWeekday = function (date) {
+            let d = new Date(date).getDay();
+            return d === 0 ? 7 : d;
+        };
+
+        const isoWeeks = function (date) {
+            let d = new Date(date);
+            let target = new Date(d.valueOf());
+
+            let dayNr = isoWeekday(d);
+            target.setDate(target.getDate() + (4 - dayNr));
+
+            let yearStart = new Date(target.getFullYear(), 0, 1);
+            return Math.ceil(((target - yearStart) / 86400000 + 1) / 7);
+        };
+        // --------------------------------------
+
+        var weekday = isoWeekday(l);
+        var week = isoWeeks(l);
+
+        var s = weekday >= o ? 1 : 0;
+        var u = week + s;
+
+        return u;
+
+    } catch (f) {
+        var d = p.errorInfo(f);
+        return [p.error.v, d];
+    }
+}
