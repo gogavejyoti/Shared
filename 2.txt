@@ -1,34 +1,49 @@
-DATE: function () {
-    if (arguments.length < this.m[0] || arguments.length > this.m[1])
-        return p.error.na;
-
+window.luckysheet_function.WEEKNUM.f = function (dateInput, returnType) {
     try {
-        let year = parseInt(M.getFirstValue(arguments[0]));
-        let month = parseInt(M.getFirstValue(arguments[1]));
-        let day = parseInt(M.getFirstValue(arguments[2]));
+        // Validate date
+        let d = M.getCellDate(dateInput);
+        if (H(d)) return d;
 
-        if (isNaN(year) || isNaN(month) || isNaN(day))
-            return p.error.v;
+        let jsDate = new Date(d);
+        if (isNaN(jsDate)) return p.error.v;
 
-        // Excel logic: year 0–1899 => add 1900
-        if (year >= 0 && year <= 1899) year += 1900;
+        // Default return type
+        let type = 1;
+        if (returnType !== undefined) {
+            type = M.getFirstValue(returnType);
+            if (!B(type)) return p.error.v;
+            type = parseInt(type);
+            if (type !== 1) return p.error.nm;  // Only Excel default supported here
+        }
 
-        // JS Date handles overflow automatically:
-        // month 13 → next year, day 32 → next month, etc.
-        let d = new Date(year, month - 1, day);
+        // --- Excel WEEKNUM(date,1) logic ---
+        // Convert to UTC to avoid timezone shift
+        const utc = new Date(Date.UTC(
+            jsDate.getFullYear(),
+            jsDate.getMonth(),
+            jsDate.getDate()
+        ));
 
-        // Check: Date cannot represent <1900 correctly
-        if (d.getFullYear() < 1900)
-            return p.error.nm;
+        // Sunday = 0
+        const day = utc.getUTCDay();
 
-        // Format YYYY-MM-DD
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
+        // Find Sunday of this week
+        const sunday = new Date(utc);
+        sunday.setUTCDate(utc.getUTCDate() - day);
 
-        return `${yyyy}-${mm}-${dd}`;
+        // Find first Sunday of the year
+        const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+        const firstSunday = new Date(yearStart);
+        firstSunday.setUTCDate(yearStart.getUTCDate() - yearStart.getUTCDay());
+
+        // Calculate week number
+        const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+        const weekNum = Math.floor((sunday - firstSunday) / msPerWeek) + 1;
+
+        return weekNum;
     }
     catch (err) {
-        return [p.error.v, p.errorInfo(err)];
+        err = p.errorInfo(err);
+        return [p.error.v, err];
     }
-}
+};
