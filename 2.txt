@@ -1,65 +1,62 @@
 WEEKNUM: function () {
-    if (arguments.length < this.m[0] || arguments.length > this.m[1])
+    if (arguments.length < 1 || arguments.length > 2)
         return p.error.na;
-
-    for (var e = 0; e < arguments.length; e++) {
-        var n = p.errorParamCheck(this.p, arguments[e], e);
-        if (!n[0]) return p.error.v;
-    }
 
     try {
         var dateValue = M.getCellDate(arguments[0]);
         if (H(dateValue)) return dateValue;
         if (!(0, j.default)(dateValue).isValid()) return p.error.v;
 
-        // Default return type = 1
+        var jsDate = new Date(dateValue);
+
+        // Default = Excel type 1
         var returnType = 1;
-        if (arguments.length == 2) {
+        if (arguments.length === 2) {
             returnType = parseInt(M.getFirstValue(arguments[1]));
-            if (H(returnType)) return returnType;
             if (!B(returnType)) return p.error.v;
         }
 
-        // Special case ISO week ISO = 21
-        if (returnType === 21)
+        // ISO handled separately
+        if (returnType === 21) {
             return window.luckysheet_function.ISOWEEKNUM.f(arguments[0]);
+        }
 
-        // ---------- Inline helpers ----------
-        const excelWeekStartMap = {
+        // Excel mapping: startDay (0=Sun...6=Sat)
+        const startMap = {
             1: 0,  // Sunday
             2: 1,  // Monday
-            11: 1,
-            12: 2,
+            11: 1, // Monday
+            12: 2, // Tuesday
             13: 3,
             14: 4,
             15: 5,
             16: 6,
-            17: 0
+            17: 0  // Sunday
         };
 
-        const startDay = excelWeekStartMap[returnType];
-        if (startDay === undefined) return p.error.nm;
+        if (!(returnType in startMap))
+            return p.error.nm;
 
-        const jsDate = new Date(dateValue);
+        const weekStart = startMap[returnType];
+        const msPerDay = 86400000;
 
-        // Day offset so that week starts on "startDay"
-        const d = jsDate.getDay();
-        const adjusted = (d - startDay + 7) % 7;
-
-        // Find first week start of the year
+        // Excel's rule: Week 1 includes Jan 1
         const yearStart = new Date(jsDate.getFullYear(), 0, 1);
         const yearStartDay = yearStart.getDay();
-        const yearAdjust = (yearStartDay - startDay + 7) % 7;
 
-        const firstWeekStart = new Date(jsDate.getFullYear(), 0, 1 - yearAdjust);
+        // Shift day to custom starting day
+        const shift = (yearStartDay - weekStart + 7) % 7;
 
-        // Compute week
-        const weekNo = Math.floor((jsDate - firstWeekStart) / 86400000 / 7) + 1;
+        // First week start date
+        const firstWeekStart = new Date(jsDate.getFullYear(), 0, 1 - shift);
 
-        return weekNo;
+        // Compute
+        const weekNumber =
+            Math.floor((jsDate - firstWeekStart) / (7 * msPerDay)) + 1;
+
+        return weekNumber;
 
     } catch (err) {
-        var d = p.errorInfo(err);
-        return [p.error.v, d];
+        return [p.error.v, p.errorInfo(err)];
     }
 }
