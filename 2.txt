@@ -1,5 +1,63 @@
-jsDate  = Wed Nov 19 2025 05:30:00 GMT+0530 (India Standard Time)
-firstWeekStart = Sun Dec 29 2024 00:00:00 GMT+0530 (India Standard Time)
-msPerDay = 86400000
-Math.floor((jsDate - firstWeekStart) / (7 * msPerDay)) + 1;
-returning 47
+WEEKNUM: function () {
+    if (arguments.length < 1 || arguments.length > 2)
+        return p.error.na;
+
+    try {
+        var dateValue = M.getCellDate(arguments[0]);
+        if (H(dateValue)) return dateValue;
+        if (!(0, j.default)(dateValue).isValid()) return p.error.v;
+
+        // Convert dateValue to pure UTC date (no timezone distortion)
+        var d = new Date(dateValue);
+        var jsDate = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+
+        // Excel return type
+        var returnType = 1;
+        if (arguments.length === 2) {
+            returnType = parseInt(M.getFirstValue(arguments[1]));
+            if (!B(returnType)) return p.error.v;
+        }
+
+        // ISO handled externally
+        if (returnType === 21) {
+            return window.luckysheet_function.ISOWEEKNUM.f(arguments[0]);
+        }
+
+        const startMap = {
+            1: 0, // Sun
+            2: 1, // Mon
+            11: 1,
+            12: 2,
+            13: 3,
+            14: 4,
+            15: 5,
+            16: 6,
+            17: 0
+        };
+
+        if (!(returnType in startMap))
+            return p.error.nm;
+
+        const weekStart = startMap[returnType];
+
+        const msPerDay = 86400000;
+
+        // Year start in UTC
+        var yearStart = new Date(Date.UTC(jsDate.getUTCFullYear(), 0, 1));
+        var yearStartDay = yearStart.getUTCDay();
+
+        // Adjust to custom week start
+        var shift = (yearStartDay - weekStart + 7) % 7;
+
+        var firstWeekStart = new Date(Date.UTC(jsDate.getUTCFullYear(), 0, 1 - shift));
+
+        // Compute week number EXCEL EXACT
+        var weekNumber =
+            Math.floor((jsDate - firstWeekStart) / (7 * msPerDay)) + 1;
+
+        return weekNumber;
+
+    } catch (err) {
+        return [p.error.v, p.errorInfo(err)];
+    }
+}
