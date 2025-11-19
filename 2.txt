@@ -1,63 +1,45 @@
-WEEKNUM: function () {
-    if (arguments.length < 1 || arguments.length > 2)
-        return p.error.na;
-
-    try {
-        var dateValue = M.getCellDate(arguments[0]);
-        if (H(dateValue)) return dateValue;
-        if (!(0, j.default)(dateValue).isValid()) return p.error.v;
-
-        // Convert dateValue to pure UTC date (no timezone distortion)
-        var d = new Date(dateValue);
-        var jsDate = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-
-        // Excel return type
-        var returnType = 1;
-        if (arguments.length === 2) {
-            returnType = parseInt(M.getFirstValue(arguments[1]));
-            if (!B(returnType)) return p.error.v;
-        }
-
-        // ISO handled externally
-        if (returnType === 21) {
-            return window.luckysheet_function.ISOWEEKNUM.f(arguments[0]);
-        }
-
-        const startMap = {
-            1: 0, // Sun
-            2: 1, // Mon
-            11: 1,
-            12: 2,
-            13: 3,
-            14: 4,
-            15: 5,
-            16: 6,
-            17: 0
-        };
-
-        if (!(returnType in startMap))
-            return p.error.nm;
-
-        const weekStart = startMap[returnType];
-
-        const msPerDay = 86400000;
-
-        // Year start in UTC
-        var yearStart = new Date(Date.UTC(jsDate.getUTCFullYear(), 0, 1));
-        var yearStartDay = yearStart.getUTCDay();
-
-        // Adjust to custom week start
-        var shift = (yearStartDay - weekStart + 7) % 7;
-
-        var firstWeekStart = new Date(Date.UTC(jsDate.getUTCFullYear(), 0, 1 - shift));
-
-        // Compute week number EXCEL EXACT
-        var weekNumber =
-            Math.floor((jsDate - firstWeekStart) / (7 * msPerDay)) + 1;
-
-        return weekNumber;
-
-    } catch (err) {
-        return [p.error.v, p.errorInfo(err)];
-    }
-}
+DATE: function () {
+                if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                    return p.error.na;
+                for (var e = 0; e < arguments.length; e++) {
+                    var n = p.errorParamCheck(this.p, arguments[e], e);
+                    if (!n[0])
+                        return p.error.v
+                }
+                try {
+                    var t = M.getFirstValue(arguments[0]);
+                    if (H(t))
+                        return t;
+                    if (!B(t))
+                        return p.error.v;
+                    t = parseInt(t);
+                    var l = M.getFirstValue(arguments[1]);
+                    if (H(l))
+                        return l;
+                    if (!B(l))
+                        return p.error.v;
+                    l = parseInt(l);
+                    var a = M.getFirstValue(arguments[2]);
+                    if (H(a))
+                        return a;
+                    if (!B(a))
+                        return p.error.v;
+                    if (a = parseInt(a),
+                        t < 0 || t >= 1e4)
+                        return p.error.nm;
+                    t >= 0 && t <= 1899 && (t = t + 1900);
+                    var o = (0,
+                        j.default)().set({
+                            year: t,
+                            month: l - 1,
+                            date: a
+                        });
+                    return (0,
+                        j.default)(o).year() < 1900 ? p.error.nm : (0,
+                            j.default)(o).format("YYYY-MM-DD")
+                } catch (u) {
+                    var s = u;
+                    return s = p.errorInfo(s),
+                        [p.error.v, s]
+                }
+            },
