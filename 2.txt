@@ -1,49 +1,62 @@
-window.luckysheet_function.WEEKNUM.f = function (dateInput, returnType) {
+WEEKNUM: function () {
+    if (arguments.length < 1 || arguments.length > 2)
+        return p.error.na;
+
     try {
-        // Validate date
-        let d = M.getCellDate(dateInput);
-        if (H(d)) return d;
+        var dateValue = M.getCellDate(arguments[0]);
+        if (H(dateValue)) return dateValue;
+        if (!(0, j.default)(dateValue).isValid()) return p.error.v;
 
-        let jsDate = new Date(d);
-        if (isNaN(jsDate)) return p.error.v;
+        var jsDate = new Date(dateValue);
 
-        // Default return type
-        let type = 1;
-        if (returnType !== undefined) {
-            type = M.getFirstValue(returnType);
-            if (!B(type)) return p.error.v;
-            type = parseInt(type);
-            if (type !== 1) return p.error.nm;  // Only Excel default supported here
+        // Default = Excel type 1
+        var returnType = 1;
+        if (arguments.length === 2) {
+            returnType = parseInt(M.getFirstValue(arguments[1]));
+            if (!B(returnType)) return p.error.v;
         }
 
-        // --- Excel WEEKNUM(date,1) logic ---
-        // Convert to UTC to avoid timezone shift
-        const utc = new Date(Date.UTC(
-            jsDate.getFullYear(),
-            jsDate.getMonth(),
-            jsDate.getDate()
-        ));
+        // ISO handled separately
+        if (returnType === 21) {
+            return window.luckysheet_function.ISOWEEKNUM.f(arguments[0]);
+        }
 
-        // Sunday = 0
-        const day = utc.getUTCDay();
+        // Excel mapping: startDay (0=Sun...6=Sat)
+        const startMap = {
+            1: 0,  // Sunday
+            2: 1,  // Monday
+            11: 1, // Monday
+            12: 2, // Tuesday
+            13: 3,
+            14: 4,
+            15: 5,
+            16: 6,
+            17: 0  // Sunday
+        };
 
-        // Find Sunday of this week
-        const sunday = new Date(utc);
-        sunday.setUTCDate(utc.getUTCDate() - day);
+        if (!(returnType in startMap))
+            return p.error.nm;
 
-        // Find first Sunday of the year
-        const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
-        const firstSunday = new Date(yearStart);
-        firstSunday.setUTCDate(yearStart.getUTCDate() - yearStart.getUTCDay());
+        const weekStart = startMap[returnType];
+        const msPerDay = 86400000;
 
-        // Calculate week number
-        const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-        const weekNum = Math.floor((sunday - firstSunday) / msPerWeek) + 1;
+        // Excel's rule: Week 1 includes Jan 1
+        const yearStart = new Date(jsDate.getFullYear(), 0, 1);
+        const yearStartDay = yearStart.getDay();
 
-        return weekNum;
+        // Shift day to custom starting day
+        const shift = (yearStartDay - weekStart + 7) % 7;
+
+        // First week start date
+        const firstWeekStart = new Date(jsDate.getFullYear(), 0, 1 - shift);
+
+        // Compute
+        const weekNumber =
+            Math.floor((jsDate - firstWeekStart) / (7 * msPerDay)) + 1;
+
+        return weekNumber;
+
+    } catch (err) {
+        return [p.error.v, p.errorInfo(err)];
     }
-    catch (err) {
-        err = p.errorInfo(err);
-        return [p.error.v, err];
-    }
-};
+}
