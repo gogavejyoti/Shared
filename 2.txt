@@ -2,63 +2,64 @@ WEEKNUM: function () {
     if (arguments.length < this.m[0] || arguments.length > this.m[1])
         return p.error.na;
 
-    // Parameter validation
     for (var e = 0; e < arguments.length; e++) {
         var n = p.errorParamCheck(this.p, arguments[e], e);
         if (!n[0]) return p.error.v;
     }
 
     try {
-        var t = [void 0, 7, 1, void 0, void 0, void 0, void 0, void 0, void 0, void 0, void 0, 1, 2, 3, 4, 5, 6, 7];
-        var l = M.getCellDate(arguments[0]);
-        if (H(l)) return l;
-        if (!(0, j.default)(l).isValid()) return p.error.v;
+        var dateValue = M.getCellDate(arguments[0]);
+        if (H(dateValue)) return dateValue;
+        if (!(0, j.default)(dateValue).isValid()) return p.error.v;
 
-        var a = 1;
+        // Default return type = 1
+        var returnType = 1;
         if (arguments.length == 2) {
-            a = M.getFirstValue(arguments[1]);
-            if (H(a)) return a;
-            if (!B(a)) return p.error.v;
-            a = parseInt(a);
+            returnType = parseInt(M.getFirstValue(arguments[1]));
+            if (H(returnType)) return returnType;
+            if (!B(returnType)) return p.error.v;
         }
 
-        // Excel ISO rule
-        if (a == 21)
+        // Special case ISO week ISO = 21
+        if (returnType === 21)
             return window.luckysheet_function.ISOWEEKNUM.f(arguments[0]);
 
-        if ([1, 2, 11, 12, 13, 14, 15, 16, 17].indexOf(a) == -1)
-            return p.error.nm;
-
-        var o = t[a];
-
-        // ---------- INLINE FUNCTIONS ----------
-        const isoWeekday = function (date) {
-            let d = new Date(date).getDay();
-            return d === 0 ? 7 : d;
+        // ---------- Inline helpers ----------
+        const excelWeekStartMap = {
+            1: 0,  // Sunday
+            2: 1,  // Monday
+            11: 1,
+            12: 2,
+            13: 3,
+            14: 4,
+            15: 5,
+            16: 6,
+            17: 0
         };
 
-        const isoWeeks = function (date) {
-            let d = new Date(date);
-            let target = new Date(d.valueOf());
+        const startDay = excelWeekStartMap[returnType];
+        if (startDay === undefined) return p.error.nm;
 
-            let dayNr = isoWeekday(d);
-            target.setDate(target.getDate() + (4 - dayNr));
+        const jsDate = new Date(dateValue);
 
-            let yearStart = new Date(target.getFullYear(), 0, 1);
-            return Math.ceil(((target - yearStart) / 86400000 + 1) / 7);
-        };
-        // --------------------------------------
+        // Day offset so that week starts on "startDay"
+        const d = jsDate.getDay();
+        const adjusted = (d - startDay + 7) % 7;
 
-        var weekday = isoWeekday(l);
-        var week = isoWeeks(l);
+        // Find first week start of the year
+        const yearStart = new Date(jsDate.getFullYear(), 0, 1);
+        const yearStartDay = yearStart.getDay();
+        const yearAdjust = (yearStartDay - startDay + 7) % 7;
 
-        var s = weekday >= o ? 1 : 0;
-        var u = week + s;
+        const firstWeekStart = new Date(jsDate.getFullYear(), 0, 1 - yearAdjust);
 
-        return u;
+        // Compute week
+        const weekNo = Math.floor((jsDate - firstWeekStart) / 86400000 / 7) + 1;
 
-    } catch (f) {
-        var d = p.errorInfo(f);
+        return weekNo;
+
+    } catch (err) {
+        var d = p.errorInfo(err);
         return [p.error.v, d];
     }
 }
