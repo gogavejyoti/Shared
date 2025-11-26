@@ -1,66 +1,70 @@
-function setupStickyColumns($table, $wrapper) {
-    // Compute widths of first & second columns from header cells (first header row)
-    const $firstTh = $table.find('thead tr').first().find('th').first();
-    const $secondTh = $table.find('thead tr').first().find('th').eq(1);
-
-    const firstWidth = $firstTh.length ? $firstTh.outerWidth() : 140;
-    const secondWidth = $secondTh.length ? $secondTh.outerWidth() : 150;
-
-    // Apply sticky classes & styles for body columns
-    $table.find('tbody td.sticky-1').css({ left: 0, 'min-width': firstWidth + 'px', position: 'sticky', 'background-color': '#f8f9fa', 'z-index': 7 });
-    $table.find('tbody td.sticky-2').css({ left: firstWidth + 'px', 'min-width': secondWidth + 'px', position: 'sticky', 'background-color': '#f8f9fa', 'z-index': 7 });
-
-    // Now apply sticky classes & styles to header columns in ALL header rows:
-    $table.find('thead tr').each(function (rowIndex) {
-        // Select first two ths
-        const $ths = $(this).find('th');
-        
-        $ths.eq(0).addClass('sticky-1').css({
-            left: 0,
-            position: 'sticky',
-            top: getHeaderTopOffset($table, rowIndex),
-            'z-index': 100 + rowIndex + 2, // High z-index for header cells
-            'background-color': '#f5f5f5',
-            'min-width': firstWidth + 'px',
-        });
-        
-        $ths.eq(1).addClass('sticky-2').css({
-            left: firstWidth + 'px',
-            position: 'sticky',
-            top: getHeaderTopOffset($table, rowIndex),
-            'z-index': 100 + rowIndex + 2,
-            'background-color': '#f5f5f5',
-            'min-width': secondWidth + 'px',
-        });
-    });
-
-    // On horizontal scroll: no JS needed, CSS sticky handles it
-
-    // On resize, recalc widths and top offsets (debounced)
-    clearTimeout(window.__vcResizeTimer);
-    window.__vcResizeTimer = setTimeout(function () {
-        const newFirstW = $firstTh.length ? $firstTh.outerWidth() : firstWidth;
-        const newSecondW = $secondTh.length ? $secondTh.outerWidth() : secondWidth;
-
-        $table.find('tbody td.sticky-1').css({ 'min-width': newFirstW + 'px', left: 0 });
-        $table.find('tbody td.sticky-2').css({ 'min-width': newSecondW + 'px', left: newFirstW + 'px' });
-
-        $table.find('thead tr').each(function (rowIndex) {
-            const $ths = $(this).find('th');
-            const topOffset = getHeaderTopOffset($table, rowIndex);
-
-            $ths.eq(0).css({ left: 0, 'min-width': newFirstW + 'px', top: topOffset + 'px' });
-            $ths.eq(1).css({ left: newFirstW + 'px', 'min-width': newSecondW + 'px', top: topOffset + 'px' });
-        });
-
-    }, 100);
-}
-
-// Helper: calculates cumulative top offset for header row sticky position
 function getHeaderTopOffset($table, rowIndex) {
     let offset = 0;
     for (let i = 0; i < rowIndex; i++) {
         offset += $table.find('thead tr').eq(i).outerHeight();
     }
     return offset;
+}
+
+function setupStickyColumns($table, $wrapper) {
+    // compute widths of first & second columns from header cells
+    const $firstTh = $table.find('thead tr').first().find('th').first();
+    const $secondTh = $table.find('thead tr').first().find('th').eq(1);
+
+    // fallback widths if not measured
+    const firstWidth = $firstTh.length ? $firstTh.outerWidth() : 140;
+    const secondWidth = $secondTh.length ? $secondTh.outerWidth() : 150;
+
+    // Apply left offsets and min-widths for sticky-1 and sticky-2 in both header and body cells
+    $table.find('.sticky-1').each(function () {
+        $(this).css({ left: 0, 'min-width': firstWidth + 'px' });
+    });
+    $table.find('.sticky-2').each(function () {
+        $(this).css({ left: firstWidth + 'px', 'min-width': secondWidth + 'px' });
+    });
+
+    // Also ensure header th's which are sticky get same left values
+    $table.find('thead th').each(function (idx) {
+        if (idx === 0) $(this).css({ left: 0 });
+        if (idx === 1) $(this).css({ left: firstWidth + 'px' });
+    });
+
+    // Freeze all header rows with cumulative top offset and reversed z-index order
+    const totalHeaderRows = $table.find('thead tr').length;
+
+    $table.find('thead tr').each(function(index) {
+        const topOffset = getHeaderTopOffset($table, index);
+
+        $(this).find('th').css({
+            position: 'sticky',
+            top: topOffset + 'px',
+            'z-index': 1000 - index,  // higher z-index for first row
+            background: '#f5f5f5',
+        });
+    });
+
+    // Recompute on resize (debounced)
+    clearTimeout(window.__vcResizeTimer);
+    window.__vcResizeTimer = setTimeout(function () {
+        const newFirstW = $firstTh.length ? $firstTh.outerWidth() : firstWidth;
+        const newSecondW = $secondTh.length ? $secondTh.outerWidth() : secondWidth;
+
+        $table.find('.sticky-1').css({ 'min-width': newFirstW + 'px' });
+        $table.find('.sticky-2').css({ 'min-width': newSecondW + 'px', left: newFirstW + 'px' });
+
+        $table.find('thead th').each(function (idx) {
+            if (idx === 0) $(this).css({ left: 0 });
+            if (idx === 1) $(this).css({ left: newFirstW + 'px' });
+        });
+
+        // Reapply sticky header top offsets on resize with reversed z-index
+        $table.find('thead tr').each(function(index) {
+            const topOffset = getHeaderTopOffset($table, index);
+
+            $(this).find('th').css({
+                top: topOffset + 'px',
+                'z-index': 1000 - index,
+            });
+        });
+    }, 100);
 }
