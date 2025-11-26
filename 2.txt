@@ -1,14 +1,17 @@
 (function ($) {
-$.fn.versionComparison = function (options) {
-    const settings = $.extend({
-        data: [],
-        processData: null,
-        transformData: null,
-        // JSON array
-    }, options);
+    $.fn.versionComparison = function (options) {
+        const settings = $.extend({
+            data: [],
+            processData: null,
+            transformData: null,
+            // JSON array
+        }, options);
 
-    $('#versionComparisonModal').remove();
-    if ($('#versionComparisonModalStyles').length === 0) {
+        // Remove old modal & styles (clean start)
+        $('#versionComparisonModal').remove();
+        $('#versionComparisonModalStyles').remove();
+
+        // Inject CSS (fixed & cleaned)
         $('head').append(`
             <style id="versionComparisonModalStyles">
                 /* Modal Content Styling */
@@ -17,26 +20,32 @@ $.fn.versionComparison = function (options) {
                 #versionComparisonModal .modal-title { font-weight: 600; color: #2c2c2c; }
                 #versionComparisonModal .btn-close { filter: invert(30%); }
 
-                /* Table Wrapper */
-                #versionComparisonModal .table-wrapper { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 120px); position: relative; border: 1px solid #dcdcdc; background: #fff; border-radius: 8px; margin: 10px;min-height:400px; }
+                /* Table outer wrappers */
+                .vc-table-outer { position: relative; margin: 10px; }
+                .vc-top-scroll { overflow-x: auto; overflow-y: hidden; height: 16px; border-bottom: 1px solid #e6e6e6; background: #f9f9f9; }
+                .vc-top-scroll > div { height: 1px; }
+
+                /* Table wrapper (bottom) */
+                #versionComparisonModal .table-wrapper { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 160px); position: relative; border: 1px solid #dcdcdc; background: #fff; border-radius: 8px; margin: 0; min-height: 200px; }
+
+                /* Table */
                 #versionComparisonModal table { border-collapse: collapse; width: max-content; table-layout: auto; }
                 #versionComparisonModal th, #versionComparisonModal td { padding: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid #eaeaea; background: #fff; }
 
+                /* Week/Highlight */
+                #versionComparisonModal .cell-manual-sim { background: #DDF4E7 !important; }
+                #versionComparisonModal .week-cell { background: blueviolet !important; color: #fff !important; }
 
-                #versionComparisonModal .simTable thead th { position: sticky;top: 0;background: #fff;z-index: 3;border-top: 2px solid #dee2e6;color: #000;}
-                #versionComparisonModal .simTable th:first-child,.simTable td:first-child {position: sticky;left: 0;background-color: #f8f9fa; z-index: 2;
-                #versionComparisonModal .simTable thead th box-shadow: 2px 0 0 rgba(0,0,0,0.04);color:#000;}
-
-                #versionComparisonModal .cell-manual-sim {background: #DDF4E7 !important;}
-                #versionComparisonModal .week-cell {background: blueviolet !important; color: #fff !important;}
-
-                /* Sticky Headers */
+                /* Sticky Header */
                 #versionComparisonModal thead th { position: sticky; top: 0; background: #f5f5f5; z-index: 6; }
-                #versionComparisonModal thead th.sticky-left { position: sticky; top: 0; left: 0; background: #f5f5f5; z-index: 9; min-width: 140px; }
-                #versionComparisonModal thead th.sticky-left-2 { position: sticky; top: 0; left: 140px; background: #f5f5f5; z-index: 9; min-width: 150px; }
 
-                #versionComparisonModal tbody td.sticky-left { position: sticky; left: 0; background: #f0f0f0; z-index: 7; min-width: 140px; }
-                #versionComparisonModal tbody td.sticky-left-2 { position: sticky; left: 140px; background: #f0f0f0; z-index: 7; min-width: 150px; }
+                /* Sticky left columns placeholders (left value set by JS for exact widths) */
+                #versionComparisonModal .sticky-1 { position: sticky; left: 0; background: #f0f0f0; z-index: 9; min-width: 140px; }
+                #versionComparisonModal .sticky-2 { position: sticky; left: 140px; background: #f0f0f0; z-index: 9; min-width: 150px; }
+
+                /* Body sticky cells */
+                #versionComparisonModal tbody td.sticky-1 { position: sticky; left: 0; background: #f8f9fa; z-index: 7; min-width: 140px; }
+                #versionComparisonModal tbody td.sticky-2 { position: sticky; left: 140px; background: #f8f9fa; z-index: 7; min-width: 150px; }
 
                 /* Conditional Coloring */
                 #versionComparisonModal .rag-red { color: #e74c3c; font-weight: bold; }
@@ -52,10 +61,16 @@ $.fn.versionComparison = function (options) {
                 #versionComparisonModal .btn-sm { border-radius: 6px; font-size: 0.875rem; }
                 #applyFilterBtn { background: #9b59b6; border-color: #9b59b6; }
                 #applyFilterBtn:hover { background: #8e44ad; border-color: #8e44ad; }
+
+                /* small helpers */
+                .text-right { text-align: right; }
+                .font-bold { font-weight: 700; }
+                .font-semibold { font-weight: 600; }
             </style>
-            `);
-    }
-    const modalHTML = `
+        `);
+
+        // Build modal HTML (keeps your filter UI structure intact)
+        const modalHTML = `
         <div class="modal fade" id="versionComparisonModal" tabindex="-1" style="z-index:9999;zoom:85%">
           <div class="modal-dialog" style="width: 100%;margin: 0;height: 100%;max-width: none;">
             <div class="modal-content">
@@ -65,7 +80,7 @@ $.fn.versionComparison = function (options) {
               </div>
               <div class="modal-body p-0">
                 <div class="filter-container">
-                 <div style="display: flex;align-items: center;justify-content: center;gap: 10px 10px;">
+                 <div style="display: flex;align-items: center;justify-content: center;gap: 10px 10px;flex-wrap:wrap;">
                         <label><b>Current Version:</b> ${$('#planName').val()}</label><br/>
                         <label><b>Comparison Version<span style="color:#FF0000" >*</span>:</b></label><br/>
                             <div class="dropdown">
@@ -94,334 +109,390 @@ $.fn.versionComparison = function (options) {
                   </div>
                   </div>
                 </div>  
-                <div class="table-wrapper" id="versionComparisonContainer"></div>
+                <div class="vc-table-outer" style="margin:10px;">
+                    <div id="vcTopScroll" class="vc-top-scroll"><div></div></div>
+                    <div class="table-wrapper" id="versionComparisonContainer"></div>
+                </div>
               </div>
             </div>
           </div>
         </div>`;
 
+        const $toolbar = $(modalHTML);
+        $('body').append($toolbar);
 
-    const $toolbar = $(modalHTML);
+        const $container = $('#versionComparisonContainer');
+        const $vcTopScroll = $('#vcTopScroll');
 
-    $('body').append($toolbar);
-    const $container = $('#versionComparisonContainer');
+        // Initial dataset derived values
+        let weeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
+        let lobs = [...new Set(settings.data.map(d => d.lob))];
 
+        populateFilters();
 
-    let weeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
-    let lobs = [...new Set(settings.data.map(d => d.lob))];
+        // Table wrapper used for bottom scrolling (existing variable name preserved)
+        const $tableWrapper = $('<div class="sim-table-wrapper overflow-x-auto"></div>');
 
-    populateFilters();
-
-    // Table
-    const $tableWrapper = $('<div class="sim-table-wrapper overflow-x-auto"></div>');
-
-    $('#lobDropdown').on('change', '.lobSelectAll', function () {
-        const checked = $(this).is(':checked');
-        $('.lobCheckbox').prop('checked', checked);
-        updateDropdownLabel('lobDropdown', checked ? lobs.slice() : [], 'Select LOBs');
-    });
-
-
-    $('#lobDropdown').on('change', '.lobItem', function () {
-        const allChecked = $('.lobItem').length === $('.lobItem:checked').length;
-        $('.lobSelectAll').prop('checked', allChecked);
-
-        const selectedLobs = $('.lobItem:checked').map(function () {
-            return $(this).val();
-        }).get();
-
-        updateDropdownLabel('lobDropdown', selectedLobs, 'Select LOBs');
-    });
-
-    $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
-        const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
-        updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
-    });
-    $('#weekToDropdown').on('change', 'input[type=radio]', function () {
-        const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
-        updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
-    });
-
-    $('#weekDropdown').on('change', '.weekSelectAll', function () {
-        const checked = $(this).is(':checked');
-        $('.weekCheckbox').prop('checked', checked);
-        updateDropdownLabel('weekDropdown', checked ? weeks.slice() : [], 'Weeks');
-    });
-
-
-    $('#weekDropdown').on('change', '.weekItem', function () {
-        const allChecked = $('.weekItem').length === $('.weekItem:checked').length;
-        $('.weekSelectAll').prop('checked', allChecked);
-
-        const selectedWeeks = $('.weekItem:checked').map(function () {
-            return $(this).val();
-        }).get();
-
-        updateDropdownLabel('weekDropdown', selectedWeeks, 'Weeks');
-    });
-
-    $('#applyFilterBtn').on('click', function () {
-        if (!$('#versionDropdown').val()) {
-            toastr.error("Comparison Version not selected.");
-            return;
-        }
-        getPlannerDataById();
-    });
-
-
-    getComparisonPlans();
-
-    function populateFilters() {
-        // LOB
-        const lobContainer = document.createDocumentFragment();
-        lobContainer.appendChild(document.createElement('label')).innerHTML = `<label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>`;
-        lobs.forEach(lob => { const label = document.createElement('label'); label.innerHTML = `<input type="checkbox" class="lobCheckbox lobItem" value="${lob}" checked> ${lob}`; lobContainer.appendChild(label); lobContainer.appendChild(document.createElement('br')); });
-        $('#lobDropdown').append(lobContainer);
-        // Weeks
-        const weekFrom = weeks[0];
-        weeks.forEach(week => {
-            $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === weekFrom ? 'checked' : ''}> ${week}</label><br/>`);
-            $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === weeks[weeks.length - 1] ? 'checked' : ''}> ${week}</label><br/>`);
+        // Filters events (kept largely same as your original)
+        $('#lobDropdown').on('change', '.lobSelectAll', function () {
+            const checked = $(this).is(':checked');
+            $('.lobCheckbox').prop('checked', checked);
+            updateDropdownLabel('lobDropdown', checked ? lobs.slice() : [], 'Select LOBs');
         });
 
-        updateDropdownLabel('lobDropdown', lobs, 'Select LOBs');
-        updateRadioDropdownLabel('weekFromDropdownBtn', weekFrom, 'From');
-        updateRadioDropdownLabel('weekToDropdownBtn', weeks[weeks.length - 1], 'To');
+        $('#lobDropdown').on('change', '.lobItem', function () {
+            const allChecked = $('.lobItem').length === $('.lobItem:checked').length;
+            $('.lobSelectAll').prop('checked', allChecked);
 
-    }
+            const selectedLobs = $('.lobItem:checked').map(function () {
+                return $(this).val();
+            }).get();
 
+            updateDropdownLabel('lobDropdown', selectedLobs, 'Select LOBs');
+        });
 
-    function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
-        const btn = $(`#${dropdownId}Btn`);
-        btn.text(selectedItems.length === 0 ? placeholder : `${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
-    }
-    function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
-        $(`#${dropdownBtnId}`).text(`${prefix}: ${selectedValue}`);
-    }
+        $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
+            const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
+            updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
+        });
+        $('#weekToDropdown').on('change', 'input[type=radio]', function () {
+            const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
+            updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
+        });
 
-    function getComparisonPlans() {
-        $('#versionDropdown').empty();
-        var data = {
-            'vertical': $("#verticalName").val(),
-            'account': $('#labAccountName').text(),
-            'groupName': $("#groupName").val(),
-            'rpPlanId': $("#planId").val(),
-        };
-
-        $.ajax({
-            url: '/resourceplanner/GetComparisonPlans',
-            type: "POST",
-            async: true,
-            cache: false,
-            data: JSON.stringify(data),
-            contentType: "application/json",
-            dataType: "json",
-            success: function (response) {
-                if (response?.data?.length) {
-                    $('#versionDropdown').append('<option value="">Select Version</option>');
-                    $.each(response.data, function (index, item) {
-                        $('#versionDropdown').append(
-                            $('<option>', {
-                                value: item.rpPlanId,   
-                                text: item.name   
-                            })
-                        );
-                    });
-
-
-                } 
-            },
-            error: function (xhr, textStatus, errorThrown) {
-                toastr.error("Error fetching Plans. Please try again.");
+        $('#applyFilterBtn').on('click', function () {
+            if (!$('#versionDropdown').val()) {
+                if (typeof toastr !== 'undefined') toastr.error("Comparison Version not selected.");
+                else alert("Comparison Version not selected.");
+                return;
             }
-        });
-    }
-
-    function getPlannerDataById() {
-        const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
-        const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
-        var data = {
-            'rpPlanId': $('#versionDropdown').val(),
-            'vertical': $("#verticalName").val(),
-            'stWeek': weekFrom,
-            'edWeek': weekTo          
-        };
-        $.ajax({
-            url: '/resourceplanner/GetPlannerDataById',
-            type: "POST",
-            async: true,
-            cache: false,
-            data: JSON.stringify(data),
-            contentType: "application/json",
-            dataType: "json",
-            success: function (response) {
-                if (response?.length) {
-                    console.log(settings.data);
-                    let filterData = settings.processData(response);
-                    let transformed = settings.transformData(filterData);
-                    const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-                    buildComparisonTable(transformed, settings.data, selectedLOBs, weekFrom, weekTo);
-                }
-            },
-            error: function (xhr, textStatus, errorThrown) {
-                toastr.error("Error fetching Plans. Please try again.");
-            }
+            getPlannerDataById();
         });
 
-    }
-
-    function buildComparisonTable(prvData, curData, selectedLOBs, weekFrom, weekTo) {
-        curData = fiterData(curData, selectedLOBs,weekFrom, weekTo);
-        prvData = fiterData(prvData, selectedLOBs, weekFrom, weekTo);
-        weeks = [...new Set(curData.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
-        lobs = [...new Set(curData.map(d => d.lob))];
-        renderTable(curData, prvData, weeks, lobs);
-    }
-    function fiterData(data, selectedLOBs, weekFrom, weekTo) {
-        return data.filter(item => {
-            const weekDate = parseComparisonWeekDate(item.week); // convert to Date object
-            const fromDate = parseComparisonWeekDate(weekFrom);
-            const toDate = parseComparisonWeekDate(weekTo);
-            const isLOBMatch = selectedLOBs.length === 0 || selectedLOBs.includes(item.lob);
-            const isWeekInRange = weekDate >= fromDate && weekDate <= toDate;
-            return isLOBMatch && isWeekInRange;
-        });
-    }
-
-    function renderTable(curData, prvData, weeks, lobs) {
-        $tableWrapper.empty();
-        const $table = $('<table class="table sim-table min-w-max border-collapse border border-gray-200"></table>');
-        $tableWrapper.append($table);
-        $container.append($tableWrapper);
-        // Table header
-        let headerHtml = `<thead><tr>
-            <th class="sticky-col border" nowrap>LOB / Overall</th>
-            <th class="sticky-col border" nowrap>Metric</th>`;
-        weeks.forEach(w => headerHtml += `<th class="border text-center week-cell" colspan="2" nowrap>${w}</th>`);
-        headerHtml += `</tr><tr><th></th><th></th>`;
-        weeks.forEach(_ => headerHtml += `<th class="cell-manual-sim"  nowrap>Selected</th><th style="min-width:55px;" nowrap>Current</th>`);
-        headerHtml += `</tr></thead>`;
-        $table.append(headerHtml);
-        const $tbody = $('<tbody></tbody>');
-        $table.append($tbody);
-
-        const metrics = ['FTE Required', 'FTE Available', 'Delta', 'Staffing %', 'Planned Shrinkage %',  'Planned Attrition %'];
-        const percentMetrics = ['Staffing %', 'Planned Shrinkage %', 'Planned Attrition %'];
-
-        metrics.forEach(metric => {
-            const $tr = $('<tr></tr>');
-            if (metric === 'FTE Required') $tr.append(`<td class="sticky-col font-bold" rowspan="${metrics.length}" nowrap>Overall</td>`);
-            $tr.append(`<td class="sticky-col" nowrap>${metric}</td>`);
-            weeks.forEach(week => {
-                const curweekData = lobs.map(lob => getData(curData, lob, week)).filter(d => d);
-                let current = 'NA', previous = 'NA';
-                if (curweekData.length) {
-                    const curVals = curweekData.map(d => {
-                        switch (metric) {
-                            case 'FTE Required': return d.fteRequired;
-                            case 'FTE Available': return d.fteAvailable;
-                            case 'Delta': return d.delta;
-                            case 'Staffing %': return d.staffingPct;
-                            case 'Planned Shrinkage %': return d.plannedShrinkage;
-                            case 'Planned Attrition %': return d.plannedAttrition ?? 0;
-                            default: return null;
-                        }
-                    }).filter(v => v != null && !isNaN(v));
-                    if (curVals.length) current = percentMetrics.includes(metric) ? fmt(curVals.reduce((a, b) => a + b, 0) / curVals.length, metric) : fmt(curVals.reduce((a, b) => a + b, 0), metric);
-                }
-
-                const prvweekData = lobs.map(lob => getData(prvData, lob, week)).filter(d => d);
-                if (prvweekData.length) {
-                    const prvVals = prvweekData.map(d => {
-                        switch (metric) {
-                            case 'FTE Required': return d.fteRequired;
-                            case 'FTE Available': return d.fteAvailable;
-                            case 'Delta': return d.delta;
-                            case 'Staffing %': return d.staffingPct;
-                            case 'Planned Shrinkage %': return d.plannedShrinkage;
-                            case 'Planned Attrition %': return d.plannedAttrition ?? 0;
-                            default: return null;
-                        }
-                    }).filter(v => v != null && !isNaN(v));
-                    if (prvVals.length) previous = percentMetrics.includes(metric) ? fmt(prvVals.reduce((a, b) => a + b, 0) / prvVals.length, metric) : fmt(prvVals.reduce((a, b) => a + b, 0), metric);
-                }
-                const isNeg = !isNaN(current) && parseFloat(current) < 0;
-                const arrow = getArrow(previous, current);
-                const valDisplay = current + (percentMetrics.includes(metric) && current !== 'NA' ? '%' : '');
-                $tr.append(`
-                            <td class="text-right cell-manual-sim" nowrap>${previous}${percentMetrics.includes(metric) && current !== 'NA' ? '%' : ''}</td>
-                            <td class="text-right ${isNeg ? 'text-red' : ''}" nowrap>${valDisplay}<span style="float:right;color:${arrow === '🡅' ? 'green' : arrow === '🡇' ? 'red' : ''}">${arrow}</span></td>
-                               `);
+        // Populate dropdowns & filters
+        function populateFilters() {
+            // LOB
+            const lobContainer = document.createDocumentFragment();
+            const selectAllLabel = document.createElement('label');
+            selectAllLabel.innerHTML = `<label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>`;
+            lobContainer.appendChild(selectAllLabel);
+            lobs.forEach(lob => {
+                const label = document.createElement('label');
+                label.innerHTML = `<input type="checkbox" class="lobCheckbox lobItem" value="${lob}" checked> ${lob}`;
+                lobContainer.appendChild(label);
+                lobContainer.appendChild(document.createElement('br'));
             });
-            $tbody.append($tr);
-        });
-        // LOB rows
-        lobs.forEach(lob => {
-            metrics.forEach(metric => {
-                const $tr = $('<tr></tr>');
-                if (metric === 'FTE Required') $tr.append(`<td class="sticky-col font-semibold" rowspan="${metrics.length}" nowrap>${lob}</td>`);
-                $tr.append(`<td class="sticky-col" nowrap>${metric}</td>`);
-                weeks.forEach(week => {
-                    const cd = getData(curData, lob, week);
-                    let current = 'NA', previous = 'NA';
-                    if (cd) {
-                        switch (metric) {
-                            case 'FTE Required': current = fmt(cd.fteRequired); break;
-                            case 'FTE Available': current = fmt(cd.fteAvailable); break;
-                            case 'Delta': current = fmt(cd.delta); break;
-                            case 'Staffing %': current = fmt(cd.staffingPct); break;
-                            case 'Planned Shrinkage %': current = fmt(cd.plannedShrinkage, metric); break;
-                            case 'Planned Attrition %': current = fmt(cd.plannedAttrition ?? 0, metric); break;
+            $('#lobDropdown').append(lobContainer);
+
+            // Weeks -> Week From/To radio lists
+            const weekFrom = weeks[0];
+            weeks.forEach(week => {
+                $('#weekFromDropdown').append(`<label style="display:block;padding:2px;"><input type="radio" name="weekFrom" value="${week}" ${week === weekFrom ? 'checked' : ''}> ${week}</label>`);
+                $('#weekToDropdown').append(`<label style="display:block;padding:2px;"><input type="radio" name="weekTo" value="${week}" ${week === weeks[weeks.length - 1] ? 'checked' : ''}> ${week}</label>`);
+            });
+
+            updateDropdownLabel('lobDropdown', lobs, 'Select LOBs');
+            updateRadioDropdownLabel('weekFromDropdownBtn', weekFrom, 'From');
+            updateRadioDropdownLabel('weekToDropdownBtn', weeks[weeks.length - 1], 'To');
+        }
+
+        function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
+            const btn = $(`#${dropdownId}Btn`);
+            if (!btn.length) return;
+            btn.text(selectedItems.length === 0 ? placeholder : `${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
+        }
+        function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
+            const btn = $(`#${dropdownBtnId}`);
+            if (!btn.length) return;
+            btn.text(`${prefix}: ${selectedValue}`);
+        }
+
+        // Fetch comparison plans (keeps your AJAX)
+        function getComparisonPlans() {
+            $('#versionDropdown').empty();
+            var data = {
+                'vertical': $("#verticalName").val(),
+                'account': $('#labAccountName').text(),
+                'groupName': $("#groupName").val(),
+                'rpPlanId': $("#planId").val(),
+            };
+
+            $.ajax({
+                url: '/resourceplanner/GetComparisonPlans',
+                type: "POST",
+                async: true,
+                cache: false,
+                data: JSON.stringify(data),
+                contentType: "application/json",
+                dataType: "json",
+                success: function (response) {
+                    if (response?.data?.length) {
+                        $('#versionDropdown').append('<option value="">Select Version</option>');
+                        $.each(response.data, function (index, item) {
+                            $('#versionDropdown').append(
+                                $('<option>', {
+                                    value: item.rpPlanId,
+                                    text: item.name
+                                })
+                            );
+                        });
+                    }
+                },
+                error: function (xhr, textStatus, errorThrown) {
+                    if (typeof toastr !== 'undefined') toastr.error("Error fetching Plans. Please try again.");
+                    else console.error("Error fetching Plans.", errorThrown);
+                }
+            });
+        }
+
+        // Fetch planner data for selected comparison version
+        function getPlannerDataById() {
+            const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
+            const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
+            var data = {
+                'rpPlanId': $('#versionDropdown').val(),
+                'vertical': $("#verticalName").val(),
+                'stWeek': weekFrom,
+                'edWeek': weekTo
+            };
+            $.ajax({
+                url: '/resourceplanner/GetPlannerDataById',
+                type: "POST",
+                async: true,
+                cache: false,
+                data: JSON.stringify(data),
+                contentType: "application/json",
+                dataType: "json",
+                success: function (response) {
+                    if (response?.length) {
+                        try {
+                            let filterData = settings.processData ? settings.processData(response) : response;
+                            let transformed = settings.transformData ? settings.transformData(filterData) : filterData;
+                            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
+                            buildComparisonTable(transformed, settings.data, selectedLOBs, weekFrom, weekTo);
+                        } catch (err) {
+                            console.error("process/transform function error:", err);
                         }
                     }
+                },
+                error: function (xhr, textStatus, errorThrown) {
+                    if (typeof toastr !== 'undefined') toastr.error("Error fetching Plans. Please try again.");
+                    else console.error("Error fetching Plans.", errorThrown);
+                }
+            });
 
-                    const pd = getData(prvData, lob, week);
-                    if (pd) {
-                        switch (metric) {
-                            case 'FTE Required': previous = fmt(pd.fteRequired); break;
-                            case 'FTE Available': previous = fmt(pd.fteAvailable); break;
-                            case 'Delta': previous = fmt(pd.delta); break;
-                            case 'Staffing %': previous = fmt(pd.staffingPct); break;
-                            case 'Planned Shrinkage %': previous = fmt(pd.plannedShrinkage, metric); break;
-                            case 'Planned Attrition %': previous = fmt(pd.plannedAttrition ?? 0, metric); break;
-                        }
+        }
+
+        // Build table data (filters and calls renderer)
+        function buildComparisonTable(prvData, curData, selectedLOBs, weekFrom, weekTo) {
+            curData = fiterData(curData, selectedLOBs, weekFrom, weekTo);
+            prvData = fiterData(prvData, selectedLOBs, weekFrom, weekTo);
+            weeks = [...new Set(curData.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
+            lobs = [...new Set(curData.map(d => d.lob))];
+            renderTable(curData, prvData, weeks, lobs);
+        }
+
+        function fiterData(data, selectedLOBs, weekFrom, weekTo) {
+            return data.filter(item => {
+                const weekDate = parseComparisonWeekDate(item.week); // convert to Date object
+                const fromDate = parseComparisonWeekDate(weekFrom);
+                const toDate = parseComparisonWeekDate(weekTo);
+                const isLOBMatch = selectedLOBs.length === 0 || selectedLOBs.includes(item.lob);
+                const isWeekInRange = weekDate >= fromDate && weekDate <= toDate;
+                return isLOBMatch && isWeekInRange;
+            });
+        }
+
+        // RENDER table (keeps your metrics, arrows, formatting)
+        function renderTable(curData, prvData, weeks, lobs) {
+            $tableWrapper.empty();
+            const $table = $('<table class="table sim-table min-w-max border-collapse border border-gray-200"></table>');
+            $tableWrapper.append($table);
+            $container.append($tableWrapper);
+
+            // Table header
+            let headerHtml = `<thead><tr>
+                <th class="sticky-1 border" nowrap>LOB / Overall</th>
+                <th class="sticky-2 border" nowrap>Metric</th>`;
+            weeks.forEach(w => headerHtml += `<th class="border text-center week-cell" colspan="2" nowrap>${w}</th>`);
+            headerHtml += `</tr><tr><th></th><th></th>`;
+            weeks.forEach(_ => headerHtml += `<th class="cell-manual-sim"  nowrap>Selected</th><th style="min-width:55px;" nowrap>Current</th>`);
+            headerHtml += `</tr></thead>`;
+            $table.append(headerHtml);
+            const $tbody = $('<tbody></tbody>');
+            $table.append($tbody);
+
+            const metrics = ['FTE Required', 'FTE Available', 'Delta', 'Staffing %', 'Planned Shrinkage %',  'Planned Attrition %'];
+            const percentMetrics = ['Staffing %', 'Planned Shrinkage %', 'Planned Attrition %'];
+
+            // Overall rows
+            metrics.forEach(metric => {
+                const $tr = $('<tr></tr>');
+                if (metric === 'FTE Required') $tr.append(`<td class="sticky-1 font-bold" rowspan="${metrics.length}" nowrap>Overall</td>`);
+                $tr.append(`<td class="sticky-2" nowrap>${metric}</td>`);
+                weeks.forEach(week => {
+                    const curweekData = lobs.map(lob => getData(curData, lob, week)).filter(d => d);
+                    let current = 'NA', previous = 'NA';
+                    if (curweekData.length) {
+                        const curVals = curweekData.map(d => {
+                            switch (metric) {
+                                case 'FTE Required': return d.fteRequired;
+                                case 'FTE Available': return d.fteAvailable;
+                                case 'Delta': return d.delta;
+                                case 'Staffing %': return d.staffingPct;
+                                case 'Planned Shrinkage %': return d.plannedShrinkage;
+                                case 'Planned Attrition %': return d.plannedAttrition ?? 0;
+                                default: return null;
+                            }
+                        }).filter(v => v != null && !isNaN(v));
+                        if (curVals.length) current = percentMetrics.includes(metric) ? fmt(curVals.reduce((a, b) => a + b, 0) / curVals.length, metric) : fmt(curVals.reduce((a, b) => a + b, 0), metric);
+                    }
+
+                    const prvweekData = lobs.map(lob => getData(prvData, lob, week)).filter(d => d);
+                    if (prvweekData.length) {
+                        const prvVals = prvweekData.map(d => {
+                            switch (metric) {
+                                case 'FTE Required': return d.fteRequired;
+                                case 'FTE Available': return d.fteAvailable;
+                                case 'Delta': return d.delta;
+                                case 'Staffing %': return d.staffingPct;
+                                case 'Planned Shrinkage %': return d.plannedShrinkage;
+                                case 'Planned Attrition %': return d.plannedAttrition ?? 0;
+                                default: return null;
+                            }
+                        }).filter(v => v != null && !isNaN(v));
+                        if (prvVals.length) previous = percentMetrics.includes(metric) ? fmt(prvVals.reduce((a, b) => a + b, 0) / prvVals.length, metric) : fmt(prvVals.reduce((a, b) => a + b, 0), metric);
                     }
                     const isNeg = !isNaN(current) && parseFloat(current) < 0;
                     const arrow = getArrow(previous, current);
                     const valDisplay = current + (percentMetrics.includes(metric) && current !== 'NA' ? '%' : '');
-                    $tr.append(` 
-                                  <td class="text-right  cell-manual-sim" nowrap>${previous}${percentMetrics.includes(metric) && previous !== 'NA' ? '%' : ''}</td>
-                                  <td class="text-right ${isNeg ? 'text-red' : ''}" nowrap>${valDisplay}<span style="float:right;color:${arrow === '🡅' ? 'green' : arrow === '🡇' ? 'red' : ''}">${arrow}</span></td>
-                                     `);
+                    $tr.append(`
+                                <td class="text-right cell-manual-sim" nowrap>${previous}${percentMetrics.includes(metric) && current !== 'NA' ? '%' : ''}</td>
+                                <td class="text-right ${isNeg ? 'text-red' : ''}" nowrap>${valDisplay}<span style="float:right;color:${arrow === '🡅' ? 'green' : arrow === '🡇' ? 'red' : ''}">${arrow}</span></td>
+                                   `);
                 });
                 $tbody.append($tr);
             });
-        });
 
+            // LOB rows
+            lobs.forEach(lob => {
+                metrics.forEach(metric => {
+                    const $tr = $('<tr></tr>');
+                    if (metric === 'FTE Required') $tr.append(`<td class="sticky-1 font-semibold" rowspan="${metrics.length}" nowrap>${lob}</td>`);
+                    $tr.append(`<td class="sticky-2" nowrap>${metric}</td>`);
+                    weeks.forEach(week => {
+                        const cd = getData(curData, lob, week);
+                        let current = 'NA', previous = 'NA';
+                        if (cd) {
+                            switch (metric) {
+                                case 'FTE Required': current = fmt(cd.fteRequired); break;
+                                case 'FTE Available': current = fmt(cd.fteAvailable); break;
+                                case 'Delta': current = fmt(cd.delta); break;
+                                case 'Staffing %': current = fmt(cd.staffingPct); break;
+                                case 'Planned Shrinkage %': current = fmt(cd.plannedShrinkage, metric); break;
+                                case 'Planned Attrition %': current = fmt(cd.plannedAttrition ?? 0, metric); break;
+                            }
+                        }
 
-    }
-    function getData(data,lob, week) {
-        return data.find(d => d.lob === lob && d.week === week);
-    }
-    const fmt = (val, metric) => (val !== null && val !== undefined && !isNaN(val)) ?
-        (metric?.includes("Shrinkage") || metric?.includes("Attrition")) ? parseFloat(val).toFixed(1) : parseFloat(val).toFixed(0)
-        : 'NA';
+                        const pd = getData(prvData, lob, week);
+                        if (pd) {
+                            switch (metric) {
+                                case 'FTE Required': previous = fmt(pd.fteRequired); break;
+                                case 'FTE Available': previous = fmt(pd.fteAvailable); break;
+                                case 'Delta': previous = fmt(pd.delta); break;
+                                case 'Staffing %': previous = fmt(pd.staffingPct); break;
+                                case 'Planned Shrinkage %': previous = fmt(pd.plannedShrinkage, metric); break;
+                                case 'Planned Attrition %': previous = fmt(pd.plannedAttrition ?? 0, metric); break;
+                            }
+                        }
+                        const isNeg = !isNaN(current) && parseFloat(current) < 0;
+                        const arrow = getArrow(previous, current);
+                        const valDisplay = current + (percentMetrics.includes(metric) && current !== 'NA' ? '%' : '');
+                        $tr.append(` 
+                                      <td class="text-right  cell-manual-sim" nowrap>${previous}${percentMetrics.includes(metric) && previous !== 'NA' ? '%' : ''}</td>
+                                      <td class="text-right ${isNeg ? 'text-red' : ''}" nowrap>${valDisplay}<span style="float:right;color:${arrow === '🡅' ? 'green' : arrow === '🡇' ? 'red' : ''}">${arrow}</span></td>
+                                         `);
+                    });
+                    $tbody.append($tr);
+                });
+            });
 
-    function getArrow(prv, cur) {
-        if (prv === 'NA' || cur === 'NA') return '';
-        prv = parseFloat(prv);
-        cur = parseFloat(cur);
-        if (prv < cur) return '🡅';
-        if (prv > cur) return '🡇';
-        return '';
-    }
-    function parseComparisonWeekDate(weekStr) {
-        const [day, month, year] = weekStr.split('-');
-        return new Date(`${day} ${month} 20${year}`);
-    }
-    // Show Modal
-    const versionComparisonModal = new bootstrap.Modal(document.getElementById('versionComparisonModal'));
-    versionComparisonModal.show();
+            // After render: adjust sticky column widths & setup top-scroll sync
+            setupStickyAndTopScroll($table, $tableWrapper);
+        }
 
-};
+        // Function to set left offsets and widths for sticky columns and sync top scrollbar
+        function setupStickyAndTopScroll($table, $wrapper) {
+            // compute widths of first & second columns from header cells
+            const $firstTh = $table.find('thead tr').first().find('th').first();
+            const $secondTh = $table.find('thead tr').first().find('th').eq(1);
+
+            // fallback widths if not measured
+            const firstWidth = $firstTh.length ? $firstTh.outerWidth() : 140;
+            const secondWidth = $secondTh.length ? $secondTh.outerWidth() : 150;
+
+            // Apply left offsets for sticky-1 and sticky-2 in both header and body cells
+            $table.find('.sticky-1').css({ left: 0, 'min-width': firstWidth + 'px' });
+            $table.find('.sticky-2').css({ left: firstWidth + 'px', 'min-width': secondWidth + 'px' });
+
+            // Also ensure header th's which are sticky get same left values
+            $table.find('thead th').each(function (idx) {
+                if (idx === 0) $(this).css({ left: 0 });
+                if (idx === 1) $(this).css({ left: firstWidth + 'px' });
+            });
+
+            // Set top-scroll inner width to table's full scrollWidth
+            const tableScrollWidth = $table[0].scrollWidth;
+            $vcTopScroll.find('div').css('width', tableScrollWidth + 'px');
+
+            // Sync scrolls - top -> bottom and bottom -> top
+            // top scroll is #vcTopScroll, bottom is .table-wrapper (the $wrapper)
+            $vcTopScroll.off('scroll.vc').on('scroll.vc', function () {
+                $wrapper.scrollLeft($(this).scrollLeft());
+            });
+            $wrapper.off('scroll.vc').on('scroll.vc', function () {
+                $vcTopScroll.scrollLeft($(this).scrollLeft());
+            });
+
+            // If modal or container resizes, re-run this to correct offsets
+            // We can add a resize observer or window resize handler
+            $(window).off('resize.vc').on('resize.vc', function () {
+                // small debounce
+                clearTimeout(window.__vcResizeTimer);
+                window.__vcResizeTimer = setTimeout(function () {
+                    setupStickyAndTopScroll($table, $wrapper);
+                }, 120);
+            });
+        }
+
+        // Helpers copied/kept
+        function getData(data, lob, week) {
+            return data.find(d => d.lob === lob && d.week === week);
+        }
+
+        const fmt = (val, metric) => (val !== null && val !== undefined && !isNaN(val)) ?
+            (metric?.includes("Shrinkage") || metric?.includes("Attrition")) ? parseFloat(val).toFixed(1) : parseFloat(val).toFixed(0)
+            : 'NA';
+
+        function getArrow(prv, cur) {
+            if (prv === 'NA' || cur === 'NA') return '';
+            prv = parseFloat(prv);
+            cur = parseFloat(cur);
+            if (prv < cur) return '🡅';
+            if (prv > cur) return '🡇';
+            return '';
+        }
+        function parseComparisonWeekDate(weekStr) {
+            const [day, month, year] = weekStr.split('-');
+            return new Date(`${day} ${month} 20${year}`);
+        }
+
+        // initial load of comparison plans
+        getComparisonPlans();
+
+        // Show Modal (after building)
+        const versionComparisonModal = new bootstrap.Modal(document.getElementById('versionComparisonModal'));
+        versionComparisonModal.show();
+
+    };
 }(jQuery));
