@@ -11,7 +11,7 @@
         $('#versionComparisonModal').remove();
         $('#versionComparisonModalStyles').remove();
 
-        // Inject CSS (fixed & cleaned)
+        // Inject CSS (fixed & cleaned) - NOTE: no top scrollbar CSS now
         $('head').append(`
             <style id="versionComparisonModalStyles">
                 /* Modal Content Styling */
@@ -22,11 +22,20 @@
 
                 /* Table outer wrappers */
                 .vc-table-outer { position: relative; margin: 10px; }
-                .vc-top-scroll { overflow-x: auto; overflow-y: hidden; height: 16px; border-bottom: 1px solid #e6e6e6; background: #f9f9f9; }
-                .vc-top-scroll > div { height: 1px; }
 
-                /* Table wrapper (bottom) */
-                #versionComparisonModal .table-wrapper { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 160px); position: relative; border: 1px solid #dcdcdc; background: #fff; border-radius: 8px; margin: 0; min-height: 200px; }
+                /* Table wrapper (bottom) - this is the single scroll container */
+                #versionComparisonModal .table-wrapper {
+                    overflow-x: auto;
+                    overflow-y: auto;
+                    max-height: calc(100vh - 160px);
+                    position: relative;
+                    border: 1px solid #dcdcdc;
+                    background: #fff;
+                    border-radius: 8px;
+                    margin: 0;
+                    min-height: 200px;
+                    padding-bottom: 12px; /* ensures bottom scrollbar stays visible */
+                }
 
                 /* Table */
                 #versionComparisonModal table { border-collapse: collapse; width: max-content; table-layout: auto; }
@@ -36,16 +45,21 @@
                 #versionComparisonModal .cell-manual-sim { background: #DDF4E7 !important; }
                 #versionComparisonModal .week-cell { background: blueviolet !important; color: #fff !important; }
 
-                /* Sticky Header */
-                #versionComparisonModal thead th { position: sticky; top: 0; background: #f5f5f5; z-index: 6; }
+                /* Sticky Header (higher z-index than sticky columns) */
+                #versionComparisonModal thead th {
+                    position: sticky;
+                    top: 0;
+                    background: #f5f5f5;
+                    z-index: 20;
+                }
 
                 /* Sticky left columns placeholders (left value set by JS for exact widths) */
-                #versionComparisonModal .sticky-1 { position: sticky; left: 0; background: #f0f0f0; z-index: 9; min-width: 140px; }
-                #versionComparisonModal .sticky-2 { position: sticky; left: 140px; background: #f0f0f0; z-index: 9; min-width: 150px; }
+                #versionComparisonModal .sticky-1 { position: sticky; left: 0; background: #f0f0f0; z-index: 18; min-width: 140px; }
+                #versionComparisonModal .sticky-2 { position: sticky; left: 140px; background: #f0f0f0; z-index: 18; min-width: 150px; }
 
                 /* Body sticky cells */
-                #versionComparisonModal tbody td.sticky-1 { position: sticky; left: 0; background: #f8f9fa; z-index: 7; min-width: 140px; }
-                #versionComparisonModal tbody td.sticky-2 { position: sticky; left: 140px; background: #f8f9fa; z-index: 7; min-width: 150px; }
+                #versionComparisonModal tbody td.sticky-1 { position: sticky; left: 0; background: #f8f9fa; z-index: 16; min-width: 140px; }
+                #versionComparisonModal tbody td.sticky-2 { position: sticky; left: 140px; background: #f8f9fa; z-index: 16; min-width: 150px; }
 
                 /* Conditional Coloring */
                 #versionComparisonModal .rag-red { color: #e74c3c; font-weight: bold; }
@@ -110,7 +124,6 @@
                   </div>
                 </div>  
                 <div class="vc-table-outer" style="margin:10px;">
-                    <div id="vcTopScroll" class="vc-top-scroll"><div></div></div>
                     <div class="table-wrapper" id="versionComparisonContainer"></div>
                 </div>
               </div>
@@ -122,7 +135,6 @@
         $('body').append($toolbar);
 
         const $container = $('#versionComparisonContainer');
-        const $vcTopScroll = $('#vcTopScroll');
 
         // Initial dataset derived values
         let weeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => new Date(a) - new Date(b));
@@ -130,8 +142,8 @@
 
         populateFilters();
 
-        // Table wrapper used for bottom scrolling (existing variable name preserved)
-        const $tableWrapper = $('<div class="sim-table-wrapper overflow-x-auto"></div>');
+        // Table wrapper used for bottom scrolling
+        const $tableWrapper = $('<div class="sim-table-wrapper"></div>');
 
         // Filters events (kept largely same as your original)
         $('#lobDropdown').on('change', '.lobSelectAll', function () {
@@ -417,12 +429,12 @@
                 });
             });
 
-            // After render: adjust sticky column widths & setup top-scroll sync
-            setupStickyAndTopScroll($table, $tableWrapper);
+            // After render: adjust sticky column widths & setup scroll handlers
+            setupStickyColumns($table, $tableWrapper);
         }
 
-        // Function to set left offsets and widths for sticky columns and sync top scrollbar
-        function setupStickyAndTopScroll($table, $wrapper) {
+        // Function to set left offsets and widths for sticky columns and ensure header sticks
+        function setupStickyColumns($table, $wrapper) {
             // compute widths of first & second columns from header cells
             const $firstTh = $table.find('thead tr').first().find('th').first();
             const $secondTh = $table.find('thead tr').first().find('th').eq(1);
@@ -431,9 +443,13 @@
             const firstWidth = $firstTh.length ? $firstTh.outerWidth() : 140;
             const secondWidth = $secondTh.length ? $secondTh.outerWidth() : 150;
 
-            // Apply left offsets for sticky-1 and sticky-2 in both header and body cells
-            $table.find('.sticky-1').css({ left: 0, 'min-width': firstWidth + 'px' });
-            $table.find('.sticky-2').css({ left: firstWidth + 'px', 'min-width': secondWidth + 'px' });
+            // Apply left offsets and min-widths for sticky-1 and sticky-2 in both header and body cells
+            $table.find('.sticky-1').each(function () {
+                $(this).css({ left: 0, 'min-width': firstWidth + 'px' });
+            });
+            $table.find('.sticky-2').each(function () {
+                $(this).css({ left: firstWidth + 'px', 'min-width': secondWidth + 'px' });
+            });
 
             // Also ensure header th's which are sticky get same left values
             $table.find('thead th').each(function (idx) {
@@ -441,28 +457,28 @@
                 if (idx === 1) $(this).css({ left: firstWidth + 'px' });
             });
 
-            // Set top-scroll inner width to table's full scrollWidth
-            const tableScrollWidth = $table[0].scrollWidth;
-            $vcTopScroll.find('div').css('width', tableScrollWidth + 'px');
+            // Ensure header has higher z-index than sticky columns (already set in CSS)
+            // No top scrollbar or sync needed - only bottom scrollbar (the wrapper) handles horiz scroll
 
-            // Sync scrolls - top -> bottom and bottom -> top
-            // top scroll is #vcTopScroll, bottom is .table-wrapper (the $wrapper)
-            $vcTopScroll.off('scroll.vc').on('scroll.vc', function () {
-                $wrapper.scrollLeft($(this).scrollLeft());
-            });
-            $wrapper.off('scroll.vc').on('scroll.vc', function () {
-                $vcTopScroll.scrollLeft($(this).scrollLeft());
-            });
+            // Bind scroll handler to wrapper to keep header/columns stable (no work needed, CSS sticky handles it)
+            // But we need to ensure when wrapper scrolls horizontally, nothing else required.
 
-            // If modal or container resizes, re-run this to correct offsets
-            // We can add a resize observer or window resize handler
-            $(window).off('resize.vc').on('resize.vc', function () {
-                // small debounce
-                clearTimeout(window.__vcResizeTimer);
-                window.__vcResizeTimer = setTimeout(function () {
-                    setupStickyAndTopScroll($table, $wrapper);
-                }, 120);
-            });
+            // Recompute on resize (debounced)
+            clearTimeout(window.__vcResizeTimer);
+            window.__vcResizeTimer = setTimeout(function () {
+                // Recalculate widths if content or font-size changed
+                const newFirstW = $firstTh.length ? $firstTh.outerWidth() : firstWidth;
+                const newSecondW = $secondTh.length ? $secondTh.outerWidth() : secondWidth;
+
+                $table.find('.sticky-1').css({ 'min-width': newFirstW + 'px' });
+                $table.find('.sticky-2').css({ 'min-width': newSecondW + 'px', left: newFirstW + 'px' });
+
+                $table.find('thead th').each(function (idx) {
+                    if (idx === 0) $(this).css({ left: 0 });
+                    if (idx === 1) $(this).css({ left: newFirstW + 'px' });
+                });
+
+            }, 100);
         }
 
         // Helpers copied/kept
