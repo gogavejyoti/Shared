@@ -1,57 +1,65 @@
 function setupStickyColumns($table, $wrapper) {
-    // Compute widths of first & second columns from first header row
+    // compute widths of first & second columns from first header row cells
     const $firstTh = $table.find('thead tr').first().find('th').first();
     const $secondTh = $table.find('thead tr').first().find('th').eq(1);
 
-    // Fallback widths if not measured
+    // fallback widths if not measured
     const firstWidth = $firstTh.length ? $firstTh.outerWidth() : 140;
     const secondWidth = $secondTh.length ? $secondTh.outerWidth() : 150;
 
-    // Apply left offsets and min-widths for sticky-1 and sticky-2 in body cells
+    // Apply left offsets and min-widths for sticky columns in body cells
     $table.find('.sticky-1').each(function () {
-        $(this).css({ left: 0, 'min-width': firstWidth + 'px' });
+        $(this).css({ position: 'sticky', left: 0, 'min-width': firstWidth + 'px', 'z-index': 1000, background: '#f8f9fa' });
     });
     $table.find('.sticky-2').each(function () {
-        $(this).css({ left: firstWidth + 'px', 'min-width': secondWidth + 'px' });
+        $(this).css({ position: 'sticky', left: firstWidth + 'px', 'min-width': secondWidth + 'px', 'z-index': 1000, background: '#f8f9fa' });
     });
 
-    // Make first 2 columns sticky horizontally in all header rows
-    $table.find('thead tr').each(function () {
+    // Make first two columns sticky horizontally and vertically on all header rows
+    $table.find('thead tr').each(function (rowIndex) {
+        const topOffset = getHeaderTopOffset($table, rowIndex);
+
         $(this).find('th').each(function (idx) {
             if (idx === 0) {
                 $(this).css({
                     position: 'sticky',
+                    top: topOffset + 'px',
                     left: 0,
                     'min-width': firstWidth + 'px',
-                    'z-index': 1100, // higher than body cells
+                    'z-index': 1100 + rowIndex,  // higher z-index for header stacking
                     background: '#f5f5f5',
                 });
             } else if (idx === 1) {
                 $(this).css({
                     position: 'sticky',
+                    top: topOffset + 'px',
                     left: firstWidth + 'px',
                     'min-width': secondWidth + 'px',
-                    'z-index': 1100,
+                    'z-index': 1100 + rowIndex,
+                    background: '#f5f5f5',
+                });
+            } else {
+                // For other headers, just freeze vertically
+                $(this).css({
+                    position: 'sticky',
+                    top: topOffset + 'px',
+                    'z-index': 1000 + rowIndex,
                     background: '#f5f5f5',
                 });
             }
         });
     });
 
-    // Freeze all header rows vertically with cumulative top offset
-    let topOffset = 0;
-    $table.find('thead tr').each(function (index) {
-        const rowHeight = $(this).outerHeight();
-
-        $(this).find('th').css({
-            position: 'sticky',
-            top: topOffset + 'px',
-            'z-index': 100 + index,  // stacking order between header rows
-            background: '#f5f5f5',
-        });
-
-        topOffset += rowHeight;
+    // Also set left for header ths outside sticky classes (if any)
+    $table.find('thead th').each(function (idx) {
+        if (idx === 0) $(this).css({ left: 0 });
+        if (idx === 1) $(this).css({ left: firstWidth + 'px' });
     });
+
+    // Sync top-scroll div width if you use one (optional, depends on your code)
+    if ($('#vcTopScroll').length) {
+        $('#vcTopScroll > div').css('width', $table[0].scrollWidth + 'px');
+    }
 
     // Recompute on resize (debounced)
     clearTimeout(window.__vcResizeTimer);
@@ -59,37 +67,50 @@ function setupStickyColumns($table, $wrapper) {
         const newFirstW = $firstTh.length ? $firstTh.outerWidth() : firstWidth;
         const newSecondW = $secondTh.length ? $secondTh.outerWidth() : secondWidth;
 
-        // Update body sticky columns widths
-        $table.find('.sticky-1').css({ 'min-width': newFirstW + 'px' });
+        $table.find('.sticky-1').css({ 'min-width': newFirstW + 'px', left: 0 });
         $table.find('.sticky-2').css({ 'min-width': newSecondW + 'px', left: newFirstW + 'px' });
 
-        // Update sticky header columns widths and left offsets for all header rows
-        $table.find('thead tr').each(function () {
+        $table.find('thead tr').each(function (rowIndex) {
+            const topOffset = getHeaderTopOffset($table, rowIndex);
             $(this).find('th').each(function (idx) {
                 if (idx === 0) {
                     $(this).css({
+                        top: topOffset + 'px',
                         left: 0,
-                        'min-width': newFirstW + 'px',
+                        'min-width': newFirstW + 'px'
                     });
                 } else if (idx === 1) {
                     $(this).css({
+                        top: topOffset + 'px',
                         left: newFirstW + 'px',
-                        'min-width': newSecondW + 'px',
+                        'min-width': newSecondW + 'px'
+                    });
+                } else {
+                    $(this).css({
+                        top: topOffset + 'px',
                     });
                 }
             });
         });
 
-        // Reapply sticky header top offsets on resize
-        let newTopOffset = 0;
-        $table.find('thead tr').each(function (index) {
-            const rowHeight = $(this).outerHeight();
-
-            $(this).find('th').css({
-                top: newTopOffset + 'px',
-            });
-
-            newTopOffset += rowHeight;
+        // Also update left for header ths outside sticky classes (if any)
+        $table.find('thead th').each(function (idx) {
+            if (idx === 0) $(this).css({ left: 0 });
+            if (idx === 1) $(this).css({ left: newFirstW + 'px' });
         });
+
+        // Update top-scroll width if used
+        if ($('#vcTopScroll').length) {
+            $('#vcTopScroll > div').css('width', $table[0].scrollWidth + 'px');
+        }
     }, 100);
+}
+
+// Helper function to calculate cumulative top offset for header rows
+function getHeaderTopOffset($table, rowIndex) {
+    let offset = 0;
+    for (let i = 0; i < rowIndex; i++) {
+        offset += $table.find('thead tr').eq(i).outerHeight();
+    }
+    return offset;
 }
