@@ -1,21 +1,13 @@
-function getHeaderTopOffset($table, rowIndex) {
-    let offset = 0;
-    for (let i = 0; i < rowIndex; i++) {
-        offset += $table.find('thead tr').eq(i).outerHeight();
-    }
-    return offset;
-}
-
 function setupStickyColumns($table, $wrapper) {
-    // compute widths of first & second columns from header cells
+    // Compute widths of first & second columns from first header row
     const $firstTh = $table.find('thead tr').first().find('th').first();
     const $secondTh = $table.find('thead tr').first().find('th').eq(1);
 
-    // fallback widths if not measured
+    // Fallback widths if not measured
     const firstWidth = $firstTh.length ? $firstTh.outerWidth() : 140;
     const secondWidth = $secondTh.length ? $secondTh.outerWidth() : 150;
 
-    // Apply left offsets and min-widths for sticky-1 and sticky-2 in both header and body cells
+    // Apply left offsets and min-widths for sticky-1 and sticky-2 in body cells
     $table.find('.sticky-1').each(function () {
         $(this).css({ left: 0, 'min-width': firstWidth + 'px' });
     });
@@ -23,24 +15,42 @@ function setupStickyColumns($table, $wrapper) {
         $(this).css({ left: firstWidth + 'px', 'min-width': secondWidth + 'px' });
     });
 
-    // Also ensure header th's which are sticky get same left values
-    $table.find('thead th').each(function (idx) {
-        if (idx === 0) $(this).css({ left: 0 });
-        if (idx === 1) $(this).css({ left: firstWidth + 'px' });
+    // Make first 2 columns sticky horizontally in all header rows
+    $table.find('thead tr').each(function () {
+        $(this).find('th').each(function (idx) {
+            if (idx === 0) {
+                $(this).css({
+                    position: 'sticky',
+                    left: 0,
+                    'min-width': firstWidth + 'px',
+                    'z-index': 1100, // higher than body cells
+                    background: '#f5f5f5',
+                });
+            } else if (idx === 1) {
+                $(this).css({
+                    position: 'sticky',
+                    left: firstWidth + 'px',
+                    'min-width': secondWidth + 'px',
+                    'z-index': 1100,
+                    background: '#f5f5f5',
+                });
+            }
+        });
     });
 
-    // Freeze all header rows with cumulative top offset and reversed z-index order
-    const totalHeaderRows = $table.find('thead tr').length;
-
-    $table.find('thead tr').each(function(index) {
-        const topOffset = getHeaderTopOffset($table, index);
+    // Freeze all header rows vertically with cumulative top offset
+    let topOffset = 0;
+    $table.find('thead tr').each(function (index) {
+        const rowHeight = $(this).outerHeight();
 
         $(this).find('th').css({
             position: 'sticky',
             top: topOffset + 'px',
-            'z-index': 1000 - index,  // higher z-index for first row
+            'z-index': 100 + index,  // stacking order between header rows
             background: '#f5f5f5',
         });
+
+        topOffset += rowHeight;
     });
 
     // Recompute on resize (debounced)
@@ -49,22 +59,37 @@ function setupStickyColumns($table, $wrapper) {
         const newFirstW = $firstTh.length ? $firstTh.outerWidth() : firstWidth;
         const newSecondW = $secondTh.length ? $secondTh.outerWidth() : secondWidth;
 
+        // Update body sticky columns widths
         $table.find('.sticky-1').css({ 'min-width': newFirstW + 'px' });
         $table.find('.sticky-2').css({ 'min-width': newSecondW + 'px', left: newFirstW + 'px' });
 
-        $table.find('thead th').each(function (idx) {
-            if (idx === 0) $(this).css({ left: 0 });
-            if (idx === 1) $(this).css({ left: newFirstW + 'px' });
+        // Update sticky header columns widths and left offsets for all header rows
+        $table.find('thead tr').each(function () {
+            $(this).find('th').each(function (idx) {
+                if (idx === 0) {
+                    $(this).css({
+                        left: 0,
+                        'min-width': newFirstW + 'px',
+                    });
+                } else if (idx === 1) {
+                    $(this).css({
+                        left: newFirstW + 'px',
+                        'min-width': newSecondW + 'px',
+                    });
+                }
+            });
         });
 
-        // Reapply sticky header top offsets on resize with reversed z-index
-        $table.find('thead tr').each(function(index) {
-            const topOffset = getHeaderTopOffset($table, index);
+        // Reapply sticky header top offsets on resize
+        let newTopOffset = 0;
+        $table.find('thead tr').each(function (index) {
+            const rowHeight = $(this).outerHeight();
 
             $(this).find('th').css({
-                top: topOffset + 'px',
-                'z-index': 1000 - index,
+                top: newTopOffset + 'px',
             });
+
+            newTopOffset += rowHeight;
         });
     }, 100);
 }
