@@ -1,73 +1,116 @@
-           NETWORKDAYS_INTL: function () {
-                if (arguments.length < this.m[0] || arguments.length > this.m[1])
-                    return p.error.na;
-                for (var e = 0; e < arguments.length; e++) {
-                    var n = p.errorParamCheck(this.p, arguments[e], e);
-                    if (!n[0])
-                        return p.error.v
-                }
-                try {
-                    var t = [[], [6, 0], [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], void 0, void 0, void 0, [0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6]]
-                        , l = M.getCellDate(arguments[0]);
-                    if (H(l))
-                        return l;
-                    if (!(0,
-                        j.default)(l).isValid())
-                        return p.error.v;
-                    var a = M.getCellDate(arguments[1]);
-                    if (H(a))
-                        return a;
-                    if (!(0,
-                        j.default)(a).isValid())
-                        return p.error.v;
-                    var o = t[1];
-                    if (arguments.length >= 3 && (o = arguments[2],
-                        !(typeof o == "string" && o.length == "7" && /^[0-1]{7}$/g.test(o)))) {
-                        if (o = M.getFirstValue(arguments[2]),
-                            H(o))
-                            return o;
-                        if (!B(o))
-                            return p.error.v;
-                        if (o = parseInt(o),
-                            o < 1 || o > 7 && o < 11 || o > 17)
-                            return p.error.nm;
-                        o = t[o]
+NETWORKDAYS_INTL: function () {
+    if (arguments.length < this.m[0] || arguments.length > this.m[1])
+        return p.error.na;
+
+    // Validate params
+    for (let i = 0; i < arguments.length; i++) {
+        const chk = p.errorParamCheck(this.p, arguments[i], i);
+        if (!chk[0]) return p.error.v;
+    }
+
+    try {
+        // Excel weekend mappings
+        const weekendCodes = {
+            1: [6, 0],   // Sat, Sun
+            2: [0, 1],   // Sun, Mon
+            3: [1, 2],   // Mon, Tue
+            4: [2, 3],   // Tue, Wed
+            5: [3, 4],   // Wed, Thu
+            6: [4, 5],   // Thu, Fri
+            7: [5, 6],   // Fri, Sat
+            11: [0],     // Sun only
+            12: [1],     // Mon only
+            13: [2],     // Tue only
+            14: [3],     // Wed only
+            15: [4],     // Thu only
+            16: [5],     // Fri only
+            17: [6],     // Sat only
+        };
+
+        // Load dates
+        let startRaw = M.getCellDate(arguments[0]);
+        if (H(startRaw)) return startRaw;
+
+        let endRaw = M.getCellDate(arguments[1]);
+        if (H(endRaw)) return endRaw;
+
+        let start = (0, j.default)(startRaw);
+        let end = (0, j.default)(endRaw);
+        if (!start.isValid() || !end.isValid()) return p.error.v;
+
+        // Weekend parameter
+        let weekend = 1; // default Excel: Sat/Sun
+
+        if (arguments.length >= 3) {
+            weekend = M.getFirstValue(arguments[2]);
+
+            // CASE A: 7-character Excel weekend pattern
+            if (typeof weekend === "string" && weekend.length === 7 && /^[01]{7}$/.test(weekend)) {
+                // Excel format: Mon→Sun, '1' = weekend, '0' = workday
+                // We will handle below
+            } else {
+                // CASE B: Excel weekend code 1–7 or 11–17
+                if (!B(weekend)) return p.error.v;
+                weekend = parseInt(weekend);
+                if (!(weekendCodes[weekend])) return p.error.nm;
+            }
+        }
+
+        // Holidays
+        let holidays = [];
+        if (arguments.length === 4) {
+            holidays = M.getCellrangeDate(arguments[3]);
+            if (H(holidays)) return holidays;
+            for (let h of holidays)
+                if (!(0, j.default)(h).isValid())
+                    return p.error.v;
+        }
+
+        // Count days inclusive
+        const total = end.diff(start, "days") + 1;
+        let workdays = 0;
+
+        let current = start;
+
+        for (let i = 0; i < total; i++) {
+            let dow = current.day();  // Sun=0…Sat=6
+            let excelDow = dow === 0 ? 7 : dow; // Excel: Sun=7
+
+            let isWeekend = false;
+
+            // A) Excel 7-character pattern (Mon=1...Sun=7)
+            if (typeof arguments[2] === "string") {
+                let pattern = arguments[2];
+                // Excel: '1' = weekend, '0' = working day
+                if (pattern.charAt(excelDow - 1) === "1")
+                    isWeekend = true;
+            }
+
+            // B) Excel weekend code (1–7,11–17)
+            else {
+                let weekendSet = weekendCodes[weekend];
+                if (weekendSet.includes(dow))
+                    isWeekend = true;
+            }
+
+            // Holiday exclusion
+            if (!isWeekend) {
+                for (let h of holidays) {
+                    if (current.diff((0, j.default)(h), "days") === 0) {
+                        isWeekend = true;
+                        break;
                     }
-                    var s = [];
-                    if (arguments.length == 4 && (s = M.getCellrangeDate(arguments[3]),
-                        H(s)))
-                        return s;
-                    for (var e = 0; e < s.length; e++)
-                        if (!(0,
-                            j.default)(s[e]).isValid())
-                            return p.error.v;
-                    var u = (0,
-                        j.default)(a).diff((0,
-                            j.default)(l), "days") + 1
-                        , d = u
-                        , f = (0,
-                            j.default)(l);
-                    for (e = 0; e < u; e++) {
-                        var m = (0,
-                            j.default)(f).weekday()
-                            , g = !1;
-                        L(o) == "array" ? (m === o[0] || m === o[1]) && (g = !0) : (m == 0 && (m = 7),
-                            o.charAt(m - 1) == "0" && (g = !0));
-                        for (var y = 0; y < s.length; y++)
-                            if ((0,
-                                j.default)(f).diff((0,
-                                    j.default)(s[y]), "days") === 0) {
-                                g = !0;
-                                break
-                            }
-                        g && d--,
-                            f = (0,
-                                j.default)(f).add(1, "days")
-                    }
-                    return d
-                } catch (k) {
-                    var v = k;
-                    return v = p.errorInfo(v),
-                        [p.error.v, v]
                 }
-            },
+            }
+
+            if (!isWeekend) workdays++;
+
+            current = current.add(1, "days");
+        }
+
+        return workdays;
+
+    } catch (err) {
+        return [p.error.v, p.errorInfo(err)];
+    }
+},
