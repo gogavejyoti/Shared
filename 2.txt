@@ -1,4 +1,4 @@
-            NETWORKDAYS: function () {
+           NETWORKDAYS_INTL: function () {
                 if (arguments.length < this.m[0] || arguments.length > this.m[1])
                     return p.error.na;
                 for (var e = 0; e < arguments.length; e++) {
@@ -7,19 +7,67 @@
                         return p.error.v
                 }
                 try {
-                    if (arguments.length == 3)
-                        var t = window.luckysheet_function.NETWORKDAYS_INTL.f(arguments[0], arguments[1], 1, arguments[2]);
-                    else
-                        var t = window.luckysheet_function.NETWORKDAYS_INTL.f(arguments[0], arguments[1], 1);
-                    return t
-                } catch (a) {
-                    var l = a;
-                    return l = p.errorInfo(l),
-                        [p.error.v, l]
+                    var t = [[], [6, 0], [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], void 0, void 0, void 0, [0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6]]
+                        , l = M.getCellDate(arguments[0]);
+                    if (H(l))
+                        return l;
+                    if (!(0,
+                        j.default)(l).isValid())
+                        return p.error.v;
+                    var a = M.getCellDate(arguments[1]);
+                    if (H(a))
+                        return a;
+                    if (!(0,
+                        j.default)(a).isValid())
+                        return p.error.v;
+                    var o = t[1];
+                    if (arguments.length >= 3 && (o = arguments[2],
+                        !(typeof o == "string" && o.length == "7" && /^[0-1]{7}$/g.test(o)))) {
+                        if (o = M.getFirstValue(arguments[2]),
+                            H(o))
+                            return o;
+                        if (!B(o))
+                            return p.error.v;
+                        if (o = parseInt(o),
+                            o < 1 || o > 7 && o < 11 || o > 17)
+                            return p.error.nm;
+                        o = t[o]
+                    }
+                    var s = [];
+                    if (arguments.length == 4 && (s = M.getCellrangeDate(arguments[3]),
+                        H(s)))
+                        return s;
+                    for (var e = 0; e < s.length; e++)
+                        if (!(0,
+                            j.default)(s[e]).isValid())
+                            return p.error.v;
+                    var u = (0,
+                        j.default)(a).diff((0,
+                            j.default)(l), "days") + 1
+                        , d = u
+                        , f = (0,
+                            j.default)(l);
+                    for (e = 0; e < u; e++) {
+                        var m = (0,
+                            j.default)(f).weekday()
+                            , g = !1;
+                        L(o) == "array" ? (m === o[0] || m === o[1]) && (g = !0) : (m == 0 && (m = 7),
+                            o.charAt(m - 1) == "0" && (g = !0));
+                        for (var y = 0; y < s.length; y++)
+                            if ((0,
+                                j.default)(f).diff((0,
+                                    j.default)(s[y]), "days") === 0) {
+                                g = !0;
+                                break
+                            }
+                        g && d--,
+                            f = (0,
+                                j.default)(f).add(1, "days")
+                    }
+                    return d
+                } catch (k) {
+                    var v = k;
+                    return v = p.errorInfo(v),
+                        [p.error.v, v]
                 }
             },
-
-TypeError: (0 , j.default)(...).weekday is not a function
-
-2024-06-01	2024-06-30
-=NETWORKDAYS(B2,C2)
