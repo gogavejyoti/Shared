@@ -1,17 +1,15 @@
-   function Il(e, n) {
-        if (e == null || isNaN(parseFloat(e)) || Cn(e) || e == -Infinity || e == Infinity)
-            return null;
-        let t = 6
-            , l = !1;
-        n == null || n == "auto" ? e < 1 ? t = 6 : t = 1 : er(n) == "num" ? (t = parseInt(n),
-            l = !0) : t = 6;
-        let a = ""
-            , o = null;
-        for (let s = 0; s < t; s++)
-            a += "0";
-        return l || (a = "[" + a + "]"),
-            e >= 1e21 ? o = parseFloat((0,
-                Yo.default)(e).value()) : o = parseFloat((0,
-                    Yo.default)(e).format("0." + a)),
-            o
+function Il(e, n) {
+    // Keep original validation
+    if (
+        e == null ||
+        isNaN(parseFloat(e)) ||
+        Cn(e) ||
+        e == -Infinity ||
+        e == Infinity
+    ) {
+        return null;
     }
+
+    // Return raw number without rounding or formatting
+    return parseFloat(e);
+}
