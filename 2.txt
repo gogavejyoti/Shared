@@ -1,116 +1,25 @@
-function setupStickyColumns($table, $wrapper) {
-    // compute widths of first & second columns from first header row cells
-    const $firstTh = $table.find('thead tr').first().find('th').first();
-    const $secondTh = $table.find('thead tr').first().find('th').eq(1);
-
-    // fallback widths if not measured
-    const firstWidth = $firstTh.length ? $firstTh.outerWidth() : 140;
-    const secondWidth = $secondTh.length ? $secondTh.outerWidth() : 150;
-
-    // Apply left offsets and min-widths for sticky columns in body cells
-    $table.find('.sticky-1').each(function () {
-        $(this).css({ position: 'sticky', left: 0, 'min-width': firstWidth + 'px', 'z-index': 1000, background: '#f8f9fa' });
-    });
-    $table.find('.sticky-2').each(function () {
-        $(this).css({ position: 'sticky', left: firstWidth + 'px', 'min-width': secondWidth + 'px', 'z-index': 1000, background: '#f8f9fa' });
-    });
-
-    // Make first two columns sticky horizontally and vertically on all header rows
-    $table.find('thead tr').each(function (rowIndex) {
-        const topOffset = getHeaderTopOffset($table, rowIndex);
-
-        $(this).find('th').each(function (idx) {
-            if (idx === 0) {
-                $(this).css({
-                    position: 'sticky',
-                    top: topOffset + 'px',
-                    left: 0,
-                    'min-width': firstWidth + 'px',
-                    'z-index': 1100 + rowIndex,  // higher z-index for header stacking
-                    background: '#f5f5f5',
-                });
-            } else if (idx === 1) {
-                $(this).css({
-                    position: 'sticky',
-                    top: topOffset + 'px',
-                    left: firstWidth + 'px',
-                    'min-width': secondWidth + 'px',
-                    'z-index': 1100 + rowIndex,
-                    background: '#f5f5f5',
-                });
-            } else {
-                // For other headers, just freeze vertically
-                $(this).css({
-                    position: 'sticky',
-                    top: topOffset + 'px',
-                    'z-index': 1000 + rowIndex,
-                    background: '#f5f5f5',
-                });
-            }
-        });
-    });
-
-    // Also set left for header ths outside sticky classes (if any)
-    $table.find('thead th').each(function (idx) {
-        if (idx === 0) $(this).css({ left: 0 });
-        if (idx === 1) $(this).css({ left: firstWidth + 'px' });
-    });
-
-    // Sync top-scroll div width if you use one (optional, depends on your code)
-    if ($('#vcTopScroll').length) {
-        $('#vcTopScroll > div').css('width', $table[0].scrollWidth + 'px');
-    }
-
-    // Recompute on resize (debounced)
-    clearTimeout(window.__vcResizeTimer);
-    window.__vcResizeTimer = setTimeout(function () {
-        const newFirstW = $firstTh.length ? $firstTh.outerWidth() : firstWidth;
-        const newSecondW = $secondTh.length ? $secondTh.outerWidth() : secondWidth;
-
-        $table.find('.sticky-1').css({ 'min-width': newFirstW + 'px', left: 0 });
-        $table.find('.sticky-2').css({ 'min-width': newSecondW + 'px', left: newFirstW + 'px' });
-
-        $table.find('thead tr').each(function (rowIndex) {
-            const topOffset = getHeaderTopOffset($table, rowIndex);
-            $(this).find('th').each(function (idx) {
-                if (idx === 0) {
-                    $(this).css({
-                        top: topOffset + 'px',
-                        left: 0,
-                        'min-width': newFirstW + 'px'
-                    });
-                } else if (idx === 1) {
-                    $(this).css({
-                        top: topOffset + 'px',
-                        left: newFirstW + 'px',
-                        'min-width': newSecondW + 'px'
-                    });
-                } else {
-                    $(this).css({
-                        top: topOffset + 'px',
-                    });
+            NETWORKDAYS: function () {
+                if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                    return p.error.na;
+                for (var e = 0; e < arguments.length; e++) {
+                    var n = p.errorParamCheck(this.p, arguments[e], e);
+                    if (!n[0])
+                        return p.error.v
                 }
-            });
-        });
+                try {
+                    if (arguments.length == 3)
+                        var t = window.luckysheet_function.NETWORKDAYS_INTL.f(arguments[0], arguments[1], 1, arguments[2]);
+                    else
+                        var t = window.luckysheet_function.NETWORKDAYS_INTL.f(arguments[0], arguments[1], 1);
+                    return t
+                } catch (a) {
+                    var l = a;
+                    return l = p.errorInfo(l),
+                        [p.error.v, l]
+                }
+            },
 
-        // Also update left for header ths outside sticky classes (if any)
-        $table.find('thead th').each(function (idx) {
-            if (idx === 0) $(this).css({ left: 0 });
-            if (idx === 1) $(this).css({ left: newFirstW + 'px' });
-        });
+TypeError: (0 , j.default)(...).weekday is not a function
 
-        // Update top-scroll width if used
-        if ($('#vcTopScroll').length) {
-            $('#vcTopScroll > div').css('width', $table[0].scrollWidth + 'px');
-        }
-    }, 100);
-}
-
-// Helper function to calculate cumulative top offset for header rows
-function getHeaderTopOffset($table, rowIndex) {
-    let offset = 0;
-    for (let i = 0; i < rowIndex; i++) {
-        offset += $table.find('thead tr').eq(i).outerHeight();
-    }
-    return offset;
-}
+2024-06-01	2024-06-30
+=NETWORKDAYS(B2,C2)
