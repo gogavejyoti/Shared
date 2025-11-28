@@ -1,126 +1,14 @@
-using Microsoft.AspNetCore.SignalR;
-using System;
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Threading.Tasks;
+Act as a Visual Reasoning + Data Storytelling AI (similar to Napkin AI).  
+From now on, every response you generate must look like a beautiful infographic.
 
-public class DocumentHub : Hub
-{
-    // Store document locks: documentId → (userId, lockTime)
-    private static readonly ConcurrentDictionary<string, List<(string UserId, DateTime AccessTime, bool CanWrite)>> _accessMap
-        = new ConcurrentDictionary<string, List<(string, DateTime, bool)>>();
+Follow these strict rules:
+1. Output must be a single HTML block with inline CSS.
+2. Use a clean, modern, minimal look (light grey background, rounded cards, subtle shadows).
+3. Use SVG illustrations or icons automatically wherever helpful.
+4. Organize information into visual sections (cards, grids, timelines, badges, comparisons, etc.).
+5. Text must be concise: titles, bullets, clear insights.
+6. Maintain perfect alignment — no elements should overflow or break layout.
+7. Use only inline SVG (no external images).
+8. The design must feel like a well-crafted slide, similar to Napkin AI.
 
-
-    public static ConcurrentDictionary<string, List<(string UserId, DateTime AccessTime, bool CanWrite)>> GetLocks()
-    {
-        return _accessMap;
-    }
-
-    // Try to lock document
-    public Task<bool> TryAccessDocument(string documentId, string userId, bool requestWrite)
-    {
-        var accessList = _accessMap.GetOrAdd(documentId, _ => new List<(string, DateTime, bool)>());
-
-        lock (accessList)
-        {
-            // Check if user already has access
-            var existing = accessList.FirstOrDefault(x => x.UserId == userId);
-            if (existing != default)
-            {
-                // Refresh access time
-                accessList.Remove(existing);
-                accessList.Add((userId, DateTime.UtcNow, existing.CanWrite));
-                return Task.FromResult(existing.CanWrite);
-            }
-
-            // Check if any user has write access
-            bool writeLocked = accessList.Any(x => x.CanWrite);
-
-            // Grant write access only if no one has it
-            bool canWrite = requestWrite && !writeLocked;
-
-            accessList.Add((userId, DateTime.UtcNow, canWrite));
-            return Task.FromResult(canWrite);
-        }
-    }
-
-    // Unlock document for user
-    public Task UnlockDocument(string documentId, string userId)
-    {
-        if (_accessMap.TryGetValue(documentId, out var accessList))
-        {
-            lock (accessList)
-            {
-                accessList.RemoveAll(x => x.UserId == userId);
-                if (accessList.Count == 0)
-                {
-                    _accessMap.TryRemove(documentId, out _);
-                }
-            }
-        }
-        return Task.CompletedTask;
-    }
-
-    // Refresh access time
-    public Task RefreshAccess(string documentId, string userId)
-    {
-        if (_accessMap.TryGetValue(documentId, out var accessList))
-        {
-            lock (accessList)
-            {
-                var existing = accessList.FirstOrDefault(x => x.UserId == userId);
-                if (existing != default)
-                {
-                    accessList.Remove(existing);
-                    accessList.Add((userId, DateTime.UtcNow, existing.CanWrite));
-                }
-            }
-        }
-        return Task.CompletedTask;
-    }
-
-    // Get current write owner
-    public Task<string> GetWriteOwner(string documentId)
-    {
-        if (_accessMap.TryGetValue(documentId, out var accessList))
-        {
-            var writer = accessList.FirstOrDefault(x => x.CanWrite);
-            return Task.FromResult(writer.UserId);
-        }
-        return Task.FromResult<string>(null);
-    }
-
-    // Cleanup on disconnect
-    public override Task OnDisconnectedAsync(Exception exception)
-    {
-        foreach (var kvp in _accessMap)
-        {
-            lock (kvp.Value)
-            {
-                kvp.Value.RemoveAll(x => x.UserId == Context.ConnectionId);
-                if (kvp.Value.Count == 0)
-                {
-                    _accessMap.TryRemove(kvp.Key, out _);
-                }
-            }
-        }
-        return base.OnDisconnectedAsync(exception);
-    }
-
-    // Cleanup expired access
-    public static void CleanupExpiredAccess(TimeSpan timeout)
-    {
-        foreach (var kvp in _accessMap)
-        {
-            lock (kvp.Value)
-            {
-                kvp.Value.RemoveAll(x => DateTime.UtcNow - x.AccessTime > timeout);
-                if (kvp.Value.Count == 0)
-                {
-                    _accessMap.TryRemove(kvp.Key, out _);
-                }
-            }
-        }
-    }
-}
-
+Now generate an infographic based on the following topic:
