@@ -1,74 +1,126 @@
-let connection = null;
-let documentId = null;
-let canWrite = null;
-let userId = null;
-let hasEditLock = false;
-let keepAliveInterval = null;
+using Microsoft.AspNetCore.SignalR;
+using System;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading.Tasks;
 
-async function startConnection() {
-    try {
-        await connection.start();
-        console.log("Connected to SignalR Hub.");
-        await tryAccessDocument();
-    } catch (err) {
-        console.error("Connection failed, retrying in 5s...", err);
-        setTimeout(startConnection, 5000);
+public class DocumentHub : Hub
+{
+    // Store document locks: documentId → (userId, lockTime)
+    private static readonly ConcurrentDictionary<string, List<(string UserId, DateTime AccessTime, bool CanWrite)>> _accessMap
+        = new ConcurrentDictionary<string, List<(string, DateTime, bool)>>();
+
+
+    public static ConcurrentDictionary<string, List<(string UserId, DateTime AccessTime, bool CanWrite)>> GetLocks()
+    {
+        return _accessMap;
     }
-}
 
-async function initDocumentLock(docId, uId, cWrite) {
-    documentId = docId;
-    userId = uId;
-    canWrite = cWrite;
+    // Try to lock document
+    public Task<bool> TryAccessDocument(string documentId, string userId, bool requestWrite)
+    {
+        var accessList = _accessMap.GetOrAdd(documentId, _ => new List<(string, DateTime, bool)>());
 
-    connection = new signalR.HubConnectionBuilder()
-        .withUrl("/DocumentHub")
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
+        lock (accessList)
+        {
+            // Check if user already has access
+            var existing = accessList.FirstOrDefault(x => x.UserId == userId);
+            if (existing != default)
+            {
+                // Refresh access time
+                accessList.Remove(existing);
+                accessList.Add((userId, DateTime.UtcNow, existing.CanWrite));
+                return Task.FromResult(existing.CanWrite);
+            }
 
-    connection.onclose(async () => {
-        console.log("Disconnected, retrying...");
-        hasEditLock = false;
-        updateUI();
-        await startConnection();
-    });
+            // Check if any user has write access
+            bool writeLocked = accessList.Any(x => x.CanWrite);
 
-    await startConnection();
+            // Grant write access only if no one has it
+            bool canWrite = requestWrite && !writeLocked;
 
-    window.addEventListener("beforeunload", async function () {
-        //if (hasEditLock) {
-            try {
-                await connection.invoke("UnlockDocument", documentId, userId);
-            } catch { }
-        //}
-    });
-}
-
-async function tryAccessDocument() {
-    try {
-        const canEdit = await connection.invoke("TryAccessDocument", documentId, userId, canWrite);
-        hasEditLock = canEdit;
-        updateUI();
-
-        if (canEdit && !keepAliveInterval) {
-            keepAliveInterval = setInterval(() => {
-                connection.invoke("RefreshAccess", documentId, userId);
-            }, 30000);
-        } else if (!canEdit && keepAliveInterval) {
-            clearInterval(keepAliveInterval);
-            keepAliveInterval = null;
+            accessList.Add((userId, DateTime.UtcNow, canWrite));
+            return Task.FromResult(canWrite);
         }
-    } catch (err) {
-        console.error("Lock request failed:", err);
+    }
+
+    // Unlock document for user
+    public Task UnlockDocument(string documentId, string userId)
+    {
+        if (_accessMap.TryGetValue(documentId, out var accessList))
+        {
+            lock (accessList)
+            {
+                accessList.RemoveAll(x => x.UserId == userId);
+                if (accessList.Count == 0)
+                {
+                    _accessMap.TryRemove(documentId, out _);
+                }
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    // Refresh access time
+    public Task RefreshAccess(string documentId, string userId)
+    {
+        if (_accessMap.TryGetValue(documentId, out var accessList))
+        {
+            lock (accessList)
+            {
+                var existing = accessList.FirstOrDefault(x => x.UserId == userId);
+                if (existing != default)
+                {
+                    accessList.Remove(existing);
+                    accessList.Add((userId, DateTime.UtcNow, existing.CanWrite));
+                }
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    // Get current write owner
+    public Task<string> GetWriteOwner(string documentId)
+    {
+        if (_accessMap.TryGetValue(documentId, out var accessList))
+        {
+            var writer = accessList.FirstOrDefault(x => x.CanWrite);
+            return Task.FromResult(writer.UserId);
+        }
+        return Task.FromResult<string>(null);
+    }
+
+    // Cleanup on disconnect
+    public override Task OnDisconnectedAsync(Exception exception)
+    {
+        foreach (var kvp in _accessMap)
+        {
+            lock (kvp.Value)
+            {
+                kvp.Value.RemoveAll(x => x.UserId == Context.ConnectionId);
+                if (kvp.Value.Count == 0)
+                {
+                    _accessMap.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
+        return base.OnDisconnectedAsync(exception);
+    }
+
+    // Cleanup expired access
+    public static void CleanupExpiredAccess(TimeSpan timeout)
+    {
+        foreach (var kvp in _accessMap)
+        {
+            lock (kvp.Value)
+            {
+                kvp.Value.RemoveAll(x => DateTime.UtcNow - x.AccessTime > timeout);
+                if (kvp.Value.Count == 0)
+                {
+                    _accessMap.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
     }
 }
 
-function updateUI() {
-    if (!hasEditLock) {
-        $('#btnSaveSheets').hide();
-        $("#msgReadOnly").show();
-    } else {
-        $('#btnSaveSheets').show();
-        $("#msgReadOnly").hide();
-    }
-}
