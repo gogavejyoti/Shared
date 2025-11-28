@@ -1,15 +1,74 @@
-function Il(e, n) {
-    // Keep original validation
-    if (
-        e == null ||
-        isNaN(parseFloat(e)) ||
-        Cn(e) ||
-        e == -Infinity ||
-        e == Infinity
-    ) {
-        return null;
-    }
+let connection = null;
+let documentId = null;
+let canWrite = null;
+let userId = null;
+let hasEditLock = false;
+let keepAliveInterval = null;
 
-    // Return raw number without rounding or formatting
-    return parseFloat(e);
+async function startConnection() {
+    try {
+        await connection.start();
+        console.log("Connected to SignalR Hub.");
+        await tryAccessDocument();
+    } catch (err) {
+        console.error("Connection failed, retrying in 5s...", err);
+        setTimeout(startConnection, 5000);
+    }
+}
+
+async function initDocumentLock(docId, uId, cWrite) {
+    documentId = docId;
+    userId = uId;
+    canWrite = cWrite;
+
+    connection = new signalR.HubConnectionBuilder()
+        .withUrl("/DocumentHub")
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    connection.onclose(async () => {
+        console.log("Disconnected, retrying...");
+        hasEditLock = false;
+        updateUI();
+        await startConnection();
+    });
+
+    await startConnection();
+
+    window.addEventListener("beforeunload", async function () {
+        //if (hasEditLock) {
+            try {
+                await connection.invoke("UnlockDocument", documentId, userId);
+            } catch { }
+        //}
+    });
+}
+
+async function tryAccessDocument() {
+    try {
+        const canEdit = await connection.invoke("TryAccessDocument", documentId, userId, canWrite);
+        hasEditLock = canEdit;
+        updateUI();
+
+        if (canEdit && !keepAliveInterval) {
+            keepAliveInterval = setInterval(() => {
+                connection.invoke("RefreshAccess", documentId, userId);
+            }, 30000);
+        } else if (!canEdit && keepAliveInterval) {
+            clearInterval(keepAliveInterval);
+            keepAliveInterval = null;
+        }
+    } catch (err) {
+        console.error("Lock request failed:", err);
+    }
+}
+
+function updateUI() {
+    if (!hasEditLock) {
+        $('#btnSaveSheets').hide();
+        $("#msgReadOnly").show();
+    } else {
+        $('#btnSaveSheets').show();
+        $("#msgReadOnly").hide();
+    }
 }
