@@ -1,29 +1,91 @@
-  setfreezonFuc: function (e) {
-                let n = this
-                    , t = n.getrangeseleciton();
-                if (!n.iscelldata(t.text()))
-                    return;
-                let l = t.text(), a = window.getSelection().anchorOffset, o = l.split("!"), s, u = "";
-                o.length > 1 ? (s = o[1],
-                    u = o[0] + "!") : s = o[0];
-                let d = ""
-                    , f = ""
-                    , m = s.indexOf(":");
-                if (m == -1)
-                    d = u + n.setfreezonFuceExe(s),
-                        f = d.length;
-                else if (s = s.split(":"),
-                    a > m) {
-                    let g = u + s[0] + ":" + n.setfreezonFuceExe(s[1]);
-                    d = g,
-                        f = g.length
-                } else {
-                    let g = u + n.setfreezonFuceExe(s[0]);
-                    d = g + ":" + s[1],
-                        f = g.length
-                }
-                t.text(u + d),
-                    n.setCaretPosition(t.get(0), 0, f)
-            },
+setfreezonFuc: function (e) {
+    let n = this;
+    let t = n.getrangeseleciton();
+    let formula = t.text();
+    let cursorPos = window.getSelection().anchorOffset;
 
-=Forecast!Forecast!$O$1
+    if (!formula || formula[0] !== "=") return;
+
+    // -----------------------------------------
+    // INLINE: Excel-style absolute toggle
+    // -----------------------------------------
+    const toggleRef = (ref) => {
+        let m = ref.match(/^(\$?)([A-Z]+)(\$?)(\d+)$/);
+        if (!m) return ref;
+
+        let [, colAbs, col, rowAbs, row] = m;
+        let state = (colAbs ? 2 : 0) + (rowAbs ? 1 : 0);
+
+        // Excel cycle: A1 → $A$1 → A$1 → $A1
+        let next = [3, 2, 0, 1][state];
+
+        return (next & 2 ? "$" : "") + col +
+               (next & 1 ? "$" : "") + row;
+    };
+
+    // -----------------------------------------
+    // INLINE: Extract all references
+    // (Sheet1!A1, A1:B5, etc.)
+    // -----------------------------------------
+    const refs = [];
+    const refRegex = /(?:([A-Za-z0-9_]+)!)?(\$?[A-Z]+\$?\d+)(?::(\$?[A-Z]+\$?\d+))?/g;
+    let m;
+
+    while ((m = refRegex.exec(formula)) !== null) {
+        refs.push({
+            sheet: m[1] || "",
+            startRef: m[2],
+            endRef: m[3] || null,
+            index: m.index,
+            length: m[0].length
+        });
+    }
+
+    if (!refs.length) return;
+
+    // -----------------------------------------
+    // INLINE: Find active reference under cursor
+    // -----------------------------------------
+    let active = refs.find(r =>
+        cursorPos >= r.index &&
+        cursorPos <= (r.index + r.length)
+    );
+    if (!active) return;
+
+    // -----------------------------------------
+    // INLINE: Apply toggle
+    // -----------------------------------------
+    let newRef;
+
+    if (active.endRef) {
+        // Range A1:B5
+        let left = active.startRef;
+        let right = active.endRef;
+
+        // Decide left or right based on cursor
+        if (cursorPos > active.index + left.length + 1) {
+            right = toggleRef(right);
+        } else {
+            left = toggleRef(left);
+        }
+
+        newRef = (active.sheet ? active.sheet + "!" : "") + left + ":" + right;
+    } else {
+        // Single cell
+        let r = toggleRef(active.startRef);
+        newRef = (active.sheet ? active.sheet + "!" : "") + r;
+    }
+
+    // -----------------------------------------
+    // INLINE: Rebuild formula
+    // -----------------------------------------
+    let finalFormula =
+        formula.slice(0, active.index) +
+        newRef +
+        formula.slice(active.index + active.length);
+
+    t.text(finalFormula);
+
+    // Position cursor after updated ref
+    n.setCaretPosition(t.get(0), 0, active.index + newRef.length);
+};
