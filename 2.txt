@@ -1,73 +1,29 @@
-SUMIFS: function () {
-    try {
-        // Validate argument count
-        if (arguments.length < this.m[0] || arguments.length > this.m[1]) {
-            return p.error.na;
-        }
+  setfreezonFuc: function (e) {
+                let n = this
+                    , t = n.getrangeseleciton();
+                if (!n.iscelldata(t.text()))
+                    return;
+                let l = t.text(), a = window.getSelection().anchorOffset, o = l.split("!"), s, u = "";
+                o.length > 1 ? (s = o[1],
+                    u = o[0] + "!") : s = o[0];
+                let d = ""
+                    , f = ""
+                    , m = s.indexOf(":");
+                if (m == -1)
+                    d = u + n.setfreezonFuceExe(s),
+                        f = d.length;
+                else if (s = s.split(":"),
+                    a > m) {
+                    let g = u + s[0] + ":" + n.setfreezonFuceExe(s[1]);
+                    d = g,
+                        f = g.length
+                } else {
+                    let g = u + n.setfreezonFuceExe(s[0]);
+                    d = g + ":" + s[1],
+                        f = g.length
+                }
+                t.text(u + d),
+                    n.setCaretPosition(t.get(0), 0, f)
+            },
 
-        // Convert arguments to array
-        let args = Array.from(arguments);
-        qn(args);
-
-        // --- PATCH START: support full column ranges ---
-        const fixRange = (rng) => {
-            if (typeof rng !== "string") return rng;
-
-            // Matches: A:A , $A:$A , Sheet1!A:A , Sheet1!$A:$A
-            const fullColRegex = /^([^!]+!)?\$?([A-Z]+)\$?:\$?\2\$/i;
-            const fullColRegex2 = /^([^!]+!)?\$?([A-Z]+)\$?:\$?\2$/i;
-            const fullCol = /^([^!]+!)?\$?([A-Z]+)\$?:\$?\2$/i;
-
-            // Supported patterns
-            const match = rng.match(/^([^!]+!)?\$?([A-Z]+)\$?:\$?\2$/i);
-            if (match) {
-                const sheetPrefix = match[1] || "";
-                const col = match[2];
-
-                // You can detect sheet max row or set a fixed upper bound
-                const maxRows = 50000; // SAFE VALUE
-
-                return `${sheetPrefix}${col}1:${col}${maxRows}`;
-            }
-
-            return rng;
-        };
-
-        // Fix all ranges (range + criteria ranges)
-        for (let i = 0; i < args.length; i += 2) {
-            if (typeof args[i] === "string") {
-                args[i] = fixRange(args[i]);
-            }
-        }
-        // --- PATCH END ---
-
-        // Main range
-        let mainRange = p.getRangeArray(args[0])[0];
-        let include = new Array(mainRange.length).fill(true);
-
-        // Apply each criteria
-        for (let i = 1; i < args.length; i += 2) {
-            let criteriaRange = p.getRangeArray(args[i])[0];
-            let criteria = args[i + 1];
-
-            for (let r = 0; r < criteriaRange.length; r++) {
-                let cellValue = criteriaRange[r];
-                include[r] = include[r] && !!cellValue && p.acompareb(cellValue, criteria);
-            }
-        }
-
-        // SUM matching values
-        let sum = 0;
-        for (let r = 0; r < mainRange.length; r++) {
-            if (include[r]) {
-                sum = _t(sum, "+", mainRange[r]);
-            }
-        }
-
-        return sum;
-
-    } catch (err) {
-        err = p.errorInfo(err);
-        return [p.error.v, err];
-    }
-},
+=Forecast!Forecast!$O$1
