@@ -7,7 +7,7 @@ setfreezonFuc: function (e) {
     if (!formula || formula[0] !== "=") return;
 
     // -----------------------------------------
-    // INLINE: Excel-style absolute toggle
+    // Inline: Toggle absolute/relative in a single ref like $A$1, A1, A$1, $A1
     // -----------------------------------------
     const toggleRef = (ref) => {
         let m = ref.match(/^(\$?)([A-Z]+)(\$?)(\d+)$/);
@@ -16,76 +16,107 @@ setfreezonFuc: function (e) {
         let [, colAbs, col, rowAbs, row] = m;
         let state = (colAbs ? 2 : 0) + (rowAbs ? 1 : 0);
 
-        // Excel cycle: A1 → $A$1 → A$1 → $A1
+        // Cycle: 0=A1, 3=$A$1, 1=A$1, 2=$A1
         let next = [3, 2, 0, 1][state];
 
-        return (next & 2 ? "$" : "") + col +
-               (next & 1 ? "$" : "") + row;
+        return (next & 2 ? "$" : "") + col + (next & 1 ? "$" : "") + row;
     };
 
     // -----------------------------------------
-    // INLINE: Extract all references
-    // (Sheet1!A1, A1:B5, etc.)
+    // Inline: Extract all references, including sheet names (quoted or unquoted)
+    // Support 'My Sheet'!A1 or MySheet!A1
     // -----------------------------------------
     const refs = [];
-    const refRegex = /(?:([A-Za-z0-9_]+)!)?(\$?[A-Z]+\$?\d+)(?::(\$?[A-Z]+\$?\d+))?/g;
-    let m;
+    // Regex explanation:
+    // (?:'([^']+)'|([A-Za-z0-9_]+))? matches optional sheet name, either quoted or unquoted
+    // then ! literal
+    // then cell ref $A$1 etc. with optional range (:B2)
+    const refRegex = /(?:('([^']+)')|([A-Za-z0-9_]+))?!?(\$?[A-Z]+\$?\d+)(?::(\$?[A-Z]+\$?\d+))?/g;
 
+    let m;
     while ((m = refRegex.exec(formula)) !== null) {
+        let sheetName = m[2] || m[3] || "";
+        let sheetFull = "";
+        if (sheetName) {
+            if (m[1]) {
+                // quoted sheet name includes quotes
+                sheetFull = `'${sheetName}'!`;
+            } else {
+                sheetFull = `${sheetName}!`;
+            }
+        }
         refs.push({
-            sheet: m[1] || "",
-            startRef: m[2],
-            endRef: m[3] || null,
-            index: m.index,
-            length: m[0].length
+            sheet: sheetFull,
+            sheetName: sheetName,
+            sheetNameStart: m.index,
+            sheetNameEnd: m.index + (sheetFull.length - 1),
+            startRef: m[4],
+            endRef: m[5] || null,
+            index: m.index + (sheetFull.length > 0 ? sheetFull.length : 0),
+            length: (m[5] ? m[4].length + 1 + m[5].length : m[4].length)
         });
     }
 
     if (!refs.length) return;
 
     // -----------------------------------------
-    // INLINE: Find active reference under cursor
+    // Find the reference (or range) under the cursor
     // -----------------------------------------
-    let active = refs.find(r =>
-        cursorPos >= r.index &&
-        cursorPos <= (r.index + r.length)
-    );
+    let active = null;
+    for (let r of refs) {
+        // Check if cursor is inside sheet name: do nothing in that case
+        if (r.sheet) {
+            let sheetNameStart = r.sheetNameStart;
+            let sheetNameEnd = r.sheetNameEnd;
+            if (cursorPos >= sheetNameStart && cursorPos <= sheetNameEnd) {
+                return; // Excel behavior: no toggle if on sheet name
+            }
+        }
+        // Check if cursor is inside this reference (startRef or range)
+        if (cursorPos >= r.index && cursorPos <= r.index + r.length) {
+            active = r;
+            break;
+        }
+    }
     if (!active) return;
 
     // -----------------------------------------
-    // INLINE: Apply toggle
+    // Toggle the reference part under the cursor
     // -----------------------------------------
     let newRef;
 
     if (active.endRef) {
-        // Range A1:B5
+        // Range like A1:B5
         let left = active.startRef;
         let right = active.endRef;
 
-        // Decide left or right based on cursor
-        if (cursorPos > active.index + left.length + 1) {
+        // Determine if cursor is on left or right ref in the range
+        if (cursorPos > active.index + left.length) {
             right = toggleRef(right);
         } else {
             left = toggleRef(left);
         }
 
-        newRef = (active.sheet ? active.sheet + "!" : "") + left + ":" + right;
+        newRef = active.sheet + left + ":" + right;
     } else {
-        // Single cell
-        let r = toggleRef(active.startRef);
-        newRef = (active.sheet ? active.sheet + "!" : "") + r;
+        // Single reference
+        newRef = active.sheet + toggleRef(active.startRef);
     }
 
     // -----------------------------------------
-    // INLINE: Rebuild formula
+    // Replace in formula
     // -----------------------------------------
-    let finalFormula =
-        formula.slice(0, active.index) +
-        newRef +
-        formula.slice(active.index + active.length);
+    let before = formula.slice(0, active.index - (active.sheet ? active.sheet.length : 0));
+    let after = formula.slice(active.index - (active.sheet ? active.sheet.length : 0) + active.length);
+    let finalFormula = before + newRef + after;
 
+    // Set new formula text in Luckysheet input
     t.text(finalFormula);
 
-    // Position cursor after updated ref
-    n.setCaretPosition(t.get(0), 0, active.index + newRef.length);
-};
+    // Update Luckysheet internal cell value so it doesn't revert on Enter
+    luckysheet.setCellValue(n.lastrow, n.lastcol, finalFormula);
+
+    // Move cursor after updated ref
+    let cursorAfter = before.length + newRef.length;
+    n.setCaretPosition(t.get(0), 0, cursorAfter);
+}
