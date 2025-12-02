@@ -1,15 +1,30 @@
-Act as a Visual Reasoning + Data Storytelling AI (similar to Napkin AI).  
-From now on, every response you generate must look like a beautiful infographic.
+ SUMIFS: function () {
+                if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                    return p.error.na;
+                for (var e = 0; e < arguments.length; e++) {
+                    var n = p.errorParamCheck(this.p, arguments[e], e);
+                    if (!n[0])
+                        return p.error.v
+                }
+                try {
+                    var t = 0
+                        , l = arguments;
+                    qn(l);
+                    for (var a = p.getRangeArray(l[0])[0], o = new Array(a.length), e = 0; e < o.length; e++)
+                        o[e] = !0;
+                    for (var e = 1; e < l.length; e += 2)
+                        for (var s = p.getRangeArray(l[e])[0], u = l[e + 1], d = 0; d < s.length; d++) {
+                            var f = s[d];
+                            o[d] = o[d] && !!f && p.acompareb(f, u)
+                        }
+                    for (var e = 0; e < a.length; e++)
+                        o[e] && (t = _t(t, "+", a[e]));
+                    return t
+                } catch (g) {
+                    var m = g;
+                    return m = p.errorInfo(m),
+                        [p.error.v, m]
+                }
+            },
 
-Follow these strict rules:
-1. Output must be a single HTML block with inline CSS.
-2. Use a clean, modern, minimal look (light grey background, rounded cards, subtle shadows).
-3. Use SVG illustrations or icons automatically wherever helpful.
-4. Organize information into visual sections (cards, grids, timelines, badges, comparisons, etc.).
-5. Text must be concise: titles, bullets, clear insights.
-6. Maintain perfect alignment — no elements should overflow or break layout.
-7. Use only inline SVG (no external images).
-8. The design must feel like a well-crafted slide, similar to Napkin AI.
-
-Now generate an infographic based on the following topic:
-[INSERT YOUR TOPIC HERE]
+=SUMIFS(Forecast!$M:$M,Forecast!$C:$C,C4)
