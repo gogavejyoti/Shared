@@ -1,30 +1,73 @@
- SUMIFS: function () {
-                if (arguments.length < this.m[0] || arguments.length > this.m[1])
-                    return p.error.na;
-                for (var e = 0; e < arguments.length; e++) {
-                    var n = p.errorParamCheck(this.p, arguments[e], e);
-                    if (!n[0])
-                        return p.error.v
-                }
-                try {
-                    var t = 0
-                        , l = arguments;
-                    qn(l);
-                    for (var a = p.getRangeArray(l[0])[0], o = new Array(a.length), e = 0; e < o.length; e++)
-                        o[e] = !0;
-                    for (var e = 1; e < l.length; e += 2)
-                        for (var s = p.getRangeArray(l[e])[0], u = l[e + 1], d = 0; d < s.length; d++) {
-                            var f = s[d];
-                            o[d] = o[d] && !!f && p.acompareb(f, u)
-                        }
-                    for (var e = 0; e < a.length; e++)
-                        o[e] && (t = _t(t, "+", a[e]));
-                    return t
-                } catch (g) {
-                    var m = g;
-                    return m = p.errorInfo(m),
-                        [p.error.v, m]
-                }
-            },
+SUMIFS: function () {
+    try {
+        // Validate argument count
+        if (arguments.length < this.m[0] || arguments.length > this.m[1]) {
+            return p.error.na;
+        }
 
-=SUMIFS(Forecast!$M:$M,Forecast!$C:$C,C4)
+        // Convert arguments to array
+        let args = Array.from(arguments);
+        qn(args);
+
+        // --- PATCH START: support full column ranges ---
+        const fixRange = (rng) => {
+            if (typeof rng !== "string") return rng;
+
+            // Matches: A:A , $A:$A , Sheet1!A:A , Sheet1!$A:$A
+            const fullColRegex = /^([^!]+!)?\$?([A-Z]+)\$?:\$?\2\$/i;
+            const fullColRegex2 = /^([^!]+!)?\$?([A-Z]+)\$?:\$?\2$/i;
+            const fullCol = /^([^!]+!)?\$?([A-Z]+)\$?:\$?\2$/i;
+
+            // Supported patterns
+            const match = rng.match(/^([^!]+!)?\$?([A-Z]+)\$?:\$?\2$/i);
+            if (match) {
+                const sheetPrefix = match[1] || "";
+                const col = match[2];
+
+                // You can detect sheet max row or set a fixed upper bound
+                const maxRows = 50000; // SAFE VALUE
+
+                return `${sheetPrefix}${col}1:${col}${maxRows}`;
+            }
+
+            return rng;
+        };
+
+        // Fix all ranges (range + criteria ranges)
+        for (let i = 0; i < args.length; i += 2) {
+            if (typeof args[i] === "string") {
+                args[i] = fixRange(args[i]);
+            }
+        }
+        // --- PATCH END ---
+
+        // Main range
+        let mainRange = p.getRangeArray(args[0])[0];
+        let include = new Array(mainRange.length).fill(true);
+
+        // Apply each criteria
+        for (let i = 1; i < args.length; i += 2) {
+            let criteriaRange = p.getRangeArray(args[i])[0];
+            let criteria = args[i + 1];
+
+            for (let r = 0; r < criteriaRange.length; r++) {
+                let cellValue = criteriaRange[r];
+                include[r] = include[r] && !!cellValue && p.acompareb(cellValue, criteria);
+            }
+        }
+
+        // SUM matching values
+        let sum = 0;
+        for (let r = 0; r < mainRange.length; r++) {
+            if (include[r]) {
+                sum = _t(sum, "+", mainRange[r]);
+            }
+        }
+
+        return sum;
+
+    } catch (err) {
+        err = p.errorInfo(err);
+        return [p.error.v, err];
+    }
+},
