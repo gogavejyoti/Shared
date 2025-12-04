@@ -1,35 +1,25 @@
-function recalcPercentSafe() {
+async function recalcPercentSafe() {
     const sheets = luckysheet.getLuckysheetfile();
 
-    sheets.forEach((sheet, sheetIdx) => {
+    for (let sheetIdx = 0; sheetIdx < sheets.length; sheetIdx++) {
+        const sheet = sheets[sheetIdx];
         const chain = sheet.calcChain;
-        if (!chain) return;
+        if (!chain) continue;
 
-        let batchCount = 0;
+        for (let i = 0; i < chain.length; i++) {
+            const { r, c } = chain[i];
+            const cell = sheet.data[r]?.[c];
 
-        function processBatch(start) {
-            for (let i = start; i < chain.length; i++) {
-                const item = chain[i];
-                const r = item.r;
-                const c = item.c;
+            if (cell?.f?.includes("%")) {
+                luckysheet.calculateFormula(r, c, sheetIdx);
+            }
 
-                const cell = sheet.data[r]?.[c];
-                if (cell && cell.f && cell.f.includes("%")) {
-                    // Only safe internal calculation function
-                    luckysheet.calculateFormula(r, c, sheetIdx);
-                }
-
-                batchCount++;
-
-                // After every 200 formulas, pause to let memory clear
-                if (batchCount % 200 === 0) {
-                    setTimeout(() => processBatch(i + 1), 0);
-                    return;
-                }
+            // 🔥 TRUE YIELD → forces browser to free memory
+            if (i % 200 === 0) {
+                await new Promise(requestAnimationFrame);
             }
         }
+    }
 
-        // Start batch processing
-        processBatch(0);
-    });
+    console.log("Recalculation completed without memory overflow.");
 }
