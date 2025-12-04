@@ -1,84 +1,178 @@
-          setfreezonFuc: function (e) {
-              let n = this,
-                  t = n.getrangeseleciton();
+    $("#luckysheet-icon-excel").click(async function () {
+                        try {
+                            // --- Helpers ---
+                            function hexToARGB(hex) {
+                                if (!hex) return undefined;
+                                hex = hex.replace('#', '');
+                                if (hex.length === 3) hex = hex.split('').map(h => h + h).join('');
+                                return 'FF' + hex.toUpperCase();
+                            }
 
-              if (!n.iscelldata(t.text())) return;
+                            function pxToExcelWidth(px) {
+                                if (!px) return 10;
+                                return Math.max(3, Math.round(px / 7));
+                            }
 
-              let text = t.text();
-              let caret = window.getSelection().anchorOffset;
+                            function normalizeFormula(formula, sheetNames) {
+                                if (!formula) return formula;
+                                sheetNames.forEach(name => {
+                                    if (/\s/.test(name) && formula.includes(name + "!")) {
+                                        const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, '\\$&') + '!', 'g');
+                                        formula = formula.replace(re, `'${name}'!`);
+                                    }
+                                });
+                                return formula;
+                            }
 
-              let hasEq = text.startsWith("=");
-              let formula = hasEq ? text.substring(1) : text;
+                            const sheets = luckysheet.getAllSheets();
+                            const workbook = new ExcelJS.Workbook();
+                            workbook.creator = "LuckySheet";
+                            workbook.created = new Date();
+                            const sheetNames = sheets.map(s => s.name || 'Sheet');
 
-              // =============================
-              // FIND REF UNDER CARET (INLINE)
-              // =============================
-              const re = /([A-Za-z0-9_]+!)?\$?[A-Za-z]+\$?[0-9]+(:\$?[A-Za-z]+\$?[0-9]+)?/g;
-              let match, found = null;
+                            for (let si = 0; si < sheets.length; si++) {
+                                const sheet = sheets[si];
+                                const ws = workbook.addWorksheet(sheet.name || `Sheet${si + 1}`);
+                                const data = sheet.data || [];
 
-              while ((match = re.exec(formula)) !== null) {
-                  let start = match.index;
-                  let end = start + match[0].length;
+                                // 🔹 Column widths
+                                if (sheet.config?.columnlen) {
+                                    const colLens = sheet.config.columnlen;
+                                    ws.columns = Object.keys(colLens).map(k => ({ width: pxToExcelWidth(colLens[k]) }));
+                                }
 
-                  if (caret - (hasEq ? 1 : 0) >= start && caret - (hasEq ? 1 : 0) <= end) {
-                      found = {
-                          full: match[0],
-                          start: start,
-                          end: end
-                      };
-                      break;
-                  }
-              }
+                                // 🔹 Fill cell data
+                                for (let r = 0; r < data.length; r++) {
+                                    const row = data[r] || [];
+                                    for (let c = 0; c < row.length; c++) {
+                                        const cell = row[c];
+                                        if (!cell) continue;
+                                        const cellRef = ws.getCell(r + 1, c + 1);
 
-              if (!found) return;
+                                        // --- Normalize numeric, percentage, and date-like values ---
+                                        if (!cell.f && cell.v !== null && cell.v !== undefined) {
+                                            let val = cell.v;
+                                            const strVal = String(val).trim();
 
-              // =============================
-              // ABSOLUTE MODE CYCLE (INLINE)
-              // =============================
-              function toggleSingle(refCell) {
-                  let m = refCell.match(/^(\$?)([A-Za-z]+)(\$?)([0-9]+)$/);
-                  if (!m) return refCell;
+                                            // Detect % values like "12%" → 0.12
+                                            if (/^-?\d+(\.\d+)?%$/.test(strVal)) {
+                                                const num = parseFloat(strVal.replace('%', ''));
+                                                cell.v = num / 100;
+                                                cell.ct = cell.ct || {};
+                                                cell.ct.fa = "0.00%";
+                                            }
 
-                  let colAbs = m[1];
-                  let col = m[2];
-                  let rowAbs = m[3];
-                  let row = m[4];
+                                            // Detect numeric strings → number
+                                            else if (/^-?\d+(\.\d+)?$/.test(strVal)) {
+                                                cell.v = parseFloat(strVal);
+                                            }
 
-                  // Cycle: A1 → $A$1 → A$1 → $A1 → A1
-                  if (!colAbs && !rowAbs) return `$${col}$${row}`;
-                  if (colAbs && rowAbs) return `${col}$${row}`;
-                  if (!colAbs && rowAbs) return `$${col}${row}`;
-                  if (colAbs && !rowAbs) return `${col}${row}`;
-              }
+                                            // Detect date-like strings
+                                            else if (
+                                                /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strVal) || // 2025-08-20 or 2025/08/20
+                                                /^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{2,4}$/.test(strVal) // 02-Mar-25 or 02-Mar-2025
+                                            ) {
+                                                // ✅ Export as string to avoid timezone shift
+                                                cell.v = strVal; // Keep original string
+                                                cell.ct = cell.ct || {};
+                                                cell.ct.fa = "@"; // Excel format for text
+                                            }
+                                        }
 
-              // Split sheet + range
-              let sheetName = "";
-              let base = found.full;
-              let bang = base.indexOf("!");
+                                        // --- Value / Formula
+                                        if (cell.f) {
+                                            const f = normalizeFormula(cell.f, sheetNames);
+                                            cellRef.value = { formula: f, result: cell.v ?? null };
+                                        } else {
+                                            cellRef.value = cell.v ?? null;
+                                        }
 
-              if (bang !== -1) {
-                  sheetName = base.substring(0, bang + 1);
-                  base = base.substring(bang + 1);
-              }
+                                        // --- Font
+                                        if (cell.fc || cell.bl || cell.it || cell.ff || cell.fs) {
+                                            cellRef.font = {};
+                                            if (cell.fc) cellRef.font.color = { argb: hexToARGB(cell.fc) };
+                                            if (cell.bl) cellRef.font.bold = true;
+                                            if (cell.it) cellRef.font.italic = true;
+                                            if (cell.ff) cellRef.font.name = cell.ff;
+                                            if (cell.fs) cellRef.font.size = Number(cell.fs);
+                                        }
 
-              let parts = base.split(":");
-              let toggled = parts.map(toggleSingle).join(":");
+                                        // --- Fill
+                                        if (cell.bg) {
+                                            cellRef.fill = {
+                                                type: 'pattern',
+                                                pattern: 'solid',
+                                                fgColor: { argb: hexToARGB(cell.bg) }
+                                            };
+                                        }
 
-              let finalRef = sheetName + toggled;
+                                        // --- Alignment
+                                        if (cell.ht || cell.vt || cell.tb) {
+                                            cellRef.alignment = {};
+                                            if (cell.ht) cellRef.alignment.horizontal = cell.ht;
+                                            if (cell.vt) cellRef.alignment.vertical = cell.vt;
+                                            if (cell.tb) cellRef.alignment.wrapText = cell.tb === 2;
+                                        }
 
-              // =============================
-              // UPDATE FORMULA
-              // =============================
-              let updatedFormula =
-                  formula.slice(0, found.start) +
-                  finalRef +
-                  formula.slice(found.end);
+                                        // --- Border
+                                        if (cell.border) {
+                                            const border = {};
+                                            for (const [side, val] of Object.entries(cell.border)) {
+                                                if (val?.color) {
+                                                    border[side] = {
+                                                        style: 'thin',
+                                                        color: { argb: hexToARGB(val.color) }
+                                                    };
+                                                }
+                                            }
+                                            cellRef.border = border;
+                                        }
 
-              let finalText = (hasEq ? "=" : "") + updatedFormula;
+                                        // --- Number format
+                                        if (cell.ct?.fa) {
+                                            const fmt = cell.ct.fa;
+                                            const val = cell.v;
+                                            if (typeof val === "number") {
+                                                cellRef.numFmt = fmt;
+                                            } else if (typeof val === "string" && fmt === "@") {
+                                                cellRef.numFmt = "@"; // Text format
+                                            }
+                                        }
+                                    }
+                                }
 
-              t.text(finalText);
+                                // 🔹 Merged cells
+                                if (sheet.config?.merge) {
+                                    Object.values(sheet.config.merge).forEach(m => {
+                                        if (m) {
+                                            try {
+                                                ws.mergeCells(
+                                                    m.r + 1,
+                                                    m.c + 1,
+                                                    m.r + (m.rowspan || 1),
+                                                    m.c + (m.colspan || 1)
+                                                );
+                                            } catch (e) {
+                                                console.warn("Merge skipped:", e);
+                                            }
+                                        }
+                                    });
+                                }
 
-              // Reset caret
-              let newCaretPos = (hasEq ? 1 : 0) + found.start + finalRef.length;
-              n.setCaretPosition(t.get(0), 0, newCaretPos);
-          },
+                                // 🔹 Row heights
+                                if (sheet.config?.rowlen) {
+                                    Object.entries(sheet.config.rowlen).forEach(([k, px]) => {
+                                        ws.getRow(Number(k) + 1).height = Math.round(px / 1.3333);
+                                    });
+                                }
+                            }
+
+                            // 🔹 Save as Excel
+                            const buf = await workbook.xlsx.writeBuffer();
+                            const fileName = (luckysheet.getluckysheetfile?.().title || 'RP_Export') + '.xlsx';
+                            saveAs(new Blob([buf], { type: "application/octet-stream" }), fileName);
+                        } catch (err) {
+                            console.error("❌ Export failed:", err);
+                            alert("Export failed. See console for details.");
+                        }
+                    }),
