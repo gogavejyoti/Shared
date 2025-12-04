@@ -1,16 +1,25 @@
-files.forEach((sheet, sheetIdx) => {
-    const chain = sheet.calcChain;
-    if (!chain) return;
 
-    chain.forEach(item => {
-        const r = item.r;
-        const c = item.c;
+    function recalcTodayNow() {
+        const sheets = luckysheet.getLuckysheetfile();
+      
 
-        const cell = sheet.data[r]?.[c];
-        if (!cell || !cell.f) return;
+        sheets.forEach((sheet, sheetIdx) => {
+            if (sheetIdx !=0)
+                return;
+            luckysheet.setSheetActive(sheetIdx);
+            const chain = sheet.calcChain;
+            if (!chain) return;
 
-        if (/TODAY\(|NOW\(/i.test(cell.f)) {
-            luckysheet.updateCellFormula(sheet, r, c, cell.f, true);
-        }
-    });
-});
+            chain.forEach(item => {
+                const r = item.r;
+                const c = item.c;
+
+                const cell = sheet.data[r]?.[c];
+                if (!cell || !cell.f) return;
+
+                if (cell.f.indexOf("%") === -1) return true;
+                    luckysheet.updateCellFormula(sheet, r, c, cell.f, true);
+                
+            });
+        });
+    }
