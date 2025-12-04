@@ -1,22 +1,112 @@
-        if (window.luckysheetFullyLoaded !== true) {
-            window.luckysheetFullyLoaded = true;
-            //recalcTodayNow();
+    function Ucf(sheetObj, row, col, value, triggerUpdate = true) {
+        let a = p;  // formula engine
+
+        if (!sheetObj || !sheetObj.data) return;
+        let flowdata = sheetObj.data;
+
+        let oldCell = flowdata[row][col];
+        if (!oldCell) oldCell = {};
+
+        let oldCellClone = JSON.parse(JSON.stringify(oldCell));
+        let clonedFlow = we.deepCopyFlowData(flowdata);
+
+        let newCellValue = value;
+        let isFormula = false;
+
+        // ----------------------------------------------------
+        // 1️⃣ Detect Formula
+        // ----------------------------------------------------
+        if (typeof newCellValue === "string" && newCellValue.startsWith("=") && newCellValue.length > 1) {
+            isFormula = true;
+        } else if (typeof newCellValue === "object" && newCellValue.f && newCellValue.f.startsWith("=")) {
+            newCellValue = newCellValue.f;
+            isFormula = true;
         }
-    }
-    function recalcTodayNow() {
-        const sheets = luckysheet.getLuckysheetfile();
-        sheets.forEach((sheet, sheetIdx) => {
-            const data = sheet.data;
-            if (!data) return;
-            for (let r = 0; r < data.length; r++) {
-                if (!data[r]) continue;
-                for (let c = 0; c < data[r].length; c++) {
-                    const cell = data[r][c];
-                    if (!cell || !cell.f) continue;
-                    if (/(TODAY|NOW)\(/i.test(cell.f)) {
-                        luckysheet.updateCellValue(sheet,r,c,cell.f,true);
-                    }
+
+        // ----------------------------------------------------
+        // 2️⃣ Before-update hook
+        // ----------------------------------------------------
+        if (!Je.createHookFunction("cellUpdateBefore", row, col, newCellValue, triggerUpdate)) {
+            a.cancelNormalSelected();
+            return;
+        }
+
+        // ----------------------------------------------------
+        // 3️⃣ Formula Processing (TODAY(), NOW(), SUM, etc.)
+        // ----------------------------------------------------
+        let updatedCell = {};
+
+        if (isFormula) {
+            // Evaluate formula
+            const result = a.execfunction(newCellValue, row, col, sheetObj.index, true);
+
+            updatedCell = $.extend(true, {}, clonedFlow[row][col]);
+            updatedCell.v = result[1];   // computed value
+            updatedCell.f = result[2];   // formula string
+
+            // Handle sparkline
+            if (result.length === 4 && result[3].type === "sparklines") {
+                delete updatedCell.m;
+                delete updatedCell.v;
+
+                let sp = result[3].data;
+                if (Array.isArray(sp) && typeof sp[0] !== "object") {
+                    updatedCell.v = sp[0];
+                } else {
+                    updatedCell.spl = result[3].data;
                 }
-            }      
-        });
+            }
+
+            // Handle dynamic array
+            if (result.length === 4 && result[3].type === "dynamicArrayItem") {
+                updatedCell.dynamicArray = result[3].data;
+            }
+
+        } else {
+            // ----------------------------------------------------
+            // 4️⃣ NON-formula update
+            // ----------------------------------------------------
+            updatedCell = $.extend(true, {}, clonedFlow[row][col]);
+            updatedCell.v = newCellValue;
+            delete updatedCell.f;
+            delete updatedCell.spl;
+        }
+
+        // ----------------------------------------------------
+        // 5️⃣ Write back into flowdata
+        // ----------------------------------------------------
+        At(row, col, clonedFlow, updatedCell);
+
+        // ----------------------------------------------------
+        // 6️⃣ Cancel selection & refresh dependent structures
+        // ----------------------------------------------------
+        a.cancelNormalSelected();
+        a.delFunctionGroup(row, col);
+
+        // ----------------------------------------------------
+        // 7️⃣ Auto-calc dynamic array spill
+        // ----------------------------------------------------
+        let dyn = null;
+        if (updatedCell.dynamicArray) {
+            dyn = $.extend(true, [], this.insertUpdateDynamicArray(updatedCell.dynamicArray));
+        }
+
+        let refreshParams = { dynamicArray: dyn };
+
+        // ----------------------------------------------------
+        // 8️⃣ UI Refresh + Recalculate dependencies
+        // ----------------------------------------------------
+        if (triggerUpdate) {
+            Ye(clonedFlow, [{ row: [row, row], column: [col, col] }], refreshParams, false);
+            p.execFunctionGlobalData = null; // clear formula cache
+        }
+
+        // ----------------------------------------------------
+        // 9️⃣ Fire cellUpdated hook
+        // ----------------------------------------------------
+        setTimeout(() => {
+            Je.createHookFunction("cellUpdated", row, col, oldCellClone, clonedFlow[row][col], triggerUpdate);
+        }, 0);
+
+        return clonedFlow[row][col];
     }
