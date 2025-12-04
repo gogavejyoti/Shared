@@ -1,26 +1,261 @@
-function hexToARGB(color) {
-    if (!color) return undefined;
+$("#luckysheet-icon-excel").click(async function () {
+    try {
 
-    // If rgba or rgb → convert to hex
-    if (color.startsWith("rgb")) {
-        const nums = color.match(/\d+/g).map(Number);
-        const [r, g, b] = nums;
-        return "FF" + [r, g, b].map(n => n.toString(16).padStart(2, "0")).join("").toUpperCase();
+        // ----------------------------
+        // HELPERS
+        // ----------------------------
+
+        function hexToARGB(color) {
+            if (!color) return undefined;
+
+            // If rgb() or rgba()
+            if (color.startsWith("rgb")) {
+                const nums = color.match(/\d+/g).map(Number);
+                const [r, g, b] = nums;
+                return "FF" + [r, g, b].map(n => n.toString(16).padStart(2, "0")).join("").toUpperCase();
+            }
+
+            let hex = color.replace("#", "");
+            if (hex.length === 3) hex = hex.split("").map(h => h + h).join("");
+
+            if (!/^[0-9A-Fa-f]{6}$/.test(hex)) return undefined;
+
+            return "FF" + hex.toUpperCase();
+        }
+
+        function pxToExcelWidth(px) {
+            if (!px) return 10;
+            return Math.max(3, Math.round(px / 7));
+        }
+
+        function normalizeFormula(formula, sheetNames) {
+            if (!formula) return formula;
+            sheetNames.forEach(name => {
+                if (/\s/.test(name) && formula.includes(name + "!")) {
+                    const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, '\\$&') + '!', 'g');
+                    formula = formula.replace(re, `'${name}'!`);
+                }
+            });
+            return formula;
+        }
+
+        // ----------------------------
+        // CF → ExcelJS mapping
+        // ----------------------------
+        function applyConditionalFormatting(ws, rule, sheetNames) {
+
+            const ranges = rule.cellrange || [];
+            if (!ranges.length) return;
+
+            ranges.forEach(range => {
+                const ref =
+                    `${ExcelJS.utils.getExcelCellRef(range.row[0] + 1, range.column[0] + 1)}:` +
+                    `${ExcelJS.utils.getExcelCellRef(range.row[1] + 1, range.column[1] + 1)}`;
+
+                // --------------------------
+                // Color Scale (2 or 3 color)
+                // --------------------------
+                if (rule.type === "colorScale") {
+                    const colors = rule.gradient?.colors || [];
+                    ws.addConditionalFormatting({
+                        ref,
+                        rules: [
+                            {
+                                type: "colorScale",
+                                cfvo: [
+                                    { type: "min" },
+                                    { type: "percentile", value: 50 },
+                                    { type: "max" }
+                                ],
+                                color: colors.map(c => hexToARGB(c.color))
+                            }
+                        ]
+                    });
+                }
+
+                // --------------------------
+                // Simple cell rules: >, <, >=, <=, =
+                // --------------------------
+                if (rule.type === "cell") {
+                    const f = rule.format || {};
+                    const bg = hexToARGB(f.bgcolor);
+
+                    const map = {
+                        "greaterThan": "greaterThan",
+                        "lessThan": "lessThan",
+                        "equal": "equal"
+                    };
+
+                    const op = map[rule.operator];
+                    if (op) {
+                        ws.addConditionalFormatting({
+                            ref,
+                            rules: [{
+                                type: "cellIs",
+                                operator: op,
+                                formulae: [rule.value],
+                                style: {
+                                    fill: bg ? { type: "pattern", pattern: "solid", bgColor: { argb: bg } } : undefined,
+                                    font: f.fc ? { color: { argb: hexToARGB(f.fc) } } : undefined
+                                }
+                            }]
+                        });
+                    }
+                }
+
+                // --------------------------
+                // Expression Rule
+                // --------------------------
+                if (rule.type === "expression" && rule.value) {
+                    const bg = rule.format?.bgcolor ? hexToARGB(rule.format.bgcolor) : null;
+
+                    ws.addConditionalFormatting({
+                        ref,
+                        rules: [{
+                            type: "expression",
+                            formulae: [normalizeFormula(rule.value, sheetNames)],
+                            style: {
+                                fill: bg ? { type: "pattern", pattern: "solid", bgColor: { argb: bg } } : undefined
+                            }
+                        }]
+                    });
+                }
+
+                // --------------------------
+                // Ignore icon sets and data bars (ExcelJS unsupported)
+                // --------------------------
+            });
+        }
+
+
+        // ----------------------------
+        // EXPORT START
+        // ----------------------------
+
+        const sheets = luckysheet.getAllSheets();
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "LuckySheet";
+        workbook.created = new Date();
+        const sheetNames = sheets.map(s => s.name);
+
+        for (let si = 0; si < sheets.length; si++) {
+            const sheet = sheets[si];
+            const ws = workbook.addWorksheet(sheet.name || `Sheet${si + 1}`);
+            const data = sheet.data || [];
+
+            // Column widths
+            if (sheet.config?.columnlen) {
+                ws.columns = Object.keys(sheet.config.columnlen).map(k => ({
+                    width: pxToExcelWidth(sheet.config.columnlen[k])
+                }));
+            }
+
+            // Fill data
+            for (let r = 0; r < data.length; r++) {
+                for (let c = 0; c < (data[r] || []).length; c++) {
+                    const cell = data[r][c];
+                    if (!cell) continue;
+
+                    const cellRef = ws.getCell(r + 1, c + 1);
+
+                    // Value or formula
+                    if (cell.f) {
+                        cellRef.value = {
+                            formula: normalizeFormula(cell.f, sheetNames),
+                            result: cell.v ?? null
+                        };
+                    } else {
+                        cellRef.value = cell.v ?? null;
+                    }
+
+                    // Font
+                    if (cell.fc || cell.bl || cell.it || cell.ff || cell.fs) {
+                        cellRef.font = {};
+                        if (cell.fc) cellRef.font.color = { argb: hexToARGB(cell.fc) };
+                        if (cell.bl) cellRef.font.bold = true;
+                        if (cell.it) cellRef.font.italic = true;
+                        if (cell.ff) cellRef.font.name = cell.ff;
+                        if (cell.fs) cellRef.font.size = Number(cell.fs);
+                    }
+
+                    // Background
+                    if (cell.bg) {
+                        const bg = hexToARGB(cell.bg);
+                        if (bg) {
+                            cellRef.fill = {
+                                type: "pattern",
+                                pattern: "solid",
+                                fgColor: { argb: bg }
+                            };
+                        }
+                    }
+
+                    // Alignment
+                    if (cell.ht || cell.vt || cell.tb) {
+                        cellRef.alignment = {};
+                        if (cell.ht) cellRef.alignment.horizontal = cell.ht;
+                        if (cell.vt) cellRef.alignment.vertical = cell.vt;
+                        if (cell.tb) cellRef.alignment.wrapText = cell.tb === 2;
+                    }
+
+                    // Border
+                    if (cell.border) {
+                        const border = {};
+                        for (const [side, val] of Object.entries(cell.border)) {
+                            if (val?.color) {
+                                border[side] = {
+                                    style: "thin",
+                                    color: { argb: hexToARGB(val.color) }
+                                };
+                            }
+                        }
+                        cellRef.border = border;
+                    }
+
+                    // Format
+                    if (cell.ct?.fa) {
+                        cellRef.numFmt = cell.ct.fa;
+                    }
+                }
+            }
+
+            // Merge
+            if (sheet.config?.merge) {
+                for (const m of Object.values(sheet.config.merge)) {
+                    ws.mergeCells(
+                        m.r + 1,
+                        m.c + 1,
+                        m.r + (m.rowspan || 1),
+                        m.c + (m.colspan || 1)
+                    );
+                }
+            }
+
+            // Row heights
+            if (sheet.config?.rowlen) {
+                Object.entries(sheet.config.rowlen).forEach(([k, px]) => {
+                    ws.getRow(Number(k) + 1).height = Math.round(px / 1.3333);
+                });
+            }
+
+            // ----------------------------
+            // APPLY CONDITIONAL FORMATTING
+            // ----------------------------
+            if (sheet.config?.conditionalFormat) {
+                sheet.config.conditionalFormat.forEach(cfRule => {
+                    applyConditionalFormatting(ws, cfRule, sheetNames);
+                });
+            }
+
+        }
+
+        // Save
+        const buf = await workbook.xlsx.writeBuffer();
+        const fileName = (luckysheet.getluckysheetfile?.().title || "Export") + ".xlsx";
+        saveAs(new Blob([buf], { type: "application/octet-stream" }), fileName);
+
+    } catch (err) {
+        console.error("Export failed:", err);
+        alert("Export failed. Check console.");
     }
-
-    // Remove #
-    let hex = color.replace("#", "");
-
-    // 3-digit hex → expand (e.g., f0c → ff00cc)
-    if (hex.length === 3) {
-        hex = hex.split("").map(h => h + h).join("");
-    }
-
-    // Invalid hex → ignore
-    if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
-        console.warn("Invalid HEX color:", color);
-        return undefined;
-    }
-
-    return "FF" + hex.toUpperCase();
-}
+});
