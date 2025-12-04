@@ -1,25 +1,35 @@
+function recalcPercentSafe() {
+    const sheets = luckysheet.getLuckysheetfile();
 
-    function recalcTodayNow() {
-        const sheets = luckysheet.getLuckysheetfile();
-      
+    sheets.forEach((sheet, sheetIdx) => {
+        const chain = sheet.calcChain;
+        if (!chain) return;
 
-        sheets.forEach((sheet, sheetIdx) => {
-            if (sheetIdx !=0)
-                return;
-            luckysheet.setSheetActive(sheetIdx);
-            const chain = sheet.calcChain;
-            if (!chain) return;
+        let batchCount = 0;
 
-            chain.forEach(item => {
+        function processBatch(start) {
+            for (let i = start; i < chain.length; i++) {
+                const item = chain[i];
                 const r = item.r;
                 const c = item.c;
 
                 const cell = sheet.data[r]?.[c];
-                if (!cell || !cell.f) return;
+                if (cell && cell.f && cell.f.includes("%")) {
+                    // Only safe internal calculation function
+                    luckysheet.calculateFormula(r, c, sheetIdx);
+                }
 
-                if (cell.f.indexOf("%") === -1) return true;
-                    luckysheet.updateCellFormula(sheet, r, c, cell.f, true);
-                
-            });
-        });
-    }
+                batchCount++;
+
+                // After every 200 formulas, pause to let memory clear
+                if (batchCount % 200 === 0) {
+                    setTimeout(() => processBatch(i + 1), 0);
+                    return;
+                }
+            }
+        }
+
+        // Start batch processing
+        processBatch(0);
+    });
+}
