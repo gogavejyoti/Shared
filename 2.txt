@@ -1,6 +1,16 @@
-  // Quick string check (faster than regex)
-  const f = cell.f;
-  if (f.indexOf("TODAY(") === -1 && f.indexOf("NOW(") === -1) continue;
+files.forEach((sheet, sheetIdx) => {
+    const chain = sheet.calcChain;
+    if (!chain) return;
 
-  // Update TODAY() / NOW()
-  luckysheet.updateCellFormula(sheet, r, c, f, true
+    chain.forEach(item => {
+        const r = item.r;
+        const c = item.c;
+
+        const cell = sheet.data[r]?.[c];
+        if (!cell || !cell.f) return;
+
+        if (/TODAY\(|NOW\(/i.test(cell.f)) {
+            luckysheet.updateCellFormula(sheet, r, c, cell.f, true);
+        }
+    });
+});
