@@ -1,180 +1,377 @@
-// ================================================
-//   OPTIMIZED Ucv  (No deep-copy memory explosion)
-// ================================================
-function Ucv(sheetObj, row, col, value, triggerUpdate = true) {
-
-    if (!sheetObj || !sheetObj.data) return;
-
-    const flowdata = sheetObj.data;
-    const a = p;   // formula engine
-
-    let cell = flowdata[row][col] || {};
-    let oldCell = JSON.parse(JSON.stringify(cell));  // clone ONLY this cell (light)
-
-    let isFormula = false;
-    let dynamicArrayPayload = null;
-    let textValue = value;
-    let needsRecalc = true;
-
-    // -----------------------------------------------------------
-    // 1. BASIC NORMALIZATION (same behavior as LuckySheet)
-    // -----------------------------------------------------------
-    if (!textValue && xl(cell)) {
-        if (cell.ct) delete cell.ct.s;
-        if (cell.ct) {
-            cell.ct.t = "g";
-            cell.ct.fa = "General";
-        }
-        textValue = "";
-    }
-
-    // -----------------------------------------------------------
-    // 2. PRE-EVENT HOOK
-    // -----------------------------------------------------------
-    if (!Je.createHookFunction("cellUpdateBefore", row, col, textValue, triggerUpdate)) {
-        a.cancelNormalSelected();
-        return;
-    }
-
-    // -----------------------------------------------------------
-    // 3. HANDLE FORMULA OR VALUE
-    // -----------------------------------------------------------
-    if (typeof textValue === "string" && textValue.startsWith("=") && textValue.length > 1) {
-
-        // ✔ The cell is a formula → evaluate it
-        const evalResult = a.execfunction(textValue, row, col, undefined, true);
-
-        isFormula = true;
-        cell = { v: evalResult[1], f: evalResult[2] };
-
-        // handle sparklines / dynamic arrays
-        if (evalResult.length === 4) {
-            const meta = evalResult[3];
-
-            if (meta.type === "sparklines") {
-                const sparkData = meta.data;
-                if (Array.isArray(sparkData) && typeof sparkData[0] !== "object") {
-                    cell.v = sparkData[0];
+            pasteHandler: function (e, n) {
+                if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
+                    return;
+                let l = Q().paste;
+                if (h.luckysheet_select_save.length > 1 && (de() ? alert(l.errorNotAllowMulti) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMulti)),
+                    typeof e == "object") {
+                    if (e.length == 0)
+                        return;
+                    let a = $.extend(!0, {}, h.config);
+                    a.merge == null && (a.merge = {}),
+                        JSON.stringify(n).length > 2 && a.borderInfo == null && (a.borderInfo = []);
+                    let o = e.length
+                        , s = e[0].length
+                        , u = h.luckysheet_select_save[0].row[0]
+                        , d = u + o - 1
+                        , f = h.luckysheet_select_save[0].column[0]
+                        , m = f + s - 1
+                        , g = !1;
+                    if (a.merge != null && (g = Dt(a, u, d, f, m)),
+                        g) {
+                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return
+                    }
+                    let y = we.deepCopyFlowData(h.flowdata)
+                        , v = y.length
+                        , k = y[0].length
+                        , b = d - v + 1
+                        , w = m - k + 1;
+                    (b > 0 || w > 0) && (y = il([].concat(y), b, w, !0)),
+                        a.rowlen == null && (a.rowlen = {});
+                    let x = !1
+                        , C = {};
+                    for (let S = u; S <= d; S++) {
+                        let _ = [].concat(y[S])
+                            , T = h.defaultrowlen;
+                        a.rowlen[S] != null && (T = a.rowlen[S]);
+                        for (let A = f; A <= m; A++) {
+                            L(_[A]) == "object" && "mc" in _[A] && ("rs" in _[A].mc && delete a.merge[_[A].mc.r + "_" + _[A].mc.c],
+                                delete _[A].mc);
+                            let R = null;
+                            if (e[S - u] != null && e[S - u][A - f] != null && (R = e[S - u][A - f]),
+                                _[A] = $.extend(!0, {}, R),
+                                R != null && "mc" in _[A] && (_[A].mc.rs != null ? (_[A].mc.r = S,
+                                    _[A].mc.c = A,
+                                    a.merge[_[A].mc.r + "_" + _[A].mc.c] = _[A].mc,
+                                    C[R.mc.r + "_" + R.mc.c] = [_[A].mc.r, _[A].mc.c]) : _[A] = {
+                                        mc: {
+                                            r: C[R.mc.r + "_" + R.mc.c][0],
+                                            c: C[R.mc.r + "_" + R.mc.c][1]
+                                        }
+                                    }),
+                                n[S - u + "_" + (A - f)]) {
+                                let N = {
+                                    rangeType: "cell",
+                                    value: {
+                                        row_index: S,
+                                        col_index: A,
+                                        l: n[S - u + "_" + (A - f)].l,
+                                        r: n[S - u + "_" + (A - f)].r,
+                                        t: n[S - u + "_" + (A - f)].t,
+                                        b: n[S - u + "_" + (A - f)].b
+                                    }
+                                };
+                                a.borderInfo.push(N)
+                            }
+                            let I = ra(_[A])
+                                , F = be.getTextSize("\u7530", I)[1];
+                            F > T && (T = F,
+                                x = !0)
+                        }
+                        y[S] = _,
+                            T != h.defaultrowlen && (a.rowlen[S] = T)
+                    }
+                    if (h.luckysheet_select_save = [{
+                        row: [u, d],
+                        column: [f, m]
+                    }],
+                        b > 0 || w > 0 || x) {
+                        let S = {
+                            cfg: a,
+                            RowlChange: !0
+                        };
+                        Ye(y, h.luckysheet_select_save, S)
+                    } else {
+                        let S = {
+                            cfg: a
+                        };
+                        Ye(y, h.luckysheet_select_save, S),
+                            tt()
+                    }
                 } else {
-                    cell.spl = sparkData;
+                    e = e.replace(/\r/g, "");
+                    let a = []
+                        , o = e.split(`
+`)
+                        , s = o[0].split("	").length;
+                    for (let w = 0; w < o.length; w++)
+                        o[w].split("	").length < s || a.push(o[w].split("	"));
+                    let u = we.deepCopyFlowData(h.flowdata)
+                        , d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
+                        , f = d.row == null ? 0 : d.row[0]
+                        , m = d.column == null ? 0 : d.column[0]
+                        , g = a.length
+                        , y = a[0].length
+                        , v = !1;
+                    if (h.config.merge != null && (v = Dt(h.config, f, f + g - 1, m, m + y - 1)),
+                        v) {
+                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return
+                    }
+                    let k = f + g - u.length
+                        , b = m + y - u[0].length;
+                    (k > 0 || b > 0) && (u = il([].concat(u), k, b, !0));
+                    for (let w = 0; w < g; w++) {
+                        let x = [].concat(u[w + f]);
+                        for (let C = 0; C < y; C++) {
+                            let S = x[C + m]
+                                , _ = a[w][C];
+                            if (B(_) && (S && S.ct && S.ct.fa === "@" ? _ = String(_) : _ = parseFloat(_)),
+                                S instanceof Object)
+                                S.v = _,
+                                    S.ct != null && S.ct.fa != null ? S.m = mt(S.ct.fa, _) : S.m = _,
+                                    S.f != null && S.f.length > 0 && (S.f = "",
+                                        p.delFunctionGroup(w + f, C + m, h.currentSheetIndex));
+                            else {
+                                let T = {}
+                                    , A = it(_);
+                                T.v = A[2],
+                                    T.ct = A[1],
+                                    T.m = A[0],
+                                    x[C + m] = T
+                            }
+                        }
+                        u[w + f] = x
+                    }
+                    if (d.row = [f, f + g - 1],
+                        d.column = [m, m + y - 1],
+                        k > 0 || b > 0) {
+                        let w = {
+                            RowlChange: !0
+                        };
+                        Ye(u, h.luckysheet_select_save, w)
+                    } else
+                        Ye(u, h.luckysheet_select_save),
+                            tt()
+                }
+            },
+
+
+        $(document).on("paste.luckysheetEvent", function (g) {
+            if (!de()) {
+                if (xt.isPasteAction) {
+                    $("#luckysheet-rich-text-editor").blur(),
+                        xt.isPasteAction = !1;
+                    let y = window.clipboardData;
+                    y || (y = g.originalEvent.clipboardData);
+                    let v = y.getData("text/html") || y.getData("text/plain")
+                        , k = !0;
+                    if (v.indexOf("luckysheet_copy_action_table") > -1 && h.luckysheet_copy_save.copyRange != null && h.luckysheet_copy_save.copyRange.length > 0) {
+                        let w = []
+                            , x = new RegExp("<tr.*?>(.*?)</tr>", "gs")
+                            , C = new RegExp("<td.*?>(.*?)</td>", "gs")
+                            , S = v.match(x) || [];
+                        for (let N = 0; N < S.length; N++) {
+                            let D = []
+                                , E = S[N].match(C);
+                            if (E != null)
+                                for (let P = 0; P < E.length; P++) {
+                                    let z = E[P].replace(/<td.*?>/gs, "").replace(/<\/td>/gs, "");
+                                    D.push(z)
+                                }
+                            w.push(D)
+                        }
+                        let _ = h.luckysheet_copy_save.copyRange[0].row[0], T = h.luckysheet_copy_save.copyRange[0].row[1], A = h.luckysheet_copy_save.copyRange[0].column[0], R = h.luckysheet_copy_save.copyRange[0].column[1], I = h.luckysheet_copy_save.dataSheetIndex, F;
+                        I == h.currentSheetIndex ? F = we.deepCopyFlowData(h.flowdata) : F = h.luckysheetfile[K(I)].data;
+                        for (let N = _; N <= T && !(N - _ > w.length - 1); N++)
+                            for (let D = A; D <= R; D++) {
+                                let E = F[N][D]
+                                    , P = !1;
+                                if (E != null && E.mc != null && E.mc.rs == null)
+                                    continue;
+                                let z;
+                                if (E != null ? E.ct != null && E.ct.fa.indexOf("w") > -1 ? z = F[N][D].v : z = F[N][D].m : z = "",
+                                    z == null && F[N][D] && F[N][D].ct && F[N][D].ct.t == "inlineStr" && (z = F[N][D].ct.s.map(O => O.v).join(""),
+                                        P = !0),
+                                    z == null && (z = ""),
+                                    P) {
+                                    let O = $(w[N - _][D - A]).text().replace(/\s|\n/g, " ")
+                                        , V = z.replace(/\n/g, "").replace(/\s/g, " ");
+                                    if (O != V) {
+                                        k = !1;
+                                        break
+                                    }
+                                } else if (w[N - _][D - A] != z) {
+                                    k = !1;
+                                    break
+                                }
+                            }
+                    }
+                    let b = Q().fontjson;
+                    if (!Je.createHookFunction("rangePasteBefore", h.luckysheet_select_save, v))
+                        return;
+                    if (v.indexOf("luckysheet_copy_action_table") > -1 && h.luckysheet_copy_save.copyRange != null && h.luckysheet_copy_save.copyRange.length > 0 && k)
+                        h.luckysheet_paste_iscut ? (h.luckysheet_paste_iscut = !1,
+                            xt.pasteHandlerOfCutPaste(h.luckysheet_copy_save),
+                            xt.clearcopy(g)) : xt.pasteHandlerOfCopyPaste(h.luckysheet_copy_save);
+                    else if (v.indexOf("luckysheet_copy_action_image") > -1)
+                        Re.pasteImgItem();
+                    else {
+                        if (v.indexOf("table") > -1) {
+                            $("#luckysheet-copy-content").html(v);
+                            let w = new Array($("#luckysheet-copy-content").find("table tr").length)
+                                , x = 0
+                                , C = "th, td";
+                            $("#luckysheet-copy-content").find("table tr").eq(0).find(C).each(function () {
+                                let T = parseInt($(this).attr("colspan"));
+                                isNaN(T) && (T = 1),
+                                    x += T
+                            });
+                            for (let T = 0; T < w.length; T++)
+                                w[T] = new Array(x);
+                            let S = 0
+                                , _ = {};
+                            $("#luckysheet-copy-content").find("table tr").each(function () {
+                                let T = $(this)
+                                    , A = 0;
+                                T.find(C).each(function () {
+                                    let R = $(this)
+                                        , I = {}
+                                        , F = R.text();
+                                    if ($.trim(F).length == 0)
+                                        I.v = null,
+                                            I.m = "";
+                                    else {
+                                        let ee = it(R.text());
+                                        I.v = ee[2],
+                                            I.ct = ee[1],
+                                            I.m = ee[0]
+                                    }
+                                    let N = R.css("background-color");
+                                    N == "rgba(0, 0, 0, 0)" && (N = null),
+                                        I.bg = N;
+                                    let D = R.css("font-weight");
+                                    D == 400 || D == "normal" ? I.bl = 0 : I.bl = 1,
+                                        R.css("text-decoration").indexOf("underline") != -1 && (I.un = 1),
+                                        R.css("font-style") == "normal" ? I.it = 0 : I.it = 1;
+                                    let O = R.css("font-family").split(",");
+                                    for (let ee = 0; ee < O.length; ee++) {
+                                        let te = $.trim(O[ee].toLowerCase());
+                                        if (te = b[te],
+                                            te == null)
+                                            I.ff = 0;
+                                        else {
+                                            I.ff = te;
+                                            break
+                                        }
+                                    }
+                                    let V = Math.round(parseInt(R.css("font-size")) * 72 / 96);
+                                    I.fs = V;
+                                    let q = R.css("color");
+                                    I.fc = q;
+                                    let Y = R.css("text-align");
+                                    Y == "center" ? I.ht = 0 : Y == "right" ? I.ht = 2 : I.ht = 1;
+                                    let X = R.css("vertical-align");
+                                    for (X == "middle" ? I.vt = 0 : X == "top" || X == "text-top" ? I.vt = 1 : I.vt = 2; A < x && w[S][A] != null;)
+                                        A++;
+                                    if (A == x)
+                                        return !0;
+                                    if (w[S][A] == null) {
+                                        w[S][A] = I;
+                                        let ee = parseInt(R.attr("rowspan"))
+                                            , te = parseInt(R.attr("colspan"));
+                                        isNaN(ee) && (ee = 1),
+                                            isNaN(te) && (te = 1);
+                                        let ce = h.luckysheet_select_save[0].row[0] + S
+                                            , se = h.luckysheet_select_save[0].column[0] + A;
+                                        for (let ie = 0; ie < ee; ie++)
+                                            for (let ue = 0; ue < te; ue++) {
+                                                if (ie == 0) {
+                                                    let he = R.css("border-top");
+                                                    if (he != null && he.length > 0 && he.substr(0, 3).toLowerCase() != "0px") {
+                                                        let J = R.css("border-top-width")
+                                                            , G = R.css("border-top-style")
+                                                            , le = R.css("border-top-color")
+                                                            , pe = be.getQKBorder(J, G, le);
+                                                        _[S + ie + "_" + (A + ue)] == null && (_[S + ie + "_" + (A + ue)] = {}),
+                                                            _[S + ie + "_" + (A + ue)].t = {
+                                                                style: pe[0],
+                                                                color: pe[1]
+                                                            }
+                                                    }
+                                                }
+                                                if (ie == ee - 1) {
+                                                    let he = R.css("border-bottom");
+                                                    if (he != null && he.length > 0 && he.substr(0, 3).toLowerCase() != "0px") {
+                                                        let J = R.css("border-bottom-width")
+                                                            , G = R.css("border-bottom-style")
+                                                            , le = R.css("border-bottom-color")
+                                                            , pe = be.getQKBorder(J, G, le);
+                                                        _[S + ie + "_" + (A + ue)] == null && (_[S + ie + "_" + (A + ue)] = {}),
+                                                            _[S + ie + "_" + (A + ue)].b = {
+                                                                style: pe[0],
+                                                                color: pe[1]
+                                                            }
+                                                    }
+                                                }
+                                                if (ue == 0) {
+                                                    let he = R.css("border-left");
+                                                    if (he != null && he.length > 0 && he.substr(0, 3).toLowerCase() != "0px") {
+                                                        let J = R.css("border-left-width")
+                                                            , G = R.css("border-left-style")
+                                                            , le = R.css("border-left-color")
+                                                            , pe = be.getQKBorder(J, G, le);
+                                                        _[S + ie + "_" + (A + ue)] == null && (_[S + ie + "_" + (A + ue)] = {}),
+                                                            _[S + ie + "_" + (A + ue)].l = {
+                                                                style: pe[0],
+                                                                color: pe[1]
+                                                            }
+                                                    }
+                                                }
+                                                if (ue == te - 1) {
+                                                    let he = R.css("border-right");
+                                                    if (he != null && he.length > 0 && he.substr(0, 3).toLowerCase() != "0px") {
+                                                        let J = R.css("border-right-width")
+                                                            , G = R.css("border-right-style")
+                                                            , le = R.css("border-right-color")
+                                                            , pe = be.getQKBorder(J, G, le);
+                                                        _[S + ie + "_" + (A + ue)] == null && (_[S + ie + "_" + (A + ue)] = {}),
+                                                            _[S + ie + "_" + (A + ue)].r = {
+                                                                style: pe[0],
+                                                                color: pe[1]
+                                                            }
+                                                    }
+                                                }
+                                                ie == 0 && ue == 0 || (w[S + ie][A + ue] = {
+                                                    mc: {
+                                                        r: ce,
+                                                        c: se
+                                                    }
+                                                })
+                                            }
+                                        if (ee > 1 || te > 1) {
+                                            let ie = {
+                                                rs: ee,
+                                                cs: te,
+                                                r: ce,
+                                                c: se
+                                            };
+                                            w[S][A].mc = ie
+                                        }
+                                    }
+                                    if (A++,
+                                        A == x)
+                                        return !0
+                                }),
+                                    S++
+                            }),
+                                h.luckysheet_selection_range = [],
+                                xt.pasteHandler(w, _),
+                                $("#luckysheet-copy-content").empty()
+                        } else if (y.files.length == 1 && y.files[0].type.indexOf("image") > -1) {
+                            Re.insertImg(y.files[0]);
+                            return
+                        } else
+                            v = y.getData("text/plain"),
+                                xt.pasteHandler(v);
+                        $("#luckysheet-copy-content").empty()
+                    }
+                } else if ($(g.target).closest("#luckysheet-rich-text-editor").length > 0) {
+                    g.preventDefault();
+                    let y = window.clipboardData;
+                    y || (y = g.originalEvent.clipboardData);
+                    let v = y.getData("text/plain");
+                    document.execCommand("insertText", !1, v)
                 }
             }
-
-            if (meta.type === "dynamicArrayItem") {
-                dynamicArrayPayload = meta.data;
-            }
-        }
-
-        needsRecalc = false;
-
-    } else if (typeof textValue === "object") {
-
-        // ✔ Input object may contain .f (formula)
-        if (textValue.f && textValue.f.startsWith("=")) {
-            const evalResult = a.execfunction(textValue.f, row, col, undefined, true);
-
-            isFormula = true;
-            textValue.v = evalResult[1];
-            textValue.f = evalResult[2];
-
-            if (evalResult.length === 4 && evalResult[3].type === "dynamicArrayItem") {
-                dynamicArrayPayload = evalResult[3].data;
-            }
-
-            cell = textValue;
-            needsRecalc = false;
-
-        } else {
-            // Normal raw object value (keep behavior)
-            cell = { ...cell, ...textValue };
-        }
-
-    } else {
-        // ✔ Plain value (not formula)
-        a.delFunctionGroup(row, col);
-        a.execFunctionGroup(row, col, textValue);
-
-        cell = {
-            ...cell,
-            v: textValue
-        };
-
-        delete cell.f;
-        delete cell.spl;
-
-        if (cell.qp === 1 && ("" + textValue)[0] !== "'") {
-            cell.qp = 0;
-            if (cell.ct) {
-                cell.ct.fa = "General";
-                cell.ct.t = "n";
-            }
-        }
-
-        needsRecalc = false;
-    }
-
-    // -----------------------------------------------------------
-    // 4. APPLY UPDATE (NO SHEET DEEP COPY)
-    // -----------------------------------------------------------
-    flowdata[row][col] = cell;
-
-    a.cancelNormalSelected();
-
-    // -----------------------------------------------------------
-    // 5. ROW HEIGHT CALC (cheap)
-    // -----------------------------------------------------------
-    let cfg = sheetObj.config || {};
-    let rowChanged = false;
-
-    if (!cfg.rowlen) cfg.rowlen = {};
-
-    const cCell = flowdata[row][col];
-    if ((cCell.tb === "2" && cCell.v != null) || (xl(cCell) && !cCell.mc)) {
-
-        const defaultHeight = h.defaultrowlen;
-        const canvas = document.getElementById("luckysheetTableContent").getContext("2d");
-
-        if (!(cfg.customHeight && cfg.customHeight[row] === 1)) {
-            const width = Rt(col)[1] - Rt(col)[0] - 2;
-            const sizeInfo = Tr(cCell, canvas, { r: row, c: col, cellWidth: width });
-
-            const newHeight = sizeInfo ? sizeInfo.textHeightAll + 2 : defaultHeight;
-
-            if (newHeight > defaultHeight) {
-                cfg.rowlen[row] = newHeight;
-                rowChanged = true;
-            }
-        }
-    }
-
-    // -----------------------------------------------------------
-    // 6. HANDLE DYNAMIC ARRAY
-    // -----------------------------------------------------------
-    let dynArray = null;
-    if (dynamicArrayPayload) {
-        dynArray = this.insertUpdateDynamicArray(dynamicArrayPayload);
-    }
-
-    const param = {
-        dynamicArray: dynArray ? JSON.parse(JSON.stringify(dynArray)) : null,
-        cfg: rowChanged ? cfg : undefined,
-        RowlChange: rowChanged ? true : undefined
-    };
-
-    // -----------------------------------------------------------
-    // 7. FIRE HOOK (ASYNC)
-    // -----------------------------------------------------------
-    setTimeout(() => {
-        Je.createHookFunction("cellUpdated", row, col, oldCell, cell, triggerUpdate);
-    }, 0);
-
-    // -----------------------------------------------------------
-    // 8. GLOBAL UPDATE (NO heavy deep-copy)
-    // -----------------------------------------------------------
-    if (triggerUpdate) {
-        Ye(flowdata, [{ row: [row, row], column: [col, col] }], param, needsRecalc);
-        a.execFunctionGlobalData = null;
-    } else {
-        return { data: flowdata, allParam: param };
-    }
-}
+        }),
