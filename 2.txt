@@ -1,29 +1,29 @@
 let text = (y.getData("text/plain") || "").trim();
 
-// Split into rows/cells (Excel always uses newline + tab)
-let cells = text
-    .split(/\r?\n/)
-    .map(r => r.split("\t"));
+// Split into matrix
+let rows = text.split(/\r?\n/).map(r => r.split("\t"));
 
-// Clean and convert each cell
-cells = cells.map(row =>
+// Clean numbers and remove commas
+rows = rows.map(row =>
     row.map(cell => {
         if (!cell) return "";
 
         let cleaned = cell.trim();
 
-        // Remove ALL commas inside numbers
+        // remove commas that are part of numbers
         cleaned = cleaned.replace(/(?<=\d),(?=\d)/g, "");
 
-        // Convert to number if it's a valid number
-        return /^-?\d+(\.\d+)?$/.test(cleaned) ? Number(cleaned) : cell;
+        // convert to Number, then back to string (removes formatting)
+        if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
+            return String(Number(cleaned));
+        }
+
+        return cell; // text stays text
     })
 );
 
-// If clipboard is one single cell → return primitive value
-let v = (cells.length === 1 && cells[0].length === 1)
-    ? cells[0][0]
-    : cells;
+// Convert back to **single string** exactly like Excel text
+let v = rows.map(r => r.join("\t")).join("\n");
 
-// Send to Luckysheet
+// Send to pasteHandler
 xt.pasteHandler(v);
