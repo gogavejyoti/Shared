@@ -1,26 +1,14 @@
-  else if (s == at.ENTER) {
-      if ($(t.target).hasClass("formulaInputFocus") || $("#luckysheet-conditionformat-dialog").is(":visible"))
-          return;
-      if (String.fromCharCode(s) != null && $("#luckysheet-cell-selected").is(":visible")) {
-          let d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
-              , f = d.row_focus
-              , m = d.column_focus;
-          Rl(f, m, h.flowdata),
-              t.preventDefault()
-      }
-  } 
+urn
+                        } else if (isPasteValuesAction){
 
-else if ((t.ctrlKey && t.shiftKey && s == 86)){
-     h.pasteValuesOnly = !0; 
-     if (de() || h.allowEdit === !1 || $(t.target).hasClass("formulaInputFocus"))
-         return;
-     if (h.luckysheet_select_save.length > 1) {
-         de() ? alert(n.noPaste) : U.info(n.noPaste, "");
-         return
-     }
-     xt.isPasteAction = !0,
-         Dr(),
-         t.stopPropagation();
-     return
- }
+                            const raw = (y.getData("text/plain") || '').replace(/\r?\n$/, '').trim();
 
+                            // Remove commas only between digits (no lookbehind required)
+                            const cleaned = raw.replace(/(\d),(?=\d)/g, '$1');
+
+                            // Convert to number when possible, else keep text
+                            const value = /^-?\d+(?:\.\d+)?$/.test(cleaned) ? Number(cleaned) : cleaned;
+
+                            v = value;
+                                xt.pasteHandler(v);
+                        }      
