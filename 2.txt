@@ -1,14 +1,42 @@
-urn
-                        } else if (isPasteValuesAction){
+if (isPasteValuesAction) {
+    let raw = y.getData("text/plain") || "";
+    raw = raw.trim();
 
-                            const raw = (y.getData("text/plain") || '').replace(/\r?\n$/, '').trim();
+    // Split correctly into rows/columns
+    const rows = raw
+        .split(/\r?\n/)            // rows split by newline
+        .map(r => r.split("\t"));   // cells split by tab
 
-                            // Remove commas only between digits (no lookbehind required)
-                            const cleaned = raw.replace(/(\d),(?=\d)/g, '$1');
+    // Convert each cell
+    const processed = rows.map(row =>
+        row.map(cell => {
+            if (!cell) return "";
 
-                            // Convert to number when possible, else keep text
-                            const value = /^-?\d+(?:\.\d+)?$/.test(cleaned) ? Number(cleaned) : cleaned;
+            let cleaned = cell.trim();
 
-                            v = value;
-                                xt.pasteHandler(v);
-                        }      
+            // Remove ALL commas inside numbers (supports Indian format too)
+            // e.g., "1,23,456.78" → "123456.78"
+            const noComma = cleaned.replace(/,/g, "");
+
+            // Try scientific notation (Excel often uses this)
+            if (/^-?\d+(\.\d+)?e[-+]?\d+$/i.test(noComma)) {
+                return Number(noComma);
+            }
+
+            // Normal number
+            if (/^-?\d+(\.\d+)?$/.test(noComma)) {
+                return Number(noComma);
+            }
+
+            // Not a number → return as text
+            return cleaned;
+        })
+    );
+
+    // If it is a single cell copied from Excel
+    const result = (processed.length === 1 && processed[0].length === 1)
+        ? processed[0][0]
+        : processed;
+
+    xt.pasteHandler(result);
+}
