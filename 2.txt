@@ -1,42 +1,57 @@
 if (isPasteValuesAction) {
-    let raw = y.getData("text/plain") || "";
-    raw = raw.trim();
 
-    // Split correctly into rows/columns
+    let raw = (y.getData("text/plain") || "").trim();
+
     const rows = raw
-        .split(/\r?\n/)            // rows split by newline
-        .map(r => r.split("\t"));   // cells split by tab
+        .split(/\r?\n/)
+        .map(r => r.split("\t"));
 
-    // Convert each cell
     const processed = rows.map(row =>
         row.map(cell => {
             if (!cell) return "";
 
             let cleaned = cell.trim();
+            cleaned = cleaned.replace(/,/g, "");
 
-            // Remove ALL commas inside numbers (supports Indian format too)
-            // e.g., "1,23,456.78" → "123456.78"
-            const noComma = cleaned.replace(/,/g, "");
-
-            // Try scientific notation (Excel often uses this)
-            if (/^-?\d+(\.\d+)?e[-+]?\d+$/i.test(noComma)) {
-                return Number(noComma);
+            if (/^-?\d+(\.\d+)?e[-+]?\d+$/i.test(cleaned)) {
+                return Number(cleaned);
             }
 
-            // Normal number
-            if (/^-?\d+(\.\d+)?$/.test(noComma)) {
-                return Number(noComma);
+            if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
+                return Number(cleaned);
             }
 
-            // Not a number → return as text
-            return cleaned;
+            return cell.trim();
         })
     );
 
-    // If it is a single cell copied from Excel
-    const result = (processed.length === 1 && processed[0].length === 1)
+    let v = (processed.length === 1 && processed[0].length === 1)
         ? processed[0][0]
         : processed;
 
-    xt.pasteHandler(result);
+    // -----------------------------
+    // FIX: Force multi-cell paste
+    // -----------------------------
+    if (!Array.isArray(v)) {
+        const selections = luckysheet.getRangeArray(); 
+
+        if (selections.length > 1 ||
+            (selections[0].row[1] > selections[0].row[0] ||
+             selections[0].column[1] > selections[0].column[0])) {
+
+            // broadcast to selected cells
+            selections.forEach(sel => {
+                for (let r = sel.row[0]; r <= sel.row[1]; r++) {
+                    for (let c = sel.column[0]; c <= sel.column[1]; c++) {
+                        luckysheet.setCellValue(r, c, v);
+                    }
+                }
+            });
+
+            return; // stop Luckysheet from overriding it
+        }
+    }
+
+    // fallback normal handler
+    xt.pasteHandler(v);
 }
