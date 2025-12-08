@@ -1,6 +1,13 @@
- else if (s == at.F4 && parseInt(u.css("top")) > 0) {
-     p.setfreezonFuc(t);
-     const newFormula = $("#luckysheet-functionbox-cell").text();
-     $("#luckysheet-rich-text-editor").text(newFormula);
-     t.preventDefault();
+ else if ((t.ctrlKey && t.shiftKey && s == 86)){
+     h.pasteValuesOnly = !0; 
+     if (de() || h.allowEdit === !1 || $(t.target).hasClass("formulaInputFocus"))
+         return;
+     if (h.luckysheet_select_save.length > 1) {
+         de() ? alert(n.noPaste) : U.info(n.noPaste, "");
+         return
+     }
+     xt.isPasteAction = !0,
+         Dr(),
+         t.stopPropagation();
+     return
  }
