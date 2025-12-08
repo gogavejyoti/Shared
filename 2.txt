@@ -1,4 +1,16 @@
- else if ((t.ctrlKey && t.shiftKey && s == 86)){
+  else if (s == at.ENTER) {
+      if ($(t.target).hasClass("formulaInputFocus") || $("#luckysheet-conditionformat-dialog").is(":visible"))
+          return;
+      if (String.fromCharCode(s) != null && $("#luckysheet-cell-selected").is(":visible")) {
+          let d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
+              , f = d.row_focus
+              , m = d.column_focus;
+          Rl(f, m, h.flowdata),
+              t.preventDefault()
+      }
+  } 
+
+else if ((t.ctrlKey && t.shiftKey && s == 86)){
      h.pasteValuesOnly = !0; 
      if (de() || h.allowEdit === !1 || $(t.target).hasClass("formulaInputFocus"))
          return;
@@ -11,3 +23,4 @@
          t.stopPropagation();
      return
  }
+
