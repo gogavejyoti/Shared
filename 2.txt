@@ -1,2 +1,29 @@
-  v = y.getData("text/plain").replace(/\r?\n(?![\s\S]*\r?\n)/, ' '),
-                                xt.pasteHandler(v);
+let text = (y.getData("text/plain") || "").trim();
+
+// Split into rows/cells (Excel always uses newline + tab)
+let cells = text
+    .split(/\r?\n/)
+    .map(r => r.split("\t"));
+
+// Clean and convert each cell
+cells = cells.map(row =>
+    row.map(cell => {
+        if (!cell) return "";
+
+        let cleaned = cell.trim();
+
+        // Remove ALL commas inside numbers
+        cleaned = cleaned.replace(/(?<=\d),(?=\d)/g, "");
+
+        // Convert to number if it's a valid number
+        return /^-?\d+(\.\d+)?$/.test(cleaned) ? Number(cleaned) : cell;
+    })
+);
+
+// If clipboard is one single cell → return primitive value
+let v = (cells.length === 1 && cells[0].length === 1)
+    ? cells[0][0]
+    : cells;
+
+// Send to Luckysheet
+xt.pasteHandler(v);
