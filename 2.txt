@@ -119,7 +119,11 @@
 
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
+        let metrics = [...new Set(settings.data.map(d => d.header))].filter(m => m);
+const hasReq = metrics.includes('Required HC');
+const hasAvail = metrics.includes('Available HC');
+if(hasReq && hasAvail){ if(!metrics.includes('Delta')) metrics.push('Delta'); if(!metrics.includes('Staffing %')) metrics.push('Staffing %'); }
+
 
         const uniqueWeekMonthPairs = Array.from(
             new Map(
