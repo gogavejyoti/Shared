@@ -111,7 +111,7 @@
                         <div id="lobInputs" style="display:none;">
                           <div class="row mb-3">
                             <div class="col-md-6">
-                              <label class="form-label">LOB Type</label>
+                              <label class="form-label">Billing type</label>
                               <select class="form-select" id="configLobType">
                                 <option value="FTE">FTE</option>
                                 <option value="Transaction">Transaction</option>
