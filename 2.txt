@@ -1,453 +1,101 @@
+// staffingSummaryPopup.js clean version
 (function ($) {
     $.fn.staffingSummaryPopup = function (options) {
-
         const settings = $.extend({
-            data: [],            // FULL extracted dataset (standard + custom fields)
-            defaultMode: "comparison",
+            data: [],
             weekStartDay: "sunday"
         }, options);
 
-        // ---------------------------------------------------------------------
-        // 0. CLEANUP PREVIOUS POPUP
-        // ---------------------------------------------------------------------
         $('#analyticsModal').remove();
 
-        // ---------------------------------------------------------------------
-        // 1. DYNAMIC METRICS (BOTH STANDARD + CUSTOM)
-        // ---------------------------------------------------------------------
-        let metrics = [...new Set(settings.data.map(d => d.header))];
-        metrics = metrics.filter(m => m !== "Not Applicable" && m !== "" && m !== null);
+        let metrics = [...new Set(settings.data.map(d => d.header))].filter(m => m && m !== "Not Applicable");
+        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))];
+        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))];
 
-        // Only add Delta + Staffing % if Required & Available exist
-        const hasReq = metrics.includes("Required HC");
-        const hasAvail = metrics.includes("Available HC");
-
-        if (hasReq && hasAvail) {
-            if (!metrics.includes("Delta")) metrics.push("Delta");
-            if (!metrics.includes("Staffing %")) metrics.push("Staffing %");
-        }
-
-        // Get unique LOBs
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-
-        // Parse week to sortable date
-        const parseWeek = w => {
-            const [dd, mmm, yy] = w.split("-");
-            const fullYear = yy.length === 2 ? "20" + yy : yy;
-            return new Date(`${mmm} ${dd}, ${fullYear}`);
-        };
-
-        // Unique weeks sorted
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))]
-            .sort((a, b) => parseWeek(a) - parseWeek(b));
-
-        // Build week-month map
-        const uniqueWeekMonthPairs = Array.from(
-            new Map(
-                settings.data.map(d => [d.week, d.month])
-                    .sort((a, b) => parseWeek(a[0]) - parseWeek(b[0]))
-            ).entries()
-        );
-
-        const months = uniqueWeekMonthPairs.map(([_, m]) => m);
-
-        // ---------------------------------------------------------------------
-        // 2. GROUP DATA BY LOB → WEEK → METRIC
-        // ---------------------------------------------------------------------
-        const groupedData = {};
-        settings.data.forEach(d => {
-            groupedData[d.sheetName] ??= {};
-            groupedData[d.sheetName][d.week] ??= {};
-            groupedData[d.sheetName][d.week][d.header] = {
-                value: d.value,
-                aggregate: d.aggregate || "none"
-            };
-        });
-
-        // Auto-compute Delta + Staffing %
-        if (hasReq && hasAvail) {
-            for (const lob in groupedData) {
-                for (const week in groupedData[lob]) {
-
-                    const req = groupedData[lob][week]["Required HC"]?.value || 0;
-                    const avail = groupedData[lob][week]["Available HC"]?.value || 0;
-
-                    groupedData[lob][week]["Delta"] = { value: avail - req, aggregate: "none" };
-                    groupedData[lob][week]["Staffing %"] = {
-                        value: req === 0 ? 0 : Math.round((avail / req) * 100),
-                        aggregate: "none"
-                    };
-                }
-            }
-        }
-
-        // ---------------------------------------------------------------------
-        // 3. POPUP HTML
-        // ---------------------------------------------------------------------
-        if (!$('#weekAnalyticsPopupStyles').length) {
-            $('head').append(`
-                <style id="weekAnalyticsPopupStyles">
-                    #analyticsModal .modal-content { border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,0.12); background:#fafafa; }
-                    #analyticsModal .modal-header { background:#D7C4F0; }
-                    #analyticsModal .table-wrapper { overflow:auto; max-height: calc(100vh - 140px); }
-
-                    #analyticsModal table { border-collapse: collapse; }
-                    #analyticsModal th, #analyticsModal td {
-                        padding: 6px 10px; white-space: nowrap; border-top:1px solid #eaeaea;
-                    }
-                    #analyticsModal thead th { background:#f5f5f5; position:sticky; top:0; z-index:3; }
-
-                    th.sticky-left, td.sticky-left { left:0; position:sticky; background:#fff; z-index:5; }
-                    th.sticky-left-2, td.sticky-left-2 { left:140px; position:sticky; background:#fff; z-index:5; }
-
-                    .rag-red { color:#e74c3c; font-weight:bold; }
-                    .rag-amber { color:#f39c12; font-weight:bold; }
-                    .rag-green { color:#27ae60; font-weight:bold; }
-                </style>
-            `);
-        }
-
-        const modalHTML = `
+        const modal = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
-          <div class="modal-dialog modal-xl" style="max-width:98%;">
+          <div class="modal-dialog modal-xl">
             <div class="modal-content">
-              <div class="modal-header">
-                <h5>Staffing Summary</h5>
+              <div class="modal-header bg-light">
+                <h5 class="modal-title">Staffing Summary</h5>
                 <button class="btn-close" data-bs-dismiss="modal"></button>
               </div>
-              <div class="modal-body p-0">
+              <div class="modal-body">
 
-                <!-- FILTER SECTION -->
-                <div class="p-2" style="background:#fff; border-bottom:1px solid #ccc;">
-                  <div class="row g-2">
-
-                    <!-- LOB filter -->
-                    <div class="col-auto">
-                      <label><b>LOB:</b></label><br>
-                      <select id="lobSelect" class="form-select form-select-sm" multiple>
-                        ${uniqueLOBs.map(x => `<option selected>${x}</option>`).join("")}
-                      </select>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <label><b>LOB</b></label>
+                        <select id="lobSelect" class="form-select" multiple>
+                            ${uniqueLOBs.map(x => `<option selected>${x}</option>`).join("")}
+                        </select>
                     </div>
 
-                    <!-- Metrics -->
-                    <div class="col-auto">
-                      <label><b>Metrics:</b></label><br>
-                      <select id="metricSelect" class="form-select form-select-sm" multiple>
-                        ${metrics.map(m => `<option selected>${m}</option>`).join("")}
-                      </select>
+                    <div class="col-md-3">
+                        <label><b>Metrics</b></label>
+                        <select id="metricSelect" class="form-select" multiple>
+                            ${metrics.map(x => `<option selected>${x}</option>`).join("")}
+                        </select>
                     </div>
 
-                    <!-- Week From -->
-                    <div class="col-auto">
-                      <label><b>Week From:</b></label><br>
-                      <select id="weekFromSelect" class="form-select form-select-sm">
-                        ${uniqueWeeks.map(w => `<option>${w}</option>`).join("")}
-                      </select>
+                    <div class="col-md-3">
+                        <label><b>From Week</b></label>
+                        <select id="fromWeek" class="form-select">
+                            ${uniqueWeeks.map(w => `<option>${w}</option>`).join("")}
+                        </select>
                     </div>
 
-                    <!-- Week To -->
-                    <div class="col-auto">
-                      <label><b>Week To:</b></label><br>
-                      <select id="weekToSelect" class="form-select form-select-sm">
-                        ${uniqueWeeks.map(w => `<option>${w}</option>`).join("")}
-                      </select>
+                    <div class="col-md-3">
+                        <label><b>To Week</b></label>
+                        <select id="toWeek" class="form-select">
+                            ${uniqueWeeks.map(w => `<option>${w}</option>`).join("")}
+                        </select>
                     </div>
-
-                    <!-- Summary Type -->
-                    <div class="col-auto">
-                      <label><b>Summary Type:</b></label><br>
-                      <select id="summaryType" class="form-select form-select-sm">
-                        <option value="weekly" selected>Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-
-                    <div class="col-auto">
-                      <button id="applyFilterBtn" class="btn btn-sm btn-primary mt-4">
-                        Apply
-                      </button>
-                    </div>
-
-                  </div>
                 </div>
 
-                <div class="table-wrapper" id="staffingContainer"></div>
+                <button id="applyFilterBtn" class="btn btn-primary mb-3">Apply</button>
+
+                <div id="staffingContainer" class="border p-2" style="max-height:70vh;overflow:auto;"></div>
 
               </div>
             </div>
           </div>
-        </div>
-        `;
+        </div>`;
 
-        $('body').append(modalHTML);
+        $('body').append(modal);
 
-        const $container = $("#staffingContainer");
-
-        // ---------------------------------------------------------------------
-        // 4. HELPER: Build table
-        // ---------------------------------------------------------------------
-        function buildTable(selectedLOBs, selectedMetrics, fromWeek, toWeek, summaryType) {
-
-            const fromIndex = uniqueWeeks.indexOf(fromWeek);
-            const toIndex = uniqueWeeks.indexOf(toWeek);
-
-            const weeksInRange = uniqueWeeks.slice(
-                Math.min(fromIndex, toIndex),
-                Math.max(fromIndex, toIndex) + 1
-            );
-
-            const monthsInRange = months.slice(
-                Math.min(fromIndex, toIndex),
-                Math.max(fromIndex, toIndex) + 1
-            );
-
-            let displayKeys = [];
-            let groupedByMonth = {};
-
-            if (summaryType === "weekly") {
-                displayKeys = weeksInRange;
-            } else {
-                // MONTHLY
-                weeksInRange.forEach((wk, i) => {
-                    const monthKey = monthsInRange[i];
-                    groupedByMonth[monthKey] ??= [];
-                    groupedByMonth[monthKey].push(wk);
-                });
-                displayKeys = Object.keys(groupedByMonth)
-                    .sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
-            }
-
-            // -----------------------------------------------------------------
-            // Construct table
-            // -----------------------------------------------------------------
-            const table = document.createElement("table");
-            const thead = document.createElement("thead");
-            const tbody = document.createElement("tbody");
-
-            // Header row
-            const headerRow = document.createElement("tr");
-            headerRow.innerHTML = `
-                <th class="sticky-left">LOB</th>
-                <th class="sticky-left-2">Metric</th>
-            `;
-            displayKeys.forEach(k => {
-                const th = document.createElement("th");
-                th.innerText = k;
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
-
-            // -------------------------------------------------------------
-            // OVERALL SUMMARY (Top rows)
-            // -------------------------------------------------------------
-            const overallData = {};
-
-            selectedMetrics.forEach(metric => {
-                overallData[metric] = {};
-
-                displayKeys.forEach(key => {
-
-                    // -------------------------------------------------
-                    // MONTHLY SUMMARY
-                    // -------------------------------------------------
-                    if (summaryType === "monthly") {
-
-                        const weeksArr = groupedByMonth[key];
-
-                        // Build all values across all LOBs
-                        const values = selectedLOBs.map(lob => {
-                            const perLOBWeeks = weeksArr || [];
-                            const total = perLOBWeeks.reduce((sum, w) => {
-                                const vObj = groupedData[lob][w]?.[metric];
-                                return sum + (vObj?.value || 0);
-                            }, 0);
-
-                            const fieldInfo = settings.data.find(x => x.header === metric);
-                            const agg = fieldInfo?.aggregate || "none";
-
-                            if (agg === "average") return perLOBWeeks.length ? total / perLOBWeeks.length : 0;
-                            if (agg === "sum") return total;
-
-                            return total;
-                        });
-
-                        // Final aggregation across LOB
-                        const fieldInfo = settings.data.find(x => x.header === metric);
-                        const agg = fieldInfo?.aggregate || "none";
-
-                        if (agg === "average") {
-                            overallData[metric][key] = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-                        } else {
-                            overallData[metric][key] = values.reduce((a, b) => a + b, 0);
-                        }
-
-                        // Special Handling for Staffing %
-                        if (metric === "Staffing %" && hasReq && hasAvail) {
-                            const totalReq = selectedLOBs.reduce((s, lob) =>
-                                s + (weeksArr.reduce((sub, w) =>
-                                    sub + (groupedData[lob][w]?.["Required HC"]?.value || 0), 0)), 0);
-
-                            const totalAvail = selectedLOBs.reduce((s, lob) =>
-                                s + (weeksArr.reduce((sub, w) =>
-                                    sub + (groupedData[lob][w]?.["Available HC"]?.value || 0), 0)), 0);
-
-                            overallData[metric][key] = totalReq === 0 ? 0 : Math.round((totalAvail / totalReq) * 100);
-                        }
-                    }
-
-                    // -------------------------------------------------
-                    // WEEKLY SUMMARY
-                    // -------------------------------------------------
-                    else {
-                        // Handle Staffing %
-                        if (metric === "Staffing %") {
-                            const sumReq = selectedLOBs.reduce((s, lob) =>
-                                s + (groupedData[lob][key]?.["Required HC"]?.value || 0), 0);
-
-                            const sumAvail = selectedLOBs.reduce((s, lob) =>
-                                s + (groupedData[lob][key]?.["Available HC"]?.value || 0), 0);
-
-                            overallData[metric][key] = sumReq === 0 ? 0 : Math.round((sumAvail / sumReq) * 100);
-                        }
-                        else {
-                            // Custom aggregations
-                            const fieldInfo = settings.data.find(x => x.header === metric);
-                            const agg = fieldInfo?.aggregate || "none";
-
-                            const values = selectedLOBs.map(lob =>
-                                groupedData[lob][key]?.[metric]?.value || 0
-                            );
-
-                            if (agg === "average")
-                                overallData[metric][key] = values.reduce((a, b) => a + b, 0) / values.length;
-                            else
-                                overallData[metric][key] = values.reduce((a, b) => a + b, 0);
-                        }
-                    }
-                });
-            });
-
-            // OVERALL SUMMARY RENDER
-            selectedMetrics.forEach((metric, i) => {
-                const row = document.createElement("tr");
-
-                if (i === 0) {
-                    const tdLOB = document.createElement("td");
-                    tdLOB.className = "sticky-left";
-                    tdLOB.rowSpan = selectedMetrics.length;
-                    tdLOB.style.background = "#fff";
-                    tdLOB.innerText = "Overall Summary";
-                    row.appendChild(tdLOB);
-                }
-
-                const tdMetric = document.createElement("td");
-                tdMetric.className = "sticky-left-2";
-                tdMetric.innerText = metric;
-                row.appendChild(tdMetric);
-
-                displayKeys.forEach(key => {
-                    const td = document.createElement("td");
-                    let val = overallData[metric][key];
-
-                    if (metric === "Staffing %") {
-                        if (val < 80) td.className = "rag-red";
-                        else if (val < 100) td.className = "rag-amber";
-                        else td.className = "rag-green";
-                        td.innerText = val + "%";
-                    } else {
-                        td.innerText = Number(val).toLocaleString();
-                    }
-                    row.appendChild(td);
-                });
-
-                tbody.appendChild(row);
-            });
-
-            // -------------------------------------------------------------
-            // LOB LEVEL ROWS (weekly or monthly)
-            // -------------------------------------------------------------
-            selectedLOBs.forEach((lob) => {
-                selectedMetrics.forEach((metric, i) => {
-
-                    const row = document.createElement("tr");
-
-                    if (i === 0) {
-                        const tdLOB = document.createElement("td");
-                        tdLOB.className = "sticky-left";
-                        tdLOB.rowSpan = selectedMetrics.length;
-                        tdLOB.style.background = "#e6e6e6";
-                        tdLOB.innerText = lob;
-                        row.appendChild(tdLOB);
-                    }
-
-                    const tdMetric = document.createElement("td");
-                    tdMetric.className = "sticky-left-2";
-                    tdMetric.innerText = metric;
-                    row.appendChild(tdMetric);
-
-                    displayKeys.forEach(key => {
-                        const td = document.createElement("td");
-                        let value = 0;
-
-                        if (summaryType === "monthly") {
-                            const wkArr = groupedByMonth[key] || [];
-                            const fieldInfo = settings.data.find(x => x.header === metric);
-                            const agg = fieldInfo?.aggregate || "none";
-
-                            const total = wkArr.reduce((sum, week) =>
-                                sum + (groupedData[lob][week]?.[metric]?.value || 0), 0);
-
-                            value = agg === "average"
-                                ? (wkArr.length ? total / wkArr.length : 0)
-                                : total;
-                        }
-                        else {
-                            value = groupedData[lob][key]?.[metric]?.value || 0;
-                        }
-
-                        // Coloring
-                        if (metric === "Staffing %") {
-                            if (value < 80) td.className = "rag-red";
-                            else if (value < 100) td.className = "rag-amber";
-                            else td.className = "rag-green";
-
-                            td.innerText = value + "%";
-                        }
-                        else {
-                            td.innerText = Number(value).toLocaleString();
-                        }
-
-                        row.appendChild(td);
-                    });
-
-                    tbody.appendChild(row);
-                });
-            });
-
-            table.appendChild(thead);
-            table.appendChild(tbody);
-            $container.empty().append(table);
-        }
-
-        // ---------------------------------------------------------------------
-        // APPLY FILTER
-        // ---------------------------------------------------------------------
-        $("#applyFilterBtn").on("click", function () {
+        function buildTable() {
             const selectedLOBs = $("#lobSelect").val() || [];
             const selectedMetrics = $("#metricSelect").val() || [];
+            const fromWeek = $("#fromWeek").val();
+            const toWeek = $("#toWeek").val();
 
-            const fromWeek = $("#weekFromSelect").val();
-            const toWeek = $("#weekToSelect").val();
-            const summaryType = $("#summaryType").val();
+            const container = $("#staffingContainer");
+            container.empty();
 
-            buildTable(selectedLOBs, selectedMetrics, fromWeek, toWeek, summaryType);
-        });
+            const table = $("<table class='table table-bordered table-sm'></table>");
+            table.append("<thead><tr><th>LOB</th><th>Metric</th><th>Week</th><th>Value</th></tr></thead>");
 
-        // Initial render
-        buildTable(uniqueLOBs, metrics, uniqueWeeks[0], uniqueWeeks[uniqueWeeks.length - 1], "weekly");
+            const tbody = $("<tbody></tbody>");
 
-        // Show Modal
-        const modal = new bootstrap.Modal(document.getElementById("analyticsModal"));
-        modal.show();
+            settings.data.forEach(d => {
+                if (!selectedLOBs.includes(d.sheetName)) return;
+                if (!selectedMetrics.includes(d.header)) return;
+
+                const row = $("<tr></tr>");
+                row.append(`<td>${d.sheetName}</td>`);
+                row.append(`<td>${d.header}</td>`);
+                row.append(`<td>${d.week}</td>`);
+                row.append(`<td>${d.value ?? ""}</td>`);
+                tbody.append(row);
+            });
+
+            table.append(tbody);
+            container.append(table);
+        }
+
+        $("#applyFilterBtn").on("click", buildTable);
+
+        const bsModal = new bootstrap.Modal(document.getElementById("analyticsModal"));
+        bsModal.show();
     };
 })(jQuery);
