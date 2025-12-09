@@ -1,111 +1,196 @@
-    function extractAllData(planId, savedConfigs, getSheetDataFn) {
-        let allResults = [];
-        Object.entries(savedConfigs).forEach(([sheetName, config]) => {
-            const sheetResults = extractSheetData(planId, sheetName, config, getSheetDataFn);
-            allResults = allResults.concat(sheetResults);
+function extractSheetData(planId, sheetName, config, getSheetDataFn) {
+    const sheetData = getSheetDataFn(sheetName);
+    if (!sheetData || !config || config.type !== "lob") return [];
+
+    const results = [];
+
+    // Convert header column (A → 0, numeric → index)
+    let headerColIdx = isNaN(config.headerCol)
+        ? config.headerCol.toUpperCase().charCodeAt(0) - 65
+        : parseInt(config.headerCol) - 1;
+
+    const weekRowIdx = parseInt(config.weekRow) - 1;
+    const weekRow = sheetData[weekRowIdx];
+    if (!weekRow) return [];
+
+    // Collect all weeks (dates)
+    const weeks = [];
+    weekRow.forEach((cell, colIdx) => {
+        const val = cell && (cell.m || cell.v);
+        if (val && !isNaN(Date.parse(val))) {
+            weeks.push({ col: colIdx, date: val });
+        }
+    });
+
+    // Collect months (same logic as your original)
+    const months = [];
+    let monthRowIdx = -1;
+
+    for (let i = weekRowIdx - 1; i >= 0; i--) {
+        const row = sheetData[i];
+        const hasMonth = row.some(cell => {
+            const val = cell && cell.v;
+            return val && !isNaN(Date.parse('01-' + val));
         });
-        return allResults;
+
+        if (hasMonth) {
+            monthRowIdx = i;
+            break;
+        }
     }
 
-    function extractSheetData(planId, sheetName, config, getSheetDataFn) {
-        const sheetData = getSheetDataFn(sheetName);
-        if (!sheetData || !config || config.type !== "lob") return [];
-
-        const results = [];
-
-        // Convert header column (A → 0, numeric → index)
-        let headerColIdx = isNaN(config.headerCol)
-            ? config.headerCol.toUpperCase().charCodeAt(0) - 65
-            : parseInt(config.headerCol) - 1;
-
-        const weekRowIdx = parseInt(config.weekRow)-1;
-        const weekRow = sheetData[weekRowIdx];
-        if (!weekRow) return [];
-
-        // Collect all weeks from the week row
-        const weeks = [];
-        weekRow.forEach((cell, colIdx) => {
-            const val = cell && (cell.m || cell.v); 
-            if (val && !isNaN(Date.parse(val))) {
-                weeks.push({ col: colIdx, date: val });
+    if (monthRowIdx !== -1) {
+        const monthRow = sheetData[monthRowIdx];
+        monthRow.forEach((cell, colIdx) => {
+            const val = cell && cell.v;
+            if (val && !isNaN(Date.parse('01-' + val))) {
+                months.push({ col: colIdx, date: val });
             }
         });
+    }
 
-        const months = [];
-        //const monthRow = sheetData[weekRowIdx-1];
-        //monthRow.forEach((cell, colIdx) => {
-        //    const val = cell && cell.v; // ✅ calculated value only
-        //    if (val && !isNaN(Date.parse('01-' + val))) {
-        //        months.push({ col: colIdx, date: val });
-        //    }
-        //});
+    function isValidMonthYear(str) {
+        const regex = /^[A-Za-z]{3}-\d{2}$/;
+        if (!regex.test(str)) return false;
+        const [monthStr, yearStr] = str.split('-');
+        const monthIndex = new Date(`${monthStr} 1, 20${yearStr}`).getMonth();
+        return !isNaN(monthIndex);
+    }
 
-        let monthRowIdx = -1;
-        // Start from weekRowIdx and go upward
-        for (let i = weekRowIdx - 1; i >= 0; i--) {
-            const row = sheetData[i];
-            const hasMonth = row.some(cell => {
-                const val = cell && cell.v;
-                return val && !isNaN(Date.parse('01-' + val)); // check if val looks like a month
-            });
+    //-----------------------------------
+    // 1️⃣ STANDARD HEADERS (existing logic)
+    //-----------------------------------
+    Object.entries(config.headerMappings).forEach(([stdHeader, mappedHeader]) => {
+        if (mappedHeader !== "Not Applicable") {
+            let headerRowIdx = null;
+            for (let r = 0; r < sheetData.length; r++) {
+                const val = getCellValue(sheetData, r, headerColIdx);
+                if (val === mappedHeader) {
+                    headerRowIdx = r;
+                    break;
+                }
+            }
+            if (headerRowIdx !== null) {
+                weeks.forEach((week, index) => {
+                    const value = getCellValue(sheetData, headerRowIdx, week.col);
+                    const [dd, mmm, yy] = week.date.split('-');
+                    const monthKey = `${mmm}-${yy}`;
 
-            if (hasMonth) {
-                monthRowIdx = i;
-                break; // stop when found
+                    results.push({
+                        geo: config.location,
+                        site: config.site,
+                        projectId: config.projectId,
+                        planId,
+                        sheetName,
+                        week: week.date,
+                        month:
+                            months && months.length > 0 &&
+                            index < months.length &&
+                            isValidMonthYear(months[index].date)
+                                ? months[index].date
+                                : monthKey,
+                        header: stdHeader,
+                        value: $.isNumeric(value) ? Number(value) : null
+                    });
+                });
             }
         }
-        if (monthRowIdx !== -1) {
-            const monthRow = sheetData[monthRowIdx];
-            monthRow.forEach((cell, colIdx) => {
-                const val = cell && cell.v;
-                if (val && !isNaN(Date.parse('01-' + val))) {
-                    months.push({ col: colIdx, date: val });
-                }
-            });
-        }
+    });
 
+    //-----------------------------------
+    // 2️⃣ CUSTOM FIELDS (NEW)
+    //-----------------------------------
+    if (config.customFields && Array.isArray(config.customFields)) {
+        config.customFields.forEach(customField => {
+            // STEP 1 - First collect row-wise base values for every referenced header
+            // Identify tokens like [Forecasted Hours]
+            const formula = customField.formula || "";
+            const tokenRegex = /\[([^\]]+)\]/g;
+            const tokens = [];
+            let m;
+            while ((m = tokenRegex.exec(formula)) !== null) {
+                tokens.push(m[1]);
+            }
 
-
-        const  isValidMonthYear = (str) => {
-            const regex = /^[A-Za-z]{3}-\d{2}$/;
-            if (!regex.test(str)) return false;
-            const [monthStr, yearStr] = str.split('-');
-            const monthIndex = new Date(`${monthStr} 1, 20${yearStr}`).getMonth();
-            return !isNaN(monthIndex);
-        }
-
-
-        // Loop through header mappings
-        Object.entries(config.headerMappings).forEach(([stdHeader, mappedHeader]) => {
-            if (mappedHeader !== "Not Applicable") {
-                let headerRowIdx = null;
+            // Build lookup table for each header in tokens
+            const headerRowLookup = {};
+            tokens.forEach(token => {
                 for (let r = 0; r < sheetData.length; r++) {
                     const val = getCellValue(sheetData, r, headerColIdx);
-                    if (val === mappedHeader) {
-                        headerRowIdx = r;
+                    if (String(val).trim() === String(token).trim()) {
+                        headerRowLookup[token] = r;
                         break;
                     }
                 }
-                if (headerRowIdx !== null) {
-                    weeks.forEach((week,index) => {
-                        const value = getCellValue(sheetData, headerRowIdx, week.col);
-                        const [dd, mmm, yy] = week.date.split('-');
-                        const monthKey = `${mmm}-${yy}`;
-                        results.push({
-                            geo: config.location,
-                            site: config.site,
-                            projectId: config.projectId,
-                            planId,
-                            sheetName,
-                            week: week.date, // yyyy-mm-dd
-                            month: months && months.length > 0 && index < months.length && isValidMonthYear(months[index].date) ? months[index].date : monthKey, //mmm-dd
-                            header: stdHeader,
-                            value: $.isNumeric(value) ? Number(value) : null
-                        });
-                    });
-                }
-            }
-        });
+            });
 
-        return results;
+            weeks.forEach((week, index) => {
+                //-----------------------------------
+                // 2.1 - Build rowValueMap for formula evaluation
+                //-----------------------------------
+                const rowValueMap = {};
+
+                tokens.forEach(tkn => {
+                    const rowIdx = headerRowLookup[tkn];
+
+                    if (rowIdx !== undefined && rowIdx !== null) {
+                        const raw = getCellValue(sheetData, rowIdx, week.col);
+
+                        rowValueMap[tkn] = $.isNumeric(raw) ? Number(raw) : 0;
+                    } else {
+                        rowValueMap[tkn] = 0;
+                    }
+                });
+
+                //-----------------------------------
+                // 2.2 - Evaluate formula
+                //-----------------------------------
+                let computedValue = evaluateCustomFormula(formula, rowValueMap);
+
+                //-----------------------------------
+                // 2.3 - Apply Number Formatting
+                //-----------------------------------
+                if (computedValue != null) {
+                    if (customField.format === "percent") {
+                        computedValue = computedValue * 100;
+                    }
+                    if (customField.format === "int") {
+                        computedValue = Math.round(computedValue);
+                    }
+                    if (customField.format === "decimal1") {
+                        computedValue = parseFloat(computedValue.toFixed(1));
+                    }
+                    if (customField.format === "decimal2") {
+                        computedValue = parseFloat(computedValue.toFixed(2));
+                    }
+                }
+
+                //-----------------------------------
+                // 2.4 - Add result
+                //-----------------------------------
+                const [dd, mmm, yy] = week.date.split('-');
+                const monthKey = `${mmm}-${yy}`;
+
+                results.push({
+                    geo: config.location,
+                    site: config.site,
+                    projectId: config.projectId,
+                    planId,
+                    sheetName,
+                    week: week.date,
+                    month:
+                        months && months.length > 0 &&
+                        index < months.length &&
+                        isValidMonthYear(months[index].date)
+                            ? months[index].date
+                            : monthKey,
+                    header: customField.name,
+                    value: computedValue,
+                    aggregate: customField.aggregate  // sum | average | none
+                });
+            });
+        });
     }
+
+    return results;
+}
