@@ -194,3 +194,32 @@ function extractSheetData(planId, sheetName, config, getSheetDataFn) {
 
     return results;
 }
+
+function evaluateCustomFormula(formula, rowValueMap) {
+    if (!formula || typeof formula !== "string") return null;
+
+    let expr = formula.replace(/\[([^\]]+)\]/g, (_, token) => {
+        return rowValueMap[token] != null ? rowValueMap[token] : 0;
+    });
+
+    // Convert x% to (x/100)
+    expr = expr.replace(/(\d+(\.\d+)?)%/g, '($1/100)');
+
+    try {
+        // Use math.js if available
+        if (window.math && typeof window.math.evaluate === "function") {
+            return window.math.evaluate(expr);
+        }
+
+        // Safe fallback: block letters
+        if (/[A-Za-z]/.test(expr)) return null;
+
+        // eslint-disable-next-line no-new-func
+        return new Function("return " + expr)();
+    }
+    catch {
+        return null;
+    }
+}
+
+
