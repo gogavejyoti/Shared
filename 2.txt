@@ -1,3 +1,36 @@
+
+// === Custom Field Helpers ===
+function isCustomMetric(metric, settings) {
+    return settings.data.some(d => d.header === metric && d.aggregate);
+}
+
+function getMonthlyAggregatedValue(lob, metric, weeksArray, groupedData, settings) {
+    if (!weeksArray || weeksArray.length === 0) return 0;
+    const info = settings.data.find(x => x.header === metric) || {};
+    const agg = info.aggregate || "none";
+    const values = weeksArray.map(week =>
+        groupedData[lob][week]?.[metric]?.value ?? 0
+    );
+    if (agg === "sum") return values.reduce((a,b)=>a+b,0);
+    if (agg === "average") {
+        const sum = values.reduce((a,b)=>a+b,0);
+        return sum / values.length;
+    }
+    return values.reduce((a,b)=>a+b,0);
+}
+
+function formatCustomMetricValue(metric, val, settings) {
+    const info = settings.data.find(x => x.header === metric) || {};
+    const fmt = info.format || "none";
+    if (!isCustomMetric(metric, settings)) return val;
+    if (fmt === "percent") return (val * 100).toFixed(2) + "%";
+    if (fmt === "decimal1") return val.toFixed(1);
+    if (fmt === "decimal2") return val.toFixed(2);
+    if (fmt === "int") return Math.round(val);
+    return val;
+}
+// === End Helpers ===
+
 (function ($) {
     $.fn.staffingSummaryPopup = function (options) {
         const settings = $.extend({
@@ -119,11 +152,7 @@
 
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        let metrics = [...new Set(settings.data.map(d => d.header))].filter(m => m);
-const hasReq = metrics.includes('Required HC');
-const hasAvail = metrics.includes('Available HC');
-if(hasReq && hasAvail){ if(!metrics.includes('Delta')) metrics.push('Delta'); if(!metrics.includes('Staffing %')) metrics.push('Staffing %'); }
-
+        const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
 
         const uniqueWeekMonthPairs = Array.from(
             new Map(
