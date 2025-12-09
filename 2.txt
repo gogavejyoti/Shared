@@ -1,21 +1,111 @@
-public class SheetInputConfig
-{
-    public string SheetName { get; set; }
-    public string Type { get; set; }
-    public string LobType { get; set; }
-    public string Location { get; set; }
-    public string Site { get; set; }
-    public string ProjectId { get; set; }
-    public int? WeekRow { get; set; }
-    public string HeaderCol { get; set; }
-    public Dictionary<string, string> HeaderMappings { get; set; } = new();
-    public List<CustomFieldConfig> CustomFields { get; set; } = new();
-}
+    function extractAllData(planId, savedConfigs, getSheetDataFn) {
+        let allResults = [];
+        Object.entries(savedConfigs).forEach(([sheetName, config]) => {
+            const sheetResults = extractSheetData(planId, sheetName, config, getSheetDataFn);
+            allResults = allResults.concat(sheetResults);
+        });
+        return allResults;
+    }
 
-public class CustomFieldConfig
-{
-    public string Name { get; set; }
-    public string Formula { get; set; }
-    public string Format { get; set; } // auto | percent | int | decimal1 | decimal2
-    public string Aggregate { get; set; } // none | sum | average
-}
+    function extractSheetData(planId, sheetName, config, getSheetDataFn) {
+        const sheetData = getSheetDataFn(sheetName);
+        if (!sheetData || !config || config.type !== "lob") return [];
+
+        const results = [];
+
+        // Convert header column (A → 0, numeric → index)
+        let headerColIdx = isNaN(config.headerCol)
+            ? config.headerCol.toUpperCase().charCodeAt(0) - 65
+            : parseInt(config.headerCol) - 1;
+
+        const weekRowIdx = parseInt(config.weekRow)-1;
+        const weekRow = sheetData[weekRowIdx];
+        if (!weekRow) return [];
+
+        // Collect all weeks from the week row
+        const weeks = [];
+        weekRow.forEach((cell, colIdx) => {
+            const val = cell && (cell.m || cell.v); 
+            if (val && !isNaN(Date.parse(val))) {
+                weeks.push({ col: colIdx, date: val });
+            }
+        });
+
+        const months = [];
+        //const monthRow = sheetData[weekRowIdx-1];
+        //monthRow.forEach((cell, colIdx) => {
+        //    const val = cell && cell.v; // ✅ calculated value only
+        //    if (val && !isNaN(Date.parse('01-' + val))) {
+        //        months.push({ col: colIdx, date: val });
+        //    }
+        //});
+
+        let monthRowIdx = -1;
+        // Start from weekRowIdx and go upward
+        for (let i = weekRowIdx - 1; i >= 0; i--) {
+            const row = sheetData[i];
+            const hasMonth = row.some(cell => {
+                const val = cell && cell.v;
+                return val && !isNaN(Date.parse('01-' + val)); // check if val looks like a month
+            });
+
+            if (hasMonth) {
+                monthRowIdx = i;
+                break; // stop when found
+            }
+        }
+        if (monthRowIdx !== -1) {
+            const monthRow = sheetData[monthRowIdx];
+            monthRow.forEach((cell, colIdx) => {
+                const val = cell && cell.v;
+                if (val && !isNaN(Date.parse('01-' + val))) {
+                    months.push({ col: colIdx, date: val });
+                }
+            });
+        }
+
+
+
+        const  isValidMonthYear = (str) => {
+            const regex = /^[A-Za-z]{3}-\d{2}$/;
+            if (!regex.test(str)) return false;
+            const [monthStr, yearStr] = str.split('-');
+            const monthIndex = new Date(`${monthStr} 1, 20${yearStr}`).getMonth();
+            return !isNaN(monthIndex);
+        }
+
+
+        // Loop through header mappings
+        Object.entries(config.headerMappings).forEach(([stdHeader, mappedHeader]) => {
+            if (mappedHeader !== "Not Applicable") {
+                let headerRowIdx = null;
+                for (let r = 0; r < sheetData.length; r++) {
+                    const val = getCellValue(sheetData, r, headerColIdx);
+                    if (val === mappedHeader) {
+                        headerRowIdx = r;
+                        break;
+                    }
+                }
+                if (headerRowIdx !== null) {
+                    weeks.forEach((week,index) => {
+                        const value = getCellValue(sheetData, headerRowIdx, week.col);
+                        const [dd, mmm, yy] = week.date.split('-');
+                        const monthKey = `${mmm}-${yy}`;
+                        results.push({
+                            geo: config.location,
+                            site: config.site,
+                            projectId: config.projectId,
+                            planId,
+                            sheetName,
+                            week: week.date, // yyyy-mm-dd
+                            month: months && months.length > 0 && index < months.length && isValidMonthYear(months[index].date) ? months[index].date : monthKey, //mmm-dd
+                            header: stdHeader,
+                            value: $.isNumeric(value) ? Number(value) : null
+                        });
+                    });
+                }
+            }
+        });
+
+        return results;
+    }
