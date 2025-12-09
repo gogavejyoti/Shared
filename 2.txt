@@ -119,7 +119,24 @@
 
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
+        
+// Dynamic metrics (standard first, then user-defined in user/config order)
+let allHeaders = [...new Set(settings.data.map(d => d.header))].filter(m => m && m !== "Not Applicable");
+// standard order
+const standardOrder = ["Required HC","Available HC","Delta","Staffing %"];
+let metrics = [];
+// add standard headers if present
+standardOrder.forEach(s => { if (allHeaders.includes(s)) metrics.push(s); });
+// now add custom/user headers preserving the order they appear in settings.data
+const seen = new Set(metrics);
+settings.data.forEach(d => {
+    const h = d.header;
+    if (h && !seen.has(h) && h !== "Not Applicable") {
+        metrics.push(h);
+        seen.add(h);
+    }
+});
+
 
         const uniqueWeekMonthPairs = Array.from(
             new Map(
@@ -491,3 +508,36 @@
         analyticsModal.show();
     };
 })(jQuery);
+
+
+// Ensure metric dropdown/select uses the dynamic metrics array (preserve existing dropdown element ids)
+(function(){ 
+    try {
+        // For select with id 'metricSelect' (bootstrap select)
+        if (window && typeof metrics !== 'undefined') {
+            if (document.getElementById('metricSelect')) {
+                const sel = document.getElementById('metricSelect');
+                sel.innerHTML = '';
+                metrics.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m; opt.text = m; opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            }
+            // For dropdown container with id 'metricDropdown' (checkbox dropdown)
+            if (document.getElementById('metricDropdown')) {
+                const container = document.getElementById('metricDropdown');
+                container.innerHTML = '';
+                const selectAll = document.createElement('label');
+                selectAll.innerHTML = '<label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>';
+                container.appendChild(selectAll);
+                metrics.forEach(m => {
+                    const lbl = document.createElement('label');
+                    lbl.innerHTML = '<input type="checkbox" class="metricCheckbox" value="' + m + '" checked> ' + m;
+                    container.appendChild(lbl);
+                    container.appendChild(document.createElement('br'));
+                });
+            }
+        }
+    } catch(e){ console.warn('metric dropdown repopulate error', e); }
+})();
