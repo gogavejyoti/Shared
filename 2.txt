@@ -119,15 +119,21 @@
 
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        // Existing built-in metrics
-const baseMetrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
+        // Built-in metrics
+const metrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
 
-// Find dynamic custom fields
-const dynamicMetrics = [...new Set(settings.data.map(d => d.header))]
-    .filter(h => h && !baseMetrics.includes(h) && h !== "Not Applicable");
+// Extract custom fields only (exclude built-ins)
+const customFields = [...new Set(settings.data.map(x => x.header))]
+    .filter(h =>
+        h &&
+        h !== "Required HC" &&
+        h !== "Available HC" &&
+        h !== "Delta" &&
+        h !== "Staffing %"
+    );
 
-// Final metrics list
-const metrics = baseMetrics.concat(dynamicMetrics);
+// Append custom fields (keep user order)
+customFields.forEach(f => metrics.push(f));
 
         const uniqueWeekMonthPairs = Array.from(
             new Map(
