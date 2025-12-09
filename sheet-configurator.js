@@ -1,3 +1,4 @@
+
 (function ($) {
     $.fn.sheetConfigurator = function (options) {
         const settings = $.extend({
@@ -261,7 +262,7 @@
             $mappingContainer.empty();
             if (!uniqueHeaders.length) return uniqueHeaders;
 
-            const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT", "FTE Required", "FTE Available"];
+            const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT"];
 
             standardHeaders.forEach(std => {
                 let options = uniqueHeaders.map(h =>
@@ -383,7 +384,7 @@
             const sheetData = settings.getSheetDataFn(sheetName) || [];
             const headerColVal = $headerCol.val();
             const sheetHeaders = buildHeaderList(sheetData, headerColVal);
-            const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT", "FTE Required", "FTE Available"];
+            const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT"];
             // custom field names present in the UI
             const uiCustomNames = [];
             $customFieldsContainer.find('.custom-field-name').each(function () {
@@ -427,9 +428,6 @@
 
             // Only allow safe characters: digits, spaces, operators, dots, parentheses, percentage
             if (!/^[0-9+\-*/().%\s]+$/.test(expr)) {
-                // But percent sign is a special operator; allow it but we'll convert it
-                // reject if other characters present
-                // to provide better errors, attempt to strip allowed and see if leftover exists
                 const stripped = expr.replace(/[0-9+\-*/().%\s]/g, '');
                 if (stripped.length > 0) {
                     return { valid: false, error: 'Formula contains invalid characters' };
@@ -444,8 +442,6 @@
                 if (window.math && typeof window.math.evaluate === 'function') {
                     window.math.evaluate(expr);
                 } else {
-                    // Fallback: use Function but ensure only allowed characters (already tested)
-                    // Still guard against constructors: double-check no letters remain
                     if (/[A-Za-z]/.test(expr)) {
                         return { valid: false, error: 'Invalid characters in expression' };
                     }
@@ -461,7 +457,6 @@
         }
 
         // Evaluate formula for a given row values map: { "Header Name": numeric_value, ... }
-        // Will attempt to use math.js evaluate with replacements; fallback to safe eval
         function evaluateFormulaForRow(formula, rowValueMap) {
             if (!formula || String(formula).trim() === '') return null;
             let expr = String(formula);
@@ -470,9 +465,7 @@
                 const v = rowValueMap.hasOwnProperty(key) ? rowValueMap[key] : 0;
                 return (v === null || v === undefined || v === '') ? 0 : v;
             });
-            // convert percent "x%" -> (x/100)
             expr = expr.replace(/(\d+(\.\d+)?)%/g, '($1/100)');
-            // Evaluate
             try {
                 if (window.math && typeof window.math.evaluate === 'function') {
                     return window.math.evaluate(expr);
@@ -483,7 +476,7 @@
                     return fn();
                 }
             } catch (e) {
-                return null; // or throw depending on caller expectations
+                return null;
             }
         }
 
@@ -561,6 +554,16 @@
                     $customFieldsContainer.append($row);
                 });
             }
+
+            // After creating custom rows, ensure their insert lists are populated (in case headerList is empty now but later changes)
+            $customFieldsContainer.find('.header-insert-list').each(function () {
+                const $list = $(this);
+                if ($list.children().length === 0) {
+                    availableHeaders.forEach(h => {
+                        $list.append(`<li><a class="dropdown-item header-insert-item" href="#" data-h="${escapeHtml(h)}">${escapeHtml(h)}</a></li>`);
+                    });
+                }
+            });
         }
 
         // validate week row (unchanged logic but supports different cell structures)
@@ -641,65 +644,74 @@
             $customFieldsContainer.append($row);
         });
 
-        // delegate header-insert clicks (works for dynamically added items)
-        $customFieldsContainer.off('click', '.header-insert-item').on('click', '.header-insert-item', function (e) {
-            e.preventDefault();
-            const headerName = $(this).data('h');
-            const $container = $(this).closest('.custom-field-row');
-            const $input = $container.find('.formula-input');
-            insertAtCursor($input[0], `[${headerName}]`);
-            $input.trigger('input');
-        });
+        // delegate header-insert clicks removed to avoid double-insert: createCustomFieldRow handles clicks locally
 
-        // Save — validate everything (including formulas) before calling saveCallback
+        // Save — validate everything (including formulas) BEFORE calling saveCallback
         $saveBtn.off('click').on('click', function () {
             $configSaveError.hide().text('');
-            const sheetName = $sheetSelect.val();
-            const cfg = getFormConfig(sheetName);
-
-            // Validate custom field names unique & not empty
-            const names = {};
-            for (let i = 0; i < cfg.customFields.length; i++) {
-                const cf = cfg.customFields[i];
-                if (!cf.name || String(cf.name).trim() === '') {
-                    $configSaveError.show().text('Custom field name cannot be empty.');
-                    return;
+            // original behavior: iterate all sheets and save configs (keep original behavior per user request)
+            $("#configSheetSelect option").each(function () {
+                var sheetName = $(this).val();
+                var config = null;
+                if ($sheetSelect.val() !== sheetName) {
+                    if (tempConfigs[sheetName]) {
+                        config = tempConfigs[sheetName];
+                        settings.existingConfigs[sheetName] = config;
+                    }
+                    else {
+                        config = settings.existingConfigs[sheetName];
+                    }
                 }
-                if (names[cf.name]) {
-                    $configSaveError.show().text('Duplicate custom field name: ' + cf.name);
-                    return;
+                else if ($sheetSelect.val() === sheetName) {
+                    config = getFormConfig(sheetName);
+                    settings.existingConfigs[sheetName] = config;
+                    delete tempConfigs[sheetName];
                 }
-                names[cf.name] = true;
-            }
 
-            // Build list of valid header names for validation (sheet headers + standard + custom names)
-            const sheetData = settings.getSheetDataFn(sheetName) || [];
-            const sheetHeaders = buildHeaderList(sheetData, cfg.headerCol);
-            const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT", "FTE Required", "FTE Available"];
-            const validHeaders = [...new Set([...sheetHeaders, ...standardHeaders, ...cfg.customFields.map(c => c.name)])];
+                // Validate custom field names and formulas for this config
+                if (config && config.customFields && Array.isArray(config.customFields)) {
+                    // validate names unique within this config
+                    const names = {};
+                    for (let i = 0; i < config.customFields.length; i++) {
+                        const cf = config.customFields[i];
+                        if (!cf.name || String(cf.name).trim() === '') {
+                            $configSaveError.show().text('Custom field name cannot be empty.');
+                            return;
+                        }
+                        if (names[cf.name]) {
+                            $configSaveError.show().text('Duplicate custom field name: ' + cf.name);
+                            return;
+                        }
+                        names[cf.name] = true;
+                    }
 
-            // Validate each formula
-            for (let i = 0; i < cfg.customFields.length; i++) {
-                const cf = cfg.customFields[i];
-                const validation = validateFormula(cf.formula, validHeaders, true);
-                if (!validation.valid) {
-                    $configSaveError.show().text(`Error in "${cf.name}": ${validation.error || 'Invalid formula'}`);
-                    return;
+                    // Build validation header list for this config
+                    const sheetData = settings.getSheetDataFn(sheetName) || [];
+                    const sheetHeaders = buildHeaderList(sheetData, config.headerCol);
+                    const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT"];
+                    const validHeaders = [...new Set([...sheetHeaders, ...standardHeaders, ...config.customFields.map(c => c.name)])];
+
+                    for (let i = 0; i < config.customFields.length; i++) {
+                        const cf = config.customFields[i];
+                        const validation = validateFormula(cf.formula, validHeaders, true);
+                        if (!validation.valid) {
+                            $configSaveError.show().text(`Error in "${cf.name}": ${validation.error || 'Invalid formula'}`);
+                            return;
+                        }
+                    }
                 }
-            }
 
-            // If all good, persist config for this sheet only (more expected UX than saving all)
-            settings.existingConfigs[sheetName] = cfg;
-            // Call save callback for just this sheet
-            try {
-                $saveBtn.text("Saving...");
-                settings.saveCallback(cfg, sheetName);
-                $saveBtn.text("✓ Saved");
-                setTimeout(function () { $saveBtn.text("Save"); }, 1500);
-            } catch (e) {
-                $saveBtn.text("Save");
-                $configSaveError.show().text('Save callback error: ' + (e.message || e));
-            }
+                // call save callback for each sheet (original behavior)
+                try {
+                    $saveBtn.text("Saving...");
+                    settings.saveCallback(config, sheetName);
+                } catch (e) {
+                    $configSaveError.show().text('Save callback error: ' + (e.message || e));
+                }
+            });
+
+            $saveBtn.text("✓ Saved");
+            setTimeout(function () { $saveBtn.text("Save"); }, 1500);
         });
 
         // sheet type toggle
