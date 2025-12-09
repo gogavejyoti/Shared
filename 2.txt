@@ -1,29 +1,14 @@
-let text = (y.getData("text/plain") || "").trim();
-
-// Split into matrix
-let rows = text.split(/\r?\n/).map(r => r.split("\t"));
-
-// Clean numbers and remove commas
-rows = rows.map(row =>
-    row.map(cell => {
-        if (!cell) return "";
-
-        let cleaned = cell.trim();
-
-        // remove commas that are part of numbers
-        cleaned = cleaned.replace(/(?<=\d),(?=\d)/g, "");
-
-        // convert to Number, then back to string (removes formatting)
-        if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
-            return String(Number(cleaned));
-        }
-
-        return cell; // text stays text
-    })
-);
-
-// Convert back to **single string** exactly like Excel text
-let v = rows.map(r => r.join("\t")).join("\n");
-
-// Send to pasteHandler
-xt.pasteHandler(v);
+{
+    public class SheetInputConfig
+    {
+        public string SheetName { get; set; }
+        public string Type { get; set; }
+        public string LobType { get; set; }
+        public string Location { get; set; }
+        public string Site { get; set; }
+        public string ProjectId { get; set; }
+        public int? WeekRow { get; set; }
+        public string HeaderCol { get; set; }
+        public Dictionary<string, string> HeaderMappings { get; set; } = new();
+}
+ JsonConvert.DeserializeObject<SheetInputConfig>(row.ConfigJson);
