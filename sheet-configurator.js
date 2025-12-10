@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     $.fn.sheetConfigurator = function (options) {
         const settings = $.extend({
             luckysheetInstances: [],
@@ -143,6 +143,18 @@
                               </select>
                             </div>
                           </div>
+
+                          <!-- COPY FROM DROPDOWN (Option C: only shown inside LOB section) -->
+                          <div class="row mb-3">
+                            <div class="col-md-6">
+                              <label class="form-label">Copy Configuration From</label>
+                              <select class="form-select" id="copyFromSelect">
+                                <option value="">-- None --</option>
+                              </select>
+                              <div class="form-text">Copy configs only from other LOB sheets (validations will run).</div>
+                            </div>
+                          </div>
+
                           <div class="row mb-3">
                             <div class="col-md-6">
                               <label class="form-label">Site</label>
@@ -208,12 +220,14 @@
         const $addCustomFieldBtn = $('#addCustomFieldBtn');
         const $saveBtn = $('#saveConfigBtn');
         const $configSaveError = $('#configSaveError');
+        const $copyFrom = $('#copyFromSelect');
 
         $('#sheetConfigModal').off('hidden.bs.modal').on('hidden.bs.modal', function () {
             tempConfigs = {};
             $mappingContainer.empty();
             $customFieldsContainer.empty();
             $configSaveError.hide().text('');
+            $copyFrom.val('');
         });
 
         // Utility: Excel-like column name -> zero-based index (supports A, Z, AA, AB, etc.)
@@ -636,6 +650,18 @@
             $sheetSelect.append(`<option value="${name}">${name}</option>`);
         });
 
+        // populate copy dropdown helper
+        function refreshCopyDropdownOptions() {
+            $copyFrom.empty().append(`<option value="">-- None --</option>`);
+            settings.luckysheetInstances.forEach(name => {
+                // only include sheets that have an existing config and are LOB type (or include all and validate later)
+                const label = name;
+                $copyFrom.append(`<option value="${name}">${label}</option>`);
+            });
+        }
+
+        refreshCopyDropdownOptions();
+
         if (settings.activeSheet) {
             $sheetSelect.val(settings.activeSheet);
             bindConfig(settings.existingConfigs[settings.activeSheet] || null);
@@ -651,6 +677,10 @@
             const config = tempConfigs[newSheet] || settings.existingConfigs[newSheet] || null;
             bindConfig(config);
             $(this).data('lastSheet', newSheet);
+
+            // also reset copy dropdown selection when switching sheets
+            $copyFrom.val('');
+            refreshCopyDropdownOptions();
         });
 
         $weekRow.off('blur').on('blur', function () {
@@ -747,11 +777,134 @@
 
         // sheet type toggle
         $sheetType.off('change').on('change', function () {
-            if ($(this).val() === 'lob') $lobInputs.show();
-            else {
+            if ($(this).val() === 'lob') {
+                $lobInputs.show();
+                // refresh copy options only when LOB shown
+                refreshCopyDropdownOptions();
+            } else {
                 $lobInputs.hide();
                 $mappingContainer.empty();
             }
+        });
+
+        // --- COPY logic & validation ---
+        function validateCopiedConfigForSheet(config, targetSheetName) {
+            const sheetData = settings.getSheetDataFn(targetSheetName) || [];
+
+            // 1. Validate header column
+            const colIdx = columnNameToIndex(config.headerCol);
+            if (colIdx === null) return { ok: false, error: "Invalid Header Column in copied config." };
+
+            const headerList = buildHeaderList(sheetData, config.headerCol);
+            if (!headerList.length) {
+                return { ok: false, error: "No valid headers found in target sheet." };
+            }
+
+            // 2. Validate standard header mappings (values should exist in target headers)
+            for (const std in config.headerMappings) {
+                const mapped = config.headerMappings[std];
+                if (mapped && !headerList.includes(mapped)) {
+                    return {
+                        ok: false,
+                        error: `Mapped header "${mapped}" for "${std}" does not exist in target sheet.`
+                    };
+                }
+            }
+
+            // 3. Validate custom fields
+            const standardHeaders = ["Client Lock", "Forecasted Hours", "Actual Hours", "Required HC", "Available HC", "Planned Attrition", "Actual Attrition", "Planned Shrinkage", "Actual Shrinkage", "Planned AHT", "Actual AHT"];
+            // allow references to standard headers, actual headerList, and custom field names included in copied config
+            const copiedCustomNames = (config.customFields || []).map(x => x.name);
+            const available = [...new Set([...headerList, ...standardHeaders, ...copiedCustomNames])];
+
+            for (const cf of (config.customFields || [])) {
+                const tokens = extractTokens(cf.formula || '');
+                for (const t of tokens) {
+                    if (!available.includes(t)) {
+                        return {
+                            ok: false,
+                            error: `Custom field "${cf.name}" references unknown header: [${t}] in target sheet.`
+                        };
+                    }
+                }
+                // validate formula syntax using available headers (treat copied custom names as allowed)
+                const validation = validateFormula(cf.formula || '', available, true);
+                if (!validation.valid) {
+                    return { ok: false, error: `Syntax error in custom field "${cf.name}": ${validation.error}` };
+                }
+            }
+
+            // 4. Validate week row
+            const weekRowNum = parseInt(config.weekRow, 10);
+            if (weekRowNum && !isNaN(weekRowNum)) {
+                const weekCheck = validateWeekRow({ data: sheetData }, weekRowNum);
+                if (!weekCheck.valid) {
+                    return { ok: false, error: `Week Row ${config.weekRow} does not contain valid dates in target sheet.` };
+                }
+            } else {
+                return { ok: false, error: `Invalid or missing Week Row in copied config.` };
+            }
+
+            return { ok: true };
+        }
+
+        // when user selects a source to copy from
+        $copyFrom.off('change').on('change', function () {
+            const source = $(this).val();
+            const target = $sheetSelect.val();
+
+            if (!source) return;
+
+            if (!target) {
+                alert("Please select a target sheet first.");
+                $(this).val('');
+                return;
+            }
+
+            if (source === target) {
+                alert("Source and target are the same. Choose a different sheet.");
+                $(this).val('');
+                return;
+            }
+
+            const sourceConfig = settings.existingConfigs[source];
+            if (!sourceConfig) {
+                alert("No configuration found for selected source sheet.");
+                $(this).val('');
+                return;
+            }
+
+            // Only allow copying LOB type configs (best-effort; validation will still run)
+            if (sourceConfig.type !== 'lob') {
+                // allow copying but warn
+                if (!confirm("The selected source is not marked as LOB type. Continue copying?")) {
+                    $(this).val('');
+                    return;
+                }
+            }
+
+            // deep clone
+            const copied = JSON.parse(JSON.stringify(sourceConfig));
+            copied.sheetName = target;
+
+            // Validate compatibility with target sheet BEFORE applying
+            const check = validateCopiedConfigForSheet(copied, target);
+            if (!check.ok) {
+                alert("Cannot copy configuration:\n" + check.error);
+                $(this).val('');
+                return;
+            }
+
+            // safe to copy: put into tempConfigs and settings.existingConfigs for the target
+            tempConfigs[target] = copied;
+            settings.existingConfigs[target] = copied;
+
+            // bind UI to show copied config
+            bindConfig(copied);
+
+            // feedback
+            // keep the copyFrom value selected so user sees source; they can change fields before saving
+            // optional: you may reset selection here if you prefer: $(this).val('');
         });
 
         return this;
