@@ -588,10 +588,22 @@
             $weekRow.val(config.weekRow || '');
             $headerCol.val(config.headerCol || '');
 
+            // --- AUTO-REBUILD fix: ensure mappings/custom fields/week display rebuild immediately ---
             const sheetName = $sheetSelect.val();
             const sheetData = settings.getSheetDataFn(sheetName) || [];
-            // build header mapping and obtain header list
+
+            // rebuild mappings and mapping UI using saved mappings (so dropdowns reflect saved values)
             const headerList = buildHeaderMappingAndList(sheetData, config.headerCol, config.headerMappings || {});
+
+            // show week row label if possible
+            if (config.weekRow) {
+                const weekCheck = validateWeekRow({ data: sheetData }, parseInt(config.weekRow, 10));
+                if (weekCheck.valid) {
+                    $weekLabel.text(`Start: ${weekCheck.start} → End: ${weekCheck.end}`);
+                } else {
+                    $weekLabel.text("Invalid week row (no dates found).");
+                }
+            }
 
             // Build custom fields UI
             const availableHeaders = headerList;
@@ -611,6 +623,9 @@
                     });
                 }
             });
+
+            // Additional rebuild to ensure custom field insert lists reflect current headerList
+            rebuildMappingsAndCustomInsertLists();
         }
 
         // validate week row (unchanged logic but supports different cell structures)
