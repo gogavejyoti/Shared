@@ -10,8 +10,11 @@ pasteHandler: function (e, n) {
         return;
     }
 
-    // *** CASE 1: e is parsed JSON (from copy inside Luckysheet) ***
+    // ------------------------------------------------------------------------------------
+    // CASE 1: Excel / Luckysheet structured clipboard (OBJECT)
+    // ------------------------------------------------------------------------------------
     if (typeof e === "object") {
+
         if (e.length === 0) return;
 
         let cfg = $.extend(true, {}, h.config);
@@ -26,7 +29,7 @@ pasteHandler: function (e, n) {
         let r1 = r0 + rows - 1;
         let c1 = c0 + cols - 1;
 
-        // Block merged-area overwrite
+        // Block merge overwrite
         if (Dt(cfg, r0, r1, c0, c1)) {
             U.info(`<i class="fa fa-exclamation-triangle"></i>${lang.warning}`, lang.errorNotAllowMerged);
             return;
@@ -35,7 +38,6 @@ pasteHandler: function (e, n) {
         let newData = we.deepCopyFlowData(h.flowdata);
         let Radd = r1 - newData.length + 1;
         let Cadd = c1 - newData[0].length + 1;
-
         if (Radd > 0 || Cadd > 0) newData = il([].concat(newData), Radd, Cadd, true);
 
         cfg.rowlen ??= {};
@@ -47,47 +49,75 @@ pasteHandler: function (e, n) {
             let baseHeight = cfg.rowlen[r] ?? h.defaultrowlen;
 
             for (let c = c0; c <= c1; c++) {
-                let cellData = e[r - r0][c - c0];
 
-                // Clear merged cell structure & rebuild
+                let cell = e[r - r0][c - c0];
+
+                // Remove old merge info
                 if (row[c] && typeof row[c] === "object" && "mc" in row[c]) {
                     if ("rs" in row[c].mc) delete cfg.merge[row[c].mc.r + "_" + row[c].mc.c];
                     delete row[c].mc;
                 }
 
-                // Copy cell
-                row[c] = $.extend(true, {}, cellData);
+                // Copy cell from clipboard
+                row[c] = $.extend(true, {}, cell);
+
+                // ------------------------------ NEW IMPORTANT FIX ------------------------------
+                // Handle formula inside structured Excel clipboard
+                if (row[c] && typeof row[c].f === "string" && row[c].f.startsWith("=")) {
+
+                    let ef = p.execfunction(row[c].f, r, c, void 0, true);
+
+                    row[c].v = ef[1]; // evaluated value
+                    row[c].f = ef[2]; // formula string
+
+                    // Sparkline support
+                    if (ef.length === 4 && ef[3].type === "sparklines") {
+                        delete row[c].m;
+                        delete row[c].v;
+                        let d = ef[3].data;
+
+                        if (Array.isArray(d) && typeof d[0] !== "object") {
+                            row[c].v = d[0];
+                        } else {
+                            row[c].spl = ef[3].data;
+                        }
+                    }
+
+                    // Dynamic Array (optional handling)
+                }
+                // -------------------------- END FORMULA FIX FOR EXCEL --------------------------
 
                 // Rebuild merge master info
-                if (cellData && "mc" in cellData) {
-                    if (cellData.mc.rs != null) {
+                if (cell && "mc" in cell) {
+                    if (cell.mc.rs != null) {
                         row[c].mc.r = r;
                         row[c].mc.c = c;
                         cfg.merge[r + "_" + c] = row[c].mc;
-                        mergeMapping[cellData.mc.r + "_" + cellData.mc.c] = [r, c];
+                        mergeMapping[cell.mc.r + "_" + cell.mc.c] = [r, c];
                     } else {
                         row[c] = {
                             mc: {
-                                r: mergeMapping[cellData.mc.r + "_" + cellData.mc.c][0],
-                                c: mergeMapping[cellData.mc.r + "_" + cellData.mc.c][1]
+                                r: mergeMapping[cell.mc.r + "_" + cell.mc.c][0],
+                                c: mergeMapping[cell.mc.r + "_" + cell.mc.c][1]
                             }
                         };
                     }
                 }
 
-                // Apply borders
-                if (n[r - r0 + "_" + (c - c0)]) {
+                // Borders
+                let key = (r - r0) + "_" + (c - c0);
+                if (n[key]) {
                     cfg.borderInfo.push({
                         rangeType: "cell",
                         value: {
                             row_index: r,
                             col_index: c,
-                            ...n[r - r0 + "_" + (c - c0)]
+                            ...n[key]
                         }
                     });
                 }
 
-                // Adjust row height if needed
+                // Row height auto adjustment
                 let font = ra(row[c]);
                 let hpx = be.getTextSize("田", font)[1];
                 if (hpx > baseHeight) {
@@ -95,20 +125,23 @@ pasteHandler: function (e, n) {
                     rowChange = true;
                 }
             }
+
             newData[r] = row;
         }
 
         h.luckysheet_select_save = [{ row: [r0, r1], column: [c0, c1] }];
-
-        let updateCfg = rowChange ? { cfg, RowlChange: true } : { cfg };
-        Ye(newData, h.luckysheet_select_save, updateCfg);
+        let update = rowChange ? { cfg, RowlChange: true } : { cfg };
+        Ye(newData, h.luckysheet_select_save, update);
         return;
     }
 
-    // *** CASE 2: Plain text paste (Notepad, external source) ***
+    // ------------------------------------------------------------------------------------
+    // CASE 2: Plain text (Notepad, websites, etc.)
+    // ------------------------------------------------------------------------------------
     e = e.replace(/\r/g, "");
-    let rows = e.split("\n").filter(x => x.trim().length > 0);
-    let parsed = rows.map(r => r.split("\t"));
+
+    let lines = e.split("\n").filter(x => x.trim().length > 0);
+    let grid = lines.map(r => r.split("\t"));
 
     let target = we.deepCopyFlowData(h.flowdata);
     let sel = h.luckysheet_select_save[h.luckysheet_select_save.length - 1];
@@ -116,69 +149,67 @@ pasteHandler: function (e, n) {
     let r0 = sel.row?.[0] ?? 0;
     let c0 = sel.column?.[0] ?? 0;
 
-    let g = parsed.length;
-    let y = parsed[0].length;
+    let g = grid.length;
+    let y = grid[0].length;
 
-    // Block merge overwrite
     if (Dt(h.config, r0, r0 + g - 1, c0, c0 + y - 1)) {
         U.info(`<i class="fa fa-exclamation-triangle"></i>${lang.warning}`, lang.errorNotAllowMerged);
         return;
     }
 
-    // Expand sheet if needed
     let Radd = r0 + g - target.length;
     let Cadd = c0 + y - target[0].length;
     if (Radd > 0 || Cadd > 0) target = il([].concat(target), Radd, Cadd, true);
 
-    // MAIN LOOP — apply pasted cells
     for (let r = 0; r < g; r++) {
         let row = [].concat(target[r0 + r]);
+
         for (let c = 0; c < y; c++) {
             let S = row[c0 + c];
-            let val = parsed[r][c];
+            let val = grid[r][c];
 
-            // *** FORMULA DETECTION — SAME AS updatecell ***
+            // ------------------------------------------------------
+            // FORMULA handling for plain text (Notepad, browser)
+            // ------------------------------------------------------
             if (typeof val === "string" && val.startsWith("=") && val.length > 1) {
+
                 let ef = p.execfunction(val, r0 + r, c0 + c, undefined, true);
 
                 if (!(S instanceof Object)) S = {};
 
-                S.f = ef[2];   // raw formula
-                S.v = ef[1];   // evaluated value
+                S.f = ef[2];
+                S.v = ef[1];
 
-                // sparkline support
-                if (ef.length === 4) {
-                    if (ef[3].type === "sparklines") {
-                        delete S.m;
-                        delete S.v;
-                        let d = ef[3].data;
-                        if (Array.isArray(d) && typeof d[0] !== "object") S.v = d[0];
-                        else S.spl = ef[3].data;
-                    }
+                if (ef.length === 4 && ef[3].type === "sparklines") {
+                    delete S.m;
+                    delete S.v;
+
+                    let d = ef[3].data;
+                    if (Array.isArray(d) && typeof d[0] !== "object") S.v = d[0];
+                    else S.spl = ef[3].data;
                 }
 
                 row[c0 + c] = S;
-                continue; // **IMPORTANT**
+                continue;
             }
+            // ------------------------------------------------------
 
-            // *** Normal non-formula paste ***
+            // Normal value
             if (S instanceof Object) {
                 S.v = val;
                 S.m = val;
+
                 if (S.f) {
                     S.f = "";
                     p.delFunctionGroup(r0 + r, c0 + c, h.currentSheetIndex);
                 }
             } else {
                 let info = it(val);
-                S = {
-                    v: info[2],
-                    ct: info[1],
-                    m: info[0]
-                };
+                S = { v: info[2], ct: info[1], m: info[0] };
                 row[c0 + c] = S;
             }
         }
+
         target[r0 + r] = row;
     }
 
