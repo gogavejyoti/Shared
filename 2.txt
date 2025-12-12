@@ -1,199 +1,182 @@
 pasteHandler: function (e, n) {
-    if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === false) return;
-
-    let lang = Q().paste;
-
-    // Multi-selection warning
-    if (h.luckysheet_select_save.length > 1) {
-        de() ? alert(lang.errorNotAllowMulti) 
-             : U.info(`<i class="fa fa-exclamation-triangle"></i>${lang.warning}`, lang.errorNotAllowMulti);
+    if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
         return;
-    }
+    let l = Q().paste;
+    let self = this; // <-- added so we can call execfunction like updatecell
 
-    // ============================
-    // CASE 1: Pasting structured data (array)
-    // ============================
-    if (typeof e === "object") {
-        if (e.length === 0) return;
-
-        let cfg = $.extend(true, {}, h.config);
-        if (!cfg.merge) cfg.merge = {};
-        if (JSON.stringify(n).length > 2 && !cfg.borderInfo) cfg.borderInfo = [];
-
-        let rlen = e.length,
-            clen = e[0].length,
-            sr = h.luckysheet_select_save[0].row[0],
-            er = sr + rlen - 1,
-            sc = h.luckysheet_select_save[0].column[0],
-            ec = sc + clen - 1;
-
-        // Check merge conflicts
-        if (Dt(cfg, sr, er, sc, ec)) {
-            de() ? alert(lang.errorNotAllowMerged)
-                 : U.info(`<i class="fa fa-exclamation-triangle"></i>${lang.warning}`, lang.errorNotAllowMerged);
+    if (h.luckysheet_select_save.length > 1 && (de() ? alert(l.errorNotAllowMulti) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMulti)),
+        typeof e == "object") {
+        if (e.length == 0)
             return;
+        let a = $.extend(!0, {}, h.config);
+        a.merge == null && (a.merge = {}),
+            JSON.stringify(n).length > 2 && a.borderInfo == null && (a.borderInfo = []);
+        let o = e.length
+            , s = e[0].length
+            , u = h.luckysheet_select_save[0].row[0]
+            , d = u + o - 1
+            , f = h.luckysheet_select_save[0].column[0]
+            , m = f + s - 1
+            , g = !1;
+        if (a.merge != null && (g = Dt(a, u, d, f, m)),
+            g) {
+            de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+            return
         }
-
-        let data = we.deepCopyFlowData(h.flowdata),
-            rowsNeeded = er - data.length + 1,
-            colsNeeded = ec - data[0].length + 1;
-
-        if (rowsNeeded > 0 || colsNeeded > 0)
-            data = il(data, rowsNeeded, colsNeeded, true);
-
-        if (!cfg.rowlen) cfg.rowlen = {};
-        let rowHeightChanged = false;
-
-        let mergeMap = {}; // tracking merge references
-
-        // Fill structured data
-        for (let r = sr; r <= er; r++) {
-            let row = data[r].slice();
-            let origHeight = cfg.rowlen[r] ?? h.defaultrowlen;
-
-            for (let c = sc; c <= ec; c++) {
-                let cellFromClipboard = e[r - sr]?.[c - sc] ?? null;
-
-                row[c] = $.extend(true, {}, cellFromClipboard);
-
-                // Merge handling
-                if (cellFromClipboard && cellFromClipboard.mc) {
-                    if (cellFromClipboard.mc.rs != null) {
-                        row[c].mc.r = r;
-                        row[c].mc.c = c;
-                        cfg.merge[r + "_" + c] = row[c].mc;
-                        mergeMap[cellFromClipboard.mc.r + "_" + cellFromClipboard.mc.c] = [r, c];
-                    } else {
-                        let pos = mergeMap[cellFromClipboard.mc.r + "_" + cellFromClipboard.mc.c];
-                        row[c].mc = { r: pos[0], c: pos[1] };
-                    }
-                }
-
-                // Border copy
-                let posKey = (r - sr) + "_" + (c - sc);
-                if (n[posKey]) {
-                    cfg.borderInfo.push({
+        let y = we.deepCopyFlowData(h.flowdata)
+            , v = y.length
+            , k = y[0].length
+            , b = d - v + 1
+            , w = m - k + 1;
+        (b > 0 || w > 0) && (y = il([].concat(y), b, w, !0)),
+            a.rowlen == null && (a.rowlen = {});
+        let x = !1
+            , C = {};
+        for (let S = u; S <= d; S++) {
+            let _ = [].concat(y[S])
+                , T = h.defaultrowlen;
+            a.rowlen[S] != null && (T = a.rowlen[S]);
+            for (let A = f; A <= m; A++) {
+                L(_[A]) == "object" && "mc" in _[A] && ("rs" in _[A].mc && delete a.merge[_[A].mc.r + "_" + _[A].mc.c],
+                    delete _[A].mc);
+                let R = null;
+                if (e[S - u] != null && e[S - u][A - f] != null && (R = e[S - u][A - f]),
+                    _[A] = $.extend(!0, {}, R),
+                    R != null && "mc" in _[A] && (_[A].mc.rs != null ? (_[A].mc.r = S,
+                        _[A].mc.c = A,
+                        a.merge[_[A].mc.r + "_" + _[A].mc.c] = _[A].mc,
+                        C[R.mc.r + "_" + R.mc.c] = [_[A].mc.r, _[A].mc.c]) : _[A] = {
+                            mc: {
+                                r: C[R.mc.r + "_" + R.mc.c][0],
+                                c: C[R.mc.r + "_" + R.mc.c][1]
+                            }
+                        }),
+                    n[S - u + "_" + (A - f)]) {
+                    let N = {
                         rangeType: "cell",
                         value: {
-                            row_index: r,
-                            col_index: c,
-                            l: n[posKey].l,
-                            r: n[posKey].r,
-                            t: n[posKey].t,
-                            b: n[posKey].b
+                            row_index: S,
+                            col_index: A,
+                            l: n[S - u + "_" + (A - f)].l,
+                            r: n[S - u + "_" + (A - f)].r,
+                            t: n[S - u + "_" + (A - f)].t,
+                            b: n[S - u + "_" + (A - f)].b
                         }
-                    });
+                    };
+                    a.borderInfo.push(N)
                 }
+                let I = ra(_[A])
+                    , F = be.getTextSize("\u7530", I)[1];
+                F > T && (T = F,
+                    x = !0)
+            }
+            y[S] = _,
+                T != h.defaultrowlen && (a.rowlen[S] = T)
+        }
+        if (h.luckysheet_select_save = [{
+            row: [u, d],
+            column: [f, m]
+        }],
+            b > 0 || w > 0 || x) {
+            let S = {
+                cfg: a,
+                RowlChange: !0
+            };
+            Ye(y, h.luckysheet_select_save, S)
+        } else {
+            let S = {
+                cfg: a
+            };
+            Ye(y, h.luckysheet_select_save, S),
+                tt()
+        }
+    } else {
+        e = e.replace(/\r/g, "");
+        let a = []
+            , o = e.split(`
+`)
+            , s = o[0].split("	").length;
+        for (let w = 0; w < o.length; w++)
+            o[w].split("	").length < s || a.push(o[w].split("	"));
+        let u = we.deepCopyFlowData(h.flowdata)
+            , d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
+            , f = d.row == null ? 0 : d.row[0]
+            , m = d.column == null ? 0 : d.column[0]
+            , g = a.length
+            , y = a[0].length
+            , v = !1;
+        if (h.config.merge != null && (v = Dt(h.config, f, f + g - 1, m, m + y - 1)),
+            v) {
+            de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+            return
+        }
+        let k = f + g - u.length
+            , b = m + y - u[0].length;
+        (k > 0 || b > 0) && (u = il([].concat(u), k, b, !0));
+        for (let w = 0; w < g; w++) {
+            let x = [].concat(u[w + f]);
+            for (let C = 0; C < y; C++) {
+                let S = x[C + m]
+                    , _ = a[w][C];
 
-                // Row auto-resize
-                let txtStyle = ra(row[c]),
-                    height = be.getTextSize("田", txtStyle)[1];
+                // ---------- PATCHED: detect pasted formulas and evaluate like updatecell ----------
+                if (typeof _ === "string" && _.slice(0, 1) === "=" && _.length > 1) {
+                    // Call execfunction same as updatecell does
+                    try {
+                        let execRes = self.execfunction(_, w + f, C + m, void 0, !0);
+                        if (execRes) {
+                            let newCell = {
+                                v: execRes[1],
+                                f: execRes[2]
+                            };
 
-                if (height > origHeight) {
-                    cfg.rowlen[r] = height;
-                    rowHeightChanged = true;
+                            if (execRes.length == 4 && execRes[3].type == "sparklines") {
+                                delete newCell.m;
+                                let T = execRes[3].data;
+                                L(T) == "array" && L(T[0]) != "object" ? newCell.v = T[0] : newCell.spl = execRes[3].data;
+                            } else if (execRes.length == 4 && execRes[3].type == "dynamicArrayItem") {
+                                // keep dynamic array item data for higher-level handling if needed
+                                newCell.dynamicArrayItem = execRes[3].data;
+                            }
+
+                            x[C + m] = newCell;
+                            continue; // next cell
+                        }
+                    } catch (err) {
+                        // If execfunction fails for some reason, fall back to normal paste behavior
+                        // (do not block the rest of the paste)
+                        console && console.warn && console.warn("pasteHandler execfunction error:", err);
+                    }
+                }
+                // ---------- END PATCH ------------------------------------------------------------
+
+                // original fallback behavior (numbers/text)
+                if (B(_) && (S && S.ct && S.ct.fa === "@" ? _ = String(_) : _ = parseFloat(_)),
+                    S instanceof Object)
+                    S.v = _,
+                        S.ct != null && S.ct.fa != null ? S.m = mt(S.ct.fa, _) : S.m = _,
+                        S.f != null && S.f.length > 0 && (S.f = "",
+                            p.delFunctionGroup(w + f, C + m, h.currentSheetIndex));
+                else {
+                    let T = {}
+                        , A = it(_);
+                    T.v = A[2],
+                        T.ct = A[1],
+                        T.m = A[0],
+                        x[C + m] = T
                 }
             }
-            data[r] = row;
+            u[w + f] = x
         }
-
-        h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
-
-        let opt = rowHeightChanged ? { cfg, RowlChange: true } : { cfg };
-        Ye(data, h.luckysheet_select_save, opt);
-        if (!rowHeightChanged) tt();
-
-        return;
+        if (d.row = [f, f + g - 1],
+            d.column = [m, m + y - 1],
+            k > 0 || b > 0) {
+            let w = {
+                RowlChange: !0
+            };
+            Ye(u, h.luckysheet_select_save, w)
+        } else
+            Ye(u, h.luckysheet_select_save),
+                tt()
     }
-
-    // ============================
-    // CASE 2: Pasting plain text (e is string)
-    // ============================
-    e = e.replace(/\r/g, "");
-
-    // Split rows/tabs
-    let rows = e.split("\n").map(r => r.split("\t"));
-    let maxCols = Math.max(...rows.map(r => r.length));
-
-    // Normalize all rows to equal length
-    let matrix = rows.map(r => (r.length < maxCols ? null : r));
-
-    let data = we.deepCopyFlowData(h.flowdata),
-        sel = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
-        sr = sel.row ? sel.row[0] : 0,
-        sc = sel.column ? sel.column[0] : 0,
-        rCount = matrix.length,
-        cCount = matrix[0].length;
-
-    // Merge conflict check
-    if (Dt(h.config, sr, sr + rCount - 1, sc, sc + cCount - 1)) {
-        de() ? alert(lang.errorNotAllowMerged)
-             : U.info(`<i class="fa fa-exclamation-triangle"></i>${lang.warning}`, lang.errorNotAllowMerged);
-        return;
-    }
-
-    // Expand sheet if needed
-    let rowsNeeded = sr + rCount - data.length;
-    let colsNeeded = sc + cCount - data[0].length;
-    if (rowsNeeded > 0 || colsNeeded > 0)
-        data = il(data, rowsNeeded, colsNeeded, true);
-
-    // ============================
-    // MAIN LOGIC — formula handling
-    // ============================
-    for (let r = 0; r < rCount; r++) {
-        let row = data[sr + r].slice();
-
-        for (let c = 0; c < cCount; c++) {
-            let raw = matrix[r][c];
-            let cell = row[sc + c];
-
-            if (typeof raw === "string" && raw.trim().startsWith("=")) {
-                // ⭐ Correct handling of formula pasting
-                row[sc + c] = {
-                    f: raw.trim(),
-                    v: null,      // updatecell will evaluate
-                    m: raw.trim()
-                };
-            } else {
-                // Normal number/text paste
-                if (cell && typeof cell === "object") {
-                    let parsed = raw;
-
-                    // Number detection
-                    if (!isNaN(parsed) && parsed !== "" && parsed !== null) {
-                        if (cell.ct && cell.ct.fa === "@") {
-                            parsed = String(parsed);
-                        } else {
-                            parsed = parseFloat(parsed);
-                        }
-                    }
-
-                    cell.v = parsed;
-                    cell.m = cell.ct?.fa ? mt(cell.ct.fa, parsed) : parsed;
-
-                    // Remove old formula
-                    if (cell.f) {
-                        cell.f = "";
-                        p.delFunctionGroup(sr + r, sc + c, h.currentSheetIndex);
-                    }
-                } else {
-                    // Create new cell
-                    if (!isNaN(raw) && raw !== "") {
-                        raw = parseFloat(raw);
-                    }
-                    let parsed = it(raw);
-                    row[sc + c] = { v: parsed[2], ct: parsed[1], m: parsed[0] };
-                }
-            }
-        }
-        data[sr + r] = row;
-    }
-
-    // Update selection
-    sel.row = [sr, sr + rCount - 1];
-    sel.column = [sc, sc + cCount - 1];
-
-    Ye(data, h.luckysheet_select_save);
-    tt();
-}
+},
