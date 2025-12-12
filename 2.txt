@@ -1,521 +1,148 @@
-(function ($) {
-    $.fn.staffingSummaryPopup = function (options) {
-        const settings = $.extend({
-            data: [],
-            weekStartDay: 'sunday'
-        }, options);
 
-        $('#analyticsModal').remove();
-
-        if ($('#weekAnalyticsPopupStyles').length === 0) {
-            $('head').append(`
-            <style id="weekAnalyticsPopupStyles">
-                /* Modal Content Styling */
-                #analyticsModal .modal-content { border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.12); font-family: 'Inter', sans-serif; background: #fafafa; }
-                #analyticsModal .modal-header { border-bottom: 1px solid #e0e0e0; background-color: #D7C4F0; color: #2c2c2c; }
-                #analyticsModal .modal-title { font-weight: 600; color: #2c2c2c; }
-                #analyticsModal .btn-close { filter: invert(30%); }
-
-                /* Table Wrapper */
-                #analyticsModal .table-wrapper { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 120px); position: relative; border: 1px solid #dcdcdc; background: #fff; border-radius: 8px; margin: 10px; }
-                #analyticsModal table { border-collapse: collapse; width: max-content; table-layout: auto; }
-                #analyticsModal th, #analyticsModal td { padding: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid #eaeaea; background: #fff; }
-
-                /* Sticky Headers */
-                #analyticsModal thead th { position: sticky; top: 0; background: #f5f5f5; z-index: 6; }
-                #analyticsModal thead th.sticky-left { position: sticky; top: 0; left: 0; background: #f5f5f5; z-index: 9; min-width: 140px; }
-                #analyticsModal thead th.sticky-left-2 { position: sticky; top: 0; left: 140px; background: #f5f5f5; z-index: 9; min-width: 150px; }
-
-                #analyticsModal tbody td.sticky-left { position: sticky; left: 0; background: #f0f0f0; z-index: 7; min-width: 140px; }
-                #analyticsModal tbody td.sticky-left-2 { position: sticky; left: 140px; background: #f0f0f0; z-index: 7; min-width: 150px; }
-
-                /* Conditional Coloring */
-                #analyticsModal .rag-red { color: #e74c3c; font-weight: bold; }
-                #analyticsModal .rag-amber { color: #f39c12; font-weight: bold; }
-                #analyticsModal .rag-green { color: #27ae60; font-weight: bold; }
-
-                /* Filter Container */
-                #analyticsModal .filter-container { margin: 10px; font-size: 0.875rem; }
-                .dropdown-checkbox { max-height: 250px; overflow-y: auto; padding: 10px; }
-
-                /* Buttons */
-                #analyticsModal .btn-sm { border-radius: 6px; font-size: 0.875rem; }
-                #applyFilterBtn { background: #9b59b6; border-color: #9b59b6; }
-                #applyFilterBtn:hover { background: #8e44ad; border-color: #8e44ad; }
-            </style>
-            `);
-        }
-
-        const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
-          <div class="modal-dialog" style="width: 100%;margin: 0;height: 100%;max-width: none;">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title">Staffing Summary</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body p-0">
-                <div class="filter-container">
-                    <div class="row g-2 align-items-center">
-                        <div class="col-auto">
-                            <label><b>LOB:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="lobDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select LOBs</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="lobDropdownBtn" id="lobDropdown"></div>
-                            </div>
-                        </div>
-
-                        <div class="col-auto">
-                            <label><b>Metrics:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="metricDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select Metrics</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="metricDropdownBtn" id="metricDropdown"></div>
-                            </div>
-                        </div>
-
-                        <div class="col-auto">
-                            <label><b>Week From:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekFromDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select From Week</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekFromDropdownBtn" id="weekFromDropdown"></div>
-                            </div>
-                        </div>
-
-                        <div class="col-auto">
-                            <label><b>Week To:</b></label><br/>
-                            <div class="dropdown">
-                                <button class="btn btn-sm dropdown-toggle" type="button" id="weekToDropdownBtn" data-bs-toggle="dropdown" style="border: 1px solid;border-radius: 5px;">Select To Week</button>
-                                <div class="dropdown-menu dropdown-checkbox" aria-labelledby="weekToDropdownBtn" id="weekToDropdown"></div>
-                            </div>
-                        </div>
-
-                        <div class="col-auto">
-                            <label><b>Summary Type:</b></label><br/>
-                            <select class="form-select form-select-sm" id="summaryTypeSelect" style="border:1px solid; border-radius:5px;">
-                                <option value="weekly" selected>Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
-                        </div>
-
-                        <div class="col-auto">
-                            <button id="applyFilterBtn" class="btn btn-primary btn-sm mt-3">Apply Filter</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="table-wrapper" id="staffingContainer"></div>
-              </div>
-            </div>
-          </div>
-        </div>`;
-
-        $('body').append(modalHTML);
-
-        const $container = $('#staffingContainer');
-        const parseWeek = w => {
-            const [dd, mmm, yy] = w.split('-');
-            const fullYear = yy.length === 2 ? (parseInt(yy, 10) < 50 ? '20' + yy : '19' + yy) : yy;
-            return new Date(`${mmm} ${dd}, ${fullYear}`);
-        };
-
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        
-// Built-in metrics
-const baseMetrics = ['Required HC', 'Available HC', 'Delta', 'Staffing %'];
-
-// Blocked fields (never included)
-const blockedFields = [
-    "Client Lock",
-    "Forecasted Hours",
-    "Actual Hours",
-    "Planned Attrition",
-    "Actual Attrition",
-    "Planned Shrinkage",
-    "Actual Shrinkage"
-];
-
-// Final metrics = base metrics only
-let metrics = [...baseMetrics];
-
-// Custom fields excluded if in blocked list
-const customFields = [...new Set(settings.data.map(x => x.header))]
-    .filter(h =>
-        h &&
-        !baseMetrics.includes(h) &&
-        !blockedFields.includes(h)
-    );
-
-// Append custom fields
-customFields.forEach(f => metrics.push(f));
-
-
-        const uniqueWeekMonthPairs = Array.from(
-            new Map(
-                settings.data
-                    .map(d => [d.week, d.month])
-                    .sort((a, b) => parseWeek(a[0]) - parseWeek(b[0])) // sort before creating Map
-            ).entries()
-        );
-
-        const months = uniqueWeekMonthPairs.map(([_, month]) => month);
-
-
-        const groupedData = {};
-        settings.data.forEach(d => {
-            if (!groupedData[d.sheetName]) groupedData[d.sheetName] = {};
-            if (!groupedData[d.sheetName][d.week]) groupedData[d.sheetName][d.week] = {};
-            groupedData[d.sheetName][d.week][d.header] = Number(d.value);
-        });
-
-        for (const lob in groupedData) {
-            for (const week in groupedData[lob]) {
-                const req = groupedData[lob][week]?.['Required HC'] || 0;
-                const avail = groupedData[lob][week]?.['Available HC'] || 0;
-                groupedData[lob][week]['Delta'] = avail - req;
-                groupedData[lob][week]['Staffing %'] = req === 0 ? 0 : Math.round((avail / req) * 100);
-            }
-        }
-
-        const lobColors = ['#2c3e50', '#34495e', '#16a085', '#8e44ad', '#d35400', '#7f8c8d', '#27ae60', '#c0392b'];
-
-        function updateDropdownLabel(dropdownId, selectedItems, placeholder) {
-            const btn = $(`#${dropdownId}Btn`);
-            btn.text(selectedItems.length === 0 ? placeholder : `${placeholder.split(' ')[0]} (${selectedItems.length}) selected`);
-        }
-        function updateRadioDropdownLabel(dropdownBtnId, selectedValue, prefix) {
-            $(`#${dropdownBtnId}`).text(`${prefix}: ${selectedValue}`);
-        }
-
-        function populateFilters() {
-            // LOB
-            const lobContainer = document.createDocumentFragment();
-            lobContainer.appendChild(document.createElement('label')).innerHTML = `<label><input type="checkbox" class="lobSelectAll" checked> <b>Select All</b></label><br/>`;
-            uniqueLOBs.forEach(lob => { const label = document.createElement('label'); label.innerHTML = `<input type="checkbox" class="lobCheckbox" value="${lob}" checked> ${lob}`; lobContainer.appendChild(label); lobContainer.appendChild(document.createElement('br')); });
-            $('#lobDropdown').append(lobContainer);
-
-            // Metrics
-            const metricContainer = document.createDocumentFragment();
-            metricContainer.appendChild(document.createElement('label')).innerHTML = `<label><input type="checkbox" class="metricSelectAll" checked> <b>Select All</b></label><br/>`;
-            metrics.forEach(metric => { const label = document.createElement('label'); label.innerHTML = `<input type="checkbox" class="metricCheckbox" value="${metric}" checked> ${metric}`; metricContainer.appendChild(label); metricContainer.appendChild(document.createElement('br')); });
-            $('#metricDropdown').append(metricContainer);
-
-            // Weeks
-            const weekFrom = getWeekForCurrentMonth(uniqueWeeks);
-
-            uniqueWeeks.slice().reverse().forEach(week => {
-                $('#weekFromDropdown').append(`<label><input type="radio" name="weekFrom" value="${week}" ${week === weekFrom ? 'checked' : ''}> ${week}</label><br/>`);
-                $('#weekToDropdown').append(`<label><input type="radio" name="weekTo" value="${week}" ${week === uniqueWeeks[uniqueWeeks.length - 1] ? 'checked' : ''}> ${week}</label><br/>`);
-            });
-
-            updateDropdownLabel('lobDropdown', uniqueLOBs, 'Select LOBs');
-            updateDropdownLabel('metricDropdown', metrics, 'Select Metrics');
-            updateRadioDropdownLabel('weekFromDropdownBtn', weekFrom , 'From');
-            updateRadioDropdownLabel('weekToDropdownBtn', uniqueWeeks[uniqueWeeks.length - 1], 'To');
-        }
-
-        function getWeekForCurrentMonth(uniqueWeeks) {
-            const now = new Date();
-            const currentMonth = now.getMonth()-1; // 0 = Jan
-            const currentYear = now.getFullYear();
-
-            // Convert "dd-MMM-yy" to Date object
-            function parseDate(str) {
-                return new Date(str.replace(/(\d{2})-(\w{3})-(\d{2})/, (match, dd, mmm, yy) => {
-                    const months = {
-                        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-                        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
-                    };
-                    const year = parseInt(yy, 10) + 2000;
-                    return `${year}-${months[mmm] + 1}-${dd}`;
-                }));
-            }
-
-            const weeksInCurrentMonth = uniqueWeeks.filter(weekStr => {
-                const date = parseDate(weekStr);
-                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-            });
-
-            if (weeksInCurrentMonth.length > 0) {
-                return weeksInCurrentMonth[0]; // First week of current month
-            } else {
-                const lastWeek = [...uniqueWeeks].reverse().find(weekStr => {
-                    const date = parseDate(weekStr);
-                    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-                });
-                return lastWeek || uniqueWeeks[0]; // Last week or fallback
-            }
-        }
-
-
-
-
-        function buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType) {
-            const fromIndex = uniqueWeeks.indexOf(weekFrom);
-            const toIndex = uniqueWeeks.indexOf(weekTo);
-            const weeksInRange = uniqueWeeks.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
-            const monthsInRange = months.slice(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex) + 1);
-
-            let displayKeys = [];
-            let groupedByMonth = {};
-
-            if (summaryType === 'monthly') {
-                //weeksInRange.forEach(week => {
-                //    const [dd, mmm, yy] = week.split('-');
-                //    const monthKey = `${mmm}-${yy}`;
-                //    if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
-                //    groupedByMonth[monthKey].push(week);
-                //});
-                 weeksInRange.forEach((week,index)=> {
-                     const monthKey = monthsInRange[index];
-                    if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = [];
-                    groupedByMonth[monthKey].push(week);
-                });
-
-                displayKeys = Object.keys(groupedByMonth).sort((a, b) => new Date(`01-${a}`) - new Date(`01-${b}`));
-            } else {
-                displayKeys = weeksInRange;
-            }
-
-            const table = document.createElement('table');
-            const thead = document.createElement('thead');
-            const tbody = document.createElement('tbody');
-
-            const headerRow = document.createElement('tr');
-            headerRow.innerHTML = `<th class="sticky-left">LOB</th><th class="sticky-left-2">Metric</th>`;
-            displayKeys.forEach(key => {
-                const th = document.createElement('th');
-                th.textContent = key;
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
-
-            // ---- OVERALL SUMMARY ----
-            const overallData = {};
-            selectedMetrics.forEach(metric => {
-                overallData[metric] = {};
-                displayKeys.forEach(key => {
-                    if (summaryType === 'monthly') {
-                        // Step 1: compute LOB-level monthly averages
-                        const lobMonthly = selectedLOBs.map(lob => {
-                            const weeksArray = groupedByMonth[key] || [];
-                            const totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
-                            const totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
-                            const weekCount = weeksArray.length;
-
-                            return {
-                                avgReq: weekCount === 0 ? 0 : totalReq / weekCount,
-                                avgAvail: weekCount === 0 ? 0 : totalAvail / weekCount
-                            };
-                        });
-
-                        // Step 2: sum across LOBs
-                        const sumReq = lobMonthly.reduce((s, x) => s + x.avgReq, 0);
-                        const sumAvail = lobMonthly.reduce((s, x) => s + x.avgAvail, 0);
-
-                        // Step 3: assign values
-                        if (metric === 'Required HC') {
-                            overallData[metric][key] = Math.round(sumReq);
-                        } else if (metric === 'Available HC') {
-                            overallData[metric][key] = Math.round(sumAvail);
-                        } else if (metric === 'Delta') {
-                            overallData[metric][key] = Math.round(sumAvail - sumReq);
-                        } else if (metric === 'Staffing %') {
-                            overallData[metric][key] = sumReq === 0 ? 0 : Math.round((sumAvail / sumReq) * 100);
-                        } else {
-                            overallData[metric][key] = selectedLOBs.reduce((sumL, lob) =>
-                                sumL + (groupedByMonth[key] || []).reduce((subSum, week) => subSum + (groupedData[lob][week]?.[metric] || 0), 0)
-                                , 0);
-                        }
-                    } else {
-                        // Weekly view (unchanged)
-                        if (metric === 'Staffing %') {
-                            const sumReq = selectedLOBs.reduce((sum, lob) =>
-                                sum + (groupedData[lob][key]?.['Required HC'] || 0), 0
-                            );
-                            const sumAvail = selectedLOBs.reduce((sum, lob) =>
-                                sum + (groupedData[lob][key]?.['Available HC'] || 0), 0
-                            );
-                            overallData[metric][key] = sumReq === 0 ? 0 : Math.round((sumAvail / sumReq) * 100);
-                        }
-                        else {
-                            overallData[metric][key] = selectedLOBs.reduce((sum, lob) =>
-                                sum + (groupedData[lob][key]?.[metric] || 0), 0
-                            );
-                        }
+            pasteHandler: function (e, n) {
+                if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
+                    return;
+                let l = Q().paste;
+                if (h.luckysheet_select_save.length > 1 && (de() ? alert(l.errorNotAllowMulti) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMulti)),
+                    typeof e == "object") {
+                    if (e.length == 0)
+                        return;
+                    let a = $.extend(!0, {}, h.config);
+                    a.merge == null && (a.merge = {}),
+                        JSON.stringify(n).length > 2 && a.borderInfo == null && (a.borderInfo = []);
+                    let o = e.length
+                        , s = e[0].length
+                        , u = h.luckysheet_select_save[0].row[0]
+                        , d = u + o - 1
+                        , f = h.luckysheet_select_save[0].column[0]
+                        , m = f + s - 1
+                        , g = !1;
+                    if (a.merge != null && (g = Dt(a, u, d, f, m)),
+                        g) {
+                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return
                     }
-                });
-            });
-
-            // Overall Summary Rows
-            selectedMetrics.forEach((metric, i) => {
-                const row = document.createElement('tr');
-                if (i === 0) {
-                    const tdLOB = document.createElement('td');
-                    tdLOB.className = 'sticky-left';
-                    tdLOB.setAttribute('rowspan', selectedMetrics.length);
-                    tdLOB.style.background = '#fff';
-                    tdLOB.style.color = '#000';
-                    tdLOB.textContent = 'Overall Summary';
-                    row.appendChild(tdLOB);
-                }
-
-                const tdMetric = document.createElement('td');
-                tdMetric.className = 'sticky-left-2';
-                tdMetric.textContent = metric;
-                row.appendChild(tdMetric);
-
-                displayKeys.forEach(key => {
-                    const td = document.createElement('td');
-                    let val = overallData[metric][key];
-
-                    let cls = '';
-                    if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                    if (metric === 'Staffing %') {
-                        if (val < 80) cls = 'rag-red';
-                        else if (val < 100) cls = 'rag-amber';
-                        else cls = 'rag-green';
-                        val = `${val}%`;
-                    } else {
-                        val = Math.round(val);
-                        val = new Intl.NumberFormat().format(val);
-                    }
-
-                    td.className = cls;
-                    td.title = val;
-                    td.textContent = val;
-                    td.style.background = '#F5FAE1';
-                    row.appendChild(td);
-                });
-
-                tbody.appendChild(row);
-            });
-
-            // ---- LOB LEVEL ROWS ----
-            selectedLOBs.forEach((lob, lobIndex) => {
-                const lobColor = lobColors[lobIndex % lobColors.length];
-
-                selectedMetrics.forEach((metric, i) => {
-                    const row = document.createElement('tr');
-                    if (i === 0) {
-                        const tdLOB = document.createElement('td');
-                        tdLOB.className = 'sticky-left';
-                        tdLOB.setAttribute('rowspan', selectedMetrics.length);
-                        tdLOB.style.background = lobColor;
-                        tdLOB.style.color = '#fff';
-                        tdLOB.textContent = lob;
-                        row.appendChild(tdLOB);
-                    }
-
-                    const tdMetric = document.createElement('td');
-                    tdMetric.className = 'sticky-left-2';
-                    tdMetric.textContent = metric;
-                    row.appendChild(tdMetric);
-
-                    displayKeys.forEach(key => {
-                        const td = document.createElement('td');
-                        const weeksArray = summaryType === 'monthly' ? groupedByMonth[key] : [key];
-
-                        let val;
-                        if (summaryType === 'monthly') {
-                            let totalReq = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Required HC'] || 0), 0);
-                            let totalAvail = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.['Available HC'] || 0), 0);
-                            let weekCount = weeksArray.length;
-
-                            const avgReq = weekCount === 0 ? 0 : totalReq / weekCount;
-                            const avgAvail = weekCount === 0 ? 0 : totalAvail / weekCount;
-
-                            if (metric === 'Required HC') {
-                                val = Math.round(avgReq);
-                            } else if (metric === 'Available HC') {
-                                val = Math.round(avgAvail);
-                            } else if (metric === 'Delta') {
-                                val = Math.round(avgAvail - avgReq);
-                            } else if (metric === 'Staffing %') {
-                                val = avgReq === 0 ? 0 : Math.round((avgAvail / avgReq) * 100);
-                            } else {
-                                val = weeksArray.reduce((sum, week) => sum + (groupedData[lob][week]?.[metric] || 0), 0);
+                    let y = we.deepCopyFlowData(h.flowdata)
+                        , v = y.length
+                        , k = y[0].length
+                        , b = d - v + 1
+                        , w = m - k + 1;
+                    (b > 0 || w > 0) && (y = il([].concat(y), b, w, !0)),
+                        a.rowlen == null && (a.rowlen = {});
+                    let x = !1
+                        , C = {};
+                    for (let S = u; S <= d; S++) {
+                        let _ = [].concat(y[S])
+                            , T = h.defaultrowlen;
+                        a.rowlen[S] != null && (T = a.rowlen[S]);
+                        for (let A = f; A <= m; A++) {
+                            L(_[A]) == "object" && "mc" in _[A] && ("rs" in _[A].mc && delete a.merge[_[A].mc.r + "_" + _[A].mc.c],
+                                delete _[A].mc);
+                            let R = null;
+                            if (e[S - u] != null && e[S - u][A - f] != null && (R = e[S - u][A - f]),
+                                _[A] = $.extend(!0, {}, R),
+                                R != null && "mc" in _[A] && (_[A].mc.rs != null ? (_[A].mc.r = S,
+                                    _[A].mc.c = A,
+                                    a.merge[_[A].mc.r + "_" + _[A].mc.c] = _[A].mc,
+                                    C[R.mc.r + "_" + R.mc.c] = [_[A].mc.r, _[A].mc.c]) : _[A] = {
+                                        mc: {
+                                            r: C[R.mc.r + "_" + R.mc.c][0],
+                                            c: C[R.mc.r + "_" + R.mc.c][1]
+                                        }
+                                    }),
+                                n[S - u + "_" + (A - f)]) {
+                                let N = {
+                                    rangeType: "cell",
+                                    value: {
+                                        row_index: S,
+                                        col_index: A,
+                                        l: n[S - u + "_" + (A - f)].l,
+                                        r: n[S - u + "_" + (A - f)].r,
+                                        t: n[S - u + "_" + (A - f)].t,
+                                        b: n[S - u + "_" + (A - f)].b
+                                    }
+                                };
+                                a.borderInfo.push(N)
                             }
-                        } else {
-                            val = groupedData[lob][key]?.[metric] || 0;
-                            val = val === 0 ? 0 : Math.round(val);
+                            let I = ra(_[A])
+                                , F = be.getTextSize("\u7530", I)[1];
+                            F > T && (T = F,
+                                x = !0)
                         }
-
-                        let cls = '';
-                        if (metric === 'Delta' && val < 0) cls = 'rag-red';
-                        if (metric === 'Staffing %') {
-                            if (val < 80) cls = 'rag-red';
-                            else if (val < 100) cls = 'rag-amber';
-                            else cls = 'rag-green';
-                            val = `${val}%`;
+                        y[S] = _,
+                            T != h.defaultrowlen && (a.rowlen[S] = T)
+                    }
+                    if (h.luckysheet_select_save = [{
+                        row: [u, d],
+                        column: [f, m]
+                    }],
+                        b > 0 || w > 0 || x) {
+                        let S = {
+                            cfg: a,
+                            RowlChange: !0
+                        };
+                        Ye(y, h.luckysheet_select_save, S)
+                    } else {
+                        let S = {
+                            cfg: a
+                        };
+                        Ye(y, h.luckysheet_select_save, S),
+                            tt()
+                    }
+                } else {
+                    e = e.replace(/\r/g, "");
+                    let a = []
+                        , o = e.split(`
+`)
+                        , s = o[0].split("	").length;
+                    for (let w = 0; w < o.length; w++)
+                        o[w].split("	").length < s || a.push(o[w].split("	"));
+                    let u = we.deepCopyFlowData(h.flowdata)
+                        , d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
+                        , f = d.row == null ? 0 : d.row[0]
+                        , m = d.column == null ? 0 : d.column[0]
+                        , g = a.length
+                        , y = a[0].length
+                        , v = !1;
+                    if (h.config.merge != null && (v = Dt(h.config, f, f + g - 1, m, m + y - 1)),
+                        v) {
+                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return
+                    }
+                    let k = f + g - u.length
+                        , b = m + y - u[0].length;
+                    (k > 0 || b > 0) && (u = il([].concat(u), k, b, !0));
+                    for (let w = 0; w < g; w++) {
+                        let x = [].concat(u[w + f]);
+                        for (let C = 0; C < y; C++) {
+                            let S = x[C + m]
+                                , _ = a[w][C];
+                            if (B(_) && (S && S.ct && S.ct.fa === "@" ? _ = String(_) : _ = parseFloat(_)),
+                                S instanceof Object)
+                                S.v = _,
+                                    S.ct != null && S.ct.fa != null ? S.m = mt(S.ct.fa, _) : S.m = _,
+                                    S.f != null && S.f.length > 0 && (S.f = "",
+                                        p.delFunctionGroup(w + f, C + m, h.currentSheetIndex));
+                            else {
+                                let T = {}
+                                    , A = it(_);
+                                T.v = A[2],
+                                    T.ct = A[1],
+                                    T.m = A[0],
+                                    x[C + m] = T
+                            }
                         }
-
-                        td.className = cls;
-                        td.title = val;
-                        td.textContent = val;
-                        row.appendChild(td);
-                    });
-
-                    tbody.appendChild(row);
-                });
-            });
-
-            table.appendChild(thead);
-            table.appendChild(tbody);
-            $container.empty().append(table);
-        }
-
-        populateFilters();
-
-        $('#analyticsModal').on('hidden.bs.modal', function () {
-            $('#analyticsModal').remove();
-            $('#weekAnalyticsPopupStyles').remove();
-        });
-
-        // Select All / Unselect All Logic
-        $('#lobDropdown').on('change', '.lobSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.lobCheckbox').prop('checked', checked);
-            updateDropdownLabel('lobDropdown', checked ? uniqueLOBs.slice() : [], 'Select LOBs');
-        });
-        $('#metricDropdown').on('change', '.metricSelectAll', function () {
-            const checked = $(this).is(':checked');
-            $('.metricCheckbox').prop('checked', checked);
-            updateDropdownLabel('metricDropdown', checked ? metrics.slice() : [], 'Select Metrics');
-        });
-        $('#lobDropdown').on('change', '.lobCheckbox', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('lobDropdown', selectedLOBs, 'Select LOBs');
-            $('.lobSelectAll').prop('checked', selectedLOBs.length === uniqueLOBs.length);
-        });
-        $('#metricDropdown').on('change', '.metricCheckbox', function () {
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            updateDropdownLabel('metricDropdown', selectedMetrics, 'Select Metrics');
-            $('.metricSelectAll').prop('checked', selectedMetrics.length === metrics.length);
-        });
-        $('#weekFromDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekFromDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekFromDropdownBtn', selectedWeek, 'From');
-        });
-        $('#weekToDropdown').on('change', 'input[type=radio]', function () {
-            const selectedWeek = $('#weekToDropdown input[type=radio]:checked').val();
-            updateRadioDropdownLabel('weekToDropdownBtn', selectedWeek, 'To');
-        });
-
-        $('#applyFilterBtn').on('click', function () {
-            const selectedLOBs = $('.lobCheckbox:checked').map(function () { return this.value; }).get();
-            const selectedMetrics = $('.metricCheckbox:checked').map(function () { return this.value; }).get();
-            const weekFrom = $('#weekFromDropdown input[type=radio]:checked').val();
-            const weekTo = $('#weekToDropdown input[type=radio]:checked').val();
-            const summaryType = $('#summaryTypeSelect').val();
-
-            buildTable(selectedLOBs, selectedMetrics, weekFrom, weekTo, summaryType);
-        });
-
-        // Initial Build
-        buildTable(uniqueLOBs, metrics, getWeekForCurrentMonth(uniqueWeeks), uniqueWeeks[uniqueWeeks.length - 1], 'weekly');
-
-        // Show Modal
-        const analyticsModal = new bootstrap.Modal(document.getElementById('analyticsModal'));
-        analyticsModal.show();
-    };
-})(jQuery);
+                        u[w + f] = x
+                    }
+                    if (d.row = [f, f + g - 1],
+                        d.column = [m, m + y - 1],
+                        k > 0 || b > 0) {
+                        let w = {
+                            RowlChange: !0
+                        };
+                        Ye(u, h.luckysheet_select_save, w)
+                    } else
+                        Ye(u, h.luckysheet_select_save),
+                            tt()
+                }
+            },
