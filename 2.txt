@@ -1,182 +1,235 @@
-pasteHandler: function (e, n) {
-    if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
-        return;
-    let l = Q().paste;
-    let self = this; // <-- added so we can call execfunction like updatecell
+       MAXIFS: {
+           d: "Returns the maximum value among cells specified by a given set of conditions.",
+           a: "Maximum value in a range that meets one or more criteria.",
+           p: [
+               {
+                   name: "max_range",
+                   detail: "The range of numeric values from which the maximum value will be determined."
+               },
+               {
+                   name: "criteria_range1",
+                   detail: "The first range in which to evaluate the associated condition."
+               },
+               {
+                   name: "criteria1",
+                   detail: "The condition that defines which cells in criteria_range1 will be considered."
+               },
+               {
+                   name: "criteria_range2",
+                   detail: "Additional ranges in which to evaluate associated conditions."
+               },
+               {
+                   name: "criteria2",
+                   detail: "Additional conditions that define which cells will be considered."
+               }
+           ]
+       },
 
-    if (h.luckysheet_select_save.length > 1 && (de() ? alert(l.errorNotAllowMulti) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMulti)),
-        typeof e == "object") {
-        if (e.length == 0)
-            return;
-        let a = $.extend(!0, {}, h.config);
-        a.merge == null && (a.merge = {}),
-            JSON.stringify(n).length > 2 && a.borderInfo == null && (a.borderInfo = []);
-        let o = e.length
-            , s = e[0].length
-            , u = h.luckysheet_select_save[0].row[0]
-            , d = u + o - 1
-            , f = h.luckysheet_select_save[0].column[0]
-            , m = f + s - 1
-            , g = !1;
-        if (a.merge != null && (g = Dt(a, u, d, f, m)),
-            g) {
-            de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
-            return
-        }
-        let y = we.deepCopyFlowData(h.flowdata)
-            , v = y.length
-            , k = y[0].length
-            , b = d - v + 1
-            , w = m - k + 1;
-        (b > 0 || w > 0) && (y = il([].concat(y), b, w, !0)),
-            a.rowlen == null && (a.rowlen = {});
-        let x = !1
-            , C = {};
-        for (let S = u; S <= d; S++) {
-            let _ = [].concat(y[S])
-                , T = h.defaultrowlen;
-            a.rowlen[S] != null && (T = a.rowlen[S]);
-            for (let A = f; A <= m; A++) {
-                L(_[A]) == "object" && "mc" in _[A] && ("rs" in _[A].mc && delete a.merge[_[A].mc.r + "_" + _[A].mc.c],
-                    delete _[A].mc);
-                let R = null;
-                if (e[S - u] != null && e[S - u][A - f] != null && (R = e[S - u][A - f]),
-                    _[A] = $.extend(!0, {}, R),
-                    R != null && "mc" in _[A] && (_[A].mc.rs != null ? (_[A].mc.r = S,
-                        _[A].mc.c = A,
-                        a.merge[_[A].mc.r + "_" + _[A].mc.c] = _[A].mc,
-                        C[R.mc.r + "_" + R.mc.c] = [_[A].mc.r, _[A].mc.c]) : _[A] = {
-                            mc: {
-                                r: C[R.mc.r + "_" + R.mc.c][0],
-                                c: C[R.mc.r + "_" + R.mc.c][1]
-                            }
-                        }),
-                    n[S - u + "_" + (A - f)]) {
-                    let N = {
-                        rangeType: "cell",
-                        value: {
-                            row_index: S,
-                            col_index: A,
-                            l: n[S - u + "_" + (A - f)].l,
-                            r: n[S - u + "_" + (A - f)].r,
-                            t: n[S - u + "_" + (A - f)].t,
-                            b: n[S - u + "_" + (A - f)].b
-                        }
-                    };
-                    a.borderInfo.push(N)
-                }
-                let I = ra(_[A])
-                    , F = be.getTextSize("\u7530", I)[1];
-                F > T && (T = F,
-                    x = !0)
-            }
-            y[S] = _,
-                T != h.defaultrowlen && (a.rowlen[S] = T)
-        }
-        if (h.luckysheet_select_save = [{
-            row: [u, d],
-            column: [f, m]
-        }],
-            b > 0 || w > 0 || x) {
-            let S = {
-                cfg: a,
-                RowlChange: !0
-            };
-            Ye(y, h.luckysheet_select_save, S)
-        } else {
-            let S = {
-                cfg: a
-            };
-            Ye(y, h.luckysheet_select_save, S),
-                tt()
-        }
-    } else {
-        e = e.replace(/\r/g, "");
-        let a = []
-            , o = e.split(`
-`)
-            , s = o[0].split("	").length;
-        for (let w = 0; w < o.length; w++)
-            o[w].split("	").length < s || a.push(o[w].split("	"));
-        let u = we.deepCopyFlowData(h.flowdata)
-            , d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
-            , f = d.row == null ? 0 : d.row[0]
-            , m = d.column == null ? 0 : d.column[0]
-            , g = a.length
-            , y = a[0].length
-            , v = !1;
-        if (h.config.merge != null && (v = Dt(h.config, f, f + g - 1, m, m + y - 1)),
-            v) {
-            de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
-            return
-        }
-        let k = f + g - u.length
-            , b = m + y - u[0].length;
-        (k > 0 || b > 0) && (u = il([].concat(u), k, b, !0));
-        for (let w = 0; w < g; w++) {
-            let x = [].concat(u[w + f]);
-            for (let C = 0; C < y; C++) {
-                let S = x[C + m]
-                    , _ = a[w][C];
+             MINIFS: {
+                 d: "Returns the minimum value among cells specified by a given set of conditions.",
+                 a: "Minimum value in a range that meets one or more criteria.",
+                 p: [
+                     {
+                         name: "min_range",
+                         detail: "The range of numeric values from which the minimum value will be determined."
+                     },
+                     {
+                         name: "criteria_range1",
+                         detail: "The first range in which to evaluate the associated condition."
+                     },
+                     {
+                         name: "criteria1",
+                         detail: "The condition that defines which cells in criteria_range1 will be considered."
+                     },
+                     {
+                         name: "criteria_range2",
+                         detail: "Additional ranges in which to evaluate associated conditions."
+                     },
+                     {
+                         name: "criteria2",
+                         detail: "Additional conditions that define which cells will be considered."
+                     }
+                 ]
+             },
 
-                // ---------- PATCHED: detect pasted formulas and evaluate like updatecell ----------
-                if (typeof _ === "string" && _.slice(0, 1) === "=" && _.length > 1) {
-                    // Call execfunction same as updatecell does
-                    try {
-                        let execRes = self.execfunction(_, w + f, C + m, void 0, !0);
-                        if (execRes) {
-                            let newCell = {
-                                v: execRes[1],
-                                f: execRes[2]
-                            };
 
-                            if (execRes.length == 4 && execRes[3].type == "sparklines") {
-                                delete newCell.m;
-                                let T = execRes[3].data;
-                                L(T) == "array" && L(T[0]) != "object" ? newCell.v = T[0] : newCell.spl = execRes[3].data;
-                            } else if (execRes.length == 4 && execRes[3].type == "dynamicArrayItem") {
-                                // keep dynamic array item data for higher-level handling if needed
-                                newCell.dynamicArrayItem = execRes[3].data;
-                            }
 
-                            x[C + m] = newCell;
-                            continue; // next cell
-                        }
-                    } catch (err) {
-                        // If execfunction fails for some reason, fall back to normal paste behavior
-                        // (do not block the rest of the paste)
-                        console && console.warn && console.warn("pasteHandler execfunction error:", err);
+           MAXIFS: function () {
+               // need at least: max_range + one criteria pair
+               if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                   return p.error.na;
+
+               for (var e = 0; e < arguments.length; e++) {
+                   var n = p.errorParamCheck(this.p, arguments[e], e);
+                   if (!n[0])
+                       return p.error.v;
+               }
+
+               try {
+                   var l = arguments;
+                   qn(l);
+
+                   // max range
+                   var maxArr = p.getRangeArray(l[0])[0];
+
+                   // flags for rows that match all criteria
+                   var flags = new Array(maxArr.length);
+                   for (var i = 0; i < flags.length; i++) flags[i] = true;
+
+                   // evaluate criteria
+                   for (var i = 1; i < l.length; i += 2) {
+                       var critArr = p.getRangeArray(l[i])[0];
+                       var critVal = l[i + 1];
+
+                       for (var r = 0; r < critArr.length; r++) {
+                           var cell = critArr[r];
+                           flags[r] = flags[r] && !!cell && p.acompareb(cell, critVal);
+                       }
+                   }
+
+                   // compute MAX
+                   var result = null;
+                   for (var i = 0; i < maxArr.length; i++) {
+                       if (!flags[i]) continue;
+
+                       var v = maxArr[i];
+                       if (H(v)) return v;
+
+                       if (B(v)) {
+                           var num = parseFloat(v);
+                           if (result === null || num > result) {
+                               result = num;
+                           }
+                       }
+                   }
+
+                   return result === null ? 0 : result;
+
+               } catch (g) {
+                   var m = g;
+                   m = p.errorInfo(m);
+                   return [p.error.v, m];
+               }
+           },
+
+
+       MINIFS: function () {
+           // need at least: min_range + one criteria pair
+           if (arguments.length < this.m[0] || arguments.length > this.m[1])
+               return p.error.na;
+
+           for (var e = 0; e < arguments.length; e++) {
+               var n = p.errorParamCheck(this.p, arguments[e], e);
+               if (!n[0])
+                   return p.error.v;
+           }
+
+           try {
+               var l = arguments;
+               qn(l);
+
+               // min range
+               var minArr = p.getRangeArray(l[0])[0];
+
+               // flags for rows that match all criteria
+               var flags = new Array(minArr.length);
+               for (var i = 0; i < flags.length; i++) flags[i] = true;
+
+               // evaluate criteria
+               for (var i = 1; i < l.length; i += 2) {
+                   var critArr = p.getRangeArray(l[i])[0];
+                   var critVal = l[i + 1];
+
+                   for (var r = 0; r < critArr.length; r++) {
+                       var cell = critArr[r];
+                       flags[r] = flags[r] && !!cell && p.acompareb(cell, critVal);
+                   }
+               }
+
+               // compute MIN
+               var result = null;
+               for (var i = 0; i < minArr.length; i++) {
+                   if (!flags[i]) continue;
+
+                   var v = minArr[i];
+                   if (H(v)) return v;
+
+                   if (B(v)) {
+                       var num = parseFloat(v);
+                       if (result === null || num < result) {
+                           result = num;
+                       }
+                   }
+               }
+
+               return result === null ? 0 : result;
+
+           } catch (g) {
+               var m = g;
+               m = p.errorInfo(m);
+               return [p.error.v, m];
+           }
+       },
+
+
+ {
+                n: "MAXIFS",
+                t: 0,
+                m: [3, 257],
+                p: [
+                    {
+                        example: "A1:A10",
+                        require: "m",
+                        repeat: "n",
+                        type: "range"
+                    },
+                    {
+                        example: "B1:B10",
+                        require: "m",
+                        repeat: "n",
+                        type: "range"
+                    },
+                    {
+                        example: '">20"',
+                        require: "m",
+                        repeat: "n",
+                        type: "rangeall"
+                    },
+                    {
+                        example: "C1:C10",
+                        require: "o",
+                        repeat: "y",
+                        type: "rangeall"
                     }
-                }
-                // ---------- END PATCH ------------------------------------------------------------
-
-                // original fallback behavior (numbers/text)
-                if (B(_) && (S && S.ct && S.ct.fa === "@" ? _ = String(_) : _ = parseFloat(_)),
-                    S instanceof Object)
-                    S.v = _,
-                        S.ct != null && S.ct.fa != null ? S.m = mt(S.ct.fa, _) : S.m = _,
-                        S.f != null && S.f.length > 0 && (S.f = "",
-                            p.delFunctionGroup(w + f, C + m, h.currentSheetIndex));
-                else {
-                    let T = {}
-                        , A = it(_);
-                    T.v = A[2],
-                        T.ct = A[1],
-                        T.m = A[0],
-                        x[C + m] = T
-                }
-            }
-            u[w + f] = x
-        }
-        if (d.row = [f, f + g - 1],
-            d.column = [m, m + y - 1],
-            k > 0 || b > 0) {
-            let w = {
-                RowlChange: !0
-            };
-            Ye(u, h.luckysheet_select_save, w)
-        } else
-            Ye(u, h.luckysheet_select_save),
-                tt()
-    }
-},
+                ]
+            }, {
+                n: "MINIFS",
+                t: 0,
+                m: [3, 257],
+                p: [
+                    {
+                        example: "A1:A10",
+                        require: "m",
+                        repeat: "n",
+                        type: "range"
+                    },
+                    {
+                        example: "B1:B10",
+                        require: "m",
+                        repeat: "n",
+                        type: "range"
+                    },
+                    {
+                        example: '">20"',
+                        require: "m",
+                        repeat: "n",
+                        type: "rangeall"
+                    },
+                    {
+                        example: "C1:C10",
+                        require: "o",
+                        repeat: "y",
+                        type: "rangeall"
+                    }
+                ]
+            },
