@@ -17,7 +17,9 @@ pasteHandlerOfCopyPasteValues: function (e) {
         g = [],
         y = !1;
 
-    // ---- collect copied data
+    // ---------------------------
+    // Collect copied cell data
+    // ---------------------------
     for (let se = 0; se < e.copyRange.length; se++) {
         let ie = Nt({
             row: e.copyRange[se].row,
@@ -25,12 +27,13 @@ pasteHandlerOfCopyPasteValues: function (e) {
         }, s);
 
         if (e.copyRange.length > 1) {
-            u == e.copyRange[1].row[0] && d == e.copyRange[1].row[1]
-                ? (ie = ie[0].map((_, he) => ie.map(J => J[he])),
-                   g = g.concat(ie),
-                   y = !0)
-                : f == e.copyRange[1].column[0] && m == e.copyRange[1].column[1] &&
-                  (g = g.concat(ie));
+            if (u == e.copyRange[1].row[0] && d == e.copyRange[1].row[1]) {
+                ie = ie[0].map((_, he) => ie.map(J => J[he]));
+                g = g.concat(ie);
+                y = !0;
+            } else if (f == e.copyRange[1].column[0] && m == e.copyRange[1].column[1]) {
+                g = g.concat(ie);
+            }
         } else {
             g = ie;
         }
@@ -38,7 +41,9 @@ pasteHandlerOfCopyPasteValues: function (e) {
 
     y && (g = g[0].map((_, i) => g.map(r => r[i])));
 
-    // ---- deep copy and REMOVE FORMULAS
+    // ---------------------------
+    // Deep copy & REMOVE formulas
+    // ---------------------------
     let v = $.extend(!0, [], g);
     for (let r = 0; r < v.length; r++) {
         for (let c = 0; c < v[r].length; c++) {
@@ -62,7 +67,9 @@ pasteHandlerOfCopyPasteValues: function (e) {
 
     (T !== 0 || A !== 0) && (C = x + k - 1, _ = S + b - 1);
 
-    // ---- merge conflict check
+    // ---------------------------
+    // Merge conflict check
+    // ---------------------------
     if (l.merge && Dt(l, x, C, S, _)) {
         de() ? alert(t.errorNotAllowMerged)
              : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
@@ -83,7 +90,9 @@ pasteHandlerOfCopyPasteValues: function (e) {
         V = $.extend(!0, {}, h.luckysheetfile[K(s)].dataVerification),
         q = null;
 
-    // ---- paste values only
+    // ---------------------------
+    // Paste VALUES ONLY
+    // ---------------------------
     for (let se = 1; se <= I; se++) {
         for (let ie = 1; ie <= F; ie++) {
             let Y = x + (se - 1) * k,
@@ -96,7 +105,7 @@ pasteHandlerOfCopyPasteValues: function (e) {
                 let le = [].concat(N[G]);
 
                 for (let pe = X; pe < ee; pe++) {
-                    // border copy
+                    // Borders
                     if (O[u + G - Y + "_" + (f + pe - X)]) {
                         l.borderInfo == null && (l.borderInfo = []);
                         l.borderInfo.push({
@@ -104,12 +113,15 @@ pasteHandlerOfCopyPasteValues: function (e) {
                             value: {
                                 row_index: G,
                                 col_index: pe,
-                                ...O[u + G - Y + "_" + (f + pe - X)]
+                                l: O[u + G - Y + "_" + (f + pe - X)].l,
+                                r: O[u + G - Y + "_" + (f + pe - X)].r,
+                                t: O[u + G - Y + "_" + (f + pe - X)].t,
+                                b: O[u + G - Y + "_" + (f + pe - X)].b
                             }
                         });
                     }
 
-                    // DV copy
+                    // Data validation
                     if (V[u + G - Y + "_" + (f + pe - X)]) {
                         q == null && (q = $.extend(!0, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification));
                         q[G + "_" + pe] = V[u + G - Y + "_" + (f + pe - X)];
@@ -118,18 +130,35 @@ pasteHandlerOfCopyPasteValues: function (e) {
                     let oe = null;
                     if (v[G - Y] && v[G - Y][pe - X]) {
                         oe = $.extend(!0, {}, v[G - Y][pe - X]);
+
+                        // 🔥 FINAL FIX — ensure formula bar works
+                        delete oe.f;
+                        delete oe.spl;
+
+                        if (oe.m == null) {
+                            if (oe.ct && oe.ct.fa != null) {
+                                oe.m = mt(oe.ct.fa, oe.v);
+                            } else {
+                                oe.m = oe.v;
+                            }
+                        }
                     }
 
                     le[pe] = oe;
 
-                    // merge handling
+                    // Merge handling
                     if (oe && a && oe.mc) {
                         oe.mc.rs != null
                             ? (oe.mc.r = G,
                                oe.mc.c = pe,
                                l.merge[G + "_" + pe] = oe.mc,
                                J[oe.mc.r + "_" + oe.mc.c] = [G, pe])
-                            : le[pe] = { mc: { r: J[oe.mc.r + "_" + oe.mc.c][0], c: J[oe.mc.r + "_" + oe.mc.c][1] } };
+                            : le[pe] = {
+                                mc: {
+                                    r: J[oe.mc.r + "_" + oe.mc.c][0],
+                                    c: J[oe.mc.r + "_" + oe.mc.c][1]
+                                }
+                            };
                     }
                 }
                 N[G] = le;
@@ -137,6 +166,9 @@ pasteHandlerOfCopyPasteValues: function (e) {
         }
     }
 
+    // ---------------------------
+    // Final apply
+    // ---------------------------
     w.row = [x, C];
     w.column = [S, _];
 
