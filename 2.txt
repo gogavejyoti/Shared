@@ -38,3 +38,10 @@ function _shiftSameSheetReference({ type, sheetIndex, startIndex, count }) {
         }
     }
 }
+// ✅ shift SAME sheet references
+_shiftSameSheetReference({
+    type: h.luckysheetRightHeadClickIs === "row" ? "deleteRow" : "deleteCol",
+    sheetIndex: h.currentSheetIndex,
+    startIndex: t,
+    count: deleteCount
+});
