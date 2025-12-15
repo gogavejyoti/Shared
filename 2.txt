@@ -1,8 +1,44 @@
- initialFreezen: function (e) {
-                //let n = this;
-                //n.frozenTofreezen();
-                //let t = h.luckysheetfile[K(e)];
-                //t.freezen != null && t.freezen.horizontal != null && t.freezen.horizontal.freezenhorizontaldata != null ? n.createFreezenHorizontal(t.freezen.horizontal.freezenhorizontaldata, t.freezen.horizontal.top) : n.cancelFreezenHorizontal(e),
-                //    t.freezen != null && t.freezen.vertical != null && t.freezen.vertical.freezenverticaldata != null ? n.createFreezenVertical(t.freezen.vertical.freezenverticaldata, t.freezen.vertical.left) : n.cancelFreezenVertical(e),
-                //    n.createAssistCanvas()
-            },
+initialFreezen: function (e) {
+    let n = this;
+
+    // Clear existing freeze
+    n.frozenTofreezen();
+
+    let t = h.luckysheetfile[K(e)];
+
+    // ===== FIX: normalize freeze on load =====
+    if (t.freezen) {
+
+        // Horizontal freeze (rows)
+        if (t.freezen.horizontal && typeof t.freezen.horizontal.freezenhorizontaldata === "number") {
+            if (t.freezen.horizontal.freezenhorizontaldata > 0) {
+                t.freezen.horizontal.freezenhorizontaldata -= 1;
+            }
+        }
+
+        // Vertical freeze (columns)
+        if (t.freezen.vertical && typeof t.freezen.vertical.freezenverticaldata === "number") {
+            if (t.freezen.vertical.freezenverticaldata > 0) {
+                t.freezen.vertical.freezenverticaldata -= 1;
+            }
+        }
+    }
+    // ========================================
+
+    // Apply freeze
+    t.freezen != null && t.freezen.horizontal != null && t.freezen.horizontal.freezenhorizontaldata != null
+        ? n.createFreezenHorizontal(
+            t.freezen.horizontal.freezenhorizontaldata,
+            t.freezen.horizontal.top
+        )
+        : n.cancelFreezenHorizontal(e);
+
+    t.freezen != null && t.freezen.vertical != null && t.freezen.vertical.freezenverticaldata != null
+        ? n.createFreezenVertical(
+            t.freezen.vertical.freezenverticaldata,
+            t.freezen.vertical.left
+        )
+        : n.cancelFreezenVertical(e);
+
+    n.createAssistCanvas();
+}
