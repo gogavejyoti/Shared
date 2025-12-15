@@ -1,44 +1,39 @@
 initialFreezen: function (e) {
     let n = this;
-
-    // Clear existing freeze
     n.frozenTofreezen();
 
     let t = h.luckysheetfile[K(e)];
 
-    // ===== FIX: normalize freeze on load =====
-    if (t.freezen) {
+    // ================= FIX =================
+    // Pass boundary index - 1 into create functions
+    // because createFreezen* internally adds +1
+    // =======================================
 
-        // Horizontal freeze (rows)
-        if (t.freezen.horizontal && typeof t.freezen.horizontal.freezenhorizontaldata === "number") {
-            if (t.freezen.horizontal.freezenhorizontaldata > 0) {
-                t.freezen.horizontal.freezenhorizontaldata -= 1;
-            }
-        }
-
-        // Vertical freeze (columns)
-        if (t.freezen.vertical && typeof t.freezen.vertical.freezenverticaldata === "number") {
-            if (t.freezen.vertical.freezenverticaldata > 0) {
-                t.freezen.vertical.freezenverticaldata -= 1;
-            }
-        }
-    }
-    // ========================================
-
-    // Apply freeze
-    t.freezen != null && t.freezen.horizontal != null && t.freezen.horizontal.freezenhorizontaldata != null
-        ? n.createFreezenHorizontal(
-            t.freezen.horizontal.freezenhorizontaldata,
+    if (
+        t.freezen &&
+        t.freezen.horizontal &&
+        typeof t.freezen.horizontal.freezenhorizontaldata === "number"
+    ) {
+        n.createFreezenHorizontal(
+            Math.max(t.freezen.horizontal.freezenhorizontaldata - 1, 0),
             t.freezen.horizontal.top
-        )
-        : n.cancelFreezenHorizontal(e);
+        );
+    } else {
+        n.cancelFreezenHorizontal(e);
+    }
 
-    t.freezen != null && t.freezen.vertical != null && t.freezen.vertical.freezenverticaldata != null
-        ? n.createFreezenVertical(
-            t.freezen.vertical.freezenverticaldata,
+    if (
+        t.freezen &&
+        t.freezen.vertical &&
+        typeof t.freezen.vertical.freezenverticaldata === "number"
+    ) {
+        n.createFreezenVertical(
+            Math.max(t.freezen.vertical.freezenverticaldata - 1, 0),
             t.freezen.vertical.left
-        )
-        : n.cancelFreezenVertical(e);
+        );
+    } else {
+        n.cancelFreezenVertical(e);
+    }
 
     n.createAssistCanvas();
 }
