@@ -12,8 +12,7 @@ function _shiftSameSheetReference({
 
     let sheetChanged = false;
 
-    // Match single or range references WITHOUT sheet name
-    // Examples: A1, $A$1, A1:B10, $A1:B$10
+    // Matches: A1, $A$1, A1:B10, $A1:B$10
     const referenceRegex = /\$?([A-Z]+)\$?(\d+)(:\$?([A-Z]+)\$?(\d+))?/g;
 
     const data = sheet.data;
@@ -25,7 +24,7 @@ function _shiftSameSheetReference({
             const cell = data[r][c];
             if (!cell || !cell.f) continue;
 
-            let originalFormula = cell.f;
+            const originalFormula = cell.f;
             let modifiedFormula = originalFormula;
             let errorDetected = false;
 
@@ -35,88 +34,103 @@ function _shiftSameSheetReference({
                 _range,
                 endCol, endRow
             ) {
-                // --- Detect $ flags ---
+                // ---- Absolute markers ----
                 const startAbsCol = match.startsWith("$") ? "$" : "";
                 const startAbsRow = /\$\d+/.test(match) ? "$" : "";
 
-                let endAbsCol = "";
-                let endAbsRow = "";
+                let endAbsCol = "", endAbsRow = "";
                 if (endCol || endRow) {
-                    const rangePart = match.split(":")[1];
-                    if (rangePart) {
-                        endAbsCol = rangePart.startsWith("$") ? "$" : "";
-                        endAbsRow = /\$\d+/.test(rangePart) ? "$" : "";
+                    const rp = match.split(":")[1];
+                    if (rp) {
+                        endAbsCol = rp.startsWith("$") ? "$" : "";
+                        endAbsRow = /\$\d+/.test(rp) ? "$" : "";
                     }
                 }
 
-                // --- Convert to indices ---
-                let startColIndex = _columnLetterToIndex(startCol);
+                // ---- Indices ----
+                let startColIndex = colLetterToIndex(startCol);
                 let startRowIndex = parseInt(startRow, 10);
-                let endColIndex = endCol ? _columnLetterToIndex(endCol) : startColIndex;
+                let endColIndex = endCol ? colLetterToIndex(endCol) : startColIndex;
                 let endRowIndex = endRow ? parseInt(endRow, 10) : startRowIndex;
 
                 let rowDeleted = false;
                 let colDeleted = false;
 
-                // --- Row shifts ---
+                /* ================= ROW OPS ================= */
+
                 if (type === "insertRow") {
                     if (!startAbsRow && startRowIndex >= rowIndex + 1)
                         startRowIndex += rowCount;
+
                     if (!endAbsRow && endRowIndex >= rowIndex + 1)
                         endRowIndex += rowCount;
                 }
 
                 if (type === "deleteRow") {
+                    const delStart = rowIndex + 1;
+                    const delEnd   = rowIndex + rowCount;
+
+                    // Reference inside deleted rows → #REF!
                     if (
-                        (startRowIndex > rowIndex && startRowIndex <= rowIndex + rowCount) ||
-                        (endRowIndex > rowIndex && endRowIndex <= rowIndex + rowCount)
+                        (startRowIndex >= delStart && startRowIndex <= delEnd) ||
+                        (endRowIndex   >= delStart && endRowIndex   <= delEnd)
                     ) {
                         rowDeleted = true;
                         errorDetected = true;
-                    } else {
-                        if (!startAbsRow && startRowIndex > rowIndex + rowCount)
+                    }
+                    else {
+                        // Reference below deleted rows → shift up
+                        if (!startAbsRow && startRowIndex > delEnd)
                             startRowIndex -= rowCount;
-                        if (!endAbsRow && endRowIndex > rowIndex + rowCount)
+
+                        if (!endAbsRow && endRowIndex > delEnd)
                             endRowIndex -= rowCount;
                     }
                 }
 
-                // --- Column shifts ---
+                /* ================= COL OPS ================= */
+
                 if (type === "insertCol") {
                     if (!startAbsCol && startColIndex >= colIndex)
                         startColIndex += colCount;
+
                     if (!endAbsCol && endColIndex >= colIndex)
                         endColIndex += colCount;
                 }
 
                 if (type === "deleteCol") {
+                    const delStart = colIndex;
+                    const delEnd   = colIndex + colCount - 1;
+
+                    // Reference inside deleted columns → #REF!
                     if (
-                        (startColIndex >= colIndex && startColIndex < colIndex + colCount) ||
-                        (endColIndex >= colIndex && endColIndex < colIndex + colCount)
+                        (startColIndex >= delStart && startColIndex <= delEnd) ||
+                        (endColIndex   >= delStart && endColIndex   <= delEnd)
                     ) {
                         colDeleted = true;
                         errorDetected = true;
-                    } else {
-                        if (!startAbsCol && startColIndex >= colIndex + colCount)
+                    }
+                    else {
+                        // Reference right of deleted columns → shift left
+                        if (!startAbsCol && startColIndex > delEnd)
                             startColIndex -= colCount;
-                        if (!endAbsCol && endColIndex >= colIndex + colCount)
+
+                        if (!endAbsCol && endColIndex > delEnd)
                             endColIndex -= colCount;
                     }
                 }
 
                 if (rowDeleted || colDeleted) return "#REF!";
 
-                // --- Rebuild reference ---
+                // ---- Rebuild reference ----
                 const startRef =
-                    `${startAbsCol}${_columnIndexToLetter(startColIndex)}` +
+                    `${startAbsCol}${indexToColLetter(startColIndex)}` +
                     `${startAbsRow}${startRowIndex}`;
 
-                if (!endCol && !endRow) {
-                    return startRef;
-                }
+                if (!endCol && !endRow) return startRef;
 
                 const endRef =
-                    `${endAbsCol}${_columnIndexToLetter(endColIndex)}` +
+                    `${endAbsCol}${indexToColLetter(endColIndex)}` +
                     `${endAbsRow}${endRowIndex}`;
 
                 return `${startRef}:${endRef}`;
@@ -141,23 +155,23 @@ function _shiftSameSheetReference({
             luckysheetrefreshgrid();
     }
 
-    // --- Helpers ---
-    function _columnLetterToIndex(col) {
-        let index = 0;
-        for (let i = 0; i < col.length; i++) {
-            index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-        }
-        return index - 1;
+    /* ================= HELPERS ================= */
+
+    function colLetterToIndex(col) {
+        let n = 0;
+        for (let i = 0; i < col.length; i++)
+            n = n * 26 + (col.charCodeAt(i) - 64);
+        return n - 1;
     }
 
-    function _columnIndexToLetter(index) {
-        let col = "";
-        index += 1;
-        while (index > 0) {
-            let rem = (index - 1) % 26;
-            col = String.fromCharCode(65 + rem) + col;
-            index = Math.floor((index - 1) / 26);
+    function indexToColLetter(n) {
+        let s = "";
+        n++;
+        while (n > 0) {
+            let r = (n - 1) % 26;
+            s = String.fromCharCode(65 + r) + s;
+            n = Math.floor((n - 1) / 26);
         }
-        return col;
+        return s;
     }
 }
