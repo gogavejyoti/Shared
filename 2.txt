@@ -4,39 +4,26 @@ initialFreezen: function (e) {
 
     let t = h.luckysheetfile[K(e)];
 
-    // -------- HORIZONTAL FREEZE (ROWS) --------
-    if (
-        t.freezen &&
-        t.freezen.horizontal &&
-        Array.isArray(t.freezen.horizontal.freezenhorizontaldata)
-    ) {
-        // ✅ Use index at position [1]
-        const rowIndex = t.freezen.horizontal.freezenhorizontaldata[1];
+    // ===== FIX: prevent double freeze on load =====
+    // If pixel-based freezen exists, ignore frozen.range
+    if (t.freezen && t.frozen) {
+        delete t.frozen;
+    }
+    // =============================================
 
-        n.createFreezenHorizontal(
-            rowIndex,
+    t.freezen != null && t.freezen.horizontal != null && t.freezen.horizontal.freezenhorizontaldata != null
+        ? n.createFreezenHorizontal(
+            t.freezen.horizontal.freezenhorizontaldata,
             t.freezen.horizontal.top
-        );
-    } else {
-        n.cancelFreezenHorizontal(e);
-    }
+        )
+        : n.cancelFreezenHorizontal(e);
 
-    // -------- VERTICAL FREEZE (COLUMNS) --------
-    if (
-        t.freezen &&
-        t.freezen.vertical &&
-        Array.isArray(t.freezen.vertical.freezenverticaldata)
-    ) {
-        // ✅ Use index at position [1]
-        const colIndex = t.freezen.vertical.freezenverticaldata[1];
-
-        n.createFreezenVertical(
-            colIndex,
+    t.freezen != null && t.freezen.vertical != null && t.freezen.vertical.freezenverticaldata != null
+        ? n.createFreezenVertical(
+            t.freezen.vertical.freezenverticaldata,
             t.freezen.vertical.left
-        );
-    } else {
-        n.cancelFreezenVertical(e);
-    }
+        )
+        : n.cancelFreezenVertical(e);
 
     n.createAssistCanvas();
 }
