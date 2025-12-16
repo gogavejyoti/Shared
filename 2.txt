@@ -1,141 +1,28 @@
-function _shiftSameSheetReference({
-    type,
-    sheetIndex,
-    rowIndex,
-    rowCount = 1,
-    colIndex,
-    colCount = 1
-}) {
-    const sheet = Ft()?.[sheetIndex];
-    if (!sheet || !sheet.data) return;
+    function rebuildCalcChainWithFuncFromStoredValues() {
+        const sheets = luckysheet.getAllSheets(); // current workbook sheets
+        sheets.forEach(sheet => {
+            const { celldata = [], index } = sheet;
+            const chain = [];
 
-    const data = sheet.data;
-    let sheetChanged = false;
+            for (const cell of celldata) {
+                const hasFormula = cell?.v && typeof cell.v.f !== 'undefined' && cell.v.f !== null;
+                if (!hasFormula) continue;
 
-    // Matches:
-    // C10
-    // $C$10
-    // C$10
-    // $C10
-    // C10:D20
-    const referenceRegex = /(\$?)([A-Z]+)(\$?)(\d+)(?::(\$?)([A-Z]+)(\$?)(\d+))?/g;
+                const formulaString = cell.v.f;           // e.g. "=C10*C45*C46*(1-C27)*(1-C44)"
+                const lastValue = cell.v.v ?? 0;          // previously computed value, if any
+                const isCalculated = typeof cell.v.v !== 'undefined';
 
-    for (let r = 0; r < data.length; r++) {
-        if (!data[r]) continue;
-
-        for (let c = 0; c < data[r].length; c++) {
-            const cell = data[r][c];
-            if (!cell || !cell.f) continue;
-
-            const originalFormula = cell.f;
-            let modifiedFormula = originalFormula;
-            let errorDetected = false;
-
-            modifiedFormula = modifiedFormula.replace(referenceRegex, function (
-                match,
-                sAbsCol, sCol, sAbsRow, sRow,
-                eAbsCol, eCol, eAbsRow, eRow
-            ) {
-                let startColIndex = colLetterToIndex(sCol);
-                let startRowIndex = parseInt(sRow, 10);
-
-                let endColIndex = eCol ? colLetterToIndex(eCol) : startColIndex;
-                let endRowIndex = eRow ? parseInt(eRow, 10) : startRowIndex;
-
-                // -------- ROW SHIFT --------
-                if (type === "insertRow") {
-                    if (!sAbsRow && startRowIndex >= rowIndex + 1)
-                        startRowIndex += rowCount;
-                    if (eRow && !eAbsRow && endRowIndex >= rowIndex + 1)
-                        endRowIndex += rowCount;
-                }
-
-                if (type === "deleteRow") {
-                    if (
-                        (startRowIndex > rowIndex && startRowIndex <= rowIndex + rowCount) ||
-                        (endRowIndex > rowIndex && endRowIndex <= rowIndex + rowCount)
-                    ) {
-                        errorDetected = true;
-                        return "#REF!";
-                    }
-
-                    if (!sAbsRow && startRowIndex > rowIndex + rowCount)
-                        startRowIndex -= rowCount;
-                    if (eRow && !eAbsRow && endRowIndex > rowIndex + rowCount)
-                        endRowIndex -= rowCount;
-                }
-
-                // -------- COLUMN SHIFT --------
-                if (type === "insertCol") {
-                    if (!sAbsCol && startColIndex >= colIndex)
-                        startColIndex += colCount;
-                    if (eCol && !eAbsCol && endColIndex >= colIndex)
-                        endColIndex += colCount;
-                }
-
-                if (type === "deleteCol") {
-                    if (
-                        (startColIndex >= colIndex && startColIndex < colIndex + colCount) ||
-                        (endColIndex >= colIndex && endColIndex < colIndex + colCount)
-                    ) {
-                        errorDetected = true;
-                        return "#REF!";
-                    }
-
-                    if (!sAbsCol && startColIndex >= colIndex + colCount)
-                        startColIndex -= colCount;
-                    if (eCol && !eAbsCol && endColIndex >= colIndex + colCount)
-                        endColIndex -= colCount;
-                }
-
-                const startRef =
-                    `${sAbsCol}${indexToColLetter(startColIndex)}` +
-                    `${sAbsRow}${startRowIndex}`;
-
-                if (!eCol && !eRow) {
-                    return startRef;
-                }
-
-                const endRef =
-                    `${eAbsCol}${indexToColLetter(endColIndex)}` +
-                    `${eAbsRow}${endRowIndex}`;
-
-                return `${startRef}:${endRef}`;
-            });
-
-            if (modifiedFormula !== originalFormula) {
-                cell.f = modifiedFormula;
-                sheetChanged = true;
-
-                if (errorDetected) {
-                    cell.v = "#REF!";
-                    cell.ct = { fa: "General", t: "e" };
-                }
+                chain.push({
+                    r: cell.r,
+                    c: cell.c,
+                    index: sheet.index,                     // Luckysheet's sheet ID string
+                    func: [!!isCalculated, lastValue, formulaString]
+                });
             }
-        }
-    }
 
-    if (sheetChanged) {
-        typeof luckysheetrefreshgrid === "function" && luckysheetrefreshgrid();
+            sheet.calcChain = chain;
+          
+        });
+        return sheets;
     }
-
-    // ---------- HELPERS ----------
-    function colLetterToIndex(col) {
-        let n = 0;
-        for (let i = 0; i < col.length; i++) {
-            n = n * 26 + (col.charCodeAt(i) - 64);
-        }
-        return n - 1;
-    }
-
-    function indexToColLetter(index) {
-        let col = "";
-        index++;
-        while (index > 0) {
-            let r = (index - 1) % 26;
-            col = String.fromCharCode(65 + r) + col;
-            index = Math.floor((index - 1) / 26);
-        }
-        return col;
-    }
-}
+        
