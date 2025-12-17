@@ -1,1 +1,96 @@
-const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!(\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?|\$?\d+:\$?\d+|\$?[A-Z]+:\$?[A-Z]+)/g;
+ function st(Ee, ge, ke) {
+                        if (Ee.charCodeAt(0) === 40 && !ge.match(_e)) {
+                            var dt = ge.replace(/\( */, "").replace(/ \)/, "").replace(/\)/, "");
+                            return ke >= 0 ? st("n", dt, ke) : "(" + st("n", dt, -ke) + ")"
+                        }
+                        if (ge.charCodeAt(ge.length - 1) === 44)
+                            return pe(Ee, ge, ke);
+                        if (ge.indexOf("%") !== -1)
+                            return le(Ee, ge, ke);
+                        if (ge.indexOf("E") !== -1)
+                            return oe(ge, ke);
+                        if (ge.charCodeAt(0) === 36)
+                            return "$" + st(Ee, ge.substr(ge.charAt(1) == " " ? 2 : 1), ke);
+                        var De, Ce, St, rl, ml = Math.abs(ke), al = ke < 0 ? "-" : "";
+                        if (ge.match(/^00+$/))
+                            return al + m(ml, ge.length);
+                        if (ge.match(/^[#?]+$/))
+                            return De = m(ke, 0),
+                                De === "0" && (De = ""),
+                                De.length > ge.length ? De : Ue(ge.substr(0, ge.length - De.length)) + De;
+                        if (Ce = ge.match(Fe))
+                            return ae(Ce, ml, al);
+                        if (ge.match(/^#+0+$/))
+                            return al + m(ml, ge.length - ge.indexOf("0"));
+                        if (Ce = ge.match(qe))
+                            return De = ze(ke, Ce[1].length).replace(/^([^\.]+)$/, "$1." + Ue(Ce[1])).replace(/\.$/, "." + Ue(Ce[1])).replace(/\.(\d*)$/, function (Z, re) {
+                                return "." + re + l("0", Ue(Ce[1]).length - re.length)
+                            }),
+                                ge.indexOf("0.") !== -1 ? De : De.replace(/^0\./, ".");
+                        if (ge = ge.replace(/^#+([0.])/, "$1"),
+                            Ce = ge.match(/^(0*)\.(#*)$/))
+                            return al + ze(ml, Ce[2].length).replace(/\.(\d*[1-9])0*$/, ".$1").replace(/^(-?\d*)$/, "$1.").replace(/^0\./, Ce[1].length ? "0." : ".");
+                        if (Ce = ge.match(/^#{1,3},##0(\.?)$/))
+                            return al + O(m(ml, 0));
+                        if (Ce = ge.match(/^#,##0\.([#0]*0)$/))
+                            return ke < 0 ? "-" + st(Ee, ge, -ke) : O("" + (Math.floor(ke) + gt(ke, Ce[1].length))) + "." + a(et(ke, Ce[1].length), Ce[1].length);
+                        if (Ce = ge.match(/^#,#*,#0/))
+                            return st(Ee, ge.replace(/^#,#*,/, ""), ke);
+                        if (Ce = ge.match(/^([0#]+)(\\?-([0#]+))+$/))
+                            return De = t(st(Ee, ge.replace(/[\\-]/g, ""), ke)),
+                                St = 0,
+                                t(t(ge.replace(/\\/g, "")).replace(/[0#]/g, function (Z) {
+                                    return St < De.length ? De.charAt(St++) : Z === "0" ? "0" : ""
+                                }));
+                        if (ge.match(Pe))
+                            return De = st(Ee, "##########", ke),
+                                "(" + De.substr(0, 3) + ") " + De.substr(3, 3) + "-" + De.substr(6);
+                        var Ot = "";
+                        if (Ce = ge.match(/^([#0?]+)( ?)\/( ?)([#0?]+)/))
+                            return St = Math.min(Ce[4].length, 7),
+                                rl = S(ml, Math.pow(10, St) - 1, !1),
+                                De = "" + al,
+                                Ot = V("n", Ce[1], rl[1]),
+                                Ot.charAt(Ot.length - 1) == " " && (Ot = Ot.substr(0, Ot.length - 1) + "0"),
+                                De += Ot + Ce[2] + "/" + Ce[3],
+                                Ot = s(rl[2], St),
+                                Ot.length < Ce[4].length && (Ot = Ue(Ce[4].substr(Ce[4].length - Ot.length)) + Ot),
+                                De += Ot,
+                                De;
+                        if (Ce = ge.match(/^# ([#0?]+)( ?)\/( ?)([#0?]+)/))
+                            return St = Math.min(Math.max(Ce[1].length, Ce[4].length), 7),
+                                rl = S(ml, Math.pow(10, St) - 1, !0),
+                                al + (rl[0] || (rl[1] ? "" : "0")) + " " + (rl[1] ? o(rl[1], St) + Ce[2] + "/" + Ce[3] + s(rl[2], St) : l(" ", 2 * St + 1 + Ce[2].length + Ce[3].length));
+                        if (Ce = ge.match(/^[#0?]+$/))
+                            return De = m(ke, 0),
+                                ge.length <= De.length ? De : Ue(ge.substr(0, ge.length - De.length)) + De;
+                        if (Ce = ge.match(/^([#0?]+)\.([#0]+)$/)) {
+                            De = "" + ke.toFixed(Math.min(Ce[2].length, 10)).replace(/([^0])0+$/, "$1"),
+                                St = De.indexOf(".");
+                            var Zl = ge.indexOf(".") - St
+                                , Qa = ge.length - De.length - Zl;
+                            return Ue(ge.substr(0, Zl) + De + ge.substr(ge.length - Qa))
+                        }
+                        if (Ce = ge.match(/^00,000\.([#0]*0)$/))
+                            return St = et(ke, Ce[1].length),
+                                ke < 0 ? "-" + st(Ee, ge, -ke) : O(Tt(ke)).replace(/^\d,\d{3}$/, "0$&").replace(/^\d*$/, function (Z) {
+                                    return "00," + (Z.length < 3 ? a(0, 3 - Z.length) : "") + Z
+                                }) + "." + a(St, Ce[1].length);
+                        switch (ge) {
+                            case "###,##0.00":
+                                return st(Ee, "#,##0.00", ke);
+                            case "###,###":
+                            case "##,###":
+                            case "#,###":
+                                var Un = O(m(ml, 0));
+                                return Un !== "0" ? al + Un : "";
+                            case "###,###.00":
+                                return st(Ee, "###,##0.00", ke).replace(/^0\./, ".");
+                            case "#,###.00":
+                                return st(Ee, "#,##0.00", ke).replace(/^0\./, ".");
+                            default:
+                        }
+                        throw new Error("unsupported format |" + ge + "|")
+                    }
+
+
