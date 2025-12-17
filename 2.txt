@@ -9,15 +9,9 @@ function _shiftCrossSheetReference({
     const sheets = Ft() || [];
     let changed = false;
 
+    // JS-COMPATIBLE REGEX (NO x FLAG, NO COMMENTS)
     const REF_REGEX =
-        /(?:'([^']+)'|([A-Za-z0-9_]+))!
-        (
-            \$?\d+:\$?\d+ |                  # row range
-            \$?[A-Z]+:\$?[A-Z]+ |            # col range
-            \$?\d+ |                         # row only
-            \$?[A-Z]+ |                      # col only
-            \$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?  # A1 / A1:B2
-        )/gx;
+        /(?:'([^']+)'|([A-Za-z0-9_]+))!(\$?\d+:\$?\d+|\$?[A-Z]+:\$?[A-Z]+|\$?\d+|\$?[A-Z]+|\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?)/g;
 
     for (const sheet of sheets) {
         if (!sheet.data) continue;
@@ -28,8 +22,8 @@ function _shiftCrossSheetReference({
             for (const cell of row) {
                 if (!cell || typeof cell.f !== "string") continue;
 
-                let error = false;
                 const original = cell.f;
+                let refError = false;
 
                 const updated = original.replace(
                     REF_REGEX,
@@ -40,7 +34,7 @@ function _shiftCrossSheetReference({
 
                         const same = target.index === sheetIndex;
 
-                        // ---------- ROW RANGE ----------
+                        // ---------- ROW RANGE (43:43) ----------
                         if (/^\$?\d+:\$?\d+$/.test(ref)) {
                             if (!same) return m;
 
@@ -66,35 +60,39 @@ function _shiftCrossSheetReference({
                                 } else if (ds <= e && de >= s) {
                                     const overlap = Math.min(e, de) - Math.max(s, ds) + 1;
                                     if (overlap >= (e - s + 1)) {
-                                        error = true;
+                                        refError = true;
                                         return "#REF!";
                                     }
                                     e -= overlap;
                                 }
                             }
+
                             return `'${name}'!${sa ? "$" : ""}${s}:${ea ? "$" : ""}${e}`;
                         }
 
-                        // ---------- ROW ONLY ----------
+                        // ---------- ROW ONLY (43) ----------
                         if (/^\$?\d+$/.test(ref)) {
                             if (!same) return m;
+
                             let r = +ref.replace("$", "");
                             const abs = ref[0] === "$";
 
                             if (type === "insertRow" && r > rowIndex) r += rowCount;
                             if (type === "deleteRow") {
                                 if (r > rowIndex && r <= rowIndex + rowCount) {
-                                    error = true;
+                                    refError = true;
                                     return "#REF!";
                                 }
                                 if (r > rowIndex + rowCount) r -= rowCount;
                             }
+
                             return `'${name}'!${abs ? "$" : ""}${r}`;
                         }
 
-                        // ---------- COLUMN RANGE ----------
+                        // ---------- COLUMN RANGE (C:D) ----------
                         if (/^\$?[A-Z]+:\$?[A-Z]+$/.test(ref)) {
                             if (!same) return m;
+
                             let [a, b] = ref.split(":");
                             let s = _colToIdx(a.replace("$", ""));
                             let e = _colToIdx(b.replace("$", ""));
@@ -117,42 +115,44 @@ function _shiftCrossSheetReference({
                                 } else if (ds <= e && de >= s) {
                                     const overlap = Math.min(e, de) - Math.max(s, ds) + 1;
                                     if (overlap >= (e - s + 1)) {
-                                        error = true;
+                                        refError = true;
                                         return "#REF!";
                                     }
                                     e -= overlap;
                                 }
                             }
+
                             return `'${name}'!${sa ? "$" : ""}${_idxToCol(s)}:${ea ? "$" : ""}${_idxToCol(e)}`;
                         }
 
-                        // ---------- COLUMN ONLY ----------
+                        // ---------- COLUMN ONLY (C) ----------
                         if (/^\$?[A-Z]+$/.test(ref)) {
                             if (!same) return m;
+
                             let c = _colToIdx(ref.replace("$", ""));
                             const abs = ref[0] === "$";
 
                             if (type === "insertCol" && c >= colIndex) c += colCount;
                             if (type === "deleteCol") {
                                 if (c >= colIndex && c < colIndex + colCount) {
-                                    error = true;
+                                    refError = true;
                                     return "#REF!";
                                 }
                                 if (c >= colIndex + colCount) c -= colCount;
                             }
+
                             return `'${name}'!${abs ? "$" : ""}${_idxToCol(c)}`;
                         }
 
                         // ---------- A1 / A1:B2 ----------
-                        const [sRef, eRef] = ref.split(":");
-                        const s = _parseA1(sRef);
-                        const e = eRef ? _parseA1(eRef) : null;
+                        const parts = ref.split(":");
+                        const s = _parseA1(parts[0]);
+                        const e = parts[1] ? _parseA1(parts[1]) : null;
 
                         let sr = s.row, er = e ? e.row : sr;
                         let sc = s.col, ec = e ? e.col : sc;
 
                         if (same) {
-                            // rows
                             if (type === "insertRow") {
                                 if (rowIndex < sr) {
                                     sr += rowCount;
@@ -169,14 +169,13 @@ function _shiftCrossSheetReference({
                                 } else if (ds <= er && de >= sr) {
                                     const overlap = Math.min(er, de) - Math.max(sr, ds) + 1;
                                     if (overlap >= (er - sr + 1)) {
-                                        error = true;
+                                        refError = true;
                                         return "#REF!";
                                     }
                                     er -= overlap;
                                 }
                             }
 
-                            // columns
                             if (type === "insertCol") {
                                 if (colIndex < sc) {
                                     sc += colCount;
@@ -193,7 +192,7 @@ function _shiftCrossSheetReference({
                                 } else if (ds <= ec && de >= sc) {
                                     const overlap = Math.min(ec, de) - Math.max(sc, ds) + 1;
                                     if (overlap >= (ec - sc + 1)) {
-                                        error = true;
+                                        refError = true;
                                         return "#REF!";
                                     }
                                     ec -= overlap;
@@ -210,7 +209,7 @@ function _shiftCrossSheetReference({
                 if (updated !== original) {
                     cell.f = updated;
                     changed = true;
-                    if (error) {
+                    if (refError) {
                         cell.v = "#REF!";
                         cell.ct = { t: "e", fa: "General" };
                     }
@@ -224,7 +223,7 @@ function _shiftCrossSheetReference({
         else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
     }
 
-    // -------- helpers --------
+    // ---------- helpers ----------
     function _parseA1(r) {
         const m = /^(\$?)([A-Z]+)(\$?)(\d+)$/.exec(r);
         return {
