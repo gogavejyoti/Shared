@@ -6,13 +6,15 @@ function _shiftCrossSheetReference({
     colIndex,
     colCount = 1
 }) {
-    const sheets = Ft() || [];
-    let changed = false;
+    const allSheets = Ft() || [];
+    let sheetChanged = false;
 
-    const REF_REGEX =
-        /(?:'([^']+)'|([A-Za-z0-9_]+))!(\$?\d+:\$?\d+|\$?[A-Z]+:\$?[A-Z]+|\$?\d+|\$?[A-Z]+|\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?)/g;
+    // Sheet!A1 | 'Sheet Name'!A1:B10 | Sheet!11 | Sheet!43:43
+    const referenceRegex =
+        /(?:'([^']+)'|([A-Za-z0-9_]+))!
+        (\$?\d+:\$?\d+|\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?|\$?\d+)/gx;
 
-    for (const sheet of sheets) {
+    for (const sheet of allSheets) {
         if (!sheet.data) continue;
 
         for (const row of sheet.data) {
@@ -22,108 +24,132 @@ function _shiftCrossSheetReference({
                 if (!cell || typeof cell.f !== "string") continue;
 
                 const original = cell.f;
+                let modified = original;
                 let refError = false;
 
-                const updated = original.replace(REF_REGEX, (m, qs, us, ref) => {
-                    const name = qs || us;
-                    const target = sheets.find(s => s.name === name);
-                    if (!target) return m;
+                modified = modified.replace(referenceRegex, (match, qSheet, uSheet, refBody) => {
+                    const sheetName = qSheet || uSheet;
+                    const refSheet = allSheets.find(s => s.name === sheetName);
+                    if (!refSheet) return match;
 
-                    const same = target.index === sheetIndex;
+                    const sameSheet = refSheet.index === sheetIndex;
 
-                    // ---------- ROW RANGE ----------
-                    if (/^\$?\d+:\$?\d+$/.test(ref)) {
-                        if (!same) return m;
-                        let [a, b] = ref.split(":");
-                        let s = +a.replace("$", "");
-                        let e = +b.replace("$", "");
-                        const sa = a[0] === "$";
-                        const ea = b[0] === "$";
+                    /* ================= ROW RANGE: 43:43 ================= */
+                    if (/^\$?\d+:\$?\d+$/.test(refBody)) {
+                        if (!sameSheet) return match;
 
-                        ({ s, e } = shiftRange(type, s, e, rowIndex + 1, rowCount, true));
-                        if (s == null) {
-                            refError = true;
-                            return "#REF!";
+                        let [s, e] = refBody.split(":");
+                        let sRow = parseInt(s.replace("$", ""), 10);
+                        let eRow = parseInt(e.replace("$", ""), 10);
+                        const sAbs = s.startsWith("$");
+                        const eAbs = e.startsWith("$");
+
+                        if (type === "insertRow") {
+                            if (rowIndex < sRow) {
+                                sRow += rowCount;
+                                eRow += rowCount;
+                            } else if (rowIndex >= sRow && rowIndex <= eRow) {
+                                eRow += rowCount;
+                            }
+                        } else if (type === "deleteRow") {
+                            if (
+                                (sRow > rowIndex && sRow <= rowIndex + rowCount) ||
+                                (eRow > rowIndex && eRow <= rowIndex + rowCount)
+                            ) {
+                                refError = true;
+                                return "#REF!";
+                            }
+                            if (sRow > rowIndex + rowCount) {
+                                sRow -= rowCount;
+                                eRow -= rowCount;
+                            }
                         }
-                        return `'${name}'!${sa ? "$" : ""}${s}:${ea ? "$" : ""}${e}`;
+
+                        return `'${sheetName}'!${sAbs ? "$" : ""}${sRow}:${eAbs ? "$" : ""}${eRow}`;
                     }
 
-                    // ---------- ROW ONLY ----------
-                    if (/^\$?\d+$/.test(ref)) {
-                        if (!same) return m;
-                        let r = +ref.replace("$", "");
-                        const abs = ref[0] === "$";
+                    /* ================= ROW ONLY: 43 ================= */
+                    if (/^\$?\d+$/.test(refBody)) {
+                        if (!sameSheet) return match;
 
-                        if (type === "insertRow" && r > rowIndex + 1) r += rowCount;
-                        if (type === "deleteRow") {
+                        let r = parseInt(refBody.replace("$", ""), 10);
+                        const abs = refBody.startsWith("$");
+
+                        if (type === "insertRow" && r > rowIndex) r += rowCount;
+                        else if (type === "deleteRow") {
                             if (r > rowIndex && r <= rowIndex + rowCount) {
                                 refError = true;
                                 return "#REF!";
                             }
                             if (r > rowIndex + rowCount) r -= rowCount;
                         }
-                        return `'${name}'!${abs ? "$" : ""}${r}`;
+                        return `'${sheetName}'!${abs ? "$" : ""}${r}`;
                     }
 
-                    // ---------- COLUMN RANGE ----------
-                    if (/^\$?[A-Z]+:\$?[A-Z]+$/.test(ref)) {
-                        if (!same) return m;
-                        let [a, b] = ref.split(":");
-                        let s = colToIdx(a.replace("$", ""));
-                        let e = colToIdx(b.replace("$", ""));
-                        const sa = a[0] === "$";
-                        const ea = b[0] === "$";
+                    /* ================= A1 or A1:A10 ================= */
+                    const parts = refBody.split(":");
+                    const start = parseA1(parts[0]);
+                    const end = parts[1] ? parseA1(parts[1]) : null;
+                    if (!start) return match;
 
-                        ({ s, e } = shiftRange(type, s, e, colIndex, colCount, false));
-                        if (s == null) {
-                            refError = true;
-                            return "#REF!";
+                    let sRow = start.row, eRow = end ? end.row : start.row;
+                    let sCol = start.col, eCol = end ? end.col : start.col;
+
+                    if (sameSheet) {
+                        /* ---- INSERT ROW ---- */
+                        if (type === "insertRow") {
+                            if (!start.absRow) {
+                                if (rowIndex < sRow) {
+                                    sRow += rowCount;
+                                    if (end && !end.absRow) eRow += rowCount;
+                                } else if (end && rowIndex >= sRow && rowIndex <= eRow) {
+                                    if (!end.absRow) eRow += rowCount;
+                                }
+                            }
                         }
-                        return `'${name}'!${sa ? "$" : ""}${idxToCol(s)}:${ea ? "$" : ""}${idxToCol(e)}`;
-                    }
 
-                    // ---------- COLUMN ONLY ----------
-                    if (/^\$?[A-Z]+$/.test(ref)) {
-                        if (!same) return m;
-                        let c = colToIdx(ref.replace("$", ""));
-                        const abs = ref[0] === "$";
-
-                        if (type === "insertCol" && c >= colIndex) c += colCount;
-                        if (type === "deleteCol") {
-                            if (c >= colIndex && c < colIndex + colCount) {
+                        /* ---- DELETE ROW ---- */
+                        if (type === "deleteRow") {
+                            if (
+                                (sRow > rowIndex && sRow <= rowIndex + rowCount) ||
+                                (eRow > rowIndex && eRow <= rowIndex + rowCount)
+                            ) {
                                 refError = true;
                                 return "#REF!";
                             }
-                            if (c >= colIndex + colCount) c -= colCount;
+                            if (!start.absRow && sRow > rowIndex + rowCount) sRow -= rowCount;
+                            if (end && !end.absRow && eRow > rowIndex + rowCount) eRow -= rowCount;
                         }
-                        return `'${name}'!${abs ? "$" : ""}${idxToCol(c)}`;
+
+                        /* ---- INSERT COL ---- */
+                        if (type === "insertCol") {
+                            if (!start.absCol && sCol >= colIndex) sCol += colCount;
+                            if (end && !end.absCol && eCol >= colIndex) eCol += colCount;
+                        }
+
+                        /* ---- DELETE COL ---- */
+                        if (type === "deleteCol") {
+                            if (
+                                (sCol >= colIndex && sCol < colIndex + colCount) ||
+                                (eCol >= colIndex && eCol < colIndex + colCount)
+                            ) {
+                                refError = true;
+                                return "#REF!";
+                            }
+                            if (!start.absCol && sCol >= colIndex + colCount) sCol -= colCount;
+                            if (end && !end.absCol && eCol >= colIndex + colCount) eCol -= colCount;
+                        }
                     }
 
-                    // ---------- A1 / A1:B2 ----------
-                    const parts = ref.split(":");
-                    const s = parseA1(parts[0]);
-                    const e = parts[1] ? parseA1(parts[1]) : s;
+                    const startRef = buildA1(start, sCol, sRow);
+                    const endRef = end ? buildA1(end, eCol, eRow) : null;
 
-                    let sr = s.row, er = e.row;
-                    let sc = s.col, ec = e.col;
-
-                    if (same) {
-                        ({ s: sr, e: er } = shiftRange(type, sr, er, rowIndex + 1, rowCount, true));
-                        ({ s: sc, e: ec } = shiftRange(type, sc, ec, colIndex, colCount, false));
-                        if (sr == null || sc == null) {
-                            refError = true;
-                            return "#REF!";
-                        }
-                    }
-
-                    const start = buildA1(s, sc, sr);
-                    const end = parts[1] ? buildA1(e, ec, er) : null;
-                    return `'${name}'!${end ? start + ":" + end : start}`;
+                    return `'${sheetName}'!${endRef ? startRef + ":" + endRef : startRef}`;
                 });
 
-                if (updated !== original) {
-                    cell.f = updated;
-                    changed = true;
+                if (modified !== original) {
+                    cell.f = modified;
+                    sheetChanged = true;
                     if (refError) {
                         cell.v = "#REF!";
                         cell.ct = { t: "e", fa: "General" };
@@ -133,57 +159,42 @@ function _shiftCrossSheetReference({
         }
     }
 
-    if (changed) {
+    if (sheetChanged) {
         if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
         else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
     }
 
-    // ---------- helpers ----------
-    function shiftRange(type, s, e, opStart, opCount, isRow) {
-        const opEnd = opStart + opCount - 1;
+    /* ================= HELPERS ================= */
 
-        if ((type === "insertRow" && isRow) || (type === "insertCol" && !isRow)) {
-            if (opStart < s) return { s: s + opCount, e: e + opCount };
-            if (opStart >= s && opStart <= e) return { s, e: e + opCount };
-            return { s, e };
-        }
-
-        if ((type === "deleteRow" && isRow) || (type === "deleteCol" && !isRow)) {
-            if (opEnd < s) return { s: s - opCount, e: e - opCount };
-            if (opStart > e) return { s, e };
-
-            const overlap = Math.min(e, opEnd) - Math.max(s, opStart) + 1;
-            if (overlap >= (e - s + 1)) return { s: null, e: null };
-            return { s, e: e - overlap };
-        }
-
-        return { s, e };
-    }
-
-    function parseA1(r) {
-        const m = /^(\$?)([A-Z]+)(\$?)(\d+)$/.exec(r);
+    function parseA1(ref) {
+        const m = /^(\$?)([A-Z]+)(\$?)(\d+)$/.exec(ref);
+        if (!m) return null;
         return {
             absCol: !!m[1],
-            col: colToIdx(m[2]),
+            col: colToIndex(m[2]),
             absRow: !!m[3],
-            row: +m[4]
+            row: parseInt(m[4], 10)
         };
     }
 
-    function buildA1(b, c, r) {
-        return `${b.absCol ? "$" : ""}${idxToCol(c)}${b.absRow ? "$" : ""}${r}`;
+    function buildA1(base, col, row) {
+        return `${base.absCol ? "$" : ""}${indexToCol(col)}${base.absRow ? "$" : ""}${row}`;
     }
 
-    function colToIdx(c) {
+    function colToIndex(col) {
         let n = 0;
-        for (let i = 0; i < c.length; i++) n = n * 26 + c.charCodeAt(i) - 64;
+        for (let i = 0; i < col.length; i++) n = n * 26 + (col.charCodeAt(i) - 64);
         return n - 1;
     }
 
-    function idxToCol(n) {
+    function indexToCol(n) {
         let s = "";
-        for (n++; n > 0; n = Math.floor((n - 1) / 26))
-            s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+        n++;
+        while (n > 0) {
+            const r = (n - 1) % 26;
+            s = String.fromCharCode(65 + r) + s;
+            n = Math.floor((n - 1) / 26);
+        }
         return s;
     }
 }
