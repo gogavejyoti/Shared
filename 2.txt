@@ -1,141 +1,174 @@
-    function _shiftCrossSheetReference({ type, sheetIndex, rowIndex, rowCount = 1, colIndex, colCount = 1 }) {
-        const allSheets = Ft() || [];
-        let sheetChanged = false;
+function _shiftCrossSheetReference({
+    type,
+    sheetIndex,
+    rowIndex,
+    rowCount = 1,
+    colIndex,
+    colCount = 1
+}) {
+    const allSheets = Ft() || [];
+    let sheetChanged = false;
 
-        // Match both quoted/unquoted sheet names + optional $ in col/row + optional ranges
-        //const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!\$?([A-Z]+)\$?(\d+)(:\$?([A-Z]+)\$?(\d+))?/g;
+    // Matches:
+    // Sheet!A1
+    // 'Sheet Name'!$A$1
+    // Sheet!A1:B10
+    // Sheet!11 (row-only)
+    const referenceRegex =
+        /(?:'([^']+)'|([A-Za-z0-9_]+))!(\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?|\$?\d+)/g;
 
+    for (const sheet of allSheets) {
+        const data = sheet.data;
+        if (!data) continue;
 
-        const referenceRegex =
-            /(?:'([^']+)'|([A-Za-z0-9_]+))!(\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?|\$?\d+)/g;
+        for (let r = 0; r < data.length; r++) {
+            const row = data[r];
+            if (!row) continue;
 
+            for (let c = 0; c < row.length; c++) {
+                const cell = row[c];
+                if (!cell || typeof cell.f !== "string") continue;
 
-        for (let s = 0; s < allSheets.length; s++) {
-            const sheet = allSheets[s];
-            const data = sheet.data;
-            if (!data) continue;
+                const originalFormula = cell.f;
+                let modifiedFormula = originalFormula;
+                let refError = false;
 
-            for (let r = 0; r < data.length; r++) {
-                if (!data[r]) continue;
-
-                for (let c = 0; c < data[r].length; c++) {
-                    const cell = data[r][c];
-                    if (!cell || !cell.f) continue;
-
-                    let originalFormula = cell.f;
-                    let modifiedFormula = originalFormula;
-                    let errorDetected = false;
-
-                    modifiedFormula = modifiedFormula.replace(referenceRegex, function (
-                        match,
-                        quotedSheet, unquotedSheet,
-                        startCol, startRow,
-                        _range,
-                        endCol, endRow
-                    ) {
-                        let sheetName = quotedSheet || unquotedSheet;
-                        const refSheet = allSheets.find(sh => sh.name === sheetName);
+                modifiedFormula = modifiedFormula.replace(
+                    referenceRegex,
+                    (match, quotedSheet, unquotedSheet, refBody) => {
+                        const sheetName = quotedSheet || unquotedSheet;
+                        const refSheet = allSheets.find(s => s.name === sheetName);
                         if (!refSheet) return match;
 
-                        // --- Detect absolute $ markers properly ---
-                        const startAbsCol = /\$[A-Z]+/.test(match.split("!")[1]) ? (/\$[A-Z]+/.exec(match.split("!")[1])[0].includes("$") ? "$" : "") : "";
-                        const startAbsRow = /\$\d+/.test(match.split("!")[1]) ? (/\$\d+/.exec(match.split("!")[1])[0].includes("$") ? "$" : "") : "";
+                        const isSameSheet = refSheet.index === sheetIndex;
 
-                        // For range end, detect only if exists
-                        let endAbsCol = "";
-                        let endAbsRow = "";
-                        if (endCol || endRow) {
-                            const rangePart = match.split(":")[1];
-                            if (rangePart) {
-                                endAbsCol = /\$[A-Z]+/.test(rangePart) ? "$" : "";
-                                endAbsRow = /\$\d+/.test(rangePart) ? "$" : "";
+                        // ---- ROW ONLY: Sheet!11 ----
+                        if (/^\$?\d+$/.test(refBody)) {
+                            if (!isSameSheet) return match;
+
+                            let rowNum = parseInt(refBody.replace("$", ""), 10);
+                            const abs = refBody.startsWith("$");
+
+                            if (type === "insertRow" && rowNum > rowIndex) {
+                                rowNum += rowCount;
+                            } else if (type === "deleteRow") {
+                                if (rowNum > rowIndex && rowNum <= rowIndex + rowCount) {
+                                    refError = true;
+                                    return "#REF!";
+                                }
+                                if (rowNum > rowIndex + rowCount) {
+                                    rowNum -= rowCount;
+                                }
+                            }
+                            return `'${sheetName}'!${abs ? "$" : ""}${rowNum}`;
+                        }
+
+                        // ---- A1 or RANGE ----
+                        const parts = refBody.split(":");
+                        const start = _parseA1(parts[0]);
+                        const end = parts[1] ? _parseA1(parts[1]) : null;
+
+                        if (!start) return match;
+
+                        let sCol = start.col;
+                        let sRow = start.row;
+                        let eCol = end ? end.col : sCol;
+                        let eRow = end ? end.row : sRow;
+
+                        // ---- ROW SHIFT ----
+                        if (isSameSheet) {
+                            if (type === "insertRow") {
+                                if (!start.absRow && sRow > rowIndex) sRow += rowCount;
+                                if (end && !end.absRow && eRow > rowIndex) eRow += rowCount;
+                            } else if (type === "deleteRow") {
+                                if (
+                                    (sRow > rowIndex && sRow <= rowIndex + rowCount) ||
+                                    (eRow > rowIndex && eRow <= rowIndex + rowCount)
+                                ) {
+                                    refError = true;
+                                    return "#REF!";
+                                }
+                                if (!start.absRow && sRow > rowIndex + rowCount) sRow -= rowCount;
+                                if (end && !end.absRow && eRow > rowIndex + rowCount) eRow -= rowCount;
                             }
                         }
 
-                        // --- Convert letters to indices ---
-                        let startColIndex = _columnLetterToIndex(startCol);
-                        let startRowIndex = parseInt(startRow, 10);
-                        let endColIndex = endCol ? _columnLetterToIndex(endCol) : startColIndex;
-                        let endRowIndex = endRow ? parseInt(endRow, 10) : startRowIndex;
-
-                        let rowDeleted = false, colDeleted = false;
-
-                        // --- Row shifts ---
-                        if (type === "insertRow" && refSheet.index === sheetIndex) {
-                            if (startRowIndex >= rowIndex + 1) startRowIndex += rowCount;
-                            if (endRowIndex >= rowIndex + 1) endRowIndex += rowCount;
-                        } else if (type === "deleteRow" && refSheet.index === sheetIndex) {
-                            if ((startRowIndex > rowIndex && startRowIndex <= rowIndex + rowCount) ||
-                                (endRowIndex > rowIndex && endRowIndex <= rowIndex + rowCount)) {
-                                rowDeleted = true;
-                                errorDetected = true;
-                            } else {
-                                if (startRowIndex > rowIndex + rowCount) startRowIndex -= rowCount;
-                                if (endRowIndex > rowIndex + rowCount) endRowIndex -= rowCount;
+                        // ---- COLUMN SHIFT ----
+                        if (isSameSheet) {
+                            if (type === "insertCol") {
+                                if (!start.absCol && sCol >= colIndex) sCol += colCount;
+                                if (end && !end.absCol && eCol >= colIndex) eCol += colCount;
+                            } else if (type === "deleteCol") {
+                                if (
+                                    (sCol >= colIndex && sCol < colIndex + colCount) ||
+                                    (eCol >= colIndex && eCol < colIndex + colCount)
+                                ) {
+                                    refError = true;
+                                    return "#REF!";
+                                }
+                                if (!start.absCol && sCol >= colIndex + colCount) sCol -= colCount;
+                                if (end && !end.absCol && eCol >= colIndex + colCount) eCol -= colCount;
                             }
                         }
 
-                        // --- Column shifts ---
-                        if (type === "insertCol" && refSheet.index === sheetIndex) {
-                            if (startColIndex >= colIndex) startColIndex += colCount;
-                            if (endColIndex >= colIndex) endColIndex += colCount;
-                        } else if (type === "deleteCol" && refSheet.index === sheetIndex) {
-                            if ((startColIndex >= colIndex && startColIndex < colIndex + colCount) ||
-                                (endColIndex >= colIndex && endColIndex < colIndex + colCount)) {
-                                colDeleted = true;
-                                errorDetected = true;
-                            } else {
-                                if (startColIndex >= colIndex + colCount) startColIndex -= colCount;
-                                if (endColIndex >= colIndex + colCount) endColIndex -= colCount;
-                            }
-                        }
+                        const startRef = _buildA1(start, sCol, sRow);
+                        const endRef = end ? _buildA1(end, eCol, eRow) : null;
 
-                        if (rowDeleted || colDeleted) return `#REF!`;
+                        return `'${sheetName}'!${endRef ? startRef + ":" + endRef : startRef}`;
+                    }
+                );
 
-                        // --- Rebuild references preserving $ signs ---
-                        const startRef = `${startAbsCol}${_columnIndexToLetter(startColIndex)}${startAbsRow}${startRowIndex}`;
-                        const endRef = `${endAbsCol}${_columnIndexToLetter(endColIndex)}${endAbsRow}${endRowIndex}`;
+                if (modifiedFormula !== originalFormula) {
+                    cell.f = modifiedFormula;
+                    sheetChanged = true;
 
-
-                        if (!endCol && !endRow) {
-                            return `'${sheetName}'!${startRef}`;
-                        } else {
-                            return `'${sheetName}'!${startRef}:${endRef}`;
-                        }
-                    });
-
-                    if (modifiedFormula !== originalFormula) {
-                        cell.f = modifiedFormula;
-                        sheetChanged = true;
-                        if (errorDetected) {
-                            cell.v = "#REF!";
-                            cell.ct = { fa: "General", t: "e" };
-                        }
+                    if (refError) {
+                        cell.v = "#REF!";
+                        cell.ct = { t: "e", fa: "General" };
                     }
                 }
             }
         }
-
-        if (sheetChanged) {
-            if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
-            else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
-        }
-
-        // --- Helpers ---
-        function _columnLetterToIndex(col) {
-            let index = 0;
-            for (let i = 0; i < col.length; i++) index = index * 26 + (col.charCodeAt(i) - 65 + 1);
-            return index - 1;
-        }
-
-        function _columnIndexToLetter(index) {
-            let col = "";
-            index += 1;
-            while (index > 0) {
-                let rem = (index - 1) % 26;
-                col = String.fromCharCode(65 + rem) + col;
-                index = Math.floor((index - 1) / 26);
-            }
-            return col;
-        }
     }
+
+    if (sheetChanged) {
+        if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
+        else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
+    }
+
+    // ---------------- HELPERS ----------------
+
+    function _parseA1(ref) {
+        const m = /^(\$?)([A-Z]+)(\$?)(\d+)$/.exec(ref);
+        if (!m) return null;
+        return {
+            absCol: !!m[1],
+            col: _colToIndex(m[2]),
+            absRow: !!m[3],
+            row: parseInt(m[4], 10)
+        };
+    }
+
+    function _buildA1(base, col, row) {
+        return `${base.absCol ? "$" : ""}${_indexToCol(col)}${base.absRow ? "$" : ""}${row}`;
+    }
+
+    function _colToIndex(col) {
+        let n = 0;
+        for (let i = 0; i < col.length; i++) {
+            n = n * 26 + (col.charCodeAt(i) - 64);
+        }
+        return n - 1;
+    }
+
+    function _indexToCol(n) {
+        let s = "";
+        n++;
+        while (n > 0) {
+            const r = (n - 1) % 26;
+            s = String.fromCharCode(65 + r) + s;
+            n = Math.floor((n - 1) / 26);
+        }
+        return s;
+    }
+}
