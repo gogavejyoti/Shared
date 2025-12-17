@@ -1,28 +1,9 @@
-    function rebuildCalcChainWithFuncFromStoredValues() {
-        const sheets = luckysheet.getAllSheets(); // current workbook sheets
-        sheets.forEach(sheet => {
-            const { celldata = [], index } = sheet;
-            const chain = [];
-
-            for (const cell of celldata) {
-                const hasFormula = cell?.v && typeof cell.v.f !== 'undefined' && cell.v.f !== null;
-                if (!hasFormula) continue;
-
-                const formulaString = cell.v.f;           // e.g. "=C10*C45*C46*(1-C27)*(1-C44)"
-                const lastValue = cell.v.v ?? 0;          // previously computed value, if any
-                const isCalculated = typeof cell.v.v !== 'undefined';
-
-                chain.push({
-                    r: cell.r,
-                    c: cell.c,
-                    index: sheet.index,                     // Luckysheet's sheet ID string
-                    func: [!!isCalculated, lastValue, formulaString]
-                });
-            }
-
-            sheet.calcChain = chain;
-          
-        });
-        return sheets;
-    }
-        
+const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!\$?([A-Z]+)\$?(\d+)(:\$?([A-Z]+)\$?(\d+))?/g;
+"=AVERAGEIF('PAT'!11,'Monthly Summary'!NWJR$19,'PAT'!42)+AVERAGEIF('PAT L2'!63,'Monthly Summary'!NWJR$76,'PAT L2'!99)
+   modifiedFormula = modifiedFormula.replace(referenceRegex, function (
+                        match,
+                        quotedSheet, unquotedSheet,
+                        startCol, startRow,
+                        _range,
+                        endCol, endRow
+                    ) {
