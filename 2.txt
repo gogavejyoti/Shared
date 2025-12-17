@@ -1,1 +1,251 @@
-=SUM('PAT'!G40:G44)
+function _shiftCrossSheetReference({
+    type,
+    sheetIndex,
+    rowIndex,
+    rowCount = 1,
+    colIndex,
+    colCount = 1
+}) {
+    const sheets = Ft() || [];
+    let changed = false;
+
+    const REF_REGEX =
+        /(?:'([^']+)'|([A-Za-z0-9_]+))!
+        (
+            \$?\d+:\$?\d+ |                  # row range
+            \$?[A-Z]+:\$?[A-Z]+ |            # col range
+            \$?\d+ |                         # row only
+            \$?[A-Z]+ |                      # col only
+            \$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?  # A1 / A1:B2
+        )/gx;
+
+    for (const sheet of sheets) {
+        if (!sheet.data) continue;
+
+        for (const row of sheet.data) {
+            if (!row) continue;
+
+            for (const cell of row) {
+                if (!cell || typeof cell.f !== "string") continue;
+
+                let error = false;
+                const original = cell.f;
+
+                const updated = original.replace(
+                    REF_REGEX,
+                    (m, q, u, ref) => {
+                        const name = q || u;
+                        const target = sheets.find(s => s.name === name);
+                        if (!target) return m;
+
+                        const same = target.index === sheetIndex;
+
+                        // ---------- ROW RANGE ----------
+                        if (/^\$?\d+:\$?\d+$/.test(ref)) {
+                            if (!same) return m;
+
+                            let [a, b] = ref.split(":");
+                            let s = +a.replace("$", "");
+                            let e = +b.replace("$", "");
+                            const sa = a[0] === "$";
+                            const ea = b[0] === "$";
+
+                            if (type === "insertRow") {
+                                if (rowIndex < s) {
+                                    s += rowCount;
+                                    e += rowCount;
+                                } else if (rowIndex >= s && rowIndex <= e) {
+                                    e += rowCount;
+                                }
+                            } else if (type === "deleteRow") {
+                                const ds = rowIndex + 1;
+                                const de = rowIndex + rowCount;
+                                if (de < s) {
+                                    s -= rowCount;
+                                    e -= rowCount;
+                                } else if (ds <= e && de >= s) {
+                                    const overlap = Math.min(e, de) - Math.max(s, ds) + 1;
+                                    if (overlap >= (e - s + 1)) {
+                                        error = true;
+                                        return "#REF!";
+                                    }
+                                    e -= overlap;
+                                }
+                            }
+                            return `'${name}'!${sa ? "$" : ""}${s}:${ea ? "$" : ""}${e}`;
+                        }
+
+                        // ---------- ROW ONLY ----------
+                        if (/^\$?\d+$/.test(ref)) {
+                            if (!same) return m;
+                            let r = +ref.replace("$", "");
+                            const abs = ref[0] === "$";
+
+                            if (type === "insertRow" && r > rowIndex) r += rowCount;
+                            if (type === "deleteRow") {
+                                if (r > rowIndex && r <= rowIndex + rowCount) {
+                                    error = true;
+                                    return "#REF!";
+                                }
+                                if (r > rowIndex + rowCount) r -= rowCount;
+                            }
+                            return `'${name}'!${abs ? "$" : ""}${r}`;
+                        }
+
+                        // ---------- COLUMN RANGE ----------
+                        if (/^\$?[A-Z]+:\$?[A-Z]+$/.test(ref)) {
+                            if (!same) return m;
+                            let [a, b] = ref.split(":");
+                            let s = _colToIdx(a.replace("$", ""));
+                            let e = _colToIdx(b.replace("$", ""));
+                            const sa = a[0] === "$";
+                            const ea = b[0] === "$";
+
+                            if (type === "insertCol") {
+                                if (colIndex <= s) {
+                                    s += colCount;
+                                    e += colCount;
+                                } else if (colIndex > s && colIndex <= e) {
+                                    e += colCount;
+                                }
+                            } else if (type === "deleteCol") {
+                                const ds = colIndex;
+                                const de = colIndex + colCount - 1;
+                                if (de < s) {
+                                    s -= colCount;
+                                    e -= colCount;
+                                } else if (ds <= e && de >= s) {
+                                    const overlap = Math.min(e, de) - Math.max(s, ds) + 1;
+                                    if (overlap >= (e - s + 1)) {
+                                        error = true;
+                                        return "#REF!";
+                                    }
+                                    e -= overlap;
+                                }
+                            }
+                            return `'${name}'!${sa ? "$" : ""}${_idxToCol(s)}:${ea ? "$" : ""}${_idxToCol(e)}`;
+                        }
+
+                        // ---------- COLUMN ONLY ----------
+                        if (/^\$?[A-Z]+$/.test(ref)) {
+                            if (!same) return m;
+                            let c = _colToIdx(ref.replace("$", ""));
+                            const abs = ref[0] === "$";
+
+                            if (type === "insertCol" && c >= colIndex) c += colCount;
+                            if (type === "deleteCol") {
+                                if (c >= colIndex && c < colIndex + colCount) {
+                                    error = true;
+                                    return "#REF!";
+                                }
+                                if (c >= colIndex + colCount) c -= colCount;
+                            }
+                            return `'${name}'!${abs ? "$" : ""}${_idxToCol(c)}`;
+                        }
+
+                        // ---------- A1 / A1:B2 ----------
+                        const [sRef, eRef] = ref.split(":");
+                        const s = _parseA1(sRef);
+                        const e = eRef ? _parseA1(eRef) : null;
+
+                        let sr = s.row, er = e ? e.row : sr;
+                        let sc = s.col, ec = e ? e.col : sc;
+
+                        if (same) {
+                            // rows
+                            if (type === "insertRow") {
+                                if (rowIndex < sr) {
+                                    sr += rowCount;
+                                    er += rowCount;
+                                } else if (rowIndex >= sr && rowIndex <= er) {
+                                    er += rowCount;
+                                }
+                            } else if (type === "deleteRow") {
+                                const ds = rowIndex + 1;
+                                const de = rowIndex + rowCount;
+                                if (de < sr) {
+                                    sr -= rowCount;
+                                    er -= rowCount;
+                                } else if (ds <= er && de >= sr) {
+                                    const overlap = Math.min(er, de) - Math.max(sr, ds) + 1;
+                                    if (overlap >= (er - sr + 1)) {
+                                        error = true;
+                                        return "#REF!";
+                                    }
+                                    er -= overlap;
+                                }
+                            }
+
+                            // columns
+                            if (type === "insertCol") {
+                                if (colIndex < sc) {
+                                    sc += colCount;
+                                    ec += colCount;
+                                } else if (colIndex >= sc && colIndex <= ec) {
+                                    ec += colCount;
+                                }
+                            } else if (type === "deleteCol") {
+                                const ds = colIndex;
+                                const de = colIndex + colCount - 1;
+                                if (de < sc) {
+                                    sc -= colCount;
+                                    ec -= colCount;
+                                } else if (ds <= ec && de >= sc) {
+                                    const overlap = Math.min(ec, de) - Math.max(sc, ds) + 1;
+                                    if (overlap >= (ec - sc + 1)) {
+                                        error = true;
+                                        return "#REF!";
+                                    }
+                                    ec -= overlap;
+                                }
+                            }
+                        }
+
+                        const start = _buildA1(s, sc, sr);
+                        const end = e ? _buildA1(e, ec, er) : null;
+                        return `'${name}'!${end ? start + ":" + end : start}`;
+                    }
+                );
+
+                if (updated !== original) {
+                    cell.f = updated;
+                    changed = true;
+                    if (error) {
+                        cell.v = "#REF!";
+                        cell.ct = { t: "e", fa: "General" };
+                    }
+                }
+            }
+        }
+    }
+
+    if (changed) {
+        if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
+        else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
+    }
+
+    // -------- helpers --------
+    function _parseA1(r) {
+        const m = /^(\$?)([A-Z]+)(\$?)(\d+)$/.exec(r);
+        return {
+            absCol: !!m[1],
+            col: _colToIdx(m[2]),
+            absRow: !!m[3],
+            row: +m[4]
+        };
+    }
+    function _buildA1(b, c, r) {
+        return `${b.absCol ? "$" : ""}${_idxToCol(c)}${b.absRow ? "$" : ""}${r}`;
+    }
+    function _colToIdx(c) {
+        let n = 0;
+        for (let i = 0; i < c.length; i++) n = n * 26 + c.charCodeAt(i) - 64;
+        return n - 1;
+    }
+    function _idxToCol(n) {
+        let s = "";
+        for (n++; n > 0; n = Math.floor((n - 1) / 26))
+            s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+        return s;
+    }
+}
