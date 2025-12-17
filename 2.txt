@@ -1,9 +1,2 @@
-const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!\$?([A-Z]+)\$?(\d+)(:\$?([A-Z]+)\$?(\d+))?/g;
-"=AVERAGEIF('PAT'!11,'Monthly Summary'!NWJR$19,'PAT'!42)+AVERAGEIF('PAT L2'!63,'Monthly Summary'!NWJR$76,'PAT L2'!99)
-   modifiedFormula = modifiedFormula.replace(referenceRegex, function (
-                        match,
-                        quotedSheet, unquotedSheet,
-                        startCol, startRow,
-                        _range,
-                        endCol, endRow
-                    ) {
+const referenceRegex =
+/(?:'([^']+)'|([A-Za-z0-9_]+))!(\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?|\$?\d+)/g;
