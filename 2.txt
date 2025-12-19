@@ -1,17 +1,16 @@
 
 /**
- * luckysheet-diagnosis.plugin.js
+ * luckysheet-diagnosis.plugin.modern.js
  * ------------------------------------
- * Single-file Luckysheet Diagnosis Utility
- * - Sheet-wise grouping
- * - Collapsible grids
- * - Scan (read-only)
- * - Fix One / Fix All
- * - Reset UI
- * ------------------------------------
+ * Modern Luckysheet Diagnosis Utility
+ * ✔ Engine selection respected
+ * ✔ Sheet-wise cards (sticky headers)
+ * ✔ Scan-only (read-only)
+ * ✔ Fix on demand
+ *
  * Dependencies:
  *  - jQuery
- *  - Bootstrap 5 (Modal)
+ *  - Bootstrap 5
  *  - Luckysheet
  */
 
@@ -19,130 +18,106 @@
 
   $.fn.luckysheetDiagnosis = function () {
 
-    /* =============================
-       STATE
-    ============================== */
     const state = {
-      groupedIssues: {}, // sheetName -> { sheetIndex, issues[] }
+      groupedIssues: {},
       activeEngines: new Set(["MISSINGCHAIN", "DISCREPANCY"])
     };
 
-    /* =============================
-       INIT
-    ============================== */
     injectStyles();
     buildModal();
     bindEvents();
     showModal();
 
-    /* =============================
-       STYLES
-    ============================== */
+    /* =====================
+       STYLES (MODERN)
+    ====================== */
     function injectStyles() {
-      if (document.getElementById("lsDiagnosisStyles")) return;
+      if ($('#lsDiagModernStyles').length) return;
 
-      const style = document.createElement("style");
-      style.id = "lsDiagnosisStyles";
-      style.innerHTML = `
-        #lsDiagnosisModal .modal-content {
-          border-radius: 12px;
-          box-shadow: 0 10px 30px rgba(0,0,0,.18);
-          font-family: Inter, Arial, sans-serif;
-        }
-        #lsDiagnosisModal .sidebar {
-          width: 260px;
-          background: #fafafa;
-          border-right: 1px solid #e0e0e0;
-        }
-        #lsDiagnosisModal table th {
-          position: sticky;
-          top: 0;
-          background: #f5f5f5;
-          z-index: 2;
-        }
-        #lsDiagnosisModal .sheet-header {
-          background: #e3f2fd;
-          cursor: pointer;
-          font-weight: 600;
-        }
-        #lsDiagnosisModal .sheet-detail:hover {
-          background: #f9fbff;
-        }
-        .ls-type-DISCREPANCY { color:#e65100; font-weight:600; }
-        .ls-type-MISSINGCHAIN { color:#6a1b9a; font-weight:600; }
-        .ls-empty {
-          text-align:center;
-          color:#777;
-          padding:40px;
-        }
-      `;
-      document.head.appendChild(style);
+      $('head').append(`
+        <style id="lsDiagModernStyles">
+          #lsDiagModal .modal-content {
+            border-radius: 14px;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont;
+          }
+          #lsDiagModal .left-panel {
+            width: 260px;
+            border-right: 1px solid #e5e7eb;
+            background: #fafafa;
+          }
+          #lsDiagModal .sheet-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            overflow: hidden;
+          }
+          #lsDiagModal .sheet-card-header {
+            background: #f8fafc;
+            padding: 10px 14px;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            cursor: pointer;
+          }
+          #lsDiagModal .issue-row {
+            padding: 10px 14px;
+            border-top: 1px solid #f1f5f9;
+            display: grid;
+            grid-template-columns: 120px 80px 1fr 90px 90px 60px;
+            align-items: center;
+            gap: 8px;
+          }
+          #lsDiagModal .issue-row:hover {
+            background: #f8fafc;
+          }
+          .ls-type-DISCREPANCY { color:#b45309;font-weight:600; }
+          .ls-type-MISSINGCHAIN { color:#6d28d9;font-weight:600; }
+          .ls-muted { color:#6b7280; font-size: 12px; }
+        </style>
+      `);
     }
 
-    /* =============================
+    /* =====================
        MODAL UI
-    ============================== */
+    ====================== */
     function buildModal() {
-      $("#lsDiagnosisModal").remove();
+      $('#lsDiagModal').remove();
 
-      $("body").append(`
-        <div class="modal fade" id="lsDiagnosisModal" tabindex="-1" style="z-index:9999">
+      $('body').append(`
+        <div class="modal fade" id="lsDiagModal" tabindex="-1" style="z-index:9999">
           <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
 
               <div class="modal-header">
-                <h5 class="modal-title">📊 Luckysheet Diagnosis Utility</h5>
+                <h5 class="modal-title">🧪 Workbook Diagnosis</h5>
                 <button class="btn-close" data-bs-dismiss="modal"></button>
               </div>
 
-              <div class="modal-body d-flex" style="height:70vh">
+              <div class="modal-body d-flex" style="height:75vh">
 
-                <div class="sidebar p-3">
-                  <h6>Diagnosis</h6>
-                  <label class="d-block">
+                <div class="left-panel p-3">
+                  <h6 class="mb-2">Diagnostics</h6>
+                  <label class="d-block mb-1">
                     <input type="checkbox" checked data-engine="MISSINGCHAIN"> Missing CalcChain
                   </label>
-                  <label class="d-block">
+                  <label class="d-block mb-3">
                     <input type="checkbox" checked data-engine="DISCREPANCY"> Value Discrepancy
                   </label>
-                  <hr/>
                   <button class="btn btn-sm btn-primary w-100 mb-2" id="lsScan">Scan</button>
-                  <button class="btn btn-sm btn-outline-secondary w-100" id="lsReverify">Re-Verify</button>
+                  <button class="btn btn-sm btn-outline-secondary w-100" id="lsReset">Reset</button>
                 </div>
 
-                <div class="flex-fill p-3 overflow-auto">
-                  <table class="table table-sm">
-                    <thead>
-                      <tr>
-                        <th>Type</th>
-                        <th>Cell</th>
-                        <th>Description</th>
-                        <th>Old</th>
-                        <th>New</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody id="lsIssueBody">
-                      <tr>
-                        <td colspan="6" class="ls-empty">
-                          Click <b>Scan</b> to analyze workbook
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div class="flex-fill p-3 overflow-auto" id="lsDiagResult">
+                  <div class="text-muted text-center mt-5">
+                    Click <b>Scan</b> to analyze workbook
+                  </div>
                 </div>
 
               </div>
 
-              <div class="modal-footer justify-content-between">
-                <div>
-                  <button class="btn btn-outline-secondary btn-sm" id="lsExpandAll">Expand All</button>
-                  <button class="btn btn-outline-secondary btn-sm" id="lsCollapseAll">Collapse All</button>
-                </div>
-                <div>
-                  <button class="btn btn-outline-warning btn-sm" id="lsReset">Reset</button>
-                  <button class="btn btn-danger btn-sm" id="lsFixAll">Fix All</button>
-                </div>
+              <div class="modal-footer">
+                <button class="btn btn-danger btn-sm" id="lsFixAll">Fix All</button>
               </div>
 
             </div>
@@ -151,55 +126,52 @@
       `);
     }
 
-    /* =============================
+    /* =====================
        SCAN
-    ============================== */
+    ====================== */
     function scan() {
       state.groupedIssues = {};
+      const issues = [];
 
-      const allIssues = [
-        ...scanMissingChain(),
-        ...scanDiscrepancy()
-      ];
+      if (state.activeEngines.has("MISSINGCHAIN"))
+        issues.push(...scanMissingChain());
 
-      allIssues.forEach(issue => {
-        if (!state.groupedIssues[issue.sheetName]) {
-          state.groupedIssues[issue.sheetName] = {
-            sheetIndex: issue.sheetIndex,
+      if (state.activeEngines.has("DISCREPANCY"))
+        issues.push(...scanDiscrepancy());
+
+      issues.forEach(i => {
+        if (!state.groupedIssues[i.sheetName]) {
+          state.groupedIssues[i.sheetName] = {
+            sheetIndex: i.sheetIndex,
             issues: []
           };
         }
-        state.groupedIssues[issue.sheetName].issues.push(issue);
+        state.groupedIssues[i.sheetName].issues.push(i);
       });
 
-      renderGroupedIssues();
+      render();
     }
 
-    /* =============================
-       ENGINE: MISSING CALCCHAIN
-    ============================== */
+    /* =====================
+       ENGINES
+    ====================== */
     function scanMissingChain() {
       const issues = [];
       const sheets = luckysheet.getLuckysheetfile();
 
-      sheets.forEach((sheet, sheetIdx) => {
-        const chainSet = new Set((sheet.calcChain || []).map(e => `${e.r},${e.c}`));
-
+      sheets.forEach((sheet, idx) => {
+        const chain = new Set((sheet.calcChain || []).map(e => `${e.r},${e.c}`));
         (sheet.celldata || []).forEach(cell => {
-          if (!cell?.v?.f) return;
-
-          if (!chainSet.has(`${cell.r},${cell.c}`)) {
+          if (cell?.v?.f && !chain.has(`${cell.r},${cell.c}`)) {
             issues.push({
               type: "MISSINGCHAIN",
               sheetName: sheet.name,
-              sheetIndex: sheetIdx,
+              sheetIndex: idx,
               row: cell.r,
               col: cell.c,
-              oldValue: "",
-              newValue: "",
               description: "Formula missing from calcChain",
               fix() {
-                luckysheet.setSheetActive(sheetIdx);
+                luckysheet.setSheetActive(idx);
                 luckysheet.updateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
               }
             });
@@ -210,16 +182,12 @@
       return issues;
     }
 
-    /* =============================
-       ENGINE: DISCREPANCY
-    ============================== */
     function scanDiscrepancy() {
       const issues = [];
       const sheets = luckysheet.getAllSheets();
 
-      sheets.forEach((sheet, sheetIdx) => {
-        luckysheet.setSheetActive(sheetIdx);
-
+      sheets.forEach((sheet, idx) => {
+        luckysheet.setSheetActive(idx);
         (sheet.celldata || []).forEach(cell => {
           if (!cell?.v?.f) return;
 
@@ -231,12 +199,12 @@
             issues.push({
               type: "DISCREPANCY",
               sheetName: sheet.name,
-              sheetIndex: sheetIdx,
+              sheetIndex: idx,
               row: cell.r,
               col: cell.c,
               oldValue: oldVal,
               newValue: newVal,
-              description: "Stored value differs from recalculated value",
+              description: "Stored value mismatch",
               fix() {
                 luckysheet.updateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
               }
@@ -248,106 +216,88 @@
       return issues;
     }
 
-    /* =============================
-       RENDER GROUPED UI
-    ============================== */
-    function renderGroupedIssues() {
-      const $body = $("#lsIssueBody").empty();
+    /* =====================
+       RENDER (MODERN)
+    ====================== */
+    function render() {
+      const $root = $('#lsDiagResult').empty();
       const sheets = Object.keys(state.groupedIssues);
 
       if (!sheets.length) {
-        $body.append(`<tr><td colspan="6" class="ls-empty text-success">✔ No issues detected</td></tr>`);
+        $root.html(`<div class="text-success text-center mt-5">✔ No issues detected</div>`);
         return;
       }
 
       sheets.forEach(sheetName => {
-        const group = state.groupedIssues[sheetName];
-        const issues = group.issues;
-        const sectionClass = "sheet_" + sheetName.replace(/\\s+/g, "_");
+        const g = state.groupedIssues[sheetName];
 
-        const counts = issues.reduce((a, i) => {
-          a[i.type] = (a[i.type] || 0) + 1;
-          return a;
-        }, {});
-
-        const summary = Object.entries(counts).map(e => `${e[0]}: ${e[1]}`).join(", ");
-
-        $body.append(`
-          <tr class="sheet-header" data-target="${sectionClass}">
-            <td colspan="6">
-              ${sheetName} — ${issues.length} issue(s)
-              <span class="text-muted ms-2">${summary}</span>
-              <span class="float-end">▼</span>
-            </td>
-          </tr>
+        const card = $(`
+          <div class="sheet-card">
+            <div class="sheet-card-header">
+              ${sheetName} — ${g.issues.length} issue(s)
+            </div>
+            <div class="sheet-card-body"></div>
+          </div>
         `);
 
-        issues.forEach((i, idx) => {
+        g.issues.forEach((i, idx) => {
           const cellRef = String.fromCharCode(65 + i.col) + (i.row + 1);
-
-          $body.append(`
-            <tr class="sheet-detail ${sectionClass}" style="display:none">
-              <td class="ls-type-${i.type}">${i.type}</td>
-              <td>${cellRef}</td>
-              <td>${i.description}</td>
-              <td>${i.oldValue ?? ""}</td>
-              <td>${i.newValue ?? ""}</td>
-              <td>
-                <button class="btn btn-sm btn-link ls-fix-one"
-                  data-sheet="${sheetName}"
-                  data-idx="${idx}">Fix</button>
-              </td>
-            </tr>
+          card.find('.sheet-card-body').append(`
+            <div class="issue-row">
+              <div class="ls-type-${i.type}">${i.type}</div>
+              <div>${cellRef}</div>
+              <div class="ls-muted">${i.description}</div>
+              <div>${i.oldValue ?? ""}</div>
+              <div>${i.newValue ?? ""}</div>
+              <button class="btn btn-sm btn-link ls-fix-one"
+                data-sheet="${sheetName}" data-idx="${idx}">Fix</button>
+            </div>
           `);
         });
+
+        $root.append(card);
       });
     }
 
-    /* =============================
+    /* =====================
        EVENTS
-    ============================== */
+    ====================== */
     function bindEvents() {
 
-      $("#lsScan, #lsReverify").on("click", scan);
-
-      $("#lsIssueBody").on("click", ".sheet-header", function () {
-        $("." + $(this).data("target")).toggle();
+      $(document).on('change', '[data-engine]', function () {
+        const id = $(this).data('engine');
+        this.checked ? state.activeEngines.add(id) : state.activeEngines.delete(id);
       });
 
-      $("#lsExpandAll").on("click", () => $(".sheet-detail").show());
-      $("#lsCollapseAll").on("click", () => $(".sheet-detail").hide());
+      $('#lsScan').on('click', scan);
 
-      $("#lsReset").on("click", () => {
+      $('#lsReset').on('click', () => {
         state.groupedIssues = {};
-        $("#lsIssueBody").html(`
-          <tr>
-            <td colspan="6" class="ls-empty">
-              Click <b>Scan</b> to analyze workbook
-            </td>
-          </tr>
+        $('#lsDiagResult').html(`
+          <div class="text-muted text-center mt-5">
+            Click <b>Scan</b> to analyze workbook
+          </div>
         `);
       });
 
-      $("#lsFixAll").on("click", () => {
+      $('#lsFixAll').on('click', () => {
         if (!confirm("Fix all detected issues?")) return;
-        Object.values(state.groupedIssues).forEach(g =>
-          g.issues.forEach(i => i.fix())
-        );
+        Object.values(state.groupedIssues).forEach(g => g.issues.forEach(i => i.fix()));
         scan();
       });
 
-      $("#lsIssueBody").on("click", ".ls-fix-one", function (e) {
-        e.stopPropagation();
-        const sheet = $(this).data("sheet");
-        const idx = $(this).data("idx");
+      $('#lsDiagResult').on('click', '.ls-fix-one', function () {
+        const sheet = $(this).data('sheet');
+        const idx = $(this).data('idx');
         state.groupedIssues[sheet].issues[idx].fix();
         scan();
       });
     }
 
     function showModal() {
-      new bootstrap.Modal(document.getElementById("lsDiagnosisModal")).show();
+      new bootstrap.Modal(document.getElementById('lsDiagModal')).show();
     }
+
   };
 
 })(jQuery);
