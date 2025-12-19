@@ -4,7 +4,7 @@
             onFixComplete: null
         }, options);
 
-        // 1. Global State Management (Persistence between tabs)
+        // 1. Persistent State
         if (!window._luckysheetDiagState) {
             window._luckysheetDiagState = {
                 discrepancy: { scanned: false, issues: {} },
@@ -24,47 +24,69 @@
             return label;
         };
 
-        // 3. Modern Grid & Accordion Styles
+        // 3. Enhanced UI Styles
         $('#luckysheetDiagModal').remove();
         if ($('#luckysheetDiagStyles').length === 0) {
             $('head').append(`
             <style id="luckysheetDiagStyles">
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
                 
-                #luckysheetDiagModal .modal-content { border-radius: 12px; font-family: 'Inter', sans-serif; border: none; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
-                #luckysheetDiagModal .modal-header { background: #fff; border-bottom: 1px solid #f0f0f0; padding: 1.25rem 1.5rem; }
+                #luckysheetDiagModal .modal-content { border-radius: 16px; font-family: 'Inter', sans-serif; border: none; background: #ffffff; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+                #luckysheetDiagModal .modal-header { border-bottom: 1px solid #f3f4f6; padding: 1.25rem 1.5rem; background: #fff; border-radius: 16px 16px 0 0; }
+                #luckysheetDiagModal .modal-title { font-weight: 700; color: #111827; letter-spacing: -0.025em; }
                 
-                /* Tabs & Controls */
-                .diag-nav { display: flex; background: #f9fafb; padding: 10px 10px 0; gap: 5px; border-bottom: 1px solid #eee; }
-                .diag-tab { padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0; font-weight: 600; color: #6b7280; font-size: 0.9rem; border: 1px solid transparent; }
-                .diag-tab.active { background: #fff; color: #2563eb; border: 1px solid #eee; border-bottom-color: #fff; margin-bottom: -1px; }
+                /* Modern Navigation */
+                .diag-nav { display: flex; background: #f9fafb; padding: 8px 16px 0; gap: 8px; border-bottom: 1px solid #e5e7eb; }
+                .diag-tab { padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0; font-weight: 600; color: #6b7280; font-size: 0.875rem; transition: all 0.2s; border: 1px solid transparent; border-bottom: none; }
+                .diag-tab.active { background: #fff; color: #3b82f6; border-color: #e5e7eb; border-bottom: 2px solid #fff; margin-bottom: -1px; }
+                .diag-tab:hover:not(.active) { background: #f3f4f6; color: #374151; }
 
-                .diag-controls { padding: 15px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; }
+                /* Action Bar */
+                .diag-controls { padding: 16px 24px; display: flex; align-items: center; gap: 12px; background: #fff; }
                 
-                /* Sheet Group Accordion */
-                .sheet-group { border: 1px solid #e5e7eb; margin: 15px 24px; border-radius: 10px; background: #fff; }
-                .sheet-header { background: #f9fafb; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s; }
-                .sheet-header:hover { background: #f3f4f6; }
-                .sheet-body { display: none; border-top: 1px solid #e5e7eb; }
-                .sheet-body.expanded { display: block; }
+                /* Accordion Sheet Cards */
+                .sheet-card { border: 1px solid #e5e7eb; margin: 0 24px 12px; border-radius: 12px; background: #fff; overflow: hidden; transition: all 0.2s ease; }
+                .sheet-card:hover { border-color: #3b82f6; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
                 
-                /* Grid Table */
-                .diag-grid { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-                .diag-grid th { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; text-align: left; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; }
-                .diag-grid td { border: 1px solid #e2e8f0; padding: 10px; vertical-align: middle; color: #1e293b; }
+                .sheet-trigger { width: 100%; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #ffffff; border: none; outline: none; text-align: left; }
+                .sheet-trigger:hover { background: #f9fafb; }
+                .sheet-trigger b { font-size: 0.95rem; color: #111827; }
+                
+                .chevron-icon { transition: transform 0.3s ease; color: #9ca3af; }
+                .expanded .chevron-icon { transform: rotate(180deg); color: #3b82f6; }
+
+                .sheet-content { display: none; border-top: 1px solid #f3f4f6; background: #ffffff; }
+                .expanded .sheet-content { display: block; }
+                
+                /* Professional Grid Table */
+                .diag-grid { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+                .diag-grid th { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; text-align: left; color: #475569; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+                .diag-grid td { border: 1px solid #e2e8f0; padding: 12px; vertical-align: middle; }
                 .diag-grid tr:hover { background: #f1f5f9; }
 
-                /* Specific Cell Elements */
-                .cell-tag { font-weight: 700; color: #2563eb; background: #eff6ff; padding: 3px 6px; border-radius: 4px; border: 1px solid #dbeafe; font-family: monospace; }
-                .formula-tag { font-family: 'SFMono-Regular', Consolas, monospace; color: #991b1b; background: #fef2f2; padding: 3px 6px; border-radius: 4px; border: 1px solid #fee2e2; }
-                .val-stack { display: flex; flex-direction: column; line-height: 1.3; }
-                .v-old { color: #dc2626; text-decoration: line-through; opacity: 0.6; font-size: 0.75rem; }
-                .v-new { color: #16a34a; font-weight: 700; }
+                /* UI Elements */
+                .badge-pill { font-size: 0.7rem; padding: 4px 10px; border-radius: 9999px; font-weight: 600; }
+                .badge-error { background: #fee2e2; color: #dc2626; }
+                
+                .cell-code { font-weight: 700; color: #2563eb; background: #eff6ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #dbeafe; font-family: 'JetBrains Mono', monospace; }
+                .formula-code { font-family: monospace; color: #991b1b; background: #fff1f2; padding: 4px 8px; border-radius: 6px; border: 1px solid #fee2e2; font-size: 0.8rem; }
+                
+                .val-change { display: flex; flex-direction: column; gap: 2px; }
+                .old-v { color: #94a3b8; text-decoration: line-through; font-size: 0.75rem; }
+                .new-v { color: #16a34a; font-weight: 700; font-size: 0.9rem; }
 
-                .nice-msg { padding: 60px 20px; text-align: center; color: #6b7280; }
-                .nice-msg h4 { color: #111827; font-weight: 700; margin-bottom: 10px; }
+                /* Loading/Empty States */
+                .state-msg { padding: 60px 24px; text-align: center; }
+                .state-msg h4 { font-weight: 700; color: #111827; margin-top: 16px; }
+                .state-msg p { color: #6b7280; font-size: 0.95rem; }
 
-                .spinner-diag { display: none; width: 1.2rem; height: 1.2rem; border: 2px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: diag-spin 0.6s linear infinite; }
+                .btn-modern { border-radius: 10px; font-weight: 600; padding: 10px 20px; transition: all 0.2s; border: none; }
+                .btn-primary-m { background: #2563eb; color: #fff; }
+                .btn-primary-m:hover { background: #1d4ed8; transform: translateY(-1px); }
+                .btn-success-m { background: #10b981; color: #fff; }
+                .btn-success-m:hover { background: #059669; }
+
+                .spinner { display: none; width: 1.25rem; height: 1.25rem; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: diag-spin 0.6s linear infinite; }
                 @keyframes diag-spin { to { transform: rotate(360deg); } }
             </style>
             `);
@@ -75,24 +97,24 @@
             <div class="modal-dialog modal-xl modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">✨ Formula Health Assistant</h5>
+                        <h5 class="modal-title">System Health Inspector</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="diag-nav">
-                        <div class="diag-tab ${state.currentTab === 'discrepancy' ? 'active' : ''}" data-mode="discrepancy">Discrepancy Check</div>
-                        <div class="diag-tab ${state.currentTab === 'calcchain' ? 'active' : ''}" data-mode="calcchain">Calculation Chain</div>
+                        <div class="diag-tab ${state.currentTab === 'discrepancy' ? 'active' : ''}" data-mode="discrepancy">Discrepancies</div>
+                        <div class="diag-tab ${state.currentTab === 'calcchain' ? 'active' : ''}" data-mode="calcchain">Calc-Chain</div>
                     </div>
                     <div class="diag-controls">
-                        <button id="btn-diag-scan" class="btn btn-primary btn-sm px-4">Start Analysis</button>
-                        <button id="btn-diag-reset" class="btn btn-outline-secondary btn-sm">Reset Report</button>
-                        <div class="spinner-diag" id="diag-spinner"></div>
+                        <button id="btn-diag-scan" class="btn-modern btn-primary-m">Run Scan</button>
+                        <button id="btn-diag-reset" class="btn btn-outline-secondary btn-modern">Reset</button>
+                        <div class="spinner" id="diag-spinner"></div>
                     </div>
-                    <div class="modal-body p-0" style="min-height: 400px; max-height: 60vh; overflow-y:auto;">
-                        <div id="diag-container"></div>
+                    <div class="modal-body p-0" style="min-height: 420px; max-height: 65vh; overflow-y:auto; background: #fafafa;">
+                        <div id="diag-container" style="padding-top: 20px;"></div>
                     </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-link text-secondary text-decoration-none" data-bs-dismiss="modal">Close</button>
-                        <button id="btn-diag-fix-all" class="btn btn-success px-4" style="display:none; background:#16a34a; border:none;">Fix All Issues</button>
+                    <div class="modal-footer" style="background: #fff; border-top: 1px solid #f3f4f6;">
+                        <button type="button" class="btn btn-link text-secondary text-decoration-none" data-bs-dismiss="modal">Close</button>
+                        <button id="btn-diag-fix-all" class="btn-modern btn-success-m" style="display:none;">Fix All Issues</button>
                     </div>
                 </div>
             </div>
@@ -108,10 +130,10 @@
 
             if (!current.scanned) {
                 $container.append(`
-                    <div class="nice-msg">
-                        <div style="font-size: 2.5rem;">🔍</div>
-                        <h4>Ready to check your data?</h4>
-                        <p>We'll analyze every formula to ensure stored values match calculated results.</p>
+                    <div class="state-msg">
+                        <div style="font-size: 3rem;">🧪</div>
+                        <h4>Ready to Analyze</h4>
+                        <p>Scanning will identify formula errors and value mismatches across all sheets.</p>
                     </div>
                 `);
                 $('#btn-diag-fix-all').hide();
@@ -121,10 +143,10 @@
             const sheetKeys = Object.keys(current.issues);
             if (sheetKeys.length === 0) {
                 $container.append(`
-                    <div class="nice-msg">
-                        <div style="font-size: 2.5rem;">✅</div>
-                        <h4>Everything looks perfect!</h4>
-                        <p>No discrepancies found in the ${state.currentTab === 'discrepancy' ? 'values' : 'calc-chain'}.</p>
+                    <div class="state-msg">
+                        <div style="font-size: 3rem;">🎉</div>
+                        <h4>All Clear!</h4>
+                        <p>No issues were detected in your <b>${state.currentTab}</b> check.</p>
                     </div>
                 `);
                 $('#btn-diag-fix-all').hide();
@@ -133,19 +155,25 @@
 
             sheetKeys.forEach(name => {
                 const sheet = current.issues[name];
-                const $group = $(`
-                    <div class="sheet-group">
-                        <div class="sheet-header">
-                            <span><b>Sheet: ${name}</b> <span class="badge rounded-pill bg-danger ms-2" style="font-size: 0.7rem;">${sheet.data.length} Issues</span></span>
-                            <span class="text-muted" style="font-size: 0.8rem;">Click to expand <i class="bi bi-chevron-down ms-1"></i></span>
+                const $card = $(`
+                    <div class="sheet-card">
+                        <div class="sheet-trigger">
+                            <span>
+                                <b>Sheet: ${name}</b> 
+                                <span class="badge-pill badge-error ms-2">${sheet.data.length} issues detected</span>
+                            </span>
+                            <div class="d-flex align-items-center">
+                                <span class="text-muted me-3" style="font-size: 0.8rem;">Click to view issues</span>
+                                <i class="bi bi-chevron-down chevron-icon"></i>
+                            </div>
                         </div>
-                        <div class="sheet-body expanded">
+                        <div class="sheet-content">
                             <table class="diag-grid">
                                 <thead>
                                     <tr>
-                                        <th style="width:100px;">Cell</th>
+                                        <th style="width: 110px;">Cell</th>
                                         <th>Formula Reference</th>
-                                        <th>${state.currentTab === 'discrepancy' ? 'Issue (Stored → Calculated)' : 'Chain Integrity'}</th>
+                                        <th>${state.currentTab === 'discrepancy' ? 'Difference (Old → New)' : 'Chain Status'}</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -156,52 +184,52 @@
 
                 sheet.data.forEach(item => {
                     const statusVal = state.currentTab === 'discrepancy' 
-                        ? `<td><div class="val-stack"><span class="v-old">${item.oldVal}</span><span class="v-new">${item.newVal}</span></div></td>`
-                        : `<td><span class="text-danger fw-bold">Disconnected</span></td>`;
+                        ? `<td><div class="val-change"><span class="old-v">${item.oldVal}</span><span class="new-v">${item.newVal}</span></div></td>`
+                        : `<td><span class="text-danger fw-bold">Link Missing</span></td>`;
 
-                    $group.find('tbody').append(`
+                    $card.find('tbody').append(`
                         <tr>
-                            <td><span class="cell-tag">${item.addr}</span></td>
-                            <td><span class="formula-tag">${item.f}</span></td>
+                            <td><span class="cell-code">${item.addr}</span></td>
+                            <td><span class="formula-code">${item.f}</span></td>
                             ${statusVal}
                         </tr>
                     `);
                 });
-                $container.append($group);
+                $container.append($card);
             });
 
             $('#btn-diag-fix-all').show();
         };
 
         const runScan = () => {
-            $('#diag-spinner').fadeIn();
+            $('#diag-spinner').show();
             const mode = state.currentTab;
             state[mode].issues = {};
 
             setTimeout(() => {
                 const allSheets = luckysheet.getAllSheets();
-                const originalActive = allSheets.find(s => Number(s.status) === 1).order;
+                const activeOrder = allSheets.find(s => Number(s.status) === 1).order;
 
                 allSheets.forEach((sheet, idx) => {
                     luckysheet.setSheetActive(idx);
                     const sheetIssues = [];
-                    const formulaCells = (sheet.celldata ?? []).filter(c => c?.v?.f);
+                    const cells = (sheet.celldata ?? []).filter(c => c?.v?.f);
 
-                    formulaCells.forEach(cell => {
-                        const cellLabel = getColumnLabel(cell.c) + (cell.r + 1);
+                    cells.forEach(cell => {
+                        const cellAddr = getColumnLabel(cell.c) + (cell.r + 1);
 
                         if (mode === 'discrepancy') {
-                            const result = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
-                            const calcV = Array.isArray(result) ? result[1] : result;
+                            const res = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
+                            const calcV = Array.isArray(res) ? res[1] : res;
                             const storedV = luckysheet.getCellValue(cell.r, cell.c);
 
                             if (String(storedV) !== String(calcV)) {
-                                sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: cellLabel, oldVal: storedV ?? 'null', newVal: calcV ?? 'null' });
+                                sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: cellAddr, oldVal: storedV ?? '—', newVal: calcV ?? '—' });
                             }
                         } else {
                             const inChain = (sheet.calcChain || []).some(cc => cc.r == cell.r && cc.c == cell.c);
                             if (!inChain) {
-                                sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: cellLabel });
+                                sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: cellAddr });
                             }
                         }
                     });
@@ -210,26 +238,13 @@
                 });
 
                 state[mode].scanned = true;
-                luckysheet.setSheetActive(originalActive);
+                luckysheet.setSheetActive(activeOrder);
                 $('#diag-spinner').hide();
                 render();
             }, 600);
         };
 
-        const runFixAll = () => {
-            const mode = state.currentTab;
-            const allSheets = luckysheet.getAllSheets();
-            Object.keys(state[mode].issues).forEach(name => {
-                const sheetInfo = state[mode].issues[name];
-                const targetSheet = allSheets.find(s => s.index === sheetInfo.id);
-                sheetInfo.data.forEach(issue => {
-                    luckysheet.updateCellValue(targetSheet, issue.r, issue.c, issue.f, true, true);
-                });
-            });
-            runScan(); 
-        };
-
-        // UI Events
+        // --- Interaction Handlers ---
         $modal.on('click', '.diag-tab', function() {
             state.currentTab = $(this).data('mode');
             $('.diag-tab').removeClass('active');
@@ -243,11 +258,23 @@
             render();
         });
 
-        $modal.on('click', '.sheet-header', function() {
-            $(this).next('.sheet-body').toggleClass('expanded');
+        // Expand/Collapse Toggle
+        $modal.on('click', '.sheet-trigger', function() {
+            $(this).closest('.sheet-card').toggleClass('expanded');
         });
 
-        $('#btn-diag-fix-all').on('click', runFixAll);
+        $('#btn-diag-fix-all').on('click', () => {
+            const mode = state.currentTab;
+            const all = luckysheet.getAllSheets();
+            Object.keys(state[mode].issues).forEach(name => {
+                const info = state[mode].issues[name];
+                const sheet = all.find(s => s.index === info.id);
+                info.data.forEach(item => {
+                    luckysheet.updateCellValue(sheet, item.r, item.c, item.f, true, true);
+                });
+            });
+            runScan(); 
+        });
 
         modalInstance.show();
         render();
