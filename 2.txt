@@ -1,136 +1,325 @@
-    function diagnosis_MissingChain() {
-        var formulaCount = 0;
-        const sheets = luckysheet.getLuckysheetfile();
-        console.log('--- Missing calcChain entries ---');
-        let activeSheetIndex = sheets.find(s => Number(s.status) === 1).order;
-        sheets.forEach((sheet, sheetIdx) => {
+(function ($) {
 
-            luckysheet.setSheetActive(sheetIdx);
-            const formulaCells = (sheet.celldata ?? [])
-                .filter(cell => cell?.v?.f)
-                .map(cell => ({ r: cell.r, c: cell.c, f: cell.v.f }));
+  $.fn.luckysheetDiagnosis = function () {
 
-            const chainSet = new Set(
-                (sheet.calcChain ?? []).map(e => `${e.r},${e.c}`)
-            );
-            const missing = formulaCells.filter(c => !chainSet.has(`${c.r},${c.c}`));
-            if (missing.length > 0) {
-                console.group(`Sheet: ${sheet.name} (index: ${sheet.index}, order: ${sheet.order})`);
-                const order = sheet.order;
-                missing.forEach(m => {
-                    console.log(`Row: ${m.r}, Col: ${m.c}, Formula: ${m.f}`);
-                    if (formulaCount < 201) {
-                        console.log(`Formula: ${formulaCount} → Updated`);
-                        luckysheet.updateCellValue(sheet, m.r, m.c, m.f, true, true);
-                    }
-                    formulaCount = formulaCount + 1;
+    /* ================================
+       INTERNAL STATE
+    ================================= */
+    const state = {
+      issues: [],
+      activeEngines: new Set(["MISSINGCHAIN", "DISCREPANCY"])
+    };
 
+    /* ================================
+       INIT
+    ================================= */
+    injectStyles();
+    buildModal();
+    bindEvents();
+    showModal();
 
-                });
-                console.groupEnd();
-            } else {
-                console.log(`Sheet: ${sheet.name} → No missing calcChain entries`);
-            }
-        });
-        luckysheet.setSheetActive(activeSheetIndex < sheets.length ? activeSheetIndex : 0);
+    /* ================================
+       STYLES
+    ================================= */
+    function injectStyles() {
+      if ($('#lsDiagnosisStyles').length) return;
+
+      $('head').append(`
+        <style id="lsDiagnosisStyles">
+          #lsDiagnosisModal { font-family: Inter, Arial, sans-serif; }
+          #lsDiagnosisModal .modal-content {
+            border-radius: 12px;
+            box-shadow: 0 10px 28px rgba(0,0,0,.18);
+          }
+          #lsDiagnosisModal .sidebar {
+            width: 260px;
+            background: #fafafa;
+            border-right: 1px solid #e0e0e0;
+          }
+          #lsDiagnosisModal .issue-table th {
+            position: sticky;
+            top: 0;
+            background: #f5f5f5;
+            z-index: 2;
+          }
+          #lsDiagnosisModal .issue-table tbody tr:hover {
+            background: #f1f7ff;
+          }
+          .ls-type-DISCREPANCY { color:#e65100;font-weight:600; }
+          .ls-type-MISSINGCHAIN { color:#6a1b9a;font-weight:600; }
+          .ls-empty { text-align:center;color:#777;padding:40px; }
+        </style>
+      `);
     }
 
+    /* ================================
+       MODAL UI
+    ================================= */
+    function buildModal() {
+      $('#lsDiagnosisModal').remove();
 
-    function diagnosis_Discrepancy() {
-        let allIssueFixed = false;
-        const sheets = luckysheet.getAllSheets();
-        let activeSheetIndex = sheets.find(s => Number(s.status) === 1).order;
-        while (!allIssueFixed) {
-            let totalIssues = 0;
-            const fmt = {
-                sheetHeader: 'color:#1976d2;font-weight:bold;',
-                ok: 'color:#2e7d32;',
-                warn: 'color:#f57c00;font-weight:bold;',
-                cell: 'color:#455a64;',
-                summary: 'color:#6a1b9a;font-weight:bold;',
-                ts: 'color:#9e9e9e;font-style:italic;'
-            };
-            const now = () => new Date().toLocaleString();
-            sheets.forEach((sheet, sheetIdx) => {
-                // Ensure the target sheet is active for recalculation context
+      $('body').append(`
+        <div class="modal fade" id="lsDiagnosisModal" tabindex="-1" style="z-index:9999">
+          <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+
+              <div class="modal-header">
+                <h5 class="modal-title">🧪 Luckysheet Diagnosis Utility</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+
+              <div class="modal-body d-flex" style="height:70vh">
+
+                <!-- LEFT -->
+                <div class="sidebar p-3">
+                  <h6>Diagnosis</h6>
+
+                  <label class="d-block">
+                    <input type="checkbox" checked data-engine="MISSINGCHAIN">
+                    Missing CalcChain
+                  </label>
+
+                  <label class="d-block">
+                    <input type="checkbox" checked data-engine="DISCREPANCY">
+                    Value Discrepancy
+                  </label>
+
+                  <hr/>
+                  <button class="btn btn-sm btn-primary w-100 mb-2" id="lsScan">Scan</button>
+                  <button class="btn btn-sm btn-outline-secondary w-100" id="lsReverify">Re-Verify</button>
+                </div>
+
+                <!-- RIGHT -->
+                <div class="flex-fill p-3 overflow-auto">
+                  <table class="table table-sm issue-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Type</th>
+                        <th>Sheet</th>
+                        <th>Cell</th>
+                        <th>Description</th>
+                        <th>Old</th>
+                        <th>New</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="lsIssueBody">
+                      <tr>
+                        <td colspan="8" class="ls-empty">
+                          Click <b>Scan</b> to analyze workbook
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+              </div>
+
+              <div class="modal-footer">
+                <button class="btn btn-outline-secondary" id="lsFixSelected">Fix Selected</button>
+                <button class="btn btn-danger" id="lsFixAll">Fix All</button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    /* ================================
+       SCAN ORCHESTRATOR
+    ================================= */
+    function scan() {
+      state.issues = [];
+
+      if (state.activeEngines.has("MISSINGCHAIN")) {
+        state.issues.push(...scanMissingChain());
+      }
+      if (state.activeEngines.has("DISCREPANCY")) {
+        state.issues.push(...scanDiscrepancy());
+      }
+
+      renderIssues();
+    }
+
+    /* ================================
+       ENGINE: MISSING CALCCHAIN
+       (READ-ONLY)
+    ================================= */
+    function scanMissingChain() {
+      const issues = [];
+      const sheets = luckysheet.getLuckysheetfile();
+
+      sheets.forEach((sheet, sheetIdx) => {
+        const chainSet = new Set(
+          (sheet.calcChain || []).map(e => `${e.r},${e.c}`)
+        );
+
+        (sheet.celldata || []).forEach(cell => {
+          if (!cell?.v?.f) return;
+
+          if (!chainSet.has(`${cell.r},${cell.c}`)) {
+            issues.push({
+              type: "MISSINGCHAIN",
+              sheetIndex: sheetIdx,
+              sheetName: sheet.name,
+              row: cell.r,
+              col: cell.c,
+              oldValue: "",
+              newValue: "",
+              description: "Formula missing from calcChain",
+              fixable: true,
+              fix() {
                 luckysheet.setSheetActive(sheetIdx);
-
-                // Collect cells with formulas
-                const formulaCells = (sheet.celldata ?? [])
-                    .filter(cell => cell?.v?.f && cell?.v?.f.indexOf('Next Week') == -1 && cell?.v?.f.indexOf('TODAY') == -1)
-                    .map(cell => ({
-                        r: cell.r,
-                        c: cell.c,
-                        f: cell.v.f,
-                        oldValue: luckysheet.getCellValue(cell.r, cell.c)
-                    }));
-
-                // Compute changes BEFORE opening the group so we can show the count in the title
-                const changes = [];
-
-                if (formulaCells.length > 0) {
-                    // Recalculate and compare
-                    formulaCells.forEach(m => {
-                        // Recalculate the cell value by passing formula (true,true skips UI flash)
-                        const value = luckysheet.validateCellValue(sheet, m.r, m.c, m.f, true, true);
-                        const newValue = Array.isArray(value) ? value[1] : value;
-
-                        // Current behavior: compare by string form (datatype-agnostic-ish)
-                        const oldStr = m.oldValue?.toString?.() ?? String(m.oldValue);
-                        const newStr = newValue?.toString?.() ?? String(newValue);
-
-                        if (oldStr !== newStr) {
-                            changes.push({
-                                Sheet: sheet.name,
-                                Row: m.r + 1,
-                                Col: m.c,
-                                Formula: m.f,
-                                Old: m.oldValue,
-                                New: newValue
-                            });
-                            luckysheet.updateCellValue(sheet, m.r, m.c, m.f, true, true);
-                        }
-                    });
-                }
-
-                // Now open the group with the changes count
-                console.groupCollapsed(
-                    `%cSheet: ${sheet.name} %c— Changes (${changes.length}) %c(${now()})`,
-                    fmt.sheetHeader, fmt.warn, fmt.ts
+                luckysheet.updateCellValue(
+                  sheet,
+                  cell.r,
+                  cell.c,
+                  cell.v.f,
+                  true,
+                  true
                 );
-                totalIssues = totalIssues + changes.length;
-
-
-                if (formulaCells.length === 0) {
-                    console.log('%cNo formula cells found.', fmt.ok);
-                    console.groupEnd();
-                    return;
-                }
-
-                console.log('%cScanning complete.', fmt.cell);
-
-                if (changes.length === 0) {
-                    console.log('%cNo missing calcChain entries or value changes detected.', fmt.ok);
-                } else {
-                    console.log(
-                        `%cDetected ${changes.length} recalculation change(s) — potential missing calcChain entries.`,
-                        fmt.warn
-                    );
-                    // Tabular display for quick visual inspection
-                    console.table(changes);
-                }
-
-                console.log(
-                    `%cSummary: ${formulaCells.length} formula cell(s) scanned, ${changes.length} change(s) found.`,
-                    fmt.summary
-                );
-
-                console.groupEnd();
-
-
+              }
             });
-            if (totalIssues == 0)
-                allIssueFixed = true;
-        }
-        luckysheet.setSheetActive(activeSheetIndex < sheets.length ? activeSheetIndex : 0);
+          }
+        });
+      });
+
+      return issues;
     }
+
+    /* ================================
+       ENGINE: DISCREPANCY
+       (READ-ONLY)
+    ================================= */
+    function scanDiscrepancy() {
+      const issues = [];
+      const sheets = luckysheet.getAllSheets();
+
+      sheets.forEach((sheet, sheetIdx) => {
+        luckysheet.setSheetActive(sheetIdx);
+
+        (sheet.celldata || []).forEach(cell => {
+          if (!cell?.v?.f) return;
+
+          const oldVal = luckysheet.getCellValue(cell.r, cell.c);
+          const r = luckysheet.validateCellValue(
+            sheet, cell.r, cell.c, cell.v.f, true, true
+          );
+          const newVal = Array.isArray(r) ? r[1] : r;
+
+          if (String(oldVal) !== String(newVal)) {
+            issues.push({
+              type: "DISCREPANCY",
+              sheetIndex: sheetIdx,
+              sheetName: sheet.name,
+              row: cell.r,
+              col: cell.c,
+              oldValue: oldVal,
+              newValue: newVal,
+              description: "Stored value differs from recalculated value",
+              fixable: true,
+              fix() {
+                luckysheet.updateCellValue(
+                  sheet,
+                  cell.r,
+                  cell.c,
+                  cell.v.f,
+                  true,
+                  true
+                );
+              }
+            });
+          }
+        });
+      });
+
+      return issues;
+    }
+
+    /* ================================
+       RENDER TABLE
+    ================================= */
+    function renderIssues() {
+      const $tb = $('#lsIssueBody').empty();
+
+      if (!state.issues.length) {
+        $tb.append(`
+          <tr>
+            <td colspan="8" class="ls-empty text-success">
+              ✔ No issues detected
+            </td>
+          </tr>
+        `);
+        return;
+      }
+
+      state.issues.forEach((i, idx) => {
+        const cellRef =
+          String.fromCharCode(65 + i.col) + (i.row + 1);
+
+        $tb.append(`
+          <tr>
+            <td><input type="checkbox" data-idx="${idx}"></td>
+            <td class="ls-type-${i.type}">${i.type}</td>
+            <td>${i.sheetName}</td>
+            <td>${cellRef}</td>
+            <td>${i.description}</td>
+            <td>${i.oldValue ?? ""}</td>
+            <td>${i.newValue ?? ""}</td>
+            <td>
+              <button class="btn btn-sm btn-link ls-fix-one" data-idx="${idx}">
+                Fix
+              </button>
+            </td>
+          </tr>
+        `);
+      });
+    }
+
+    /* ================================
+       EVENTS
+    ================================= */
+    function bindEvents() {
+
+      $(document).on('change', '[data-engine]', function () {
+        const id = $(this).data('engine');
+        this.checked ? state.activeEngines.add(id) : state.activeEngines.delete(id);
+      });
+
+      $('#lsScan, #lsReverify').on('click', scan);
+
+      $('#lsIssueBody').on('click', '.ls-fix-one', function () {
+        const issue = state.issues[$(this).data('idx')];
+        issue?.fix();
+        scan();
+      });
+
+      $('#lsFixSelected').on('click', function () {
+        $('#lsIssueBody input:checked').each((_, el) => {
+          state.issues[$(el).data('idx')]?.fix();
+        });
+        scan();
+      });
+
+      $('#lsFixAll').on('click', function () {
+        if (!confirm("Fix all detected issues?")) return;
+        state.issues.forEach(i => i.fix());
+        scan();
+      });
+    }
+
+    function showModal() {
+      new bootstrap.Modal(
+        document.getElementById('lsDiagnosisModal')
+      ).show();
+    }
+  };
+
+})(jQuery);
+
+
+$('#runDiagnosis').on('click', function () {
+  $(document).luckysheetDiagnosis();
+});
