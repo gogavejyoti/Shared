@@ -1,45 +1,136 @@
-function recogniseFormatLikeUpdateFormat(input) {
-    if (input == null) return "General";
+    function diagnosis_MissingChain() {
+        var formulaCount = 0;
+        const sheets = luckysheet.getLuckysheetfile();
+        console.log('--- Missing calcChain entries ---');
+        let activeSheetIndex = sheets.find(s => Number(s.status) === 1).order;
+        sheets.forEach((sheet, sheetIdx) => {
 
-    const text = String(input).trim();
-    if (text === "") return "General";
+            luckysheet.setSheetActive(sheetIdx);
+            const formulaCells = (sheet.celldata ?? [])
+                .filter(cell => cell?.v?.f)
+                .map(cell => ({ r: cell.r, c: cell.c, f: cell.v.f }));
 
-    // --- Parentheses negative ---
-    const isParenNegative = /^\(.*\)$/.test(text);
-    const raw = isParenNegative ? text.slice(1, -1) : text;
+            const chainSet = new Set(
+                (sheet.calcChain ?? []).map(e => `${e.r},${e.c}`)
+            );
+            const missing = formulaCells.filter(c => !chainSet.has(`${c.r},${c.c}`));
+            if (missing.length > 0) {
+                console.group(`Sheet: ${sheet.name} (index: ${sheet.index}, order: ${sheet.order})`);
+                const order = sheet.order;
+                missing.forEach(m => {
+                    console.log(`Row: ${m.r}, Col: ${m.c}, Formula: ${m.f}`);
+                    if (formulaCount < 201) {
+                        console.log(`Formula: ${formulaCount} → Updated`);
+                        luckysheet.updateCellValue(sheet, m.r, m.c, m.f, true, true);
+                    }
+                    formulaCount = formulaCount + 1;
 
-    // --- Percent ---
-    if (raw.endsWith("%")) {
-        const dec = (raw.replace(/[%$,]/g, "").split(".")[1] || "").length;
-        return "0" + (dec ? "." + "0".repeat(dec) : "") + "%";
+
+                });
+                console.groupEnd();
+            } else {
+                console.log(`Sheet: ${sheet.name} → No missing calcChain entries`);
+            }
+        });
+        luckysheet.setSheetActive(activeSheetIndex < sheets.length ? activeSheetIndex : 0);
     }
 
-    // --- Scientific ---
-    if (/^[+-]?\d+(\.\d+)?E[+-]?\d+$/i.test(raw)) {
-        const m = raw.split(/E/i);
-        const dec = (m[0].split(".")[1] || "").length;
-        return "0" + (dec ? "." + "0".repeat(dec) : "") + "E+00";
+
+    function diagnosis_Discrepancy() {
+        let allIssueFixed = false;
+        const sheets = luckysheet.getAllSheets();
+        let activeSheetIndex = sheets.find(s => Number(s.status) === 1).order;
+        while (!allIssueFixed) {
+            let totalIssues = 0;
+            const fmt = {
+                sheetHeader: 'color:#1976d2;font-weight:bold;',
+                ok: 'color:#2e7d32;',
+                warn: 'color:#f57c00;font-weight:bold;',
+                cell: 'color:#455a64;',
+                summary: 'color:#6a1b9a;font-weight:bold;',
+                ts: 'color:#9e9e9e;font-style:italic;'
+            };
+            const now = () => new Date().toLocaleString();
+            sheets.forEach((sheet, sheetIdx) => {
+                // Ensure the target sheet is active for recalculation context
+                luckysheet.setSheetActive(sheetIdx);
+
+                // Collect cells with formulas
+                const formulaCells = (sheet.celldata ?? [])
+                    .filter(cell => cell?.v?.f && cell?.v?.f.indexOf('Next Week') == -1 && cell?.v?.f.indexOf('TODAY') == -1)
+                    .map(cell => ({
+                        r: cell.r,
+                        c: cell.c,
+                        f: cell.v.f,
+                        oldValue: luckysheet.getCellValue(cell.r, cell.c)
+                    }));
+
+                // Compute changes BEFORE opening the group so we can show the count in the title
+                const changes = [];
+
+                if (formulaCells.length > 0) {
+                    // Recalculate and compare
+                    formulaCells.forEach(m => {
+                        // Recalculate the cell value by passing formula (true,true skips UI flash)
+                        const value = luckysheet.validateCellValue(sheet, m.r, m.c, m.f, true, true);
+                        const newValue = Array.isArray(value) ? value[1] : value;
+
+                        // Current behavior: compare by string form (datatype-agnostic-ish)
+                        const oldStr = m.oldValue?.toString?.() ?? String(m.oldValue);
+                        const newStr = newValue?.toString?.() ?? String(newValue);
+
+                        if (oldStr !== newStr) {
+                            changes.push({
+                                Sheet: sheet.name,
+                                Row: m.r + 1,
+                                Col: m.c,
+                                Formula: m.f,
+                                Old: m.oldValue,
+                                New: newValue
+                            });
+                            luckysheet.updateCellValue(sheet, m.r, m.c, m.f, true, true);
+                        }
+                    });
+                }
+
+                // Now open the group with the changes count
+                console.groupCollapsed(
+                    `%cSheet: ${sheet.name} %c— Changes (${changes.length}) %c(${now()})`,
+                    fmt.sheetHeader, fmt.warn, fmt.ts
+                );
+                totalIssues = totalIssues + changes.length;
+
+
+                if (formulaCells.length === 0) {
+                    console.log('%cNo formula cells found.', fmt.ok);
+                    console.groupEnd();
+                    return;
+                }
+
+                console.log('%cScanning complete.', fmt.cell);
+
+                if (changes.length === 0) {
+                    console.log('%cNo missing calcChain entries or value changes detected.', fmt.ok);
+                } else {
+                    console.log(
+                        `%cDetected ${changes.length} recalculation change(s) — potential missing calcChain entries.`,
+                        fmt.warn
+                    );
+                    // Tabular display for quick visual inspection
+                    console.table(changes);
+                }
+
+                console.log(
+                    `%cSummary: ${formulaCells.length} formula cell(s) scanned, ${changes.length} change(s) found.`,
+                    fmt.summary
+                );
+
+                console.groupEnd();
+
+
+            });
+            if (totalIssues == 0)
+                allIssueFixed = true;
+        }
+        luckysheet.setSheetActive(activeSheetIndex < sheets.length ? activeSheetIndex : 0);
     }
-
-    // --- Currency ---
-    const isCurrency = raw.charCodeAt(0) === 36;
-    const numPart = raw.replace(/[$,]/g, "");
-
-    if (!/^[+-]?\d+(\.\d+)?$/.test(numPart)) {
-        return "General";
-    }
-
-    const decLen = (numPart.split(".")[1] || "").length;
-    const hasComma = /,/.test(raw);
-
-    let fmt = hasComma ? "#,##0" : "0";
-    if (decLen) fmt += "." + "0".repeat(decLen);
-
-    if (isCurrency) fmt = "$" + fmt;
-
-    if (isParenNegative) {
-        fmt = fmt + ";(" + fmt + ")";
-    }
-
-    return fmt;
-}
