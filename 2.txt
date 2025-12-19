@@ -1,357 +1,219 @@
 (function ($) {
+    $.fn.luckysheetDiagnosis = function (options) {
+        const settings = $.extend({
+            onFixComplete: null
+        }, options);
 
-  /**
-   * Luckysheet Diagnosis Utility
-   * -----------------------------------
-   * Dependencies:
-   *  - jQuery
-   *  - Bootstrap (modal)
-   *  - Luckysheet
-   */
+        // Remove existing instances and inject modern styles
+        $('#luckysheetDiagModal').remove();
+        if ($('#luckysheetDiagStyles').length === 0) {
+            $('head').append(`
+            <style id="luckysheetDiagStyles">
+                #luckysheetDiagModal .modal-content { border-radius: 12px; font-family: 'Inter', -apple-system, sans-serif; background: #ffffff; border: none; }
+                #luckysheetDiagModal .modal-header { background: #5f27cd; color: white; border-radius: 12px 12px 0 0; padding: 1rem 1.5rem; }
+                #luckysheetDiagModal .modal-title { font-weight: 600; font-size: 1.15rem; letter-spacing: -0.02em; }
+                #luckysheetDiagModal .btn-close { filter: brightness(0) invert(1); }
+                
+                /* Scan Dashboard */
+                .diag-hero { padding: 40px; text-align: center; background: #fdfdfd; border-bottom: 1px solid #eee; }
+                .diag-hero.hidden { display: none; }
+                .diag-stats { display: flex; gap: 15px; padding: 20px; background: #f8f9fa; border-bottom: 1px solid #eee; }
+                .stat-card { flex: 1; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e0e0e0; text-align: center; transition: all 0.3s ease; }
+                .stat-card .val { font-size: 1.6rem; font-weight: 700; color: #5f27cd; display: block; }
+                .stat-card .lbl { font-size: 0.7rem; color: #888; text-transform: uppercase; font-weight: 600; }
 
-  $.fn.luckysheetDiagnosis = function (options) {
-
-    const settings = $.extend({
-      autoRun: false
-    }, options);
-
-    let issues = [];
-    let modalInstance = null;
-
-    destroy();
-    injectStyles();
-    renderModal();
-    bindEvents();
-
-    if (settings.autoRun) {
-      runDiagnosis();
-    }
-
-    /* =========================================================
-     * CORE
-     * =======================================================*/
-
-    function runDiagnosis() {
-      issues = [];
-
-      issues.push(...diagnosis_Discrepancy_UI());
-      issues.push(...diagnosis_MissingChain_UI()); // placeholder / hook
-
-      renderTable();
-      updateSummary();
-    }
-
-    function fixIssue(issueId) {
-      const issue = issues.find(i => i.id === issueId);
-      if (!issue || issue.fixed) return;
-
-      try {
-        issue.fix();
-        issue.fixed = true;
-      } catch (e) {
-        console.error("Fix failed:", e);
-      }
-
-      renderTable();
-      updateSummary();
-    }
-
-    function fixSelected() {
-      $('.lsd-select:checked').each(function () {
-        fixIssue($(this).data('id'));
-      });
-    }
-
-    function fixAll() {
-      issues.forEach(i => {
-        if (!i.fixed) {
-          try { i.fix(); } catch (e) { }
-          i.fixed = true;
+                /* Table UI */
+                .diag-table-wrapper { max-height: 400px; overflow-y: auto; padding: 0; display: none; }
+                .diag-table-wrapper.active { display: block; }
+                .diag-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
+                .diag-table th { position: sticky; top: 0; background: #f1f2f6; z-index: 10; padding: 12px 15px; color: #2f3542; text-align: left; font-weight: 600; border-bottom: 1px solid #dfe4ea; }
+                .diag-table td { padding: 12px 15px; border-bottom: 1px solid #f1f2f6; vertical-align: middle; }
+                
+                /* Diff UI */
+                .diff-box { line-height: 1.2; }
+                .val-old { color: #eb4d4b; text-decoration: line-through; font-size: 0.75rem; display: block; opacity: 0.8; }
+                .val-new { color: #2ecc71; font-weight: 700; display: block; }
+                .formula-pill { font-family: 'Cascadia Code', monospace; background: #f1f2f6; padding: 3px 6px; border-radius: 4px; font-size: 0.75rem; border: 1px solid #dfe4ea; }
+                
+                /* Buttons */
+                .btn-primary-diag { background: #5f27cd; border-color: #5f27cd; padding: 10px 25px; font-weight: 600; }
+                .btn-fix-all { background: #2ecc71 !important; border-color: #27ae60 !important; color: white; display: none; }
+                .btn-fix-all.active { display: inline-block; }
+                .scan-loader { display: none; margin: 20px auto; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #5f27cd; border-radius: 50%; animation: spin 1s linear infinite; }
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
+            `);
         }
-      });
 
-      renderTable();
-      updateSummary();
-    }
+        const modalHTML = `
+        <div class="modal fade" id="luckysheetDiagModal" data-bs-backdrop="static" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content shadow-lg">
+                    <div class="modal-header">
+                        <h5 class="modal-title">System Diagnosis Utility</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div id="diag-initial-view" class="diag-hero">
+                            <h3>Ready to Diagnose</h3>
+                            <p class="text-muted">The utility will scan all formula chains for calculation discrepancies and missing links.</p>
+                            <button type="button" id="btn-start-scan" class="btn btn-primary-diag btn-lg text-white">Start Scan</button>
+                            <div class="scan-loader" id="diag-loader"></div>
+                        </div>
 
-    /* =========================================================
-     * DIAGNOSIS IMPLEMENTATIONS
-     * =======================================================*/
-
-    /**
-     * VALUE DISCREPANCY
-     * ----------------------------------
-     * Recalculates formula and compares
-     */
-    function diagnosis_Discrepancy_UI() {
-      const list = [];
-      const sheets = luckysheet.getAllSheets() || [];
-
-      sheets.forEach((sheet, sheetIdx) => {
-
-        luckysheet.setSheetActive(sheetIdx);
-
-        (sheet.celldata || []).forEach(cell => {
-          if (!cell?.v?.f) return;
-
-          // Skip volatile formulas if needed
-          if (cell.v.f.includes("TODAY") || cell.v.f.includes("Next Week")) return;
-
-          const oldValue = luckysheet.getCellValue(cell.r, cell.c);
-          const result = luckysheet.validateCellValue(
-            sheet,
-            cell.r,
-            cell.c,
-            cell.v.f,
-            true,
-            true
-          );
-
-          const newValue = Array.isArray(result) ? result[1] : result;
-
-          if (String(oldValue) !== String(newValue)) {
-            list.push(buildIssue({
-              type: "Value Discrepancy",
-              sheet,
-              sheetIdx,
-              cell,
-              oldValue,
-              newValue,
-              fix: () => {
-                luckysheet.updateCellValue(
-                  sheet,
-                  cell.r,
-                  cell.c,
-                  cell.v.f,
-                  true,
-                  true
-                );
-              }
-            }));
-          }
-        });
-      });
-
-      return list;
-    }
-
-    /**
-     * MISSING CALCCHAIN (HOOK)
-     * ----------------------------------
-     * Extend this when you plug your
-     * diagnosis_MissingChain logic
-     */
-    function diagnosis_MissingChain_UI() {
-      // Placeholder – structure ready
-      // Return [] if no issues detected
-      return [];
-    }
-
-    /* =========================================================
-     * ISSUE FACTORY
-     * =======================================================*/
-
-    function buildIssue({ type, sheet, sheetIdx, cell, oldValue, newValue, fix }) {
-      return {
-        id: crypto.randomUUID(),
-        type,
-        sheetIndex: sheetIdx,
-        sheetName: sheet.name,
-        r: cell.r,
-        c: cell.c,
-        cellRef: luckysheet.toColumnLetter(cell.c) + (cell.r + 1),
-        formula: cell.v.f,
-        oldValue,
-        newValue,
-        fix,
-        fixed: false
-      };
-    }
-
-    /* =========================================================
-     * UI
-     * =======================================================*/
-
-    function renderModal() {
-      $('body').append(`
-        <div class="modal fade" id="lsDiagnosisModal" tabindex="-1" style="z-index:9999">
-          <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-
-              <div class="modal-header lsd-header">
-                <h5 class="modal-title">🩺 Luckysheet Diagnosis Utility</h5>
-                <button class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-
-              <div class="modal-body p-0">
-
-                <div class="lsd-toolbar">
-                  <button class="btn btn-primary btn-sm lsd-run">Run Diagnosis</button>
-                  <button class="btn btn-warning btn-sm lsd-fix-selected">Fix Selected</button>
-                  <button class="btn btn-danger btn-sm lsd-fix-all">Fix All</button>
-                  <span class="lsd-summary ms-3"></span>
+                        <div id="diag-results-view" style="display:none;">
+                            <div class="diag-stats">
+                                <div class="stat-card">
+                                    <span class="val" id="diag-total-scanned">0</span>
+                                    <span class="lbl">Formulas Scanned</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="val" id="diag-total-issues" style="color: #eb4d4b;">0</span>
+                                    <span class="lbl">Discrepancies</span>
+                                </div>
+                            </div>
+                            <div class="diag-table-wrapper active">
+                                <table class="diag-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Sheet Location</th>
+                                            <th>Formula Context</th>
+                                            <th>Discrepancy (Old → New)</th>
+                                            <th class="text-end">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="diag-results-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-link text-muted" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" id="btn-rescan" class="btn btn-outline-secondary btn-sm" style="display:none;">Re-Scan</button>
+                        <button type="button" id="btn-fix-all" class="btn btn-fix-all">Fix All Discrepancies</button>
+                    </div>
                 </div>
-
-                <div class="lsd-table-wrapper">
-                  <table class="table table-sm table-bordered lsd-table">
-                    <thead>
-                      <tr>
-                        <th><input type="checkbox" class="lsd-select-all"></th>
-                        <th>Type</th>
-                        <th>Sheet</th>
-                        <th>Cell</th>
-                        <th>Formula</th>
-                        <th>Old</th>
-                        <th>New</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody></tbody>
-                  </table>
-                </div>
-
-              </div>
             </div>
-          </div>
-        </div>
-      `);
+        </div>`;
 
-      modalInstance = new bootstrap.Modal(document.getElementById('lsDiagnosisModal'));
-      modalInstance.show();
-    }
+        $('body').append(modalHTML);
+        const $modal = $('#luckysheetDiagModal');
+        const modalInstance = new bootstrap.Modal($modal[0]);
 
-    function renderTable() {
-      const $tbody = $('.lsd-table tbody').empty();
+        let detectedIssues = [];
 
-      if (!issues.length) {
-        $tbody.append(`
-          <tr>
-            <td colspan="8" class="text-center text-muted">
-              No issues detected 🎉
-            </td>
-          </tr>
-        `);
-        return;
-      }
+        // --- Logic: The Scan Phase ---
+        const performScan = () => {
+            $('#btn-start-scan').hide();
+            $('#diag-loader').show();
+            
+            // Allow DOM to update for loader
+            setTimeout(() => {
+                detectedIssues = [];
+                let totalScanned = 0;
+                const sheets = luckysheet.getAllSheets();
+                const activeIdx = sheets.find(s => Number(s.status) === 1).order;
 
-      issues.forEach(i => {
-        $tbody.append(`
-          <tr class="${i.fixed ? 'lsd-fixed' : ''}">
-            <td>
-              <input type="checkbox"
-                     class="lsd-select"
-                     data-id="${i.id}"
-                     ${i.fixed ? 'disabled' : ''}>
-            </td>
-            <td>${i.type}</td>
-            <td>${i.sheetName}</td>
-            <td>
-              <a href="#" class="lsd-jump"
-                 data-sheet="${i.sheetIndex}"
-                 data-r="${i.r}"
-                 data-c="${i.c}">
-                ${i.cellRef}
-              </a>
-            </td>
-            <td class="lsd-formula">${i.formula}</td>
-            <td>${i.oldValue}</td>
-            <td>${i.newValue}</td>
-            <td>
-              ${
-                i.fixed
-                  ? '<span class="text-success">✔ Fixed</span>'
-                  : `<button class="btn btn-success btn-xs lsd-fix-one" data-id="${i.id}">Fix</button>`
-              }
-            </td>
-          </tr>
-        `);
-      });
-    }
+                sheets.forEach((sheet, sheetIdx) => {
+                    luckysheet.setSheetActive(sheetIdx);
+                    
+                    const formulaCells = (sheet.celldata ?? [])
+                        .filter(cell => cell?.v?.f && !cell.v.f.includes('Next Week') && !cell.v.f.includes('TODAY'))
+                        .map(cell => ({
+                            r: cell.r, c: cell.c, f: cell.v.f,
+                            oldValue: luckysheet.getCellValue(cell.r, cell.c)
+                        }));
 
-    function updateSummary() {
-      const open = issues.filter(i => !i.fixed).length;
-      $('.lsd-summary').html(
-        `<b>Issues:</b> ${open} / ${issues.length}`
-      );
-    }
+                    totalScanned += formulaCells.length;
 
-    /* =========================================================
-     * EVENTS
-     * =======================================================*/
+                    formulaCells.forEach(m => {
+                        const val = luckysheet.validateCellValue(sheet, m.r, m.c, m.f, true, true);
+                        const newVal = Array.isArray(val) ? val[1] : val;
 
-    function bindEvents() {
+                        const oldStr = m.oldValue?.toString() ?? String(m.oldValue);
+                        const newStr = newVal?.toString() ?? String(newVal);
 
-      $(document)
-        .on('click', '.lsd-run', runDiagnosis)
-        .on('click', '.lsd-fix-one', e => fixIssue($(e.target).data('id')))
-        .on('click', '.lsd-fix-selected', fixSelected)
-        .on('click', '.lsd-fix-all', fixAll)
-        .on('change', '.lsd-select-all', function () {
-          $('.lsd-select:not(:disabled)').prop('checked', this.checked);
-        })
-        .on('click', '.lsd-jump', function (e) {
-          e.preventDefault();
-          luckysheet.setSheetActive($(this).data('sheet'));
-          luckysheet.setRangeShow({
-            row: [$(this).data('r'), $(this).data('r')],
-            column: [$(this).data('c'), $(this).data('c')]
-          });
-        })
-        .on('hidden.bs.modal', '#lsDiagnosisModal', destroy);
-    }
+                        if (oldStr !== newStr) {
+                            detectedIssues.push({
+                                sheetName: sheet.name, sheetId: sheet.index,
+                                r: m.r, c: m.c,
+                                cellAddr: String.fromCharCode(65 + m.c) + (m.r + 1),
+                                formula: m.f,
+                                oldVal: (oldStr === "null" || oldStr === "") ? "—" : oldStr,
+                                newVal: (newStr === "null" || newStr === "") ? "—" : newStr
+                            });
+                        }
+                    });
+                });
 
-    /* =========================================================
-     * STYLES
-     * =======================================================*/
+                luckysheet.setSheetActive(activeIdx);
+                showResults(totalScanned);
+            }, 300);
+        };
 
-    function injectStyles() {
-      if ($('#lsDiagnosisStyles').length) return;
+        // --- UI: Showing Results ---
+        const showResults = (scannedCount) => {
+            $('#diag-initial-view').hide();
+            $('#diag-results-view').fadeIn();
+            $('#btn-rescan').show();
+            
+            $('#diag-total-scanned').text(scannedCount);
+            $('#diag-total-issues').text(detectedIssues.length);
 
-      $('head').append(`
-        <style id="lsDiagnosisStyles">
-          .lsd-header {
-            background:#e3f2fd;
-            border-bottom:1px solid #bbdefb;
-          }
-          .lsd-toolbar {
-            padding:10px;
-            background:#fafafa;
-            border-bottom:1px solid #ddd;
-          }
-          .lsd-toolbar button {
-            margin-right:6px;
-          }
-          .lsd-table-wrapper {
-            max-height:60vh;
-            overflow:auto;
-          }
-          .lsd-formula {
-            max-width:260px;
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:ellipsis;
-          }
-          .lsd-fixed {
-            background:#e8f5e9;
-          }
-          .btn-xs {
-            padding:2px 6px;
-            font-size:11px;
-          }
-        </style>
-      `);
-    }
+            const $body = $('#diag-results-body').empty();
 
-    /* =========================================================
-     * CLEANUP
-     * =======================================================*/
+            if (detectedIssues.length === 0) {
+                $body.append('<tr><td colspan="4" class="text-center py-5 text-success"><h5>No Issues Found</h5>Data is consistent across all sheets.</td></tr>');
+                $('#btn-fix-all').removeClass('active');
+            } else {
+                detectedIssues.forEach((issue, idx) => {
+                    $body.append(`
+                        <tr>
+                            <td><span class="badge bg-light text-dark border">${issue.sheetName}</span> <b class="ms-1">${issue.cellAddr}</b></td>
+                            <td><span class="formula-pill">${issue.formula}</span></td>
+                            <td>
+                                <div class="diff-box">
+                                    <span class="val-old">${issue.oldVal}</span>
+                                    <span class="val-new">${issue.newVal}</span>
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-outline-success btn-sm btn-fix-single" data-index="${idx}">Fix</button>
+                            </td>
+                        </tr>
+                    `);
+                });
+                $('#btn-fix-all').addClass('active');
+            }
+        };
 
-    function destroy() {
-      $('#lsDiagnosisModal').remove();
-      $('#lsDiagnosisStyles').remove();
-      issues = [];
-    }
+        // --- Logic: The Fix Phase ---
+        const runFix = (indices) => {
+            const sheets = luckysheet.getAllSheets();
+            indices.forEach(i => {
+                const issue = detectedIssues[i];
+                const sheet = sheets.find(s => s.index === issue.sheetId);
+                luckysheet.updateCellValue(sheet, issue.r, issue.c, issue.formula, true, true);
+            });
 
-  };
+            if (settings.onFixComplete) settings.onFixComplete(indices.length);
+            
+            // Re-trigger scan to refresh UI and verify fixes
+            performScan();
+        };
 
-})(jQuery);
+        // Events
+        $('#btn-start-scan, #btn-rescan').on('click', performScan);
+        
+        $modal.on('click', '.btn-fix-single', function() {
+            runFix([$(this).data('index')]);
+        });
+
+        $('#btn-fix-all').on('click', function() {
+            runFix(detectedIssues.map((_, i) => i));
+        });
+
+        modalInstance.show();
+        return this;
+    };
+}(jQuery));
