@@ -4,7 +4,7 @@
             onFixComplete: null
         }, options);
 
-        // 1. Persistent State Object (Stored outside the immediate UI draw function)
+        // 1. Persistent State to prevent data loss when switching tabs
         if (!window._luckysheetDiagState) {
             window._luckysheetDiagState = {
                 discrepancy: { scanned: false, issues: {} },
@@ -14,34 +14,49 @@
         }
         const state = window._luckysheetDiagState;
 
-        // 2. Styling with Grid Lines
+        // 2. Excel Column Helper (0 -> A, 26 -> AA)
+        const getColumnLabel = (col) => {
+            let label = "";
+            while (col >= 0) {
+                label = String.fromCharCode((col % 26) + 65) + label;
+                col = Math.floor(col / 26) - 1;
+            }
+            return label;
+        };
+
+        // 3. Styles with Grid Lines
         $('#luckysheetDiagModal').remove();
         if ($('#luckysheetDiagStyles').length === 0) {
             $('head').append(`
             <style id="luckysheetDiagStyles">
-                #luckysheetDiagModal .modal-content { border-radius: 8px; font-family: 'Segoe UI', Arial, sans-serif; }
-                #luckysheetDiagModal .modal-header { background: #f8f9fa; border-bottom: 2px solid #dee2e6; color: #333; }
+                #luckysheetDiagModal .modal-content { border-radius: 8px; font-family: 'Segoe UI', Tahoma, sans-serif; border: none; }
+                #luckysheetDiagModal .modal-header { background: #34495e; color: white; border-radius: 8px 8px 0 0; padding: 12px 20px; }
                 
-                .diag-nav { display: flex; background: #eee; gap: 2px; padding: 5px 5px 0 5px; }
-                .diag-tab { padding: 10px 20px; cursor: pointer; background: #ddd; border-radius: 5px 5px 0 0; font-weight: 600; color: #666; }
-                .diag-tab.active { background: #fff; color: #0d6efd; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
+                /* Tabs */
+                .diag-tabs { display: flex; background: #ebedef; border-bottom: 1px solid #ccc; }
+                .diag-tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; font-weight: 600; color: #666; transition: 0.2s; }
+                .diag-tab.active { background: #fff; color: #2980b9; border-bottom: 3px solid #2980b9; }
 
-                .sheet-group { border: 1px solid #ccc; margin: 15px; border-radius: 4px; background: #fff; }
-                .sheet-group-header { padding: 10px 15px; background: #f1f1f1; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #ccc; }
+                /* Grid Table */
+                .sheet-group { border: 1px solid #d1d4d7; margin: 15px; border-radius: 4px; overflow: hidden; background: #fff; }
+                .sheet-header { background: #f8f9fa; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #d1d4d7; }
+                .sheet-body { display: none; }
+                .sheet-body.show { display: block; }
                 
-                /* Grid Table Styling */
-                .diag-grid { width: 100%; border-collapse: collapse; background: white; }
-                .diag-grid th { background: #f8f9fa; border: 1px solid #dee2e6; padding: 8px; font-size: 0.85rem; text-align: left; position: sticky; top: 0; }
-                .diag-grid td { border: 1px solid #dee2e6; padding: 8px; font-size: 0.85rem; vertical-align: middle; }
-                .diag-grid tr:hover { background-color: #f1f8ff; }
+                .diag-grid { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+                .diag-grid th { background: #f1f2f6; border: 1px solid #d1d4d7; padding: 8px; text-align: left; color: #2c3e50; font-weight: 600; }
+                .diag-grid td { border: 1px solid #d1d4d7; padding: 8px; vertical-align: middle; }
+                .diag-grid tr:hover { background: #f1f8ff; }
 
-                .cell-addr { font-weight: bold; color: #0056b3; background: #e7f1ff; padding: 2px 4px; border-radius: 3px; border: 1px solid #b6d4fe; }
-                .formula-text { font-family: 'Courier New', monospace; color: #d63384; word-break: break-all; }
-                .diff-old { color: #dc3545; text-decoration: line-through; display: block; font-size: 0.8rem; }
-                .diff-new { color: #198754; font-weight: bold; display: block; }
-                
-                .action-bar { padding: 10px 15px; background: #fdfdfe; border-top: 1px solid #eee; display: flex; gap: 10px; }
-                .loader { display: none; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+                /* Diff & Addr Styles */
+                .addr-box { font-weight: bold; color: #0056b3; background: #e7f1ff; padding: 2px 5px; border-radius: 3px; border: 1px solid #b6d4fe; }
+                .formula-box { font-family: 'Consolas', monospace; color: #c0392b; background: #fdf2f2; padding: 2px 4px; border-radius: 3px; }
+                .val-old { color: #e74c3c; text-decoration: line-through; display: block; font-size: 0.75rem; }
+                .val-new { color: #27ae60; font-weight: bold; display: block; }
+
+                /* Controls */
+                .diag-controls { padding: 12px 15px; background: #fdfdfe; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px; }
+                .diag-loader { display: none; width: 18px; height: 18px; border: 2px solid #f3f3f3; border-top: 2px solid #2980b9; border-radius: 50%; animation: spin 0.8s linear infinite; }
                 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             </style>
             `);
@@ -49,26 +64,27 @@
 
         const modalHTML = `
         <div class="modal fade" id="luckysheetDiagModal" tabindex="-1">
-            <div class="modal-dialog modal-xl">
-                <div class="modal-content">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content shadow-lg">
                     <div class="modal-header">
-                        <h5 class="modal-title">Luckysheet Inspector</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <h5 class="modal-title">System Diagnosis</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="diag-nav">
-                        <div class="diag-tab ${state.currentTab === 'discrepancy' ? 'active' : ''}" data-target="discrepancy">Discrepancy Check</div>
-                        <div class="diag-tab ${state.currentTab === 'calcchain' ? 'active' : ''}" data-target="calcchain">CalcChain Integrity</div>
+                    <div class="diag-tabs">
+                        <div class="diag-tab ${state.currentTab === 'discrepancy' ? 'active' : ''}" data-mode="discrepancy">Discrepancy Check</div>
+                        <div class="diag-tab ${state.currentTab === 'calcchain' ? 'active' : ''}" data-mode="calcchain">CalcChain Check</div>
                     </div>
-                    <div class="modal-body p-0" style="min-height: 500px; max-height:70vh; overflow-y:auto;">
-                        <div class="action-bar">
-                            <button class="btn btn-primary btn-sm" id="diag-btn-scan">Scan Now</button>
-                            <button class="btn btn-outline-danger btn-sm" id="diag-btn-reset">Reset Category</button>
-                            <div class="loader" id="diag-main-loader"></div>
-                        </div>
-                        <div id="diag-display-area"></div>
+                    <div class="diag-controls">
+                        <button id="btn-diag-scan" class="btn btn-primary btn-sm px-4">Scan</button>
+                        <button id="btn-diag-reset" class="btn btn-outline-secondary btn-sm">Reset</button>
+                        <div class="diag-loader" id="diag-load-icon"></div>
                     </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-success" id="diag-btn-fix-all" style="display:none;">Fix All Detected</button>
+                    <div class="modal-body p-0" style="min-height: 400px; max-height: 550px; overflow-y:auto;">
+                        <div id="diag-container"></div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-sm btn-link text-muted" data-bs-dismiss="modal">Close</button>
+                        <button type="button" id="btn-diag-fix-all" class="btn btn-sm btn-success px-4" style="display:none;">Fix All Issues</button>
                     </div>
                 </div>
             </div>
@@ -78,49 +94,42 @@
         const $modal = $('#luckysheetDiagModal');
         const modalInstance = new bootstrap.Modal($modal[0]);
 
-        // Helper: Convert Column Index to Excel Letter (0 -> A, 26 -> AA)
-        const chatatABC = (index) => {
-            let res = "";
-            while (index >= 0) {
-                res = String.fromCharCode((index % 26) + 65) + res;
-                index = Math.floor(index / 26) - 1;
-            }
-            return res;
-        };
+        // --- UI Rendering ---
+        const render = () => {
+            const current = state[state.currentTab];
+            const $container = $('#diag-container').empty();
 
-        // --- Core UI Renderer ---
-        const renderUI = () => {
-            const currentData = state[state.currentTab];
-            const $area = $('#diag-display-area').empty();
-
-            if (!currentData.scanned) {
-                $area.append('<div class="p-5 text-center text-muted"><h5>No scan data.</h5><p>Click "Scan Now" to analyze the workbook.</p></div>');
-                $('#diag-btn-fix-all').hide();
+            if (!current.scanned) {
+                $container.append('<div class="p-5 text-center text-muted">Ready to scan this category.</div>');
+                $('#btn-diag-fix-all').hide();
                 return;
             }
 
-            const sheetNames = Object.keys(currentData.issues);
-            if (sheetNames.length === 0) {
-                $area.append('<div class="p-5 text-center text-success"><h5>✅ Category Clean</h5><p>No issues found in this category.</p></div>');
-                $('#diag-btn-fix-all').hide();
+            const sheetKeys = Object.keys(current.issues);
+            if (sheetKeys.length === 0) {
+                $container.append('<div class="p-5 text-center text-success">No issues found. Everything looks good!</div>');
+                $('#btn-diag-fix-all').hide();
                 return;
             }
 
-            sheetNames.forEach(sName => {
-                const sheet = currentData.issues[sName];
-                const $section = $(`
+            sheetKeys.forEach(name => {
+                const sheet = current.issues[name];
+                const $group = $(`
                     <div class="sheet-group">
-                        <div class="sheet-group-header">
-                            <span><b>Sheet: ${sName}</b> <span class="badge bg-secondary ms-2">${sheet.data.length}</span></span>
-                            <button class="btn btn-xs btn-success py-0 btn-fix-sheet" data-sheet="${sName}">Fix Sheet</button>
+                        <div class="sheet-header">
+                            <span><b>Sheet: ${name}</b> <span class="badge bg-danger ms-2">${sheet.data.length}</span></span>
+                            <div>
+                                <button class="btn btn-xs btn-outline-success py-0 btn-fix-sheet" data-sheet="${name}">Fix Sheet</button>
+                                <i class="bi bi-chevron-down ms-2"></i>
+                            </div>
                         </div>
-                        <div class="sheet-content">
+                        <div class="sheet-body show">
                             <table class="diag-grid">
                                 <thead>
                                     <tr>
-                                        <th style="width: 80px;">Cell</th>
+                                        <th style="width:100px;">Cell</th>
                                         <th>Formula</th>
-                                        <th>${state.currentTab === 'discrepancy' ? 'Stored vs Calculated' : 'Diagnostic Status'}</th>
+                                        <th>${state.currentTab === 'discrepancy' ? 'Old vs New Value' : 'Status'}</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -129,111 +138,118 @@
                     </div>
                 `);
 
-                sheet.data.forEach(issue => {
-                    const statusCell = state.currentTab === 'discrepancy' 
-                        ? `<td><span class="diff-old">${issue.oldVal}</span><span class="diff-new">${issue.newVal}</span></td>`
-                        : `<td><span class="text-danger">Missing from Chain</span></td>`;
+                sheet.data.forEach(item => {
+                    const statusVal = state.currentTab === 'discrepancy' 
+                        ? `<td><span class="val-old">${item.oldVal}</span><span class="val-new">${item.newVal}</span></td>`
+                        : `<td><span class="text-danger">Missing Link</span></td>`;
 
-                    $section.find('tbody').append(`
+                    $group.find('tbody').append(`
                         <tr>
-                            <td><span class="cell-addr">${issue.addr}</span></td>
-                            <td><span class="formula-text">${issue.formula}</span></td>
-                            ${statusCell}
+                            <td><span class="addr-box">${item.addr}</span></td>
+                            <td><span class="formula-box">${item.f}</span></td>
+                            ${statusVal}
                         </tr>
                     `);
                 });
-                $area.append($section);
+                $container.append($group);
             });
 
-            $('#diag-btn-fix-all').show();
+            $('#btn-diag-fix-all').show();
         };
 
-        // --- Logic: SCAN (Populates Persisted State) ---
+        // --- Logic: SCAN ---
         const runScan = () => {
-            $('#diag-main-loader').show();
-            const category = state.currentTab;
-            state[category].issues = {};
+            $('#diag-load-icon').show();
+            const mode = state.currentTab;
+            state[mode].issues = {};
 
             setTimeout(() => {
-                const allSheets = luckysheet.getAllSheets();
-                const activeIdx = allSheets.find(s => Number(s.status) === 1).order;
+                const sheets = luckysheet.getAllSheets();
+                const activeOrder = sheets.find(s => Number(s.status) === 1).order;
 
-                allSheets.forEach((sheet, idx) => {
+                sheets.forEach((sheet, idx) => {
                     luckysheet.setSheetActive(idx);
-                    const issues = [];
-                    const formulaCells = (sheet.celldata ?? []).filter(c => c?.v?.f);
+                    const sheetIssues = [];
+                    const formulas = (sheet.celldata ?? []).filter(c => c?.v?.f);
 
-                    formulaCells.forEach(cell => {
-                        const cellAddr = chatatABC(cell.c) + (cell.r + 1); // Fixed Excel Addressing
+                    formulas.forEach(cell => {
+                        const cellLabel = getColumnLabel(cell.c) + (cell.r + 1); // Fix A1, B2
 
-                        if (category === 'discrepancy') {
+                        if (mode === 'discrepancy') {
                             const val = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
-                            const calcV = Array.isArray(val) ? val[1] : val;
-                            const currentV = luckysheet.getCellValue(cell.r, cell.c);
+                            const calc = Array.isArray(val) ? val[1] : val;
+                            const stored = luckysheet.getCellValue(cell.r, cell.c);
 
-                            if (String(currentV) !== String(calcV)) {
-                                issues.push({ r: cell.r, c: cell.c, formula: cell.v.f, addr: cellAddr, oldVal: currentV ?? 'null', newVal: calcV ?? 'null' });
+                            if (String(stored) !== String(calc)) {
+                                sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: cellLabel, oldVal: stored ?? '—', newVal: calc ?? '—' });
                             }
                         } else {
                             const linked = (sheet.calcChain || []).some(cc => cc.r == cell.r && cc.c == cell.c);
                             if (!linked) {
-                                issues.push({ r: cell.r, c: cell.c, formula: cell.v.f, addr: cellAddr });
+                                sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: cellLabel });
                             }
                         }
                     });
 
-                    if (issues.length > 0) state[category].issues[sheet.name] = { id: sheet.index, data: issues };
+                    if (sheetIssues.length > 0) {
+                        state[mode].issues[sheet.name] = { id: sheet.index, data: sheetIssues };
+                    }
                 });
 
-                state[category].scanned = true;
-                luckysheet.setSheetActive(activeIndex);
-                $('#diag-main-loader').hide();
-                renderUI();
-            }, 400);
+                state[mode].scanned = true;
+                luckysheet.setSheetActive(activeOrder);
+                $('#diag-load-icon').hide();
+                render();
+            }, 500);
         };
 
         // --- Logic: FIX ---
-        const runFix = (sNames) => {
-            const category = state.currentTab;
-            const allSheets = luckysheet.getAllSheets();
+        const runFix = (names) => {
+            const mode = state.currentTab;
+            const sheets = luckysheet.getAllSheets();
             
-            sNames.forEach(name => {
-                const sheetData = state[category].issues[name];
-                const sheetObj = allSheets.find(s => s.index === sheetData.id);
-                sheetData.data.forEach(issue => {
-                    luckysheet.updateCellValue(sheetObj, issue.r, issue.c, issue.formula, true, true);
+            names.forEach(n => {
+                const issueData = state[mode].issues[n];
+                const sheetObj = sheets.find(s => s.index === issueData.id);
+                issueData.data.forEach(issue => {
+                    luckysheet.updateCellValue(sheetObj, issue.r, issue.c, issue.f, true, true);
                 });
             });
 
             if (settings.onFixComplete) settings.onFixComplete();
-            runScan(); // Persist fix by re-scanning
+            runScan(); 
         };
 
         // --- Event Listeners ---
         $modal.on('click', '.diag-tab', function() {
-            state.currentTab = $(this).data('target');
+            state.currentTab = $(this).data('mode');
             $('.diag-tab').removeClass('active');
             $(this).addClass('active');
-            renderUI();
+            render();
         });
 
-        $('#diag-btn-scan').on('click', runScan);
+        $('#btn-diag-scan').on('click', runScan);
 
-        $('#diag-btn-reset').on('click', function() {
+        $('#btn-diag-reset').on('click', () => {
             state[state.currentTab] = { scanned: false, issues: {} };
-            renderUI();
+            render();
+        });
+
+        $modal.on('click', '.sheet-header', function(e) {
+            if ($(e.target).closest('button').length) return;
+            $(this).next('.sheet-body').toggleClass('show');
         });
 
         $modal.on('click', '.btn-fix-sheet', function() {
             runFix([$(this).data('sheet')]);
         });
 
-        $('#diag-btn-fix-all').on('click', function() {
+        $('#btn-diag-fix-all').on('click', function() {
             runFix(Object.keys(state[state.currentTab].issues));
         });
 
         modalInstance.show();
-        renderUI();
+        render();
         return this;
     };
 }(jQuery));
