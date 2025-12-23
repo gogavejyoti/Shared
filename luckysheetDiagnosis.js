@@ -1,211 +1,197 @@
-(function ($) {
-    $.fn.luckysheetDiagnosis = function (options) {
-        const settings = $.extend({ onFixComplete: null }, options);
+            pasteHandler: function (e, n) {
+                if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
+                    return;
+                let l = Q().paste;
 
-        if (!window._luckysheetDiagState) {
-            window._luckysheetDiagState = {
-                discrepancy: { scanned: false, issues: {} },
-                activeSheetName: null
-            };
-        }
-        const state = window._luckysheetDiagState;
-
-        const getExcelAddr = (r, c) => {
-            let label = ""; let col = c;
-            while (col >= 0) { label = String.fromCharCode((col % 26) + 65) + label; col = Math.floor(col / 26) - 1; }
-            return label + (r + 1);
-        };
-
-        const addLog = (msg) => {
-            const $con = $('#diag-console');
-            $con.append(`<div class="log-entry">> ${msg}</div>`);
-            $con.scrollTop($con[0].scrollHeight);
-        };
-
-        const updateProgress = (pct, msg) => {
-            $('#diag-prog').css('width', pct + '%');
-            if(msg) addLog(msg);
-        };
-
-        // --- STYLES ---
-        $('#luckysheetDiagModal').remove();
-        if ($('#luckysheetDiagStyles').length === 0) {
-            $('head').append(`
-            <style id="luckysheetDiagStyles">
-                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=JetBrains+Mono&display=swap');
-                #luckysheetDiagModal .modal-content { border-radius: 12px; font-family: 'Plus Jakarta Sans', sans-serif; border: none; overflow: hidden; background: #fff; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
-                #luckysheetDiagModal .modal-header { background: #0f172a; color: #fff; padding: 1rem 1.5rem; }
-                .diag-container { display: flex; height: 650px; }
-                .diag-sidebar { width: 260px; background: #f8fafc; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
-                .diag-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-                .diag-console-top { background: #1e293b; color: #38bdf8; font-family: 'JetBrains Mono'; font-size: 11px; padding: 12px 20px; height: 110px; overflow-y: auto; border-bottom: 2px solid #334155; flex-shrink: 0; }
-                .log-entry { margin-bottom: 2px; border-left: 2px solid #334155; padding-left: 10px; }
-                .diag-action-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; }
-                .btn-diag-cmd { border-radius: 6px; font-weight: 700; padding: 8px 16px; border: 1px solid transparent; font-size: 12px; cursor: pointer; }
-                .btn-scan-main { background: #0f172a; color: #fff; }
-                .btn-fix-main { background: #10b981; color: #fff; }
-                .btn-reset-main { background: #fff; color: #ef4444; border-color: #fecaca; }
-                .diag-grid-container { flex: 1; overflow-y: auto; background: #fff; }
-                .diag-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-                .diag-table thead th { position: sticky; top: 0; background: #f8fafc; z-index: 10; padding: 12px 16px; font-size: 11px; text-align: left; border-bottom: 2px solid #e2e8f0; }
-                .diag-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: top; white-space: normal; word-wrap: break-word; }
-                .sheet-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; margin: 4px 10px; font-size: 13px; transition: 0.2s; }
-                .sheet-item.active { background: #0f172a !important; color: #fff !important; }
-                .error-badge { font-size: 10px; background: #fee2e2; color: #ef4444; padding: 2px 7px; border-radius: 10px; font-weight: 800; }
-                .diag-progress-line { position: absolute; top: 110px; left: 0; height: 4px; background: #10b981; width: 0%; transition: width 0.2s; z-index: 100; }
-            </style>
-            `);
-        }
-
-        const modalHTML = `
-        <div class="modal fade" id="luckysheetDiagModal" tabindex="-1">
-            <div class="modal-dialog modal-xl modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header"><h6 class="mb-0 fw-bold">Integrity Diagnostic Command Center</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-                    <div class="diag-container">
-                        <aside class="diag-sidebar"><div style="padding:1.25rem 1rem 0.5rem; font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Affected Sheets</div><div id="diag-sheet-list"></div></aside>
-                        <main class="diag-main">
-                            <div class="diag-console-top" id="diag-console"><div class="log-entry">> Initialized. Awaiting deep scan.</div></div>
-                            <div class="diag-progress-line" id="diag-prog"></div>
-                            <div class="diag-action-bar">
-                                <div id="diag-summary-text" class="small fw-600 text-muted">Ready</div>
-                                <div class="btn-group">
-                                    <button id="btn-diag-reset" class="btn-diag-cmd btn-reset-main">Reset</button>
-                                    <button id="btn-diag-scan" class="btn-diag-cmd btn-scan-main">Deep Scan</button>
-                                    <button id="btn-diag-fix" class="btn-diag-cmd btn-fix-main" style="display:none;">Repair Workbook</button>
-                                </div>
-                            </div>
-                            <div class="diag-grid-container"><div id="diag-view-content"></div></div>
-                        </main>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-
-        $('body').append(modalHTML);
-        const $modal = $('#luckysheetDiagModal');
-        const modalInstance = new bootstrap.Modal($modal[0]);
-
-        const render = () => {
-            const $list = $('#diag-sheet-list').empty();
-            const issuesObj = state.discrepancy.issues;
-            const names = Object.keys(issuesObj);
-            if (!state.discrepancy.scanned) { $('#diag-view-content').html('<div class="text-center py-5 text-muted small">No data analyzed.</div>'); $('#btn-diag-fix').hide(); return; }
-            if (names.length === 0) { $('#diag-view-content').html('<div class="text-center py-5 text-success"><h6>Workbook Healthy.</h6></div>'); $('#btn-diag-fix').hide(); return; }
-            if (!state.activeSheetName) state.activeSheetName = names[0];
-            names.forEach(name => {
-                const activeCls = state.activeSheetName === name ? 'active' : '';
-                $list.append(`<div class="sheet-item ${activeCls}" data-name="${name}"><span>${name}</span><span class="error-badge">${issuesObj[name].data.length}</span></div>`);
-            });
-            $('#btn-diag-fix').show();
-            const data = issuesObj[state.activeSheetName]?.data || [];
-            let html = `<table class="diag-table"><thead><tr><th style="width:200px">Reference</th><th>Formula</th><th>Mismatch</th></tr></thead><tbody>`;
-            data.forEach(item => {
-                html += `<tr><td><span style="font-family:monospace; background:#f1f5f9; padding:2px 6px; border-radius:4px;">${item.addr}</span></td><td><code>${item.f}</code></td><td><span class="text-danger">${item.oldVal}</span> → <span class="text-success fw-bold">${item.newVal}</span></td></tr>`;
-            });
-            $('#diag-view-content').html(html + `</tbody></table>`);
-        };
-
-        // --- CORE LOGIC (SCAN) ---
-        const scanDiscrepancies = async () => {
-            updateProgress(5, "Initializing Value Check…");
-            const isVolatile = (f) => /\b(TODAY|NOW|RAND|RANDBETWEEN|WEEKDAY|DAY|WEEKNUM)\s*\(/i.test(f || "");
-            const isDate = (f) => /^\d{4}-\d{2}-\d{2}$/.test(f || "");
-            const sheets = luckysheet.getAllSheets() ?? [];
-            if (sheets.length === 0) { state.discrepancy = { issues: {}, scanned: true }; updateProgress(100, "No sheets found"); return 0; }
-            const activeSheetPos = sheets.findIndex(s => Number(s.status) === 1);
-            const restorePos = activeSheetPos >= 0 ? activeSheetPos : 0;
-            const issues = {};
-            let sheetsWithIssues = 0;
-            const normalize = (v) => { if (v == null) return "—"; if (v instanceof Date) return v.getTime(); if (typeof v === "number") return Number.isFinite(v) ? v : String(v); return String(v); };
-            const valuesEqual = (a, b) => { if (a == null && b == null) return true; const aNum = (a instanceof Date) ? a.getTime() : Number(a); const bNum = (b instanceof Date) ? b.getTime() : Number(b); const aNumOK = !Number.isNaN(aNum); const bNumOK = !Number.isNaN(bNum); if (aNumOK && bNumOK) { const EPS = 1e-9; return Math.abs(aNum - bNum) < EPS; } return String(a) === String(b); };
-            try {
-                for (let sheetIdx = 0; sheetIdx < sheets.length; sheetIdx++) {
-                    const sheet = sheets[sheetIdx];
-                    luckysheet.setSheetActive(sheetIdx);
-                    updateProgress(Math.floor(10 + ((sheetIdx + 1) / sheets.length) * 80), `Scanning ${sheet.name}…`);
-                    const formulaCells = (sheet.celldata ?? []).filter(c => c?.v?.f && typeof c.v.f === "string" && c.v.f.length > 0 && !isVolatile(c.v.f) && !isDate(c?.v?.m) && c.v.f.indexOf("Next Week") == -1);
-                    const sheetIssues = [];
-                    for (const cell of formulaCells) {
-                        let calcV; try { const res = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true); calcV = Array.isArray(res) ? res[1] : res; } catch (e) { calcV = "#EVAL!"; }
-                        const storeV = luckysheet.getCellValue(cell.r, cell.c, { sheetIndex: sheet.index });
-                        if (!valuesEqual(storeV, calcV)) { sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: getExcelAddr(cell.r, cell.c) + " | Row=>" + (cell.r + 1), oldVal: normalize(storeV), newVal: normalize(calcV) }); }
-                    }
-                    if (sheetIssues.length > 0) { issues[sheet.name] = { id: sheet.index, data: sheetIssues }; sheetsWithIssues++; }
-                    await new Promise(r => setTimeout(r, 30)); // Small delay prevents freezing
+                if (h.luckysheet_select_save.length > 1 &&
+                    (de() ? alert(l.errorNotAllowMulti) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMulti))) {
+                    return;
                 }
-                state.discrepancy = { issues, scanned: true };
-                updateProgress(100, "Scan Complete");
-                luckysheet.setSheetActive(restorePos);
-                render();
-                return sheetsWithIssues;
-            } catch (err) { updateProgress(100, "Error during scan"); luckysheet.setSheetActive(restorePos); throw err; }
-        };
 
-        // --- CORE LOGIC (FIX) - OPTIMIZED FOR RESPONSIVENESS ---
-        const fixDiscrepancies = async () => {
-            const sheets = luckysheet.getAllSheets() ?? [];
-            if (sheets.length === 0) return 0;
-            const activePos = sheets.findIndex(s => Number(s.status) === 1);
-            const restorePos = activePos >= 0 ? activePos : 0;
-            const valuesEqual = (a, b) => { if (a == null && b == null) return true; const aD = (a instanceof Date) ? a.getTime() : Number(a); const bD = (b instanceof Date) ? b.getTime() : Number(bD); if (!Number.isNaN(aD) && !Number.isNaN(bD)) return Math.abs(aD - bD) < 1e-9; return String(a) === String(b); };
-            
-            const maxPasses = 5; let totalFixed = 0;
-            try {
-                for (let pass = 1; pass <= maxPasses; pass++) {
-                    let changesThisPass = 0;
-                    updateProgress((pass / maxPasses) * 100, `Repair Pass ${pass} of ${maxPasses}...`);
+                if (typeof e == "object") {
+                    if (e.length == 0) return;
 
-                    for (let sheetIdx = 0; sheetIdx < sheets.length; sheetIdx++) {
-                        const sheet = sheets[sheetIdx];
-                        luckysheet.setSheetActive(sheetIdx);
-                        
-                        const formulaCells = (sheet.celldata ?? []).filter(c => c?.v?.f && typeof c.v.f === "string" && c.v.f.length > 0)
-                            .map(c => ({ r: c.r, c: c.c, f: c.v.f, oldValue: luckysheet.getCellValue(c.r, c.c, { sheetIndex: sheet.index }) }));
-                        
-                        let cellCounter = 0;
-                        for (const m of formulaCells) {
-                            let newVal; try { const res = luckysheet.validateCellValue(sheet, m.r, m.c, m.f, true, true); newVal = Array.isArray(res) ? res[1] : res; } catch (e) { newVal = "#EVAL!"; }
-                            if (!valuesEqual(m.oldValue, newVal)) {
-                                changesThisPass++;
-                                addLog(`Fixing ${sheet.name}!${getExcelAddr(m.r, m.c)}...`);
-                                luckysheet.updateCellValue(sheet, m.r, m.c, m.f, true, true);
+                    let a = $.extend(!0, {}, h.config);
+                    a.merge == null && (a.merge = {}),
+                        JSON.stringify(n).length > 2 && a.borderInfo == null && (a.borderInfo = []);
+
+                    let o = e.length,
+                        s = e[0].length,
+                        u = h.luckysheet_select_save[0].row[0],
+                        d = u + o - 1,
+                        f = h.luckysheet_select_save[0].column[0],
+                        m = f + s - 1,
+                        g = !1;
+
+                    if (a.merge != null && (g = Dt(a, u, d, f, m)), g) {
+                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return;
+                    }
+
+                    let y = we.deepCopyFlowData(h.flowdata),
+                        v = y.length,
+                        k = y[0].length,
+                        b = d - v + 1,
+                        w = m - k + 1;
+
+                    (b > 0 || w > 0) && (y = il([].concat(y), b, w, !0)),
+                        a.rowlen == null && (a.rowlen = {});
+
+                    let x = !1,
+                        C = {};
+
+                    // NEW: queue for Ucv calls (detect formulas in object payload: f OR v/m starting with '=')
+                    const __ucvQueue = [];
+
+                    for (let S = u; S <= d; S++) {
+                        let _ = [].concat(y[S]),
+                            T = h.defaultrowlen;
+                        a.rowlen[S] != null && (T = a.rowlen[S]);
+
+                        for (let A = f; A <= m; A++) {
+                            L(_[A]) == "object" && "mc" in _[A] &&
+                                ("rs" in _[A].mc && delete a.merge[_[A].mc.r + "_" + _[A].mc.c], delete _[A].mc);
+
+                            let R = null;
+                            if (e[S - u] != null && e[S - u][A - f] != null && (R = e[S - u][A - f]),
+                                _[A] = $.extend(!0, {}, R),
+
+                                // NEW: if source cell has a formula, queue Ucv call
+                                //      handle both shapes: R.f OR strings in R.v/R.m that start with '='
+                                R && (
+                                    (R.f && __ucvQueue.push([S, A, R.f])) ||
+                                    (typeof R.v === "string" && R.v.trim().charAt(0) === "=" && __ucvQueue.push([S, A, R.v.trim()])) ||
+                                    (typeof R.m === "string" && R.m.trim().charAt(0) === "=" && __ucvQueue.push([S, A, R.m.trim()]))
+                                ),
+
+                                R != null && "mc" in _[A] &&
+                                (_[A].mc.rs != null ? (
+                                    _[A].mc.r = S,
+                                    _[A].mc.c = A,
+                                    a.merge[_[A].mc.r + "_" + _[A].mc.c] = _[A].mc,
+                                    C[R.mc.r + "_" + R.mc.c] = [_[A].mc.r, _[A].mc.c]
+                                ) : _[A] = { mc: { r: C[R.mc.r + "_" + R.mc.c][0], c: C[R.mc.r + "_" + R.mc.c][1] } }),
+                                n[S - u + "_" + (A - f)]) {
+
+                                let N = {
+                                    rangeType: "cell",
+                                    value: {
+                                        row_index: S,
+                                        col_index: A,
+                                        l: n[S - u + "_" + (A - f)].l,
+                                        r: n[S - u + "_" + (A - f)].r,
+                                        t: n[S - u + "_" + (A - f)].t,
+                                        b: n[S - u + "_" + (A - f)].b
+                                    }
+                                };
+                                a.borderInfo.push(N);
                             }
-                            
-                            // EVERY 50 CELLS: Yield control to the browser to prevent "Page Unresponsive"
-                            cellCounter++;
-                            if (cellCounter % 50 === 0) {
-                                await new Promise(r => setTimeout(r, 10)); 
+
+                            let I = ra(_[A]),
+                                F = be.getTextSize("\u7530", I)[1];
+                            F > T && (T = F, x = !0);
+                        }
+
+                        y[S] = _;
+                        T != h.defaultrowlen && (a.rowlen[S] = T);
+                    }
+
+                    if (h.luckysheet_select_save = [{ row: [u, d], column: [f, m] }],
+                        b > 0 || w > 0 || x) {
+                        Ye(y, h.luckysheet_select_save, { cfg: a, RowlChange: !0 });
+                    } else {
+                        Ye(y, h.luckysheet_select_save, { cfg: a });
+                        tt();
+                    }
+
+                    // NEW: after apply, call Ucv for queued formulas (handles e with v/m like '=A1', '=B1', '=C1')
+                    if (__ucvQueue.length) {
+                        const __sheet = luckysheet.getSheet();
+                        for (const [__r, __c, __f] of __ucvQueue) {
+                            try { Ucv(__sheet, __r, __c, __f, true); } catch (err) { }
+                        }
+                        tt();
+                    }
+
+                } else {
+                    e = e.replace(/\r/g, "");
+                    let a = [],
+                        o = e.split(`\n`),
+                        s = o[0].split("    ").length;
+
+                    for (let w = 0; w < o.length; w++)
+                        o[w].split("    ").length < s || a.push(o[w].split("    "));
+
+                    let u = we.deepCopyFlowData(h.flowdata),
+                        d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
+                        f = d.row == null ? 0 : d.row[0],
+                        m = d.column == null ? 0 : d.column[0],
+                        g = a.length,
+                        y = a[0].length,
+                        v = !1;
+
+                    if (h.config.merge != null && (v = Dt(h.config, f, f + g - 1, m, m + y - 1)), v) {
+                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return;
+                    }
+
+                    let k = f + g - u.length,
+                        b = m + y - u[0].length;
+                    (k > 0 || b > 0) && (u = il([].concat(u), k, b, !0));
+
+                    // NEW: queue for Ucv calls (detect formulas in text tokens)
+                    const __ucvQueue = [];
+
+                    for (let w = 0; w < g; w++) {
+                        let x = [].concat(u[w + f]);
+                        for (let C = 0; C < y; C++) {
+                            let S = x[C + m]
+                                , _ = a[w][C];
+
+                            // Unchanged write logic
+                            if (B(_) && (S && S.ct && S.ct.fa === "@" ? _ = String(_) : _ = parseFloat(_)),
+                                S instanceof Object)
+                                S.v = _,
+                                    S.ct != null && S.ct.fa != null ? S.m = mt(S.ct.fa, _) : S.m = _,
+                                    S.f != null && S.f.length > 0 && (S.f = "",
+                                        p.delFunctionGroup(w + f, C + m, h.currentSheetIndex));
+                            else {
+                                let T = {}, A = it(_);
+                                T.v = A[2];
+                                T.ct = A[1];
+                                T.m = A[0];
+                                x[C + m] = T;
+                            }
+
+                            // NEW: token-level formula detection (trim, ignore leading apostrophe)
+                            if (typeof a[w][C] === "string") {
+                                const __trim = a[w][C].trim();
+                                const __forcedText = __trim.startsWith("'");
+                                const __isFormula = !__forcedText && __trim.startsWith("=");
+                                if (__isFormula) {
+                                    __ucvQueue.push([w + f, C + m, __trim]);
+                                }
                             }
                         }
-                        // Yield after every sheet
-                        await new Promise(r => setTimeout(r, 50));
+                        u[w + f] = x
                     }
-                    totalFixed += changesThisPass;
-                    if (changesThisPass === 0) break;
+
+                    if (d.row = [f, f + g - 1],
+                        d.column = [m, m + y - 1],
+                        k > 0 || b > 0) {
+                        Ye(u, h.luckysheet_select_save, { RowlChange: !0 });
+                    } else {
+                        Ye(u, h.luckysheet_select_save);
+                        tt();
+                    }
+
+                    // NEW: after apply, call Ucv for all detected formulas in text paste
+                    if (__ucvQueue.length) {
+                        const __sheet = luckysheet.getSheet();
+                        for (const [__r, __c, __f] of __ucvQueue) {
+                            try { Ucv(__sheet, __r, __c, __f, true); } catch (err) { }
+                        }
+                        tt();
+                    }
                 }
-            } finally {
-                luckysheet.setSheetActive(restorePos);
-                updateProgress(100, `Repair complete. Synchronized ${totalFixed} values.`);
-                await scanDiscrepancies();
-            }
-            return totalFixed;
-        };
-
-        // --- HANDLERS ---
-        $('#btn-diag-scan').on('click', scanDiscrepancies);
-        $('#btn-diag-fix').on('click', fixDiscrepancies);
-        $('#btn-diag-reset').on('click', () => {
-            state.discrepancy = { scanned: false, issues: {} };
-            state.activeSheetName = null;
-            $('#diag-console').html('<div class="log-entry">> Resetting engine...</div>');
-            $('#diag-prog').css('width', '0%');
-            render();
-        });
-        $modal.on('click', '.sheet-item', function() { state.activeSheetName = $(this).data('name'); render(); });
-
-        modalInstance.show();
-        render();
-        return this;
-    };
-}(jQuery));
+            },
