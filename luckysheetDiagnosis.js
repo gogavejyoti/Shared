@@ -6,56 +6,60 @@ pasteHandlerOfCopyPaste: function (e) {
     l.merge == null && (l.merge = {});
     l.borderInfo == null && (l.borderInfo = []);
 
-    let a = e.HasMC,
-        o = e.RowlChange,
-        s = e.dataSheetIndex,
-        u = e.copyRange[0].row[0],
+    let s = e.dataSheetIndex;
+    let isSameSheet = s === h.currentSheetIndex;
+    let canFastPath = isSameSheet && !e.RowlChange;
+
+    let u = e.copyRange[0].row[0],
         d = e.copyRange[0].row[1],
         f = e.copyRange[0].column[0],
         m = e.copyRange[0].column[1],
         g = [],
-        y = false;
+        transpose = false;
 
     // =====================================================
-    // 1️⃣ Collect copied data (ORIGINAL LOGIC)
+    // 1️⃣ Collect copied matrix (ORIGINAL behavior)
     // =====================================================
-    for (let se = 0; se < e.copyRange.length; se++) {
-        let ie = Nt({ row: e.copyRange[se].row, column: e.copyRange[se].column }, s);
+    for (let i = 0; i < e.copyRange.length; i++) {
+        let block = Nt({ row: e.copyRange[i].row, column: e.copyRange[i].column }, s);
         if (e.copyRange.length > 1) {
             if (u === e.copyRange[1].row[0] && d === e.copyRange[1].row[1]) {
-                ie = ie[0].map((_, he) => ie.map(J => J[he]));
-                g = g.concat(ie);
-                y = true;
-            } else if (f === e.copyRange[1].column[0] && m === e.copyRange[1].column[1]) {
-                g = g.concat(ie);
+                block = block[0].map((_, k) => block.map(r => r[k]));
+                g = g.concat(block);
+                transpose = true;
+            } else {
+                g = g.concat(block);
             }
         } else {
-            g = ie;
+            g = block;
         }
     }
-    y && (g = g[0].map((_, i) => g.map(r => r[i])));
+    transpose && (g = g[0].map((_, i) => g.map(r => r[i])));
 
     let v = $.extend(true, [], g);
+    let k = v.length;          // source rows
+    let b = v[0].length;       // source cols
 
-    // remove only spl (NOT formulas)
-    for (let r = 0; r < v.length; r++) {
-        for (let c = 0; c < v[r].length; c++) {
+    // remove only spl (keep formulas)
+    for (let r = 0; r < k; r++) {
+        for (let c = 0; c < b; c++) {
             v[r][c] && delete v[r][c].spl;
         }
     }
 
-    let k = v.length,
-        b = v[0].length,
-        w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
-        x = w.row[0],
-        C = x + k - 1,
-        S = w.column[0],
-        _ = S + b - 1;
+    // =====================================================
+    // 2️⃣ Target range MUST come from selection (FIX)
+    // =====================================================
+    let w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1];
+    let sr = w.row[0],
+        er = w.row[1],
+        sc = w.column[0],
+        ec = w.column[1];
 
     // =====================================================
-    // 2️⃣ Merge validation
+    // 3️⃣ Merge validation
     // =====================================================
-    if (l.merge && Dt(l, x, C, S, _)) {
+    if (l.merge && Dt(l, sr, er, sc, ec)) {
         de()
             ? alert(t.errorNotAllowMerged)
             : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
@@ -63,49 +67,46 @@ pasteHandlerOfCopyPaste: function (e) {
     }
 
     // =====================================================
-    // 3️⃣ Expand sheet if needed
+    // 4️⃣ Expand sheet if needed
     // =====================================================
     let N = we.deepCopyFlowData(h.flowdata);
-    let addR = C - N.length + 1;
-    let addC = _ - N[0].length + 1;
+    let addR = er - N.length + 1;
+    let addC = ec - N[0].length + 1;
     (addR > 0 || addC > 0) && (N = il([].concat(N), addR, addC, true));
 
     // =====================================================
-    // 4️⃣ Paste cells (SHIFT + NORMALIZE FORMULAS ONLY)
+    // 5️⃣ Paste cells (REPEAT pattern + SHIFT formulas)
     // =====================================================
-    const isSameSheet = s === h.currentSheetIndex;
-    const fastPath = isSameSheet && !o;
+    for (let r = sr; r <= er; r++) {
+        let row = [].concat(N[r]);
+        for (let c = sc; c <= ec; c++) {
+            let src = v[(r - sr) % k][(c - sc) % b];
+            let cell = src ? $.extend(true, {}, src) : null;
 
-    for (let G = x; G <= C; G++) {
-        let row = [].concat(N[G]);
-        for (let pe = S; pe <= _; pe++) {
-            let src = v[G - x] && v[G - x][pe - S];
-            let oe = src ? $.extend(true, {}, src) : null;
+            if (cell && cell.f) {
+                let Fe = cell.f;
+                let rowShift = r - u;
+                let colShift = c - f;
 
-            if (oe && oe.f) {
-                let Fe = oe.f;
-                let ue = G - u;
-                let he = pe - f;
+                rowShift > 0 && (Fe = "=" + p.functionCopy(Fe, "down", rowShift));
+                rowShift < 0 && (Fe = "=" + p.functionCopy(Fe, "up", Math.abs(rowShift)));
+                colShift > 0 && (Fe = "=" + p.functionCopy(Fe, "right", colShift));
+                colShift < 0 && (Fe = "=" + p.functionCopy(Fe, "left", Math.abs(colShift)));
 
-                ue > 0 && (Fe = "=" + p.functionCopy(Fe, "down", ue));
-                ue < 0 && (Fe = "=" + p.functionCopy(Fe, "up", Math.abs(ue)));
-                he > 0 && (Fe = "=" + p.functionCopy(Fe, "right", he));
-                he < 0 && (Fe = "=" + p.functionCopy(Fe, "left", Math.abs(he)));
-
-                // 🔑 Normalize formula WITHOUT calculating value
-                let ae = p.execfunction(Fe, G, pe, void 0, false);
-                oe.f = ae[2];
-                oe.v = null;
-                oe.m = null;
+                // 🔑 normalize formula WITHOUT calculating
+                let ae = p.execfunction(Fe, r, c, void 0, false);
+                cell.f = ae[2];
+                cell.v = null;
+                cell.m = null;
             }
 
-            row[pe] = oe;
+            row[c] = cell;
         }
-        N[G] = row;
+        N[r] = row;
     }
 
-    w.row = [x, C];
-    w.column = [S, _];
+    w.row = [sr, er];
+    w.column = [sc, ec];
 
     Ye(N, h.luckysheet_select_save, { cfg: l, RowlChange: true });
     tt();
@@ -113,12 +114,12 @@ pasteHandlerOfCopyPaste: function (e) {
     const sheet = luckysheet.getSheet();
 
     // =====================================================
-    // 🚀 FAST PATH – same sheet simple copy
+    // 🚀 FAST PATH (same sheet, simple copy)
     // =====================================================
-    if (fastPath) {
+    if (canFastPath) {
         try {
-            for (let r = x; r <= C; r++) {
-                for (let c = S; c <= _; c++) {
+            for (let r = sr; r <= er; r++) {
+                for (let c = sc; c <= ec; c++) {
                     let cell = sheet.data[r][c];
                     if (cell && cell.f) {
                         Ucv(sheet, r, c, cell.f, true);
@@ -131,7 +132,7 @@ pasteHandlerOfCopyPaste: function (e) {
     }
 
     // =====================================================
-    // 🛡️ SAFE PATH – deterministic full rebuild
+    // 🛡️ SAFE PATH (deterministic rebuild)
     // =====================================================
     try {
         sheet.calcChain = [];
