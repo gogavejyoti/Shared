@@ -1,159 +1,141 @@
-updatecell: function (e, n, t, l = !0) {
-    let a = this,
-        o = $("#luckysheet-rich-text-editor"),
-        s = o.text(),
-        u = o.html();
+ pasteHandler: function (e, n) {
+                if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
+                    return;
 
-    // Switch sheet if required
-    if (a.rangetosheet != null && a.rangetosheet != h.currentSheetIndex) {
-        ve.changeSheetExec(a.rangetosheet);
-    }
+                const pasteCfg = Q().paste;
 
-    if (!bn(e, n, h.currentSheetIndex)) return;
-
-    // ---------------- Data validation ----------------
-    if (Xe.dataVerification != null) {
-        let dv = Xe.dataVerification[e + "_" + n];
-        if (dv != null && dv.prohibitInput && !Xe.validateCellData(s, dv)) {
-            U.info(Xe.getFailureText(dv), "");
-            a.cancelNormalSelected();
-            return;
-        }
-    }
-
-    let oldCell = h.flowdata[e][n];
-    let oldSnapshot = JSON.stringify(oldCell);
-    let isFormulaCell = xl(oldCell);
-
-    // ---------------- Inline string handling ----------------
-    let isInlineStr = s.slice(0, 1) !== "=" && u.substr(0, 5) === "<span";
-    let hasNewLine = false;
-
-    if (!isInlineStr && s && s.length > 0) {
-        let arr = s
-            .replace(/\r\n/g, "_x000D_")
-            .replace(/&#13;&#10;/g, "_x000D_")
-            .replace(/\r/g, "_x000D_")
-            .replace(/\n/g, "_x000D_")
-            .split("_x000D_");
-
-        if (arr.length > 1) {
-            hasNewLine = true;
-            isInlineStr = true;
-            s = arr.join("\r\n");
-        }
-    }
-
-    // ---------------- Prepare editable data ----------------
-    let data = we.deepCopyFlowData(h.flowdata);
-    let cell = data[e][n] || {};
-
-    // ---------------- Normalize input ----------------
-    if (isInlineStr) {
-        // Inline text
-        delete cell.f;
-        delete cell.v;
-        delete cell.m;
-        cell.ct = cell.ct || { fa: "General" };
-        cell.ct.t = "inlineStr";
-        cell.ct.s = Hd(o.find("span"));
-        if (hasNewLine) {
-            cell.ct.s = [{ v: s }];
-        }
-    } else {
-        t = t || s;
-
-        // ---------------- Formula input ----------------
-        if (typeof t === "string" && t.startsWith("=") && t.length > 1) {
-            // 🔑 Normalize formula ONLY (NO calculation)
-            let r = a.execfunction(t, e, n, void 0, false);
-            cell.f = r[2];
-            cell.v = null;
-            cell.m = null;
-            delete cell.spl;
-        }
-        // ---------------- Object input ----------------
-        else if (typeof t === "object") {
-            for (let k in t) cell[k] = t[k];
-        }
-        // ---------------- Value input ----------------
-        else {
-            delete cell.f;
-            delete cell.spl;
-            cell.v = t;
-            cell.qp === 1 && (cell.qp = 0);
-        }
-    }
-
-    // ---------------- Hook before update ----------------
-    if (!Je.createHookFunction("cellUpdateBefore", e, n, t, l)) {
-        a.cancelNormalSelected();
-        return;
-    }
-
-    // ---------------- Apply change ----------------
-    data[e][n] = cell;
-    At(e, n, data, cell);
-
-    // ---------------- Row height recalculation ----------------
-    let cfg = $.extend(true, {}, Ft()[K(h.currentSheetIndex)].config);
-    cfg.rowlen == null && (cfg.rowlen = {});
-    let rowChanged = false;
-
-    if (cell.tb === "2" && cell.v != null || xl(cell) && cell.mc == null) {
-        let ctx = $("#luckysheetTableContent").get(0).getContext("2d");
-        let defaultH = h.defaultrowlen;
-        if (!(cfg.customHeight && cfg.customHeight[e] === 1)) {
-            let width = Rt(n)[1] - Rt(n)[0] - 2;
-            let size = Tr(cell, ctx, { r: e, c: n, cellWidth: width });
-            if (size && size.textHeightAll + 2 > defaultH) {
-                cfg.rowlen[e] = size.textHeightAll + 2;
-                rowChanged = true;
-            }
-        }
-    }
-
-    // ---------------- Commit to sheet ----------------
-    let params = rowChanged ? { cfg: cfg, RowlChange: true } : {};
-    Ye(data, [{ row: [e, e], column: [n, n] }], params, false);
-    a.cancelNormalSelected();
-
-    // ---------------- Deterministic calculation pass ----------------
-    try {
-        const sheet = luckysheet.getSheet();
-        const sheetData = sheet.data;
-
-        // 🔥 rebuild calcChain INLINE
-        sheet.calcChain = [];
-
-        for (let r = 0; r < sheetData.length; r++) {
-            for (let c = 0; c < sheetData[r].length; c++) {
-                let ce = sheetData[r][c];
-                if (ce && ce.f) {
-                    Ucv(sheet, r, c, ce.f, false); // register
+                if (h.luckysheet_select_save.length > 1) {
+                    de()
+                        ? alert(pasteCfg.errorNotAllowMulti)
+                        : U.info(`<i class="fa fa-exclamation-triangle"></i>${pasteCfg.warning}`, pasteCfg.errorNotAllowMulti);
+                    return;
                 }
-            }
-        }
 
-        for (let i = 0; i < sheet.calcChain.length; i++) {
-            let node = sheet.calcChain[i];
-            if (node && node.func) {
-                Ucv(sheet, node.r, node.c, node.func[2], true);
-            }
-        }
-    } catch (err) {
-        console.error("updatecell calc failed", err);
-    }
+                const sel = h.luckysheet_select_save[0];
+                const sr = sel.row[0];
+                const sc = sel.column[0];
 
-    // ---------------- Hook after update ----------------
-    setTimeout(() => {
-        Je.createHookFunction(
-            "cellUpdated",
-            e,
-            n,
-            JSON.parse(oldSnapshot),
-            h.flowdata[e][n],
-            l
-        );
-    }, 0);
-}
+                let data = we.deepCopyFlowData(h.flowdata);
+                let cfg = $.extend(true, {}, h.config);
+                cfg.merge == null && (cfg.merge = {});
+                cfg.rowlen == null && (cfg.rowlen = {});
+                cfg.borderInfo == null && (cfg.borderInfo = []);
+
+                let matrix;
+                if (typeof e === "object") {
+                    matrix = e;
+                } else {
+                    e = e.replace(/\r/g, "");
+                    matrix = e.split("\n").map(r => r.split("\t"));
+                }
+                if (!matrix.length || !matrix[0].length) return;
+
+                const er = sr + matrix.length - 1;
+                const ec = sc + matrix[0].length - 1;
+
+                if (cfg.merge && Dt(cfg, sr, er, sc, ec)) {
+                    de()
+                        ? alert(pasteCfg.errorNotAllowMerged)
+                        : U.info(`<i class="fa fa-exclamation-triangle"></i>${pasteCfg.warning}`, pasteCfg.errorNotAllowMerged);
+                    return;
+                }
+
+                const addR = er - data.length + 1;
+                const addC = ec - data[0].length + 1;
+                (addR > 0 || addC > 0) && (data = il([].concat(data), addR, addC, true));
+
+                // =====================================================
+                // 1️⃣ WRITE CELLS (NO CALC)
+                // =====================================================
+                const pastedFormulaCells = [];
+
+                for (let r = 0; r < matrix.length; r++) {
+                    let row = [].concat(data[sr + r]);
+                    let rowH = cfg.rowlen[sr + r] || h.defaultrowlen;
+
+                    for (let c = 0; c < matrix[r].length; c++) {
+                        let target = {};
+                        let cell = matrix[r][c];
+
+                        if (typeof e === "object" && cell && typeof cell === "object") {
+                            target = $.extend(true, {}, cell);
+
+                            let fml =
+                                cell.f ||
+                                (typeof cell.v === "string" && cell.v.trim().startsWith("=") && cell.v.trim()) ||
+                                (typeof cell.m === "string" && cell.m.trim().startsWith("=") && cell.m.trim());
+
+                            if (fml) {
+                                target.f = fml;
+                                pastedFormulaCells.push([sr + r, sc + c, fml]);
+                            }
+                        } else {
+                            let txt = String(cell).trim();
+                            if (txt.startsWith("=") && !txt.startsWith("'")) {
+                                target.v = txt;
+                                target.f = txt;
+                                pastedFormulaCells.push([sr + r, sc + c, txt]);
+                            } else {
+                                let t = it(txt);
+                                target.v = t[2];
+                                target.ct = t[1];
+                                target.m = t[0];
+                            }
+                        }
+
+                        row[sc + c] = target;
+                        let hgt = be.getTextSize("田", ra(target))[1];
+                        hgt > rowH && (rowH = hgt);
+                    }
+
+                    data[sr + r] = row;
+                    rowH !== h.defaultrowlen && (cfg.rowlen[sr + r] = rowH);
+                }
+
+                h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
+                Ye(data, h.luckysheet_select_save, { cfg: cfg, RowlChange: true });
+                tt();
+
+                // =====================================================
+                // 2️⃣ INLINE calcChain REBUILD (CRITICAL)
+                // =====================================================
+                const sheet = luckysheet.getSheet();
+
+                // 🔥 HARD RESET calcChain
+                sheet.calcChain = [];
+
+                // Re-register ALL formulas in sheet (not just pasted)
+                const sheetsData = sheet.data || data;
+
+                for (let r = 0; r < sheetsData.length; r++) {
+                    for (let c = 0; c < sheetsData[r].length; c++) {
+                        const cell = sheetsData[r][c];
+                        if (cell && cell.f) {
+                            try {
+                                // false → register only
+                                Ucv(sheet, r, c, cell.f, false);
+                            } catch (e) { }
+                        }
+                    }
+                }
+
+                // =====================================================
+                // 3️⃣ INLINE calculation pass (DETERMINISTIC)
+                // =====================================================
+                if (sheet.calcChain && sheet.calcChain.length) {
+                    for (let i = 0; i < sheet.calcChain.length; i++) {
+                        const node = sheet.calcChain[i];
+                        if (!node || !node.func) continue;
+
+                        const r = node.r;
+                        const c = node.c;
+                        const fml = node.func[2];
+
+                        try {
+                            Ucv(sheet, r, c, fml, true);
+                        } catch (e) { }
+                    }
+                }
+
+                tt();
+            },
