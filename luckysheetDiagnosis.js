@@ -7,7 +7,9 @@ pasteHandler: function (e) {
     const sr = sel.row[0];
     const sc = sel.column[0];
 
-    // ---------------- Parse clipboard ----------------
+    /* =====================================================
+       1️⃣ Normalize clipboard
+    ===================================================== */
     let matrix;
     const isObjectPaste = typeof e === "object";
 
@@ -25,7 +27,9 @@ pasteHandler: function (e) {
     const er = sr + rows - 1;
     const ec = sc + cols - 1;
 
-    // ---------------- Detect formulas ----------------
+    /* =====================================================
+       2️⃣ Detect formulas (STRICT)
+    ===================================================== */
     let hasFormula = false;
 
     for (let r = 0; r < rows && !hasFormula; r++) {
@@ -41,7 +45,9 @@ pasteHandler: function (e) {
         }
     }
 
-    // ---------------- Prepare config ----------------
+    /* =====================================================
+       3️⃣ Config & merge check
+    ===================================================== */
     let cfg = $.extend(true, {}, h.config);
     cfg.merge ??= {};
     cfg.rowlen ??= {};
@@ -51,28 +57,32 @@ pasteHandler: function (e) {
         return;
     }
 
-    // ---------------- Data copy ----------------
+    /* =====================================================
+       4️⃣ Data strategy (CRITICAL)
+    ===================================================== */
     let data;
 
     if (!hasFormula && !isObjectPaste) {
-        // 🚀 FAST PATH — values only
+        // 🚀 FAST & SAFE: values only
         data = h.flowdata;
         for (let r = sr; r <= er; r++) {
             data[r] = [].concat(data[r]);
         }
     } else {
-        // 🔒 SAFE PATH — formulas involved
+        // 🔒 SAFE: formulas involved
         data = we.deepCopyFlowData(h.flowdata);
     }
 
-    // Expand grid if required
+    // expand grid if needed
     let addR = er - data.length + 1;
     let addC = ec - data[0].length + 1;
     if (addR > 0 || addC > 0) {
         data = il([].concat(data), addR, addC, true);
     }
 
-    // ---------------- Write cells ----------------
+    /* =====================================================
+       5️⃣ Write cells (NO CALC)
+    ===================================================== */
     for (let r = 0; r < rows; r++) {
         let row = [].concat(data[sr + r]);
 
@@ -82,9 +92,19 @@ pasteHandler: function (e) {
 
             if (isObjectPaste && src && typeof src === "object") {
                 cell = $.extend(true, {}, src);
-                cell.v = null;
+
+                // 🔑 normalize formula (NO calculation)
+                if (cell.f) {
+                    const rr = sr + r;
+                    const cc = sc + c;
+                    const norm = this.execfunction(cell.f, rr, cc, void 0, false);
+                    cell.f = norm[2];
+                    cell.v = null;
+                    delete cell.spl;
+                }
             } else {
                 let txt = String(src).trim();
+
                 if (txt.startsWith("=") && !txt.startsWith("'")) {
                     cell.f = txt;
                     cell.v = null;
@@ -98,6 +118,7 @@ pasteHandler: function (e) {
 
             row[sc + c] = cell;
         }
+
         data[sr + r] = row;
     }
 
@@ -105,12 +126,14 @@ pasteHandler: function (e) {
     Ye(data, h.luckysheet_select_save, { cfg: cfg, RowlChange: true });
     tt();
 
-    // ---------------- 🚀 VALUES ONLY → DONE ----------------
-    if (!hasFormula) {
-        return;
-    }
+    /* =====================================================
+       🚀 VALUES ONLY → DONE
+    ===================================================== */
+    if (!hasFormula) return;
 
-    // ---------------- 🔒 FULL REBUILD (ONLY SAFE WAY) ----------------
+    /* =====================================================
+       🔒 FULL REBUILD (ONLY SAFE WAY)
+    ===================================================== */
     const sheet = luckysheet.getSheet();
     sheet.calcChain = [];
 
