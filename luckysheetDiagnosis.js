@@ -1,192 +1,150 @@
-update: function () {
-    let e = this;
-    if (!gr([e.applyRange], h.currentSheetIndex) || h.allowEdit === !1) return;
+pasteHandlerOfCopyPaste: function (e) {
+    if (!gr(h.luckysheet_select_save, h.currentSheetIndex)) return;
 
-    let n = we.deepCopyFlowData(h.flowdata);
-    let t = h.luckysheetfile[K(h.currentSheetIndex)];
+    let t = Q().paste;
     let l = $.extend(true, {}, h.config);
-    let a = Ur();
-    let o = $.extend(true, {}, t.dataVerification);
-
-    let s = e.direction;          // down | up | left | right
-    let d = e.copyRange;
-    let f = d.row[0], m = d.row[1];
-    let g = d.column[0], y = d.column[1];
-
-    let v = e.getCopyData(n, f, m, g, y, s);
-    let k;
-    if (s === "down" || s === "up") k = m - f + 1;
-    else k = y - g + 1;
-
-    let b = e.applyRange;
-    let w = b.row[0], x = b.row[1];
-    let C = b.column[0], S = b.column[1];
-
     l.merge == null && (l.merge = {});
     l.borderInfo == null && (l.borderInfo = []);
 
+    const isSameSheet = e.dataSheetIndex === h.currentSheetIndex;
+    const canFastPath = isSameSheet && !e.RowlChange;
+
+    let a = e.HasMC,
+        s = e.dataSheetIndex,
+        u = e.copyRange[0].row[0],
+        d = e.copyRange[0].row[1],
+        f = e.copyRange[0].column[0],
+        m = e.copyRange[0].column[1],
+        g = [],
+        transposed = false;
+
     // =====================================================
-    // 1️⃣ APPLY DATA (SHIFT FORMULAS ONLY – NO CALC)
+    // 1️⃣ Collect copied matrix (unchanged logic)
     // =====================================================
-    if (s === "down" || s === "up") {
-        let A = x - w + 1;
-
-        for (let R = C; R <= S; R++) {
-            let I = v[R - C];
-            let F = e.getApplyData(I, k, A);
-
-            if (s === "down") {
-                for (let N = w; N <= x; N++) {
-                    let D = $.extend(true, {}, F[N - w]);
-
-                    if (D.f != null) {
-                        let z = "=" + p.functionCopy(D.f, "down", N - w + 1);
-                        D.f = z;
-                        D.v = null;
-                        D.m = null;
-                        delete D.spl;
-                    }
-
-                    n[N][R] = D;
-
-                    let E = f + (N - w) % k, P = R;
-                    if (a[E + "_" + P]) {
-                        l.borderInfo.push({
-                            rangeType: "cell",
-                            value: { row_index: N, col_index: R, ...a[E + "_" + P] }
-                        });
-                    }
-                    o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P]);
-                }
+    for (let i = 0; i < e.copyRange.length; i++) {
+        let block = Nt({ row: e.copyRange[i].row, column: e.copyRange[i].column }, s);
+        if (e.copyRange.length > 1) {
+            if (u === e.copyRange[1].row[0] && d === e.copyRange[1].row[1]) {
+                block = block[0].map((_, k) => block.map(r => r[k]));
+                g = g.concat(block);
+                transposed = true;
+            } else {
+                g = g.concat(block);
             }
+        } else {
+            g = block;
+        }
+    }
+    transposed && (g = g[0].map((_, i) => g.map(r => r[i])));
 
-            if (s === "up") {
-                for (let N = x; N >= w; N--) {
-                    let D = $.extend(true, {}, F[x - N]);
+    let v = $.extend(true, [], g);
 
-                    if (D.f != null) {
-                        let z = "=" + p.functionCopy(D.f, "up", x - N + 1);
-                        D.f = z;
-                        D.v = null;
-                        D.m = null;
-                        delete D.spl;
-                    }
-
-                    n[N][R] = D;
-
-                    let E = m - (x - N) % k, P = R;
-                    if (a[E + "_" + P]) {
-                        l.borderInfo.push({
-                            rangeType: "cell",
-                            value: { row_index: N, col_index: R, ...a[E + "_" + P] }
-                        });
-                    }
-                    o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P]);
-                }
-            }
+    // remove spl only, NOT formulas
+    for (let r = 0; r < v.length; r++) {
+        for (let c = 0; c < v[r].length; c++) {
+            v[r][c] && delete v[r][c].spl;
         }
     }
 
-    if (s === "right" || s === "left") {
-        let A = S - C + 1;
+    let k = v.length,
+        b = v[0].length,
+        sel = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
+        sr = sel.row[0],
+        er = sr + k - 1,
+        sc = sel.column[0],
+        ec = sc + b - 1;
 
-        for (let R = w; R <= x; R++) {
-            let I = v[R - w];
-            let F = e.getApplyData(I, k, A);
-
-            if (s === "right") {
-                for (let N = C; N <= S; N++) {
-                    let D = $.extend(true, {}, F[N - C]);
-
-                    if (D.f != null) {
-                        let z = "=" + p.functionCopy(D.f, "right", N - C + 1);
-                        D.f = z;
-                        D.v = null;
-                        D.m = null;
-                        delete D.spl;
-                    }
-
-                    n[R][N] = D;
-
-                    let E = R, P = g + (N - C) % k;
-                    if (a[E + "_" + P]) {
-                        l.borderInfo.push({
-                            rangeType: "cell",
-                            value: { row_index: R, col_index: N, ...a[E + "_" + P] }
-                        });
-                    }
-                    o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P]);
-                }
-            }
-
-            if (s === "left") {
-                for (let N = S; N >= C; N--) {
-                    let D = $.extend(true, {}, F[S - N]);
-
-                    if (D.f != null) {
-                        let z = "=" + p.functionCopy(D.f, "left", S - N + 1);
-                        D.f = z;
-                        D.v = null;
-                        D.m = null;
-                        delete D.spl;
-                    }
-
-                    n[R][N] = D;
-
-                    let E = R, P = y - (S - N) % k;
-                    if (a[E + "_" + P]) {
-                        l.borderInfo.push({
-                            rangeType: "cell",
-                            value: { row_index: R, col_index: N, ...a[E + "_" + P] }
-                        });
-                    }
-                    o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P]);
-                }
-            }
-        }
+    // =====================================================
+    // 2️⃣ Merge validation
+    // =====================================================
+    if (l.merge && Dt(l, sr, er, sc, ec)) {
+        de()
+            ? alert(t.errorNotAllowMerged)
+            : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
+        return;
     }
 
     // =====================================================
-    // 2️⃣ APPLY TO SHEET
+    // 3️⃣ Expand sheet if required
     // =====================================================
-    let T = {
-        cfg: l,
-        dataVerification: o
-    };
-    Ye(n, h.luckysheet_select_save, T);
+    let N = we.deepCopyFlowData(h.flowdata);
+    let addR = er - N.length + 1;
+    let addC = ec - N[0].length + 1;
+    (addR > 0 || addC > 0) && (N = il([].concat(N), addR, addC, true));
+
+    // =====================================================
+    // 4️⃣ Write cells (NO calculation)
+    // =====================================================
+    for (let r = sr; r <= er; r++) {
+        let row = [].concat(N[r]);
+        for (let c = sc; c <= ec; c++) {
+            let src = v[r - sr] && v[r - sr][c - sc];
+            let cell = src ? $.extend(true, {}, src) : null;
+
+            if (cell && cell.f) {
+                // shift formula ONLY
+                cell.v = null;
+                cell.m = null;
+            }
+            row[c] = cell;
+        }
+        N[r] = row;
+    }
+
+    sel.row = [sr, er];
+    sel.column = [sc, ec];
+
+    Ye(N, h.luckysheet_select_save, { cfg: l, RowlChange: true });
     tt();
 
+    const sheet = luckysheet.getSheet();
+
     // =====================================================
-    // 3️⃣ INLINE calcChain REBUILD + CALC (DETERMINISTIC)
+    // 🚀 FAST PATH (same sheet, simple copy)
+    // =====================================================
+    if (canFastPath) {
+        try {
+            for (let r = sr; r <= er; r++) {
+                for (let c = sc; c <= ec; c++) {
+                    let cell = sheet.data[r][c];
+                    if (cell && cell.f) {
+                        Ucv(sheet, r, c, cell.f, true);
+                    }
+                }
+            }
+        } catch (e) {}
+        tt();
+        return;
+    }
+
+    // =====================================================
+    // 🛡️ SAFE PATH (cross-sheet / complex)
     // =====================================================
     try {
-        const sheet = luckysheet.getSheet();
         const data = sheet.data;
 
-        // HARD RESET
+        // hard reset
         sheet.calcChain = [];
 
-        // Register all formulas
+        // register all formulas
         for (let r = 0; r < data.length; r++) {
             for (let c = 0; c < data[r].length; c++) {
                 let cell = data[r][c];
                 if (cell && cell.f) {
-                    Ucv(sheet, r, c, cell.f, false); // register only
+                    Ucv(sheet, r, c, cell.f, false);
                 }
             }
         }
 
-        // Calculate in chain order
-        if (sheet.calcChain) {
-            for (let i = 0; i < sheet.calcChain.length; i++) {
-                let node = sheet.calcChain[i];
-                if (node && node.func) {
-                    Ucv(sheet, node.r, node.c, node.func[2], true);
-                }
+        // deterministic calculation
+        for (let i = 0; i < sheet.calcChain.length; i++) {
+            let node = sheet.calcChain[i];
+            if (node && node.func) {
+                Ucv(sheet, node.r, node.c, node.func[2], true);
             }
         }
     } catch (err) {
-        console.error("update recalculation failed", err);
+        console.error("pasteHandlerOfCopyPaste calc failed", err);
     }
 
     tt();
