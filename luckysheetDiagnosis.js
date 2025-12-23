@@ -6,39 +6,30 @@ pasteHandlerOfCopyPaste: function (e) {
     l.merge == null && (l.merge = {});
     l.borderInfo == null && (l.borderInfo = []);
 
-    let s = e.dataSheetIndex;
-    let isSameSheet = s === h.currentSheetIndex;
-    let canFastPath = isSameSheet && !e.RowlChange;
+    const sourceSheetIndex = e.dataSheetIndex;
+    const isSameSheet = sourceSheetIndex === h.currentSheetIndex;
+    const canFastPath = isSameSheet && !e.RowlChange;
 
     let u = e.copyRange[0].row[0],
         d = e.copyRange[0].row[1],
         f = e.copyRange[0].column[0],
-        m = e.copyRange[0].column[1],
-        g = [],
-        transpose = false;
+        m = e.copyRange[0].column[1];
 
     // =====================================================
-    // 1️⃣ Collect copied matrix (ORIGINAL behavior)
+    // 1️⃣ Collect copied matrix (FIXED – no transpose bug)
     // =====================================================
+    let g = [];
     for (let i = 0; i < e.copyRange.length; i++) {
-        let block = Nt({ row: e.copyRange[i].row, column: e.copyRange[i].column }, s);
-        if (e.copyRange.length > 1) {
-            if (u === e.copyRange[1].row[0] && d === e.copyRange[1].row[1]) {
-                block = block[0].map((_, k) => block.map(r => r[k]));
-                g = g.concat(block);
-                transpose = true;
-            } else {
-                g = g.concat(block);
-            }
-        } else {
-            g = block;
-        }
+        let block = Nt(
+            { row: e.copyRange[i].row, column: e.copyRange[i].column },
+            sourceSheetIndex
+        );
+        g = g.concat(block);
     }
-    transpose && (g = g[0].map((_, i) => g.map(r => r[i])));
 
     let v = $.extend(true, [], g);
-    let k = v.length;          // source rows
-    let b = v[0].length;       // source cols
+    let k = v.length;        // source rows
+    let b = v[0].length;     // source cols
 
     // remove only spl (keep formulas)
     for (let r = 0; r < k; r++) {
@@ -48,7 +39,7 @@ pasteHandlerOfCopyPaste: function (e) {
     }
 
     // =====================================================
-    // 2️⃣ Target range MUST come from selection (FIX)
+    // 2️⃣ Target range MUST come from selection
     // =====================================================
     let w = h.luckysheet_select_save[h.luckysheet_select_save.length - 1];
     let sr = w.row[0],
@@ -80,6 +71,7 @@ pasteHandlerOfCopyPaste: function (e) {
     for (let r = sr; r <= er; r++) {
         let row = [].concat(N[r]);
         for (let c = sc; c <= ec; c++) {
+            // 🔑 Correct repeat logic (column copy fixed)
             let src = v[(r - sr) % k][(c - sc) % b];
             let cell = src ? $.extend(true, {}, src) : null;
 
@@ -93,7 +85,7 @@ pasteHandlerOfCopyPaste: function (e) {
                 colShift > 0 && (Fe = "=" + p.functionCopy(Fe, "right", colShift));
                 colShift < 0 && (Fe = "=" + p.functionCopy(Fe, "left", Math.abs(colShift)));
 
-                // 🔑 normalize formula WITHOUT calculating
+                // normalize formula WITHOUT calculating value
                 let ae = p.execfunction(Fe, r, c, void 0, false);
                 cell.f = ae[2];
                 cell.v = null;
@@ -114,7 +106,7 @@ pasteHandlerOfCopyPaste: function (e) {
     const sheet = luckysheet.getSheet();
 
     // =====================================================
-    // 🚀 FAST PATH (same sheet, simple copy)
+    // 🚀 FAST PATH – same sheet, simple copy
     // =====================================================
     if (canFastPath) {
         try {
@@ -132,7 +124,7 @@ pasteHandlerOfCopyPaste: function (e) {
     }
 
     // =====================================================
-    // 🛡️ SAFE PATH (deterministic rebuild)
+    // 🛡️ SAFE PATH – deterministic rebuild
     // =====================================================
     try {
         sheet.calcChain = [];
