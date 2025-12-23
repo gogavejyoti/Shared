@@ -15,24 +15,61 @@ pasteHandler: function (e, n) {
     const sr = sel.row[0];
     const sc = sel.column[0];
 
-    let data = we.deepCopyFlowData(h.flowdata);
-    let cfg = $.extend(true, {}, h.config);
-    cfg.merge ??= {};
-    cfg.rowlen ??= {};
-    cfg.borderInfo ??= [];
-
-    // ---------------- Normalize input ----------------
+    // =====================================================
+    // 1️⃣ Normalize clipboard data
+    // =====================================================
     let matrix;
-    if (typeof e === "object") {
+    const isObjectPaste = typeof e === "object";
+
+    if (isObjectPaste) {
         matrix = e;
     } else {
         e = e.replace(/\r/g, "");
         matrix = e.split("\n").map(r => r.split("\t"));
     }
+
     if (!matrix.length || !matrix[0].length) return;
 
-    const er = sr + matrix.length - 1;
-    const ec = sc + matrix[0].length - 1;
+    const rows = matrix.length;
+    const cols = matrix[0].length;
+    const er = sr + rows - 1;
+    const ec = sc + cols - 1;
+
+    // =====================================================
+    // 2️⃣ Detect formulas in pasted content
+    // =====================================================
+    let hasFormula = false;
+
+    if (isObjectPaste) {
+        outer:
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (matrix[r][c] && matrix[r][c].f) {
+                    hasFormula = true;
+                    break outer;
+                }
+            }
+        }
+    } else {
+        outer:
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const v = String(matrix[r][c]).trim();
+                if (v.startsWith("=") && !v.startsWith("'")) {
+                    hasFormula = true;
+                    break outer;
+                }
+            }
+        }
+    }
+
+    // =====================================================
+    // 3️⃣ Prepare config
+    // =====================================================
+    let cfg = $.extend(true, {}, h.config);
+    cfg.merge ??= {};
+    cfg.rowlen ??= {};
+    cfg.borderInfo ??= [];
 
     if (cfg.merge && Dt(cfg, sr, er, sc, ec)) {
         de()
@@ -41,49 +78,68 @@ pasteHandler: function (e, n) {
         return;
     }
 
-    const addR = er - data.length + 1;
-    const addC = ec - data[0].length + 1;
+    // =====================================================
+    // 4️⃣ DATA STRATEGY (THIS IS THE BIG PERFORMANCE WIN)
+    // =====================================================
+    let data;
+
+    if (!hasFormula && !isObjectPaste) {
+        // 🚀 FAST PATH — values only, external paste
+        data = h.flowdata;
+
+        // clone only affected rows
+        for (let r = sr; r <= er; r++) {
+            data[r] = [].concat(data[r]);
+        }
+    } else {
+        // 🛡️ SAFE PATH — formulas involved
+        data = we.deepCopyFlowData(h.flowdata);
+    }
+
+    // expand sheet if required
+    let addR = er - data.length + 1;
+    let addC = ec - data[0].length + 1;
     (addR > 0 || addC > 0) && (data = il([].concat(data), addR, addC, true));
 
     // =====================================================
-    // 1️⃣ WRITE CELLS (NO CALC)
+    // 5️⃣ WRITE CELLS (NO CALC)
     // =====================================================
     const pastedFormulaCells = [];
 
-    for (let r = 0; r < matrix.length; r++) {
+    for (let r = 0; r < rows; r++) {
         let row = [].concat(data[sr + r]);
-        let rowH = cfg.rowlen[sr + r] || h.defaultrowlen;
+        let maxH = cfg.rowlen[sr + r] || h.defaultrowlen;
 
-        for (let c = 0; c < matrix[r].length; c++) {
-            let target = {};
-            let cell = matrix[r][c];
+        for (let c = 0; c < cols; c++) {
+            let cell = {};
 
-            if (typeof e === "object" && cell && typeof cell === "object") {
-                target = $.extend(true, {}, cell);
-                if (target.f) {
-                    pastedFormulaCells.push([sr + r, sc + c, target.f]);
-                }
+            if (isObjectPaste) {
+                let src = matrix[r][c];
+                src && (cell = $.extend(true, {}, src));
+                cell && cell.f && pastedFormulaCells.push([sr + r, sc + c, cell.f]);
             } else {
-                let txt = String(cell).trim();
+                let txt = String(matrix[r][c]).trim();
+
                 if (txt.startsWith("=") && !txt.startsWith("'")) {
-                    target.f = txt;
-                    target.v = null;
+                    cell.f = txt;
+                    cell.v = null;
                     pastedFormulaCells.push([sr + r, sc + c, txt]);
                 } else {
-                    let t = it(txt);
-                    target.v = t[2];
-                    target.ct = t[1];
-                    target.m = t[0];
+                    let parsed = it(txt);
+                    cell.m = parsed[0];
+                    cell.ct = parsed[1];
+                    cell.v = parsed[2];
                 }
             }
 
-            row[sc + c] = target;
-            let hgt = be.getTextSize("田", ra(target))[1];
-            hgt > rowH && (rowH = hgt);
+            row[sc + c] = cell;
+
+            let hgt = be.getTextSize("田", ra(cell))[1];
+            hgt > maxH && (maxH = hgt);
         }
 
         data[sr + r] = row;
-        rowH !== h.defaultrowlen && (cfg.rowlen[sr + r] = rowH);
+        maxH !== h.defaultrowlen && (cfg.rowlen[sr + r] = maxH);
     }
 
     h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
@@ -91,15 +147,12 @@ pasteHandler: function (e, n) {
     tt();
 
     // =====================================================
-    // 🚀 FAST PATH — NO FORMULAS
+    // 🚀 FAST EXIT — NO FORMULAS
     // =====================================================
-    if (pastedFormulaCells.length === 0) {
-        // Plain text / values paste — DONE
-        return;
-    }
+    if (!hasFormula) return;
 
     // =====================================================
-    // 🛡️ SAFE PATH — FORMULAS PRESENT
+    // 🛡️ SAFE CALC — FORMULAS PRESENT
     // =====================================================
     try {
         const sheet = luckysheet.getSheet();
@@ -107,22 +160,18 @@ pasteHandler: function (e, n) {
 
         sheet.calcChain = [];
 
-        // Register all formulas
+        // register
         for (let r = 0; r < sheetData.length; r++) {
             for (let c = 0; c < sheetData[r].length; c++) {
-                let cell = sheetData[r][c];
-                if (cell && cell.f) {
-                    Ucv(sheet, r, c, cell.f, false);
-                }
+                let ce = sheetData[r][c];
+                ce && ce.f && Ucv(sheet, r, c, ce.f, false);
             }
         }
 
-        // Calculate deterministically
+        // calculate
         for (let i = 0; i < sheet.calcChain.length; i++) {
             let node = sheet.calcChain[i];
-            if (node && node.func) {
-                Ucv(sheet, node.r, node.c, node.func[2], true);
-            }
+            node && node.func && Ucv(sheet, node.r, node.c, node.func[2], true);
         }
     } catch (err) {
         console.error("pasteHandler calc failed", err);
