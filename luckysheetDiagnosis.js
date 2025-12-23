@@ -99,4 +99,37 @@ pasteHandler: function (e, n) {
                 } else {
                     let parsed = it(txt);
                     cell.m = parsed[0];
-                    cell.ct = pa
+                    cell.ct = parsed[1];
+                    cell.v = parsed[2];
+                }
+            }
+            row[sc + c] = cell;
+        }
+        data[sr + r] = row;
+    }
+
+    h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
+    Ye(data, h.luckysheet_select_save, { cfg: cfg, RowlChange: true });
+    tt();
+
+    // ---------------- NO FORMULAS → DONE ----------------
+    if (!hasFormula) return;
+
+    // ---------------- 🔒 FULL REBUILD (ONLY SAFE WAY) ----------------
+    const sheet = luckysheet.getSheet();
+    sheet.calcChain = [];
+
+    const sd = sheet.data;
+    for (let r = 0; r < sd.length; r++) {
+        for (let c = 0; c < sd[r].length; c++) {
+            let ce = sd[r][c];
+            ce && ce.f && Ucv(sheet, r, c, ce.f, false);
+        }
+    }
+
+    for (let node of sheet.calcChain) {
+        node?.func && Ucv(sheet, node.r, node.c, node.func[2], true);
+    }
+
+    tt();
+}
