@@ -16,15 +16,15 @@
             return label + (r + 1);
         };
 
-        const updateProgress = (pct, msg) => {
-            $('#diag-prog').css('width', pct + '%');
-            if(msg) addLog(msg);
-        };
-
         const addLog = (msg) => {
             const $con = $('#diag-console');
             $con.append(`<div class="log-entry">> ${msg}</div>`);
             $con.scrollTop($con[0].scrollHeight);
+        };
+
+        const updateProgress = (pct, msg) => {
+            $('#diag-prog').css('width', pct + '%');
+            if(msg) addLog(msg);
         };
 
         // --- STYLES ---
@@ -106,7 +106,7 @@
             $('#diag-view-content').html(html + `</tbody></table>`);
         };
 
-        // --- UNTOUCHED SCAN LOGIC ---
+        // --- CORE LOGIC (SCAN) ---
         const scanDiscrepancies = async () => {
             updateProgress(5, "Initializing Value Check…");
             const isVolatile = (f) => /\b(TODAY|NOW|RAND|RANDBETWEEN|WEEKDAY|DAY|WEEKNUM)\s*\(/i.test(f || "");
@@ -132,7 +132,7 @@
                         if (!valuesEqual(storeV, calcV)) { sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: getExcelAddr(cell.r, cell.c) + " | Row=>" + (cell.r + 1), oldVal: normalize(storeV), newVal: normalize(calcV) }); }
                     }
                     if (sheetIssues.length > 0) { issues[sheet.name] = { id: sheet.index, data: sheetIssues }; sheetsWithIssues++; }
-                    await new Promise(r => setTimeout(r, 50));
+                    await new Promise(r => setTimeout(r, 30)); // Small delay prevents freezing
                 }
                 state.discrepancy = { issues, scanned: true };
                 updateProgress(100, "Scan Complete");
@@ -142,56 +142,63 @@
             } catch (err) { updateProgress(100, "Error during scan"); luckysheet.setSheetActive(restorePos); throw err; }
         };
 
-        // --- CORE FIX LOGIC (WITH PROGRESS ADDED) ---
+        // --- CORE LOGIC (FIX) - OPTIMIZED FOR RESPONSIVENESS ---
         const fixDiscrepancies = async () => {
             const sheets = luckysheet.getAllSheets() ?? [];
             if (sheets.length === 0) return 0;
             const activePos = sheets.findIndex(s => Number(s.status) === 1);
             const restorePos = activePos >= 0 ? activePos : 0;
-            const isVolatile = (f) => /\b(TODAY|NOW|RAND|RANDBETWEEN|WEEKDAY|DAY|WEEKNUM)\s*\(/i.test(f || "");
-            const isDate = (f) => /^\d{4}-\d{2}-\d{2}$/.test(f || "");
-            const valuesEqual = (a, b) => { if (a == null && b == null) return true; const aD = (a instanceof Date) ? a.getTime() : Number(a); const bD = (b instanceof Date) ? b.getTime() : Number(b); if (!Number.isNaN(aD) && !Number.isNaN(bD)) { return Math.abs(aD - bD) < 1e-9; } return String(a) === String(b); };
+            const valuesEqual = (a, b) => { if (a == null && b == null) return true; const aD = (a instanceof Date) ? a.getTime() : Number(a); const bD = (b instanceof Date) ? b.getTime() : Number(bD); if (!Number.isNaN(aD) && !Number.isNaN(bD)) return Math.abs(aD - bD) < 1e-9; return String(a) === String(b); };
+            
             const maxPasses = 5; let totalFixed = 0;
             try {
                 for (let pass = 1; pass <= maxPasses; pass++) {
                     let changesThisPass = 0;
-                    // --- PROGRESS UPDATE PER PASS ---
-                    updateProgress((pass / maxPasses) * 100, `Repair Engine: Pass ${pass} starting...`);
+                    updateProgress((pass / maxPasses) * 100, `Repair Pass ${pass} of ${maxPasses}...`);
 
                     for (let sheetIdx = 0; sheetIdx < sheets.length; sheetIdx++) {
                         const sheet = sheets[sheetIdx];
                         luckysheet.setSheetActive(sheetIdx);
-                        const formulaCells = (sheet.celldata ?? []).filter(c => { const f = c?.v?.f; return f && typeof f === "string" && f.length > 0 && !isVolatile(f) && !isDate(c?.v?.m) && f.indexOf("Next Week") == -1; })
+                        
+                        const formulaCells = (sheet.celldata ?? []).filter(c => c?.v?.f && typeof c.v.f === "string" && c.v.f.length > 0)
                             .map(c => ({ r: c.r, c: c.c, f: c.v.f, oldValue: luckysheet.getCellValue(c.r, c.c, { sheetIndex: sheet.index }) }));
                         
+                        let cellCounter = 0;
                         for (const m of formulaCells) {
                             let newVal; try { const res = luckysheet.validateCellValue(sheet, m.r, m.c, m.f, true, true); newVal = Array.isArray(res) ? res[1] : res; } catch (e) { newVal = "#EVAL!"; }
                             if (!valuesEqual(m.oldValue, newVal)) {
                                 changesThisPass++;
-                                // --- PROGRESS UPDATE PER FIX ---
-                                addLog(`Healed [${sheet.name}] ${getExcelAddr(m.r, m.c)}: ${m.oldValue} -> ${newVal}`);
+                                addLog(`Fixing ${sheet.name}!${getExcelAddr(m.r, m.c)}...`);
                                 luckysheet.updateCellValue(sheet, m.r, m.c, m.f, true, true);
                             }
+                            
+                            // EVERY 50 CELLS: Yield control to the browser to prevent "Page Unresponsive"
+                            cellCounter++;
+                            if (cellCounter % 50 === 0) {
+                                await new Promise(r => setTimeout(r, 10)); 
+                            }
                         }
-                        await new Promise(r => setTimeout(r, 16));
+                        // Yield after every sheet
+                        await new Promise(r => setTimeout(r, 50));
                     }
                     totalFixed += changesThisPass;
                     if (changesThisPass === 0) break;
                 }
             } finally {
                 luckysheet.setSheetActive(restorePos);
-                updateProgress(100, `Repair complete. Fixed ${totalFixed} discrepancies.`);
+                updateProgress(100, `Repair complete. Synchronized ${totalFixed} values.`);
                 await scanDiscrepancies();
             }
             return totalFixed;
         };
 
+        // --- HANDLERS ---
         $('#btn-diag-scan').on('click', scanDiscrepancies);
         $('#btn-diag-fix').on('click', fixDiscrepancies);
         $('#btn-diag-reset').on('click', () => {
             state.discrepancy = { scanned: false, issues: {} };
             state.activeSheetName = null;
-            $('#diag-console').html('<div class="log-entry">> Resetting...</div>');
+            $('#diag-console').html('<div class="log-entry">> Resetting engine...</div>');
             $('#diag-prog').css('width', '0%');
             render();
         });
