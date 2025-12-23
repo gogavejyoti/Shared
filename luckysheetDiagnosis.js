@@ -2,6 +2,7 @@
     $.fn.luckysheetDiagnosis = function (options) {
         const settings = $.extend({ onFixComplete: null }, options);
 
+        // State Initialization
         if (!window._luckysheetDiagState) {
             window._luckysheetDiagState = { scanned: false, issues: {}, activeSheetName: null };
         }
@@ -13,7 +14,7 @@
             return label + (r + 1);
         };
 
-        // --- REFINED ENTERPRISE UI STYLES ---
+        // --- PREMIUM ENTERPRISE STYLES ---
         $('#luckysheetDiagModal').remove();
         if ($('#luckysheetDiagStyles').length === 0) {
             $('head').append(`
@@ -27,43 +28,45 @@
                 .diag-sidebar { width: 260px; background: #f8fafc; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
                 .diag-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 
-                /* Sidebar Navigation */
-                .sidebar-label { padding: 1.25rem 1rem 0.5rem; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-                .sheet-list { flex: 1; overflow-y: auto; padding: 0 0.75rem; }
-                .sheet-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; transition: 0.2s; font-size: 13px; color: #475569; }
-                .sheet-item:hover { background: #f1f5f9; }
-                .sheet-item.active { background: #3b82f6; color: #fff; font-weight: 600; }
-                .error-badge { font-size: 10px; background: #fee2e2; color: #ef4444; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
-                .sheet-item.active .error-badge { background: #fff; color: #3b82f6; }
-
-                /* TOP CONSOLE WINDOW - Always Visible */
-                .diag-console-top { background: #1e293b; color: #38bdf8; font-family: 'JetBrains Mono'; font-size: 11px; padding: 12px 20px; height: 90px; overflow-y: auto; border-bottom: 1px solid #334155; }
+                /* FIXED TOP CONSOLE */
+                .diag-console-top { background: #1e293b; color: #38bdf8; font-family: 'JetBrains Mono'; font-size: 11px; padding: 12px 20px; height: 100px; overflow-y: auto; border-bottom: 2px solid #334155; flex-shrink: 0; }
                 .log-entry { margin-bottom: 2px; border-left: 2px solid #334155; padding-left: 10px; }
                 .log-success { color: #10b981; border-left-color: #10b981; }
 
                 /* Action Bar */
-                .diag-action-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+                .diag-action-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; z-index: 5; }
                 .btn-group-diag { display: flex; gap: 8px; }
                 
-                .btn-diag-cmd { border-radius: 6px; font-weight: 600; padding: 8px 16px; border: 1px solid transparent; font-size: 12px; transition: all 0.2s; cursor: pointer; }
+                .btn-diag-cmd { border-radius: 6px; font-weight: 700; padding: 8px 16px; border: 1px solid transparent; font-size: 12px; transition: all 0.2s; cursor: pointer; display: flex; align-items: center; }
                 .btn-scan-main { background: #0f172a; color: #fff; }
+                .btn-scan-main:hover { background: #334155; }
                 .btn-fix-main { background: #10b981; color: #fff; }
                 .btn-export-main { background: #fff; color: #475569; border-color: #e2e8f0; }
                 .btn-reset-main { background: #fff; color: #ef4444; border-color: #fecaca; }
+                .btn-reset-main:hover { background: #fef2f2; }
 
-                /* Data Grid - Fixed Dots Issue */
-                .diag-grid-container { flex: 1; overflow-y: auto; }
+                /* Grid Styling (Fixing Dots/Truncation) */
+                .diag-grid-container { flex: 1; overflow-y: auto; background: #fff; }
                 .diag-table { width: 100%; border-collapse: collapse; table-layout: auto; }
-                .diag-table thead th { position: sticky; top: 0; background: #fff; z-index: 10; padding: 12px 16px; font-size: 11px; color: #64748b; text-align: left; border-bottom: 2px solid #f1f5f9; box-shadow: 0 1px 0 #e2e8f0; }
+                .diag-table thead th { position: sticky; top: 0; background: #f8fafc; z-index: 10; padding: 12px 16px; font-size: 11px; color: #64748b; text-align: left; border-bottom: 2px solid #e2e8f0; }
+                .diag-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: top; white-space: normal; word-wrap: break-word; }
                 
-                /* Cell Reference - Always Displayed, No Dots */
-                .diag-table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; white-space: normal; word-break: break-word; }
-                .diag-table .cell-ref-col { width: 220px; font-weight: 600; color: #1e293b; }
+                /* Column Widths */
+                .col-ref { width: 200px; font-weight: 600; }
+                .col-formula { min-width: 250px; }
+                .col-diff { width: 220px; }
 
                 .addr-pill { font-family: 'JetBrains Mono'; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #475569; display: inline-block; }
-                .sheet-tag { font-size: 10px; font-weight: 700; color: #64748b; background: #e2e8f0; padding: 2px 4px; border-radius: 3px; margin-right: 6px; text-transform: uppercase; }
+                .sheet-tag { font-size: 9px; font-weight: 800; color: #64748b; background: #e2e8f0; padding: 2px 5px; border-radius: 3px; margin-right: 6px; text-transform: uppercase; vertical-align: middle; }
                 
-                .diag-progress-line { position: absolute; top: 0; left: 0; height: 3px; background: #3b82f6; width: 0%; transition: width 0.3s; z-index: 100; }
+                .diag-progress-line { position: absolute; top: 100px; left: 0; height: 3px; background: #3b82f6; width: 0%; transition: width 0.3s; z-index: 100; }
+
+                /* Sidebar Items */
+                .sheet-list { padding: 10px; }
+                .sheet-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 13px; transition: 0.2s; }
+                .sheet-item.active { background: #0f172a; color: #fff; }
+                .error-badge { font-size: 10px; background: #fee2e2; color: #ef4444; padding: 2px 7px; border-radius: 10px; font-weight: 800; }
+                .sheet-item.active .error-badge { background: #ef4444; color: #fff; }
             </style>
             `);
         }
@@ -73,40 +76,36 @@
             <div class="modal-dialog modal-xl modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h6 class="mb-0 fw-bold">Workbook Diagnostic & Repair Utility</h6>
+                        <h6 class="mb-0 fw-bold">Diagnostic Command Center</h6>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
 
                     <div class="diag-container">
                         <aside class="diag-sidebar">
-                            <div class="sidebar-label">Sheets with issues</div>
-                            <div class="sheet-list" id="diag-sheet-list">
-                                <div class="text-center mt-5 text-muted small px-3">Scan to begin...</div>
-                            </div>
+                            <div class="sidebar-label" style="padding: 1.25rem 1rem 0.5rem; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Affected Sheets</div>
+                            <div class="sheet-list" id="diag-sheet-list"></div>
                         </aside>
 
                         <main class="diag-main">
-                            <div class="diag-progress-line" id="diag-prog"></div>
-                            
                             <div class="diag-console-top" id="diag-console">
-                                <div class="log-entry">> System Ready. Awaiting Deep Scan command.</div>
+                                <div class="log-entry">> Ready for system scan.</div>
                             </div>
+                            
+                            <div class="diag-progress-line" id="diag-prog"></div>
 
                             <div class="diag-action-bar">
-                                <div id="diag-summary-text" class="small fw-600 text-slate-600">Health Status: Unknown</div>
+                                <div id="diag-summary-text" class="small fw-600 text-muted">Awaiting Scan...</div>
                                 <div class="btn-group-diag">
                                     <button id="btn-diag-reset" class="btn-diag-cmd btn-reset-main">Reset Engine</button>
-                                    <button id="btn-diag-export" class="btn-diag-cmd btn-export-main" style="display:none;">Export Audit</button>
-                                    <button id="btn-diag-scan" class="btn-diag-cmd btn-scan-main">Run Deep Scan</button>
-                                    <button id="btn-diag-fix" class="btn-diag-cmd btn-fix-main" style="display:none;">Apply Repairs</button>
+                                    <button id="btn-diag-export" class="btn-diag-cmd btn-export-main" style="display:none;">Export CSV</button>
+                                    <button id="btn-diag-scan" class="btn-diag-cmd btn-scan-main">Deep Scan</button>
+                                    <button id="btn-diag-fix" class="btn-diag-cmd btn-fix-main" style="display:none;">Repair Workbook</button>
                                 </div>
                             </div>
 
                             <div class="diag-grid-container" id="diag-grid-scroll">
                                 <div id="diag-view-content">
-                                    <div class="text-center py-5">
-                                        <div class="text-muted small">Workbook data not yet analyzed.</div>
-                                    </div>
+                                    <div class="text-center py-5 text-muted small">No diagnostic data found. Run Deep Scan to populate results.</div>
                                 </div>
                             </div>
                         </main>
@@ -125,16 +124,23 @@
             $con.scrollTop($con[0].scrollHeight);
         };
 
-        const updateUI = () => {
+        const render = () => {
             const $list = $('#diag-sheet-list').empty();
             const names = Object.keys(state.issues);
             let totalIssues = 0;
 
-            if (state.scanned && names.length === 0) {
-                $list.append('<div class="p-3 text-success small fw-bold">✓ No Issues Found</div>');
-                $('#diag-view-content').html('<div class="text-center py-5 text-success"><h6>Workbook Consistent: All cell values match their formulas.</h6></div>');
+            if (!state.scanned) {
+                $('#diag-view-content').html('<div class="text-center py-5 text-muted small">Workbook not analyzed.</div>');
                 $('#btn-diag-fix, #btn-diag-export').hide();
-                $('#diag-summary-text').text("Health Status: 100%");
+                $('#diag-summary-text').text("Awaiting Scan...");
+                return;
+            }
+
+            if (names.length === 0) {
+                $list.append('<div class="p-3 text-success small fw-bold">✓ Healthy</div>');
+                $('#diag-view-content').html('<div class="text-center py-5 text-success"><h6>Integrity Verified: 0 Discrepancies Found.</h6></div>');
+                $('#btn-diag-fix, #btn-diag-export').hide();
+                $('#diag-summary-text').text("Status: Optimal");
                 return;
             }
 
@@ -145,8 +151,8 @@
                 $list.append(`<div class="sheet-item ${activeCls}" data-name="${name}"><span>${name}</span><span class="error-badge">${count}</span></div>`);
             });
 
-            $('#diag-summary-text').text(`Discrepancies: ${totalIssues}`);
-            if (totalIssues > 0) $('#btn-diag-fix, #btn-diag-export').show();
+            $('#diag-summary-text').text(`Total Issues: ${totalIssues}`);
+            $('#btn-diag-fix, #btn-diag-export').show();
 
             if (state.activeSheetName && state.issues[state.activeSheetName]) {
                 const data = state.issues[state.activeSheetName].data;
@@ -154,9 +160,9 @@
                     <table class="diag-table">
                         <thead>
                             <tr>
-                                <th class="cell-ref-col">Cell Reference</th>
-                                <th>Source Formula</th>
-                                <th>Value Mismatch</th>
+                                <th class="col-ref">Reference</th>
+                                <th class="col-formula">Formula</th>
+                                <th class="col-diff">Mismatch</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -164,48 +170,43 @@
                 data.forEach(item => {
                     html += `
                         <tr>
-                            <td class="cell-ref-col">
+                            <td class="col-ref">
                                 <span class="sheet-tag">${state.activeSheetName}</span>
                                 <span class="addr-pill">${item.addr.split(' | ')[0]}</span>
                             </td>
-                            <td><code style="color:#be123c; font-size:12px; word-break: break-all;">${item.f}</code></td>
-                            <td style="min-width: 180px;">
+                            <td class="col-formula"><code style="color:#be123c; word-break: break-all;">${item.f}</code></td>
+                            <td class="col-diff">
                                 <span class="text-danger fw-600">${item.oldVal}</span> 
-                                <span class="mx-2 text-slate-300">→</span> 
+                                <span class="mx-1 text-muted">→</span> 
                                 <span class="text-success fw-700">${item.newVal}</span>
                             </td>
                         </tr>`;
                 });
-                
                 html += `</tbody></table>`;
                 $('#diag-view-content').html(html);
             }
         };
 
-        // --- SCAN & FIX CORE LOGIC ---
-        const runScan = async () => {
-            addLog("Initializing deep diagnostic sequence...");
-            const isVolatile = (f) => /\b(TODAY|NOW|RAND|RANDBETWEEN|WEEKDAY|DAY|WEEKNUM)\s*\(/i.test(f || "");
+        // --- HANDLERS ---
+        $('#btn-diag-scan').on('click', async function() {
+            addLog("Scanning workbook sheets...");
             const sheets = luckysheet.getAllSheets() ?? [];
             const issues = {};
-
+            
             for (let i = 0; i < sheets.length; i++) {
                 const sheet = sheets[i];
                 luckysheet.setSheetActive(i);
-                addLog(`Checking sheet: [${sheet.name}]...`);
+                addLog(`Checking [${sheet.name}]...`);
                 $('#diag-prog').css('width', ((i + 1) / sheets.length * 100) + '%');
 
-                const cells = (sheet.celldata ?? []).filter(c => c?.v?.f && !isVolatile(c.v.f));
+                const cells = (sheet.celldata ?? []).filter(c => c?.v?.f);
                 const sheetIssues = [];
 
                 cells.forEach(cell => {
-                    let calcV;
-                    try {
-                        const res = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
-                        calcV = Array.isArray(res) ? res[1] : res;
-                    } catch (e) { calcV = "#ERR!"; }
-
+                    const res = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
+                    const calcV = Array.isArray(res) ? res[1] : res;
                     const storeV = luckysheet.getCellValue(cell.r, cell.c, { sheetIndex: sheet.index });
+                    
                     if (String(storeV) !== String(calcV)) {
                         sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: getExcelAddr(cell.r, cell.c), oldVal: storeV || "null", newVal: calcV });
                     }
@@ -217,69 +218,47 @@
 
             state.issues = issues;
             state.scanned = true;
-            if (Object.keys(issues).length > 0) state.activeSheetName = Object.keys(issues)[0];
-            addLog("Deep Scan completed successfully.", true);
-            updateUI();
-        };
+            state.activeSheetName = Object.keys(issues)[0] || null;
+            addLog("Scan Complete.", true);
+            render();
+        });
 
-        const runFix = async () => {
-            const sheets = luckysheet.getAllSheets() ?? [];
-            let totalFixed = 0;
-            addLog("Executing recursive synchronization pass...");
+        $('#btn-diag-reset').on('click', () => {
+            // Hard reset of the state
+            state.scanned = false;
+            state.issues = {};
+            state.activeSheetName = null;
             
-            for (let i = 0; i < sheets.length; i++) {
-                const sheet = sheets[i];
-                const sheetIssues = state.issues[sheet.name]?.data || [];
-                if (sheetIssues.length > 0) {
-                    luckysheet.setSheetActive(i);
-                    for (const item of sheetIssues) {
-                        luckysheet.updateCellValue(sheet, item.r, item.c, item.f, true, true);
-                        totalFixed++;
-                        if (totalFixed % 10 === 0) addLog(`Updated cell ${sheet.name}!${item.addr.split('|')[0]}`, true);
-                    }
-                }
-                await new Promise(r => setTimeout(r, 20));
-            }
-            addLog(`Repair sequence complete. ${totalFixed} values synchronized.`, true);
-            await runScan(); 
-        };
+            // UI Cleanup
+            $('#diag-console').html('<div class="log-entry">> Diagnostic engine reset. Awaiting instructions.</div>');
+            $('#diag-prog').css('width', '0%');
+            
+            addLog("Memory cleared. Grid purged.");
+            render(); // Refresh the grid to show empty state
+        });
 
-        const exportCSV = () => {
-            let csv = "Sheet,Cell,Formula,Old_Value,New_Value\n";
+        $('#btn-diag-export').on('click', () => {
+            let csv = "Sheet,Cell,Formula,Old,New\n";
             Object.keys(state.issues).forEach(name => {
                 state.issues[name].data.forEach(item => {
-                    csv += `"${name}","${item.addr.split('|')[0]}","${item.f.replace(/"/g, '""')}","${item.oldVal}","${item.newVal}"\n`;
+                    csv += `"${name}","${item.addr}","${item.f.replace(/"/g, '""')}","${item.oldVal}","${item.newVal}"\n`;
                 });
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `SheetHealth_Audit_${Date.now()}.csv`;
+            a.download = `Audit_Report.csv`;
             a.click();
-        };
-
-        // --- BUTTON HANDLERS ---
-        $('#btn-diag-scan').on('click', runScan);
-        $('#btn-diag-fix').on('click', runFix);
-        $('#btn-diag-export').on('click', exportCSV);
-        
-        $('#btn-diag-reset').on('click', () => {
-            state.scanned = false;
-            state.issues = {};
-            state.activeSheetName = null;
-            $('#diag-console').empty().append('<div class="log-entry">> Diagnostic engine reset. Awaiting instructions.</div>');
-            $('#diag-prog').css('width', '0%');
-            updateUI();
         });
 
         $modal.on('click', '.sheet-item', function() {
             state.activeSheetName = $(this).data('name');
-            updateUI();
+            render();
         });
 
         modalInstance.show();
-        updateUI();
+        render();
         return this;
     };
 }(jQuery));
