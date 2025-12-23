@@ -34,19 +34,17 @@ pasteHandler: function (e, n) {
     const ec = sc + cols - 1;
 
     // ---------------- Detect formulas ----------------
-    const pastedFormulaCells = [];
     let hasFormula = false;
 
-    for (let r = 0; r < rows; r++) {
+    for (let r = 0; r < rows && !hasFormula; r++) {
         for (let c = 0; c < cols; c++) {
-            const cell = matrix[r][c];
-            const txt = isObjectPaste
-                ? (cell && (cell.f || cell.v || cell.m))
-                : String(cell).trim();
+            const v = isObjectPaste
+                ? matrix[r][c]?.f
+                : String(matrix[r][c]).trim();
 
-            if (typeof txt === "string" && txt.startsWith("=") && !txt.startsWith("'")) {
+            if (typeof v === "string" && v.startsWith("=") && !v.startsWith("'")) {
                 hasFormula = true;
-                pastedFormulaCells.push([sr + r, sc + c, txt]);
+                break;
             }
         }
     }
@@ -55,7 +53,6 @@ pasteHandler: function (e, n) {
     let cfg = $.extend(true, {}, h.config);
     cfg.merge ??= {};
     cfg.rowlen ??= {};
-    cfg.borderInfo ??= [];
 
     if (cfg.merge && Dt(cfg, sr, er, sc, ec)) {
         de()
@@ -64,17 +61,17 @@ pasteHandler: function (e, n) {
         return;
     }
 
-    // ---------------- DATA STRATEGY ----------------
+    // ---------------- Data copy ----------------
     let data;
 
     if (!hasFormula && !isObjectPaste) {
-        // 🚀 FAST PATH: values-only external paste
+        // 🚀 FAST & SAFE: values only
         data = h.flowdata;
         for (let r = sr; r <= er; r++) {
             data[r] = [].concat(data[r]);
         }
     } else {
-        // 🛡️ SAFE PATH
+        // 🔒 SAFE: formulas involved
         data = we.deepCopyFlowData(h.flowdata);
     }
 
@@ -83,64 +80,23 @@ pasteHandler: function (e, n) {
     let addC = ec - data[0].length + 1;
     (addR > 0 || addC > 0) && (data = il([].concat(data), addR, addC, true));
 
-    // ---------------- WRITE CELLS ----------------
+    // ---------------- Write cells ----------------
     for (let r = 0; r < rows; r++) {
         let row = [].concat(data[sr + r]);
-        let rowH = cfg.rowlen[sr + r] || h.defaultrowlen;
 
         for (let c = 0; c < cols; c++) {
-            let target = {};
+            let cell = {};
             let src = matrix[r][c];
 
             if (isObjectPaste && src && typeof src === "object") {
-                target = $.extend(true, {}, src);
-                if (target.f) target.v = null;
+                cell = $.extend(true, {}, src);
+                cell.v = null;
             } else {
                 let txt = String(src).trim();
                 if (txt.startsWith("=") && !txt.startsWith("'")) {
-                    target.f = txt;
-                    target.v = null;
+                    cell.f = txt;
+                    cell.v = null;
                 } else {
-                    let t = it(txt);
-                    target.v = t[2];
-                    target.ct = t[1];
-                    target.m = t[0];
-                }
-            }
-
-            row[sc + c] = target;
-            let hgt = be.getTextSize("田", ra(target))[1];
-            hgt > rowH && (rowH = hgt);
-        }
-
-        data[sr + r] = row;
-        rowH !== h.defaultrowlen && (cfg.rowlen[sr + r] = rowH);
-    }
-
-    h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
-    Ye(data, h.luckysheet_select_save, { cfg: cfg, RowlChange: true });
-    tt();
-
-    // ---------------- 🚀 NO FORMULAS → DONE ----------------
-    if (!hasFormula) return;
-
-    // ---------------- 🧮 LOCALIZED CALC ----------------
-    const sheet = luckysheet.getSheet();
-
-    // Register ONLY pasted formulas
-    for (let i = 0; i < pastedFormulaCells.length; i++) {
-        const [r, c, fml] = pastedFormulaCells[i];
-        Ucv(sheet, r, c, fml, false);
-    }
-
-    // Calculate ONLY affected chain
-    const chain = sheet.calcChain || [];
-    for (let i = 0; i < chain.length; i++) {
-        const node = chain[i];
-        if (node && node.func) {
-            Ucv(sheet, node.r, node.c, node.func[2], true);
-        }
-    }
-
-    tt();
-}
+                    let parsed = it(txt);
+                    cell.m = parsed[0];
+                    cell.ct = pa
