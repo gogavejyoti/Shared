@@ -1,141 +1,172 @@
-  pasteHandler: function (e, n) {
-                if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
-                    return;
+pasteHandler: function (e) {
+    if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === false) {
+        return;
+    }
 
-                const pasteCfg = Q().paste;
+    const sel = h.luckysheet_select_save[0];
+    const sr = sel.row[0];
+    const sc = sel.column[0];
 
-                if (h.luckysheet_select_save.length > 1) {
-                    de()
-                        ? alert(pasteCfg.errorNotAllowMulti)
-                        : U.info(`<i class="fa fa-exclamation-triangle"></i>${pasteCfg.warning}`, pasteCfg.errorNotAllowMulti);
-                    return;
+    /* =====================================================
+       1️⃣ Normalize clipboard
+    ===================================================== */
+    let matrix;
+    const isObjectPaste = typeof e === "object";
+
+    if (isObjectPaste) {
+        matrix = e;
+    } else {
+        e = String(e || "").replace(/\r/g, "");
+        matrix = e.split("\n").map(r => r.split("\t"));
+    }
+
+    if (!matrix.length || !matrix[0].length) return;
+
+    const rows = matrix.length;
+    const cols = matrix[0].length;
+    const er = sr + rows - 1;
+    const ec = sc + cols - 1;
+
+    /* =====================================================
+       2️⃣ Detect formulas
+    ===================================================== */
+    const formulaCells = [];
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const v = isObjectPaste
+                ? matrix[r][c]?.f
+                : String(matrix[r][c]).trim();
+
+            if (typeof v === "string" && v.startsWith("=") && !v.startsWith("'")) {
+                formulaCells.push([sr + r, sc + c]);
+            }
+        }
+    }
+
+    const hasFormula = formulaCells.length > 0;
+
+    /* =====================================================
+       3️⃣ Config & merge check
+    ===================================================== */
+    let cfg = $.extend(true, {}, h.config);
+    cfg.merge ??= {};
+    cfg.rowlen ??= {};
+
+    if (cfg.merge && Dt(cfg, sr, er, sc, ec)) {
+        alert("Cannot paste into merged cells");
+        return;
+    }
+
+    /* =====================================================
+       4️⃣ Data strategy
+    ===================================================== */
+    let data;
+
+    if (!hasFormula && !isObjectPaste) {
+        // 🚀 FAST — values only
+        data = h.flowdata;
+        for (let r = sr; r <= er; r++) {
+            data[r] = [].concat(data[r]);
+        }
+    } else {
+        data = we.deepCopyFlowData(h.flowdata);
+    }
+
+    // expand grid
+    let addR = er - data.length + 1;
+    let addC = ec - data[0].length + 1;
+    (addR > 0 || addC > 0) && (data = il([].concat(data), addR, addC, true));
+
+    /* =====================================================
+       5️⃣ Write cells (NO CALC)
+    ===================================================== */
+    for (let r = 0; r < rows; r++) {
+        let row = [].concat(data[sr + r]);
+
+        for (let c = 0; c < cols; c++) {
+            let cell = {};
+            let src = matrix[r][c];
+
+            if (isObjectPaste && src && typeof src === "object") {
+                cell = $.extend(true, {}, src);
+                if (cell.f) {
+                    cell.f = String(cell.f);
+                    cell.v = null;
+                    delete cell.spl;
                 }
-
-                const sel = h.luckysheet_select_save[0];
-                const sr = sel.row[0];
-                const sc = sel.column[0];
-
-                let data = we.deepCopyFlowData(h.flowdata);
-                let cfg = $.extend(true, {}, h.config);
-                cfg.merge == null && (cfg.merge = {});
-                cfg.rowlen == null && (cfg.rowlen = {});
-                cfg.borderInfo == null && (cfg.borderInfo = []);
-
-                let matrix;
-                if (typeof e === "object") {
-                    matrix = e;
+            } else {
+                let txt = String(src).trim();
+                if (txt.startsWith("=") && !txt.startsWith("'")) {
+                    cell.f = txt;
+                    cell.v = null;
                 } else {
-                    e = e.replace(/\r/g, "");
-                    matrix = e.split("\n").map(r => r.split("\t"));
+                    let parsed = it(txt);
+                    cell.m = parsed[0];
+                    cell.ct = parsed[1];
+                    cell.v = parsed[2];
                 }
-                if (!matrix.length || !matrix[0].length) return;
+            }
 
-                const er = sr + matrix.length - 1;
-                const ec = sc + matrix[0].length - 1;
+            row[sc + c] = cell;
+        }
+        data[sr + r] = row;
+    }
 
-                if (cfg.merge && Dt(cfg, sr, er, sc, ec)) {
-                    de()
-                        ? alert(pasteCfg.errorNotAllowMerged)
-                        : U.info(`<i class="fa fa-exclamation-triangle"></i>${pasteCfg.warning}`, pasteCfg.errorNotAllowMerged);
-                    return;
-                }
+    h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
+    Ye(data, h.luckysheet_select_save, { cfg: cfg, RowlChange: true });
+    tt();
 
-                const addR = er - data.length + 1;
-                const addC = ec - data[0].length + 1;
-                (addR > 0 || addC > 0) && (data = il([].concat(data), addR, addC, true));
+    /* =====================================================
+       🚀 VALUES ONLY → DONE
+    ===================================================== */
+    if (!hasFormula) return;
 
-                // =====================================================
-                // 1️⃣ WRITE CELLS (NO CALC)
-                // =====================================================
-                const pastedFormulaCells = [];
+    /* =====================================================
+       6️⃣ WINDOWED DEPENDENCY GRAPH + TOPO-STYLE RECALC
+    ===================================================== */
+    const sheet = luckysheet.getSheet();
 
-                for (let r = 0; r < matrix.length; r++) {
-                    let row = [].concat(data[sr + r]);
-                    let rowH = cfg.rowlen[sr + r] || h.defaultrowlen;
+    // choose dependency window
+    const PAD = formulaCells.length > 50 ? 200 : 50;
 
-                    for (let c = 0; c < matrix[r].length; c++) {
-                        let target = {};
-                        let cell = matrix[r][c];
+    let minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
+    for (let [r, c] of formulaCells) {
+        minR = Math.min(minR, r);
+        maxR = Math.max(maxR, r);
+        minC = Math.min(minC, c);
+        maxC = Math.max(maxC, c);
+    }
 
-                        if (typeof e === "object" && cell && typeof cell === "object") {
-                            target = $.extend(true, {}, cell);
+    const r1 = Math.max(0, minR - PAD);
+    const r2 = Math.min(sheet.data.length - 1, maxR + PAD);
+    const c1 = Math.max(0, minC - PAD);
+    const c2 = Math.min(sheet.data[0].length - 1, maxC + PAD);
 
-                            let fml =
-                                cell.f ||
-                                (typeof cell.v === "string" && cell.v.trim().startsWith("=") && cell.v.trim()) ||
-                                (typeof cell.m === "string" && cell.m.trim().startsWith("=") && cell.m.trim());
+    // clear chain
+    sheet.calcChain = [];
 
-                            if (fml) {
-                                target.f = fml;
-                                pastedFormulaCells.push([sr + r, sc + c, fml]);
-                            }
-                        } else {
-                            let txt = String(cell).trim();
-                            if (txt.startsWith("=") && !txt.startsWith("'")) {
-                                target.v = txt;
-                                target.f = txt;
-                                pastedFormulaCells.push([sr + r, sc + c, txt]);
-                            } else {
-                                let t = it(txt);
-                                target.v = t[2];
-                                target.ct = t[1];
-                                target.m = t[0];
-                            }
-                        }
+    // register dependencies (graph build)
+    for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+            const ce = sheet.data[r]?.[c];
+            if (ce && ce.f) {
+                Ucv(sheet, r, c, ce.f, false);
+            }
+        }
+    }
 
-                        row[sc + c] = target;
-                        let hgt = be.getTextSize("田", ra(target))[1];
-                        hgt > rowH && (rowH = hgt);
-                    }
+    // topo-style execution (only affected nodes)
+    for (let node of sheet.calcChain) {
+        if (
+            node &&
+            node.r >= r1 && node.r <= r2 &&
+            node.c >= c1 && node.c <= c2 &&
+            node.func
+        ) {
+            Ucv(sheet, node.r, node.c, node.func[2], true);
+        }
+    }
 
-                    data[sr + r] = row;
-                    rowH !== h.defaultrowlen && (cfg.rowlen[sr + r] = rowH);
-                }
-
-                h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
-                Ye(data, h.luckysheet_select_save, { cfg: cfg, RowlChange: true });
-                tt();
-
-                // =====================================================
-                // 2️⃣ INLINE calcChain REBUILD (CRITICAL)
-                // =====================================================
-                const sheet = luckysheet.getSheet();
-
-                // 🔥 HARD RESET calcChain
-                sheet.calcChain = [];
-
-                // Re-register ALL formulas in sheet (not just pasted)
-                const sheetsData = sheet.data || data;
-
-                for (let r = 0; r < sheetsData.length; r++) {
-                    for (let c = 0; c < sheetsData[r].length; c++) {
-                        const cell = sheetsData[r][c];
-                        if (cell && cell.f) {
-                            try {
-                                // false → register only
-                                Ucv(sheet, r, c, cell.f, false);
-                            } catch (e) { }
-                        }
-                    }
-                }
-
-                // =====================================================
-                // 3️⃣ INLINE calculation pass (DETERMINISTIC)
-                // =====================================================
-                if (sheet.calcChain && sheet.calcChain.length) {
-                    for (let i = 0; i < sheet.calcChain.length; i++) {
-                        const node = sheet.calcChain[i];
-                        if (!node || !node.func) continue;
-
-                        const r = node.r;
-                        const c = node.c;
-                        const fml = node.func[2];
-
-                        try {
-                            Ucv(sheet, r, c, fml, true);
-                        } catch (e) { }
-                    }
-                }
-
-                tt();
-            },
+    tt();
+}
