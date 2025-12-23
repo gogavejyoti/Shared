@@ -1,307 +1,193 @@
-      update: function () {
-                    let e = this;
-                    if (!gr([e.applyRange], h.currentSheetIndex) || h.allowEdit === !1)
-                        return;
-                    let n = we.deepCopyFlowData(h.flowdata), t = h.luckysheetfile[K(h.currentSheetIndex)], l = $.extend(!0, {}, h.config), a = Ur(), o = $.extend(!0, {}, t.dataVerification), s = e.direction, u = e.applyType, d = e.copyRange, f = d.row[0], m = d.row[1], g = d.column[0], y = d.column[1], v = e.getCopyData(n, f, m, g, y, s), k;
-                    s == "down" || s == "up" ? k = m - f + 1 : (s == "right" || s == "left") && (k = y - g + 1);
-                    let b = e.applyRange
-                        , w = b.row[0]
-                        , x = b.row[1]
-                        , C = b.column[0]
-                        , S = b.column[1];
-                    if (s == "down" || s == "up") {
-                        let A = x - w + 1;
-                        for (let R = C; R <= S; R++) {
-                            let I = v[R - C]
-                                , F = e.getApplyData(I, k, A);
-                            if (s == "down")
-                                for (let N = w; N <= x; N++) {
-                                    let D = F[N - w];
-                                    if (D.f != null) {
-                                        let z = "=" + p.functionCopy(D.f, "down", N - w + 1)
-                                            , O = p.execfunction(z, N, R);
-                                        if (p.execFunctionGroup(N, R, O[1], void 0, n),
-                                            D.f = O[2],
-                                            D.v = O[1],
-                                            D.spl != null)
-                                            D.spl = O[3].data;
-                                        else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
-                                            if (D.v == Infinity || D.v == -Infinity)
-                                                D.m = D.v.toString();
-                                            else if (D.v.toString().indexOf("e") > -1) {
-                                                let V = D.v.toString().split(".")[1].split("e")[0].length;
-                                                V > 5 && (V = 5),
-                                                    D.m = D.v.toExponential(V).toString()
-                                            } else {
-                                                let V;
-                                                D.ct.fa === "##0.00" ? (V = it(Math.round(D.v * 1e9) / 1e9 + ".00"),
-                                                    D.m = V[0].toString()) : (V = it(Math.round(D.v * 1e9) / 1e9),
-                                                        D.m = V[0].toString())
-                                            }
-                                            D.ct = D.ct || {
-                                                fa: "General",
-                                                t: "n"
-                                            }
-                                        } else {
-                                            let V = it(D.v);
-                                            D.m = V[0].toString(),
-                                                D.ct = V[1]
-                                        }
-                                    }
-                                    n[N][R] = D;
-                                    let E = f + (N - w) % k
-                                        , P = R;
-                                    if (a[E + "_" + P]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: N,
-                                                col_index: R,
-                                                l: a[E + "_" + P].l,
-                                                r: a[E + "_" + P].r,
-                                                t: a[E + "_" + P].t,
-                                                b: a[E + "_" + P].b
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    } else if (a[N + "_" + R]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: N,
-                                                col_index: R,
-                                                l: null,
-                                                r: null,
-                                                t: null,
-                                                b: null
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    }
-                                    o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P])
-                                }
-                            if (s == "up")
-                                for (let N = x; N >= w; N--) {
-                                    let D = F[x - N];
-                                    if (D.f != null) {
-                                        let z = "=" + p.functionCopy(D.f, "up", x - N + 1)
-                                            , O = p.execfunction(z, N, R);
-                                        if (p.execFunctionGroup(N, R, O[1], void 0, n),
-                                            D.f = O[2],
-                                            D.v = O[1],
-                                            D.spl != null)
-                                            D.spl = O[3].data;
-                                        else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
-                                            if (D.v == Infinity || D.v == -Infinity)
-                                                D.m = D.v.toString();
-                                            else if (D.v.toString().indexOf("e") > -1) {
-                                                let V = D.v.toString().split(".")[1].split("e")[0].length;
-                                                V > 5 && (V = 5),
-                                                    D.m = D.v.toExponential(V).toString()
-                                            } else {
-                                                let V = it(Math.round(D.v * 1e9) / 1e9);
-                                                D.m = V[0].toString()
-                                            }
-                                            D.ct = {
-                                                fa: "General",
-                                                t: "n"
-                                            }
-                                        } else {
-                                            let V = it(D.v);
-                                            D.m = V[0].toString(),
-                                                D.ct = V[1]
-                                        }
-                                    }
-                                    n[N][R] = D;
-                                    let E = m - (x - N) % k
-                                        , P = R;
-                                    if (a[E + "_" + P]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: N,
-                                                col_index: R,
-                                                l: a[E + "_" + P].l,
-                                                r: a[E + "_" + P].r,
-                                                t: a[E + "_" + P].t,
-                                                b: a[E + "_" + P].b
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    } else if (a[N + "_" + R]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: N,
-                                                col_index: R,
-                                                l: null,
-                                                r: null,
-                                                t: null,
-                                                b: null
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    }
-                                    o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P])
-                                }
-                        }
-                    } else if (s == "right" || s == "left") {
-                        let A = S - C + 1;
-                        for (let R = w; R <= x; R++) {
-                            let I = v[R - w]
-                                , F = e.getApplyData(I, k, A);
-                            if (s == "right")
-                                for (let N = C; N <= S; N++) {
-                                    let D = F[N - C];
-                                    if (D.f != null) {
-                                        let z = "=" + p.functionCopy(D.f, "right", N - C + 1)
-                                            , O = p.execfunction(z, R, N);
-                                        if (p.execFunctionGroup(R, N, O[1], void 0, n),
-                                            D.f = O[2],
-                                            D.v = O[1],
-                                            D.spl != null)
-                                            D.spl = O[3].data;
-                                        else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
-                                            if (D.v == Infinity || D.v == -Infinity)
-                                                D.m = D.v.toString();
-                                            else if (D.v.toString().indexOf("e") > -1) {
-                                                let V = D.v.toString().split(".")[1].split("e")[0].length;
-                                                V > 5 && (V = 5),
-                                                    D.m = D.v.toExponential(V).toString()
-                                            } else {
-                                                let V = it(Math.round(D.v * 1e9) / 1e9);
-                                                D.m = V[0].toString()
-                                            }
-                                            D.ct = {
-                                                fa: "General",
-                                                t: "n"
-                                            }
-                                        } else {
-                                            let V = it(D.v);
-                                            D.m = V[0].toString(),
-                                                D.ct = V[1]
-                                        }
-                                    }
-                                    n[R][N] = D;
-                                    let E = R
-                                        , P = g + (N - C) % k;
-                                    if (a[E + "_" + P]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: R,
-                                                col_index: N,
-                                                l: a[E + "_" + P].l,
-                                                r: a[E + "_" + P].r,
-                                                t: a[E + "_" + P].t,
-                                                b: a[E + "_" + P].b
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    } else if (a[R + "_" + N]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: R,
-                                                col_index: N,
-                                                l: null,
-                                                r: null,
-                                                t: null,
-                                                b: null
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    }
-                                    o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P])
-                                }
-                            if (s == "left")
-                                for (let N = S; N >= C; N--) {
-                                    let D = F[S - N];
-                                    if (D.f != null) {
-                                        let z = "=" + p.functionCopy(D.f, "left", S - N + 1)
-                                            , O = p.execfunction(z, R, N);
-                                        if (p.execFunctionGroup(R, N, O[1], void 0, n),
-                                            D.f = O[2],
-                                            D.v = O[1],
-                                            D.spl != null)
-                                            D.spl = O[3].data;
-                                        else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
-                                            if (D.v == Infinity || D.v == -Infinity)
-                                                D.m = D.v.toString();
-                                            else if (D.v.toString().indexOf("e") > -1) {
-                                                let V = D.v.toString().split(".")[1].split("e")[0].length;
-                                                V > 5 && (V = 5),
-                                                    D.m = D.v.toExponential(V).toString()
-                                            } else {
-                                                let V = it(Math.round(D.v * 1e9) / 1e9);
-                                                D.m = V[0].toString()
-                                            }
-                                            D.ct = {
-                                                fa: "General",
-                                                t: "n"
-                                            }
-                                        } else {
-                                            let V = it(D.v);
-                                            D.m = V[0].toString(),
-                                                D.ct = V[1]
-                                        }
-                                    }
-                                    n[R][N] = D;
-                                    let E = R
-                                        , P = y - (S - N) % k;
-                                    if (a[E + "_" + P]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: R,
-                                                col_index: N,
-                                                l: a[E + "_" + P].l,
-                                                r: a[E + "_" + P].r,
-                                                t: a[E + "_" + P].t,
-                                                b: a[E + "_" + P].b
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    } else if (a[R + "_" + N]) {
-                                        let z = {
-                                            rangeType: "cell",
-                                            value: {
-                                                row_index: R,
-                                                col_index: N,
-                                                l: null,
-                                                r: null,
-                                                t: null,
-                                                b: null
-                                            }
-                                        };
-                                        l.borderInfo.push(z)
-                                    }
-                                    o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P])
-                                }
-                        }
+update: function () {
+    let e = this;
+    if (!gr([e.applyRange], h.currentSheetIndex) || h.allowEdit === !1) return;
+
+    let n = we.deepCopyFlowData(h.flowdata);
+    let t = h.luckysheetfile[K(h.currentSheetIndex)];
+    let l = $.extend(true, {}, h.config);
+    let a = Ur();
+    let o = $.extend(true, {}, t.dataVerification);
+
+    let s = e.direction;          // down | up | left | right
+    let d = e.copyRange;
+    let f = d.row[0], m = d.row[1];
+    let g = d.column[0], y = d.column[1];
+
+    let v = e.getCopyData(n, f, m, g, y, s);
+    let k;
+    if (s === "down" || s === "up") k = m - f + 1;
+    else k = y - g + 1;
+
+    let b = e.applyRange;
+    let w = b.row[0], x = b.row[1];
+    let C = b.column[0], S = b.column[1];
+
+    l.merge == null && (l.merge = {});
+    l.borderInfo == null && (l.borderInfo = []);
+
+    // =====================================================
+    // 1️⃣ APPLY DATA (SHIFT FORMULAS ONLY – NO CALC)
+    // =====================================================
+    if (s === "down" || s === "up") {
+        let A = x - w + 1;
+
+        for (let R = C; R <= S; R++) {
+            let I = v[R - C];
+            let F = e.getApplyData(I, k, A);
+
+            if (s === "down") {
+                for (let N = w; N <= x; N++) {
+                    let D = $.extend(true, {}, F[N - w]);
+
+                    if (D.f != null) {
+                        let z = "=" + p.functionCopy(D.f, "down", N - w + 1);
+                        D.f = z;
+                        D.v = null;
+                        D.m = null;
+                        delete D.spl;
                     }
-                    let _ = $.extend(!0, [], t.luckysheet_conditionformat_save);
-                    if (_ != null && _.length > 0)
-                        for (let A = 0; A < _.length; A++) {
-                            let R = _[A].cellrange
-                                , I = [];
-                            for (let F = 0; F < R.length; F++) {
-                                let N = $e.CFSplitRange(R[F], {
-                                    row: d.row,
-                                    column: d.column
-                                }, {
-                                    row: b.row,
-                                    column: b.column
-                                }, "operatePart");
-                                N.length > 0 && (I = I.concat(N))
-                            }
-                            I.length > 0 && _[A].cellrange.push(b)
-                        }
-                    let T = {
-                        cfg: l,
-                        cdformat: _,
-                        dataVerification: o
-                    };
-                    Ye(n, h.luckysheet_select_save, T),
-                        tt()
-                },
+
+                    n[N][R] = D;
+
+                    let E = f + (N - w) % k, P = R;
+                    if (a[E + "_" + P]) {
+                        l.borderInfo.push({
+                            rangeType: "cell",
+                            value: { row_index: N, col_index: R, ...a[E + "_" + P] }
+                        });
+                    }
+                    o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P]);
+                }
+            }
+
+            if (s === "up") {
+                for (let N = x; N >= w; N--) {
+                    let D = $.extend(true, {}, F[x - N]);
+
+                    if (D.f != null) {
+                        let z = "=" + p.functionCopy(D.f, "up", x - N + 1);
+                        D.f = z;
+                        D.v = null;
+                        D.m = null;
+                        delete D.spl;
+                    }
+
+                    n[N][R] = D;
+
+                    let E = m - (x - N) % k, P = R;
+                    if (a[E + "_" + P]) {
+                        l.borderInfo.push({
+                            rangeType: "cell",
+                            value: { row_index: N, col_index: R, ...a[E + "_" + P] }
+                        });
+                    }
+                    o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P]);
+                }
+            }
+        }
+    }
+
+    if (s === "right" || s === "left") {
+        let A = S - C + 1;
+
+        for (let R = w; R <= x; R++) {
+            let I = v[R - w];
+            let F = e.getApplyData(I, k, A);
+
+            if (s === "right") {
+                for (let N = C; N <= S; N++) {
+                    let D = $.extend(true, {}, F[N - C]);
+
+                    if (D.f != null) {
+                        let z = "=" + p.functionCopy(D.f, "right", N - C + 1);
+                        D.f = z;
+                        D.v = null;
+                        D.m = null;
+                        delete D.spl;
+                    }
+
+                    n[R][N] = D;
+
+                    let E = R, P = g + (N - C) % k;
+                    if (a[E + "_" + P]) {
+                        l.borderInfo.push({
+                            rangeType: "cell",
+                            value: { row_index: R, col_index: N, ...a[E + "_" + P] }
+                        });
+                    }
+                    o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P]);
+                }
+            }
+
+            if (s === "left") {
+                for (let N = S; N >= C; N--) {
+                    let D = $.extend(true, {}, F[S - N]);
+
+                    if (D.f != null) {
+                        let z = "=" + p.functionCopy(D.f, "left", S - N + 1);
+                        D.f = z;
+                        D.v = null;
+                        D.m = null;
+                        delete D.spl;
+                    }
+
+                    n[R][N] = D;
+
+                    let E = R, P = y - (S - N) % k;
+                    if (a[E + "_" + P]) {
+                        l.borderInfo.push({
+                            rangeType: "cell",
+                            value: { row_index: R, col_index: N, ...a[E + "_" + P] }
+                        });
+                    }
+                    o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P]);
+                }
+            }
+        }
+    }
+
+    // =====================================================
+    // 2️⃣ APPLY TO SHEET
+    // =====================================================
+    let T = {
+        cfg: l,
+        dataVerification: o
+    };
+    Ye(n, h.luckysheet_select_save, T);
+    tt();
+
+    // =====================================================
+    // 3️⃣ INLINE calcChain REBUILD + CALC (DETERMINISTIC)
+    // =====================================================
+    try {
+        const sheet = luckysheet.getSheet();
+        const data = sheet.data;
+
+        // HARD RESET
+        sheet.calcChain = [];
+
+        // Register all formulas
+        for (let r = 0; r < data.length; r++) {
+            for (let c = 0; c < data[r].length; c++) {
+                let cell = data[r][c];
+                if (cell && cell.f) {
+                    Ucv(sheet, r, c, cell.f, false); // register only
+                }
+            }
+        }
+
+        // Calculate in chain order
+        if (sheet.calcChain) {
+            for (let i = 0; i < sheet.calcChain.length; i++) {
+                let node = sheet.calcChain[i];
+                if (node && node.func) {
+                    Ucv(sheet, node.r, node.c, node.func[2], true);
+                }
+            }
+        }
+    } catch (err) {
+        console.error("update recalculation failed", err);
+    }
+
+    tt();
+}
