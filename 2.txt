@@ -2,123 +2,110 @@ update: function () {
     let e = this;
     if (!gr([e.applyRange], h.currentSheetIndex) || h.allowEdit === !1) return;
 
-    let n = h.flowdata; // 🔥 NO deep copy
-    let t = h.luckysheetfile[K(h.currentSheetIndex)];
-    let l = $.extend(!0, {}, h.config);
-    let a = Ur();
-    let o = $.extend(!0, {}, t.dataVerification);
+    const n = h.flowdata; // DO NOT deep copy
+    const t = h.luckysheetfile[K(h.currentSheetIndex)];
+    const l = $.extend(!0, {}, h.config);
+    const a = Ur();
+    const o = $.extend(!0, {}, t.dataVerification);
 
-    let s = e.direction;
-    let d = e.copyRange;
-    let f = d.row[0], m = d.row[1];
-    let g = d.column[0], y = d.column[1];
+    const s = e.direction;
+    const d = e.copyRange;
+    const f = d.row[0], m = d.row[1];
+    const g = d.column[0], y = d.column[1];
 
-    let v = e.getCopyData(n, f, m, g, y, s);
-    let k;
-    s === "down" || s === "up"
-        ? k = m - f + 1
-        : k = y - g + 1;
+    const v = e.getCopyData(n, f, m, g, y, s);
+    const k = (s === "down" || s === "up")
+        ? (m - f + 1)
+        : (y - g + 1);
 
-    let b = e.applyRange;
-    let w = b.row[0], x = b.row[1];
-    let C = b.column[0], S = b.column[1];
+    const b = e.applyRange;
+    const w = b.row[0], x = b.row[1];
+    const C = b.column[0], S = b.column[1];
 
     const dirtyCells = [];
 
-    // ---------------- PHASE 1: COPY ONLY ----------------
+    /* ---------------- PHASE 1: COPY FORMULAS (NO CALC) ---------------- */
+
     if (s === "down" || s === "up") {
-        let A = x - w + 1;
+        const A = x - w + 1;
         for (let R = C; R <= S; R++) {
-            let I = v[R - C];
-            let F = e.getApplyData(I, k, A);
+            const I = v[R - C];
+            const F = e.getApplyData(I, k, A);
 
-            let rowIter = s === "down"
-                ? (cb => { for (let N = w; N <= x; N++) cb(N, N - w); })
-                : (cb => { for (let N = x; N >= w; N--) cb(N, x - N); });
+            const rowLoop = s === "down"
+                ? (cb) => { for (let N = w; N <= x; N++) cb(N, N - w); }
+                : (cb) => { for (let N = x; N >= w; N--) cb(N, x - N); };
 
-            rowIter((N, idx) => {
-                let D = F[idx];
-
-                if (D && D.f != null) {
-                    let z = "=" + p.functionCopy(
-                        D.f,
-                        s,
-                        idx + 1
-                    );
-                    D.f = z;
+            rowLoop((N, idx) => {
+                let D = F[idx] || {};
+                if (D.f != null) {
+                    D.f = "=" + p.functionCopy(D.f, s, idx + 1);
                     D.v = null;
                     D.m = null;
                     dirtyCells.push({ r: N, c: R, i: h.currentSheetIndex });
                 }
-
                 n[N][R] = D;
 
-                let srcRow = s === "down"
+                const srcRow = s === "down"
                     ? f + (N - w) % k
                     : m - (x - N) % k;
 
-                let srcKey = srcRow + "_" + R;
+                const srcKey = srcRow + "_" + R;
                 if (a[srcKey]) {
                     l.borderInfo.push({
                         rangeType: "cell",
                         value: { row_index: N, col_index: R, ...a[srcKey] }
                     });
                 }
-
                 if (o[srcKey]) o[N + "_" + R] = o[srcKey];
             });
         }
     } else {
-        let A = S - C + 1;
+        const A = S - C + 1;
         for (let R = w; R <= x; R++) {
-            let I = v[R - w];
-            let F = e.getApplyData(I, k, A);
+            const I = v[R - w];
+            const F = e.getApplyData(I, k, A);
 
-            let colIter = s === "right"
-                ? (cb => { for (let N = C; N <= S; N++) cb(N, N - C); })
-                : (cb => { for (let N = S; N >= C; N--) cb(N, S - N); });
+            const colLoop = s === "right"
+                ? (cb) => { for (let N = C; N <= S; N++) cb(N, N - C); }
+                : (cb) => { for (let N = S; N >= C; N--) cb(N, S - N); };
 
-            colIter((N, idx) => {
-                let D = F[idx];
-
-                if (D && D.f != null) {
-                    let z = "=" + p.functionCopy(
-                        D.f,
-                        s,
-                        idx + 1
-                    );
-                    D.f = z;
+            colLoop((N, idx) => {
+                let D = F[idx] || {};
+                if (D.f != null) {
+                    D.f = "=" + p.functionCopy(D.f, s, idx + 1);
                     D.v = null;
                     D.m = null;
                     dirtyCells.push({ r: R, c: N, i: h.currentSheetIndex });
                 }
-
                 n[R][N] = D;
 
-                let srcCol = s === "right"
+                const srcCol = s === "right"
                     ? g + (N - C) % k
                     : y - (S - N) % k;
 
-                let srcKey = R + "_" + srcCol;
+                const srcKey = R + "_" + srcCol;
                 if (a[srcKey]) {
                     l.borderInfo.push({
                         rangeType: "cell",
                         value: { row_index: R, col_index: N, ...a[srcKey] }
                     });
                 }
-
                 if (o[srcKey]) o[R + "_" + N] = o[srcKey];
             });
         }
     }
 
-    // ---------------- PHASE 2: CALCULATE ONCE ----------------
+    /* ---------------- PHASE 2: CALCULATE ONCE ---------------- */
+
     if (dirtyCells.length > 0) {
         p.execFunctionExist = dirtyCells.map(c => ({
             r: c.r,
             c: c.c,
             i: c.i
         }));
+
+        p.groupValuesRefreshData = [];
 
         p.execFunctionGroup(
             null,
@@ -128,9 +115,31 @@ update: function () {
             n,
             true
         );
+
+        /* -------- APPLY CALCULATED VALUES BACK TO FLOWDATA -------- */
+
+        if (p.groupValuesRefreshData.length > 0) {
+            for (let i = 0; i < p.groupValuesRefreshData.length; i++) {
+                const itx = p.groupValuesRefreshData[i];
+                const cell = n[itx.r][itx.c] || {};
+
+                cell.v = itx.v;
+                cell.f = itx.f;
+
+                const V = it(itx.v);
+                cell.m = V[0].toString();
+                cell.ct = V[1];
+
+                if (itx.spe) cell.spl = itx.spe.data;
+
+                n[itx.r][itx.c] = cell;
+            }
+            p.groupValuesRefreshData = [];
+        }
     }
 
-    // ---------------- FINAL RENDER ----------------
+    /* ---------------- FINAL RENDER ---------------- */
+
     Ye(n, h.luckysheet_select_save, {
         cfg: l,
         cdformat: t.luckysheet_conditionformat_save,
