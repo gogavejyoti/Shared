@@ -1,287 +1,731 @@
-(function ($) {
-    $.fn.luckysheetDiagnosis = function (options) {
-        const settings = $.extend({
-            onFixComplete: null
-        }, options);
-
-        // Persistent State to track Scan vs Fix results independently
-        if (!window._luckysheetDiagState) {
-            window._luckysheetDiagState = {
-                discrepancy: { scanned: false, issues: {} },
-                calcchain: { scanned: false, issues: {} },
-                currentTab: 'discrepancy'
-            };
-        }
-        const state = window._luckysheetDiagState;
-
-        const getExcelAddr = (r, c) => {
-            let label = "";
-            let col = c;
-            while (col >= 0) {
-                label = String.fromCharCode((col % 26) + 65) + label;
-                col = Math.floor(col / 26) - 1;
-            }
-            return label + (r + 1);
-        };
-
-        // --- UI Styles ---
-        $('#luckysheetDiagModal').remove();
-        if ($('#luckysheetDiagStyles').length === 0) {
-            $('head').append(`
-            <style id="luckysheetDiagStyles">
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-                #luckysheetDiagModal .modal-content { border-radius: 20px; font-family: 'Inter', sans-serif; border: none; box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
-                .diag-nav { display: flex; background: #f8f9fa; padding: 12px 24px 0; gap: 8px; border-bottom: 1px solid #eee; }
-                .diag-tab { padding: 10px 20px; cursor: pointer; border-radius: 10px 10px 0 0; font-weight: 600; color: #636e72; font-size: 0.9rem; }
-                .diag-tab.active { background: #fff; color: #0984e3; border: 1px solid #eee; border-bottom: 2px solid #fff; margin-bottom: -1px; }
-                
-                .diag-toolbar { padding: 20px 32px; display: flex; align-items: center; gap: 15px; }
-                .diag-progress { display: none; height: 6px; background: #e9ecef; border-radius: 10px; margin: 0 32px 20px; overflow: hidden; }
-                .diag-bar { height: 100%; background: #0984e3; width: 0%; transition: width 0.3s; }
-
-                .sheet-card { border: 1px solid #e1e8ed; margin: 0 32px 15px; border-radius: 12px; overflow: hidden; }
-                .sheet-header { padding: 12px 20px; background: #fff; cursor: pointer; display: flex; justify-content: space-between; font-weight: 600; border-bottom: 1px solid #f1f2f6; }
-                .sheet-body { display: none; background: #fafbfc; }
-                .sheet-body.active { display: block; }
-
-                .diag-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-                .diag-table th { background: #f1f2f6; padding: 10px 15px; text-align: left; color: #636e72; text-transform: uppercase; font-size: 0.7rem; }
-                .diag-table td { padding: 10px 15px; border-bottom: 1px solid #eee; }
-                
-                .cell-ref { color: #0984e3; font-weight: 700; font-family: monospace; background: #e1f5fe; padding: 2px 5px; border-radius: 4px; }
-                .loader { display: none; width: 18px; height: 18px; border: 2px solid #f3f3f3; border-top: 2px solid #0984e3; border-radius: 50%; animation: diag-spin 1s linear infinite; }
-                @keyframes diag-spin { to { transform: rotate(360deg); } }
-            </style>
-            `);
-        }
-
-        const modalHTML = `
-        <div class="modal fade" id="luckysheetDiagModal" tabindex="-1">
-            <div class="modal-dialog modal-xl modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title fw-bold">✨ Health Monitor Assistant</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="diag-nav">
-                        <div class="diag-tab ${state.currentTab === 'discrepancy' ? 'active' : ''}" data-id="discrepancy">Value Discrepancy</div>
-                        <div class="diag-tab ${state.currentTab === 'calcchain' ? 'active' : ''}" data-id="calcchain">Calc-Chain Integrity</div>
-                    </div>
-                    <div class="diag-toolbar">
-                        <button id="btn-run-scan" class="btn btn-primary px-4 fw-bold">Scan Category</button>
-                        <button id="btn-run-reset" class="btn btn-outline-secondary px-4">Reset Report</button>
-                        <div class="loader" id="diag-master-loader"></div>
-                    </div>
-                    <div class="diag-progress"><div class="diag-bar"></div></div>
-                    <div class="modal-body p-0" style="min-height: 400px; max-height: 60vh; overflow-y:auto; background: #fafafa;">
-                        <div id="diag-container" style="padding-top: 20px;"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <span id="diag-msg" class="me-auto text-muted small">Scan to identify issues, then use Fix to resolve.</span>
-                        <button id="btn-run-fix" class="btn btn-success px-5 fw-bold" style="display:none; background:#00b894; border:none; box-shadow: 0 4px 12px rgba(0, 184, 148, 0.25);">Fix Issues</button>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-
-        $('body').append(modalHTML);
-        const $modal = $('#luckysheetDiagModal');
-        const modalInstance = new bootstrap.Modal($modal[0]);
-
-        // --- RENDER LOGIC ---
-        const render = () => {
-            const current = state[state.currentTab];
-            const $container = $('#diag-container').empty();
-
-            if (!current.scanned) {
-                $container.append('<div class="text-center py-5 text-muted"><h4>Tab Not Scanned</h4><p>Click "Scan Category" to detect issues without changing data.</p></div>');
-                $('#btn-run-fix').hide();
-                return;
-            }
-
-            const names = Object.keys(current.issues);
-            if (names.length === 0) {
-                $container.append('<div class="text-center py-5 text-success"><h4>✅ No Issues Detected</h4><p>The spreadsheet is healthy for this category.</p></div>');
-                $('#btn-run-fix').hide();
-                return;
-            }
-
-            names.forEach(name => {
-                const sheet = current.issues[name];
-                const $card = $(`
-                    <div class="sheet-card">
-                        <div class="sheet-header">
-                            <span>Sheet: ${name} <span class="badge bg-danger ms-2">${sheet.data.length} Issues</span></span>
-                            <small class="text-muted">Click to view Details ↓</small>
-                        </div>
-                        <div class="sheet-body">
-                            <table class="diag-table">
-                                <thead><tr><th style="width:120px;">Cell</th><th>Formula</th><th>${state.currentTab === 'discrepancy' ? 'Difference' : 'Status'}</th></tr></thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
-                `);
-
-                sheet.data.forEach(item => {
-                    const info = state.currentTab === 'discrepancy' 
-                        ? `<td><span class="text-danger">${item.oldVal}</span> → <span class="text-success fw-bold">${item.newVal}</span></td>`
-                        : `<td><span class="text-danger fw-bold">Missing Link</span></td>`;
-
-                    $card.find('tbody').append(`
-                        <tr>
-                            <td><span class="cell-ref">${item.addr}</span></td>
-                            <td><code style="color:#d63031">${item.f}</code></td>
-                            ${info}
-                        </tr>
-                    `);
-                });
-                $container.append($card);
-            });
-            $('#btn-run-fix').show();
-        };
-
-        // --- INDEPENDENT SCAN METHODS (Read-Only) ---
-        const performScan = async () => {
-            $('#diag-master-loader').show();
-            const mode = state.currentTab;
-            state[mode].issues = {};
-            const sheets = luckysheet.getAllSheets();
-            $('.diag-progress').show();
-
-            for (let i = 0; i < sheets.length; i++) {
-                const sheet = sheets[i];
-                $('.diag-bar').css('width', ((i + 1) / sheets.length * 100) + '%');
-                const sheetIssues = [];
-                const formulaCells = (sheet.celldata ?? []).filter(c => c?.v?.f);
-
-                formulaCells.forEach(cell => {
-                    const addr = getExcelAddr(cell.r, cell.c);
-                    if (mode === 'discrepancy') {
-                        // Strict criteria from user provided logic
-                        if (cell.v.f.indexOf('Next Week') !== -1 || cell.v.f.indexOf('TODAY') !== -1) return;
-
-                        const val = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
-                        const calcV = Array.isArray(val) ? val[1] : val;
-                        const storeV = luckysheet.getCellValue(cell.r, cell.c, { sheetIndex: sheet.index });
-                        
-                        const oldStr = storeV?.toString?.() ?? String(storeV);
-                        const newStr = calcV?.toString?.() ?? String(calcV);
-
-                        if (oldStr !== newStr) {
-                            sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: addr, oldVal: storeV ?? '—', newVal: calcV ?? '—' });
+    update: function () {
+                let e = this;
+                if (!gr([e.applyRange], h.currentSheetIndex) || h.allowEdit === !1)
+                    return;
+                let n = we.deepCopyFlowData(h.flowdata), t = h.luckysheetfile[K(h.currentSheetIndex)], l = $.extend(!0, {}, h.config), a = Ur(), o = $.extend(!0, {}, t.dataVerification), s = e.direction, u = e.applyType, d = e.copyRange, f = d.row[0], m = d.row[1], g = d.column[0], y = d.column[1], v = e.getCopyData(n, f, m, g, y, s), k;
+                s == "down" || s == "up" ? k = m - f + 1 : (s == "right" || s == "left") && (k = y - g + 1);
+                let b = e.applyRange
+                    , w = b.row[0]
+                    , x = b.row[1]
+                    , C = b.column[0]
+                    , S = b.column[1];
+                if (s == "down" || s == "up") {
+                    let A = x - w + 1;
+                    for (let R = C; R <= S; R++) {
+                        let I = v[R - C]
+                            , F = e.getApplyData(I, k, A);
+                        if (s == "down")
+                            for (let N = w; N <= x; N++) {
+                                let D = F[N - w];
+                                if (D.f != null) {
+                                    let z = "=" + p.functionCopy(D.f, "down", N - w + 1)
+                                        , O = p.execfunction(z, N, R);
+                                    if (p.execFunctionGroup(N, R, O[1], void 0, n),
+                                        D.f = O[2],
+                                        D.v = O[1],
+                                        D.spl != null)
+                                        D.spl = O[3].data;
+                                    else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
+                                        if (D.v == Infinity || D.v == -Infinity)
+                                            D.m = D.v.toString();
+                                        else if (D.v.toString().indexOf("e") > -1) {
+                                            let V = D.v.toString().split(".")[1].split("e")[0].length;
+                                            V > 5 && (V = 5),
+                                                D.m = D.v.toExponential(V).toString()
+                                        } else {
+                                            let V;
+                                            D.ct.fa === "##0.00" ? (V = it(Math.round(D.v * 1e9) / 1e9 + ".00"),
+                                                D.m = V[0].toString()) : (V = it(Math.round(D.v * 1e9) / 1e9),
+                                                    D.m = V[0].toString())
+                                        }
+                                        D.ct = D.ct || {
+                                            fa: "General",
+                                            t: "n"
+                                        }
+                                    } else {
+                                        let V = it(D.v);
+                                        D.m = V[0].toString(),
+                                            D.ct = V[1]
+                                    }
+                                }
+                                n[N][R] = D;
+                                let E = f + (N - w) % k
+                                    , P = R;
+                                if (a[E + "_" + P]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: N,
+                                            col_index: R,
+                                            l: a[E + "_" + P].l,
+                                            r: a[E + "_" + P].r,
+                                            t: a[E + "_" + P].t,
+                                            b: a[E + "_" + P].b
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                } else if (a[N + "_" + R]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: N,
+                                            col_index: R,
+                                            l: null,
+                                            r: null,
+                                            t: null,
+                                            b: null
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                }
+                                o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P])
+                            }
+                        if (s == "up")
+                            for (let N = x; N >= w; N--) {
+                                let D = F[x - N];
+                                if (D.f != null) {
+                                    let z = "=" + p.functionCopy(D.f, "up", x - N + 1)
+                                        , O = p.execfunction(z, N, R);
+                                    if (p.execFunctionGroup(N, R, O[1], void 0, n),
+                                        D.f = O[2],
+                                        D.v = O[1],
+                                        D.spl != null)
+                                        D.spl = O[3].data;
+                                    else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
+                                        if (D.v == Infinity || D.v == -Infinity)
+                                            D.m = D.v.toString();
+                                        else if (D.v.toString().indexOf("e") > -1) {
+                                            let V = D.v.toString().split(".")[1].split("e")[0].length;
+                                            V > 5 && (V = 5),
+                                                D.m = D.v.toExponential(V).toString()
+                                        } else {
+                                            let V = it(Math.round(D.v * 1e9) / 1e9);
+                                            D.m = V[0].toString()
+                                        }
+                                        D.ct = {
+                                            fa: "General",
+                                            t: "n"
+                                        }
+                                    } else {
+                                        let V = it(D.v);
+                                        D.m = V[0].toString(),
+                                            D.ct = V[1]
+                                    }
+                                }
+                                n[N][R] = D;
+                                let E = m - (x - N) % k
+                                    , P = R;
+                                if (a[E + "_" + P]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: N,
+                                            col_index: R,
+                                            l: a[E + "_" + P].l,
+                                            r: a[E + "_" + P].r,
+                                            t: a[E + "_" + P].t,
+                                            b: a[E + "_" + P].b
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                } else if (a[N + "_" + R]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: N,
+                                            col_index: R,
+                                            l: null,
+                                            r: null,
+                                            t: null,
+                                            b: null
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                }
+                                o[E + "_" + P] && (o[N + "_" + R] = o[E + "_" + P])
+                            }
+                    }
+                } else if (s == "right" || s == "left") {
+                    let A = S - C + 1;
+                    for (let R = w; R <= x; R++) {
+                        let I = v[R - w]
+                            , F = e.getApplyData(I, k, A);
+                        if (s == "right")
+                            for (let N = C; N <= S; N++) {
+                                let D = F[N - C];
+                                if (D.f != null) {
+                                    let z = "=" + p.functionCopy(D.f, "right", N - C + 1)
+                                        , O = p.execfunction(z, R, N);
+              
+                                    if (p.execFunctionGroup(R, N, O[1], void 0, n),
+                                        D.f = O[2],
+                                        D.v = O[1],
+                                        D.spl != null)
+                                        D.spl = O[3].data;
+                                    else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
+                                        if (D.v == Infinity || D.v == -Infinity)
+                                            D.m = D.v.toString();
+                                        else if (D.v.toString().indexOf("e") > -1) {
+                                            let V = D.v.toString().split(".")[1].split("e")[0].length;
+                                            V > 5 && (V = 5),
+                                                D.m = D.v.toExponential(V).toString()
+                                        } else {
+                                            let V = it(Math.round(D.v * 1e9) / 1e9);
+                                            D.m = V[0].toString()
+                                        }
+                                        D.ct = {
+                                            fa: "General",
+                                            t: "n"
+                                        }
+                                    } else {
+                                        let V = it(D.v);
+                                        D.m = V[0].toString(),
+                                            D.ct = V[1]
+                                    }
+                                }
+                                n[R][N] = D;
+                                let E = R
+                                    , P = g + (N - C) % k;
+                                if (a[E + "_" + P]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: R,
+                                            col_index: N,
+                                            l: a[E + "_" + P].l,
+                                            r: a[E + "_" + P].r,
+                                            t: a[E + "_" + P].t,
+                                            b: a[E + "_" + P].b
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                } else if (a[R + "_" + N]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: R,
+                                            col_index: N,
+                                            l: null,
+                                            r: null,
+                                            t: null,
+                                            b: null
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                }
+                                o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P])
+                            }
+                        if (s == "left")
+                            for (let N = S; N >= C; N--) {
+                                let D = F[S - N];
+                                if (D.f != null) {
+                                    let z = "=" + p.functionCopy(D.f, "left", S - N + 1)
+                                        , O = p.execfunction(z, R, N);
+                                    if (p.execFunctionGroup(R, N, O[1], void 0, n),
+                                        D.f = O[2],
+                                        D.v = O[1],
+                                        D.spl != null)
+                                        D.spl = O[3].data;
+                                    else if (B(D.v) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(D.v)) {
+                                        if (D.v == Infinity || D.v == -Infinity)
+                                            D.m = D.v.toString();
+                                        else if (D.v.toString().indexOf("e") > -1) {
+                                            let V = D.v.toString().split(".")[1].split("e")[0].length;
+                                            V > 5 && (V = 5),
+                                                D.m = D.v.toExponential(V).toString()
+                                        } else {
+                                            let V = it(Math.round(D.v * 1e9) / 1e9);
+                                            D.m = V[0].toString()
+                                        }
+                                        D.ct = {
+                                            fa: "General",
+                                            t: "n"
+                                        }
+                                    } else {
+                                        let V = it(D.v);
+                                        D.m = V[0].toString(),
+                                            D.ct = V[1]
+                                    }
+                                }
+                                n[R][N] = D;
+                                let E = R
+                                    , P = y - (S - N) % k;
+                                if (a[E + "_" + P]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: R,
+                                            col_index: N,
+                                            l: a[E + "_" + P].l,
+                                            r: a[E + "_" + P].r,
+                                            t: a[E + "_" + P].t,
+                                            b: a[E + "_" + P].b
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                } else if (a[R + "_" + N]) {
+                                    let z = {
+                                        rangeType: "cell",
+                                        value: {
+                                            row_index: R,
+                                            col_index: N,
+                                            l: null,
+                                            r: null,
+                                            t: null,
+                                            b: null
+                                        }
+                                    };
+                                    l.borderInfo.push(z)
+                                }
+                                o[E + "_" + P] && (o[R + "_" + N] = o[E + "_" + P])
+                            }
+                    }
+                }
+                let _ = $.extend(!0, [], t.luckysheet_conditionformat_save);
+                if (_ != null && _.length > 0)
+                    for (let A = 0; A < _.length; A++) {
+                        let R = _[A].cellrange
+                            , I = [];
+                        for (let F = 0; F < R.length; F++) {
+                            let N = $e.CFSplitRange(R[F], {
+                                row: d.row,
+                                column: d.column
+                            }, {
+                                row: b.row,
+                                column: b.column
+                            }, "operatePart");
+                            N.length > 0 && (I = I.concat(N))
                         }
-                    } else {
-                        // Calc-Chain Detection logic
-                        if (!(sheet.calcChain || []).some(cc => cc.r == cell.r && cc.c == cell.c)) {
-                            sheetIssues.push({ r: cell.r, c: cell.c, f: cell.v.f, addr: addr });
+                        I.length > 0 && _[A].cellrange.push(b)
+                    }
+                let T = {
+                    cfg: l,
+                    cdformat: _,
+                    dataVerification: o
+                };
+                Ye(n, h.luckysheet_select_save, T),
+                    tt()
+            },
+
+
+      execfunction: function (e, n, t, l, a, o) {
+              
+                const sheetName = luckysheet.getSheet().name;
+                const sheetIndex = luckysheet.getSheet().index;
+                //console.log(sheetName);
+                let s = this, d = Q().formulaMore;
+                // quick error check
+                if (e.indexOf(s.error.r) > -1) return [!1, s.error.r, e];
+                if (!s.checkBracketNum(e)) e += ")";
+
+		        if (typeof e === "string" && e.charAt(0) === "=") {
+                    // Replace number% patterns with (number/100)
+                    // e.g. =BX109*30% → =BX109*(30/100)
+                    e = e.replace(/(\d+(\.\d+)?)%/g, "($1/100)");
+                    if (e.indexOf(sheetName) > -1 && sheetIndex == l){
+                        const quotedName = sheetName.replace(/'/g, "''");
+                        const unquoted = sheetName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const quoted = `'${quotedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`;
+                        // Optional workbook part [Book.xlsx], then quoted or unquoted sheet name, then !
+                        const pattern = new RegExp(
+                            String.raw`(?:(?:\[[^\]]+\])\s*)?(?:${quoted}|${unquoted})!`,
+                            'g'
+                        );
+                        e = e.replace(pattern, '');
+                    }
+
+                }
+               
+                
+
+
+                if (l == null) l = h.currentSheetIndex;
+                h.calculateSheetIndex = l;
+
+                let f = $.trim(s.functionParserExe(e));
+
+                if ((f.substr(0, 20) == "luckysheet_function." || f.substr(0, 22) == "luckysheet_compareWith") && (s.functionHTMLIndex = 0),
+                    !s.testFunction(e, f) || f == "")
+                    return U.info("", d.execfunctionError),
+                        [!1, s.error.n, e];
+
+                let m = null;
+                window.luckysheetCurrentRow = n;
+                window.luckysheetCurrentColumn = t;
+                window.luckysheetCurrentIndex = l;
+                window.luckysheetCurrentFunction = e;
+                let g = null;
+
+                try {
+                    // self-reference detection (keeps behavior)
+                    if (f.indexOf("luckysheet_getcelldata") > -1) {
+                        const parts = f.split("luckysheet_getcelldata('");
+                        for (let k = 1; k < parts.length; k++) {
+                            const b = parts[k].split("')")[0];
+                            const w = s.getcellrange(b);
+                            if (w == null || w.row[0] < 0 || w.column[0] < 0) return [!0, s.error.r, e];
+                            if (w.sheetIndex == h.calculateSheetIndex && n >= w.row[0] && n <= w.row[1] && t >= w.column[0] && t <= w.column[1])
+                                return de() ? alert(d.execfunctionSelfError) : U.info("", `<span style="color:red;font-weight:bold;">Error:</span> ${d.execfunctionSelfErrorResult} <br/> <b>Sheet:</b> ${sheetName} | <b>Cell:</b> ${s.getExcelAddr(n, t)} | <b>Formula:</b> ${e}`),
+                                    [!1, 0, e];
                         }
                     }
-                });
-                if (sheetIssues.length > 0) state[mode].issues[sheet.name] = { id: sheet.index, data: sheetIssues };
-                await new Promise(r => setTimeout(r, 10)); 
-            }
 
-            state[mode].scanned = true;
-            $('#diag-master-loader').hide();
-            setTimeout(() => $('.diag-progress').hide(), 500);
-            render();
-        };
+                    m = new Function("return " + f)();
+                    console.log(`${s.getExcelAddr(n, t) }=>${e}=>${m}`);
+                    if (typeof m == "string") m = m.replace(/\x7F/g, '"');
+                    if (f.indexOf("SPLINES") > -1) { g = m; m = ""; }
+                } catch (err) {
+                    console.log(err, f);
+                    const k = s.errorInfo(err);
+                    m = [s.error.n, k];
+                }
 
-        // --- INDEPENDENT FIX METHODS (Write Mode / Recursive) ---
+                // normalize object return type
+                if (L(m) == "object" && m.startCell != null) {
+                    if (L(m.data) == "array") m = s.error.v;
+                    else if (L(m.data) == "object" && !fe(m.data.v)) m = m.data.v;
+                    else if (fe(m.data)) m = 0;
+                    else if (m.cell > 1 || m.rowl > 1 || L(m.data) == "string" || L(m.data) == "number") m = m.data;
+                    else m = 0;
+                }
+
+                let y = null;
+                if (L(m) == "array") {
+                    let simple = !(L(m[0]) == "array") && m.length == 2 && H(m[0]);
+                    if (simple) m = m[0];
+                    else if (L(m[0]) == "array" && m.length == 1 && m[0].length == 1) m = m[0][0];
+                    else {
+                        y = {
+                            r: n,
+                            c: t,
+                            f: e,
+                            index: l,
+                            data: m
+                        };
+                        m = "";
+                    }
+                }
+
+                // reset globals
+                window.luckysheetCurrentRow = null;
+                window.luckysheetCurrentColumn = null;
+                window.luckysheetCurrentIndex = null;
+                window.luckysheetCurrentFunction = null;
+
+                // update groups if needed
+                if (n != null && t != null) {
+                    if (a) s.execFunctionGroup(n, t, m, l);
+                    if (!o) s.insertUpdateFunctionGroup(n, t, l);
+                }
+
+                if (g) return [!0, m, e, { type: "sparklines", data: g }];
+                if (y) return [!0, m, e, { type: "dynamicArrayItem", data: y }];
+                return [!0, m, e];
+            },
+ execFunctionGroup: function (e, n, t, l, a, o = !1) {
+                if (o) return;
+
         
-        // Method 1: Fix Value Discrepancies (Uses original recursive logic pattern)
-        const fixDiscrepancy = async () => {
-            let allIssueFixed = false;
-            const sheets = luckysheet.getAllSheets();
-            let activeSheetIndex = sheets.find(s => Number(s.status) === 1).order;
-            
-            while (!allIssueFixed) {
-                let totalIssuesFound = 0;
-                sheets.forEach((sheet, sheetIdx) => {
-                    luckysheet.setSheetActive(sheetIdx);
-                    const formulaCells = (sheet.celldata ?? [])
-                        .filter(cell => cell?.v?.f && cell?.v?.f.indexOf('Next Week') == -1 && cell?.v?.f.indexOf('TODAY') == -1);
 
-                    formulaCells.forEach(cell => {
-                        const value = luckysheet.validateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
-                        const newValue = Array.isArray(value) ? value[1] : value;
-                        const oldValue = luckysheet.getCellValue(cell.r, cell.c);
-                        
-                        const oldStr = oldValue?.toString?.() ?? String(oldValue);
-                        const newStr = newValue?.toString?.() ?? String(newValue);
+                const s = this;
 
-                        if (oldStr !== newStr) {
-                            totalIssuesFound++;
-                            luckysheet.updateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
-                        }
+                // Initialize helpers
+                if (a == null) a = h.flowdata;
+                if (!window.luckysheet_compareWith) {
+                    window.luckysheet_compareWith = ja;
+                    window.luckysheet_getarraydata = wc;
+                    window.luckysheet_getcelldata = nr;
+                    window.luckysheet_parseData = Ua;
+                    window.luckysheet_getValue = qn;
+                    window.luckysheet_indirect_check = xc;
+                    window.luckysheet_indirect_check_return = _c;
+                    window.luckysheet_offset_check = Cc;
+                    window.luckysheet_calcADPMM = _t;
+                    window.luckysheet_getSpecialReference = Tc;
+                }
+
+                if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+                if (l == null) l = h.currentSheetIndex;
+
+                // Store explicit value if provided
+                if (t != null) {
+                    const tmp = [[{ v: null }]];
+                    At(0, 0, tmp, t);
+                    s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+                }
+
+                // Update cross-sheet references before recalculation
+                if (typeof _shiftCrossSheetReference === 'function') {
+                    _shiftCrossSheetReference({
+                        type: 'recalc',
+                        sheetIndex: l
                     });
-                });
-                if (totalIssuesFound == 0) allIssueFixed = true;
-                await new Promise(r => setTimeout(r, 50)); 
-            }
-            luckysheet.setSheetActive(activeSheetIndex < sheets.length ? activeSheetIndex : 0);
-            performScan(); // Re-scan to clear UI
-        };
+                }
 
-        // Method 2: Fix Calc-Chain Missing Entries (Recursive)
-        const fixCalcChain = async () => {
-            let allIssueFixed = false;
-            const sheets = luckysheet.getAllSheets();
-            
-            while (!allIssueFixed) {
-                let issuesFixed = 0;
-                sheets.forEach((sheet) => {
-                    const formulaCells = (sheet.celldata ?? []).filter(c => c?.v?.f);
-                    formulaCells.forEach(cell => {
-                        const inChain = (sheet.calcChain || []).some(cc => cc.r == cell.r && cc.c == cell.c);
-                        if (!inChain) {
-                            issuesFixed++;
-                            // Triggering updateCellValue forces entry into calcChain
-                            luckysheet.updateCellValue(sheet, cell.r, cell.c, cell.v.f, true, true);
+                // Get all function group cells and sheet info
+                let allFuncCells = [];
+                let sheetIndices = null;
+                if (e !== undefined && e !== null && n !== undefined && n !== null) {
+                    const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+                    sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+                }
+                else {
+                    allFuncCells = s.getAllFunctionGroup() || [];
+                }
+
+
+
+                const sheetsInfo = Ft() || [];
+                const sheetMap = {};
+
+                if (sheetIndices) {
+                    for (let i = 0; i < sheetsInfo.length; i++) {
+                        if (!sheetIndices.includes(sheetsInfo[i].index)) continue;
+                        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+                    }
+                }
+                else {
+                    for (let i = 0; i < sheetsInfo.length; i++) {
+                        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+                    }
+                }
+
+                // Build execSet
+                const execSet = {};
+                if (s.execFunctionExist == null) {
+                    execSet["r" + e + "c" + n + "i" + l] = 1;
+                } else {
+                    for (let i = 0; i < s.execFunctionExist.length; i++) {
+                        const T = s.execFunctionExist[i];
+                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+                    }
+                }
+
+                const nodes = {};
+                const rangeToKeysCache = {};
+
+                // Helper: get keys in a rectangular range
+                function keysForRange(R) {
+                    const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+                    if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+                    const list = [];
+                    for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
+                        for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                            const k = "r" + rr + "c" + cc + "i" + R.sheetIndex;
+                            list.push({ key: k, r: rr, c: cc, sheetIndex: R.sheetIndex });
                         }
+                    }
+                    rangeToKeysCache[cacheKey] = list;
+                    return list;
+                }
+
+                // Build nodes
+                for (let i = 0; i < allFuncCells.length; i++) {
+                    const T = allFuncCells[i];
+                    const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+                    const R = zl(T.r, T.c, T.index);
+                    if (!R) continue;
+
+                    const upper = R.toUpperCase();
+                    const needsFunctionRange = upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1;
+                    const formulaRanges = [];
+
+                    if (needsFunctionRange) {
+                        this.isFunctionRange(R, null, null, T.index, null, function (ref) {
+                            const rg = s.getcellrange($.trim(ref), T.index);
+                            if (rg) formulaRanges.push(rg);
+                        });
+                    } else if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
+                        const tokens = R.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
+                        for (let ti = 0; ti < tokens.length; ti++) {
+                            let tk = tokens[ti].trim();
+                            if (!tk) continue;
+                            if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+                            const rg = s.getcellrange($.trim(tk), T.index);
+                            if (rg) formulaRanges.push(rg);
+                        }
+                    }
+
+                    nodes[nodeKey] = {
+                        formulaArray: formulaRanges,
+                        calc_funcStr: R,
+                        key: nodeKey,
+                        r: T.r,
+                        c: T.c,
+                        index: T.index,
+                        parents: {},
+                        chidren: {},
+                        color: "w"
+                    };
+                }
+
+                // Build dependency graph
+                const y = [];
+                const nodeKeys = Object.keys(nodes);
+                for (let i = 0; i < nodeKeys.length; i++) {
+                    const node = nodes[nodeKeys[i]];
+                    const ranges = node.formulaArray || [];
+                    for (let ri = 0; ri < ranges.length; ri++) {
+                        const rect = ranges[ri];
+                        const keys = keysForRange(rect);
+                        for (let ki = 0; ki < keys.length; ki++) {
+                            const cellInfo = keys[ki];
+                            const A = cellInfo.key;
+                            if (A in nodes) {
+                                node.chidren[A] = 1;
+                                nodes[A].parents[node.key] = 1;
+                            }
+                            if (!o && (A in execSet)) y.push(node);
+                        }
+                    }
+                    if (o) y.push(node);
+                }
+
+                // Topological sort
+                const S = {};
+                const stack = y.slice();
+                const ordered = [];
+                while (stack.length > 0) {
+                    const cur = stack.pop();
+                    if (!cur || S[cur.key]) continue;
+                    if (cur.color === "b") {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                        continue;
+                    }
+
+                    const parentKeys = Object.keys(cur.parents || {});
+                    const parentNodes = [];
+                    for (let pi = 0; pi < parentKeys.length; pi++) {
+                        const pk = parentKeys[pi];
+                        if (nodes[pk]) parentNodes.push(nodes[pk]);
+                    }
+
+                    if (parentNodes.length === 0) {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                    } else {
+                        cur.color = "b";
+                        stack.push(cur);
+                        for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
+                    }
+                }
+
+                ordered.reverse();
+
+                // Evaluate nodes
+                for (let i = 0; i < ordered.length; i++) {
+                    const T = ordered[i];
+                    window.luckysheet_getcelldata_cache = null;
+                    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+
+                    s.groupValuesRefreshData.push({
+                        r: T.r,
+                        c: T.c,
+                        v: Rres[1],
+                        f: Rres[2],
+                        spe: Rres[3],
+                        index: T.index
                     });
-                });
-                if (issuesFixed == 0) allIssueFixed = true;
-                await new Promise(r => setTimeout(r, 50));
-            }
-            performScan(); // Re-scan to clear UI
-        };
 
-        // --- BUTTON EVENTS ---
-        $('#btn-run-scan').on('click', performScan);
-        
-        $('#btn-run-fix').on('click', function() {
-            $(this).prop('disabled', true).text("Fixing...");
-            $('#diag-master-loader').show();
-            
-            const action = (state.currentTab === 'discrepancy') ? fixDiscrepancy() : fixCalcChain();
+                    s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
+                        v: Rres[1],
+                        f: Rres[2]
+                    };
+                }
 
-            action.then(() => {
-                $(this).prop('disabled', false).text("Fix Issues");
-                $('#diag-master-loader').hide();
-                if (settings.onFixComplete) settings.onFixComplete();
+                s.execFunctionExist = null;
+            },
+ function luckysheet_getcelldata(e) {
+        if (window.luckysheet_getcelldata_cache == null && (window.luckysheet_getcelldata_cache = {}),
+            e in window.luckysheet_getcelldata_cache)
+            return window.luckysheet_getcelldata_cache[e];
+        let n = Ft()
+            , t = e.split("!")
+            , l = ""
+            , a = ""
+            , o = -1
+            , s = null;
+        if (t.length > 1) {
+            l = t[0].replace(/''/g, "'"),
+                a = t[1],
+                l.substr(0, 1) == "'" && l.substr(l.length - 1, 1) == "'" && (l = l.substring(1, l.length - 1));
+            for (let u in n)
+                if (l == n[u].name) {
+                    o = n[u].index,
+                        s = n[u].data;
+                    break
+                }
+            o == -1 && (o = 0)
+        } else {
+            let u = K(h.calculateSheetIndex);
+            l = n[u].name,
+                o = n[u].index,
+                s = n[u].data,
+                a = t[0]
+        }
+        if (a.indexOf(":") == -1) {
+            let u = parseInt(a.replace(/[^0-9]/g, "")) - 1
+                , d = cl(a.replace(/[^A-Za-z]/g, ""));
+            if (!isNaN(u) && !isNaN(d)) {
+                let f = la(s, {
+                    row: [u, u],
+                    column: [d, d]
+                })[0][0];
+                if (p.execFunctionGlobalData != null) {
+                    let v = p.execFunctionGlobalData[u + "_" + d + "_" + o];
+                    v != null && (f = v)
+                }
+                let y = {
+                    sheetName: l,
+                    startCell: a,
+                    rowl: 1,
+                    coll: 1,
+                    data: f
+                };
+                return window.luckysheet_getcelldata_cache[e] = y,
+                    y
+            } else
+                return []
+        } else {
+            a = a.split(":");
+            let u = []
+                , d = [];
+            if (u[0] = parseInt(a[0].replace(/[^0-9]/g, "")) - 1,
+                u[1] = parseInt(a[1].replace(/[^0-9]/g, "")) - 1,
+                isNaN(u[0]) && (u[0] = 0),
+                isNaN(u[1]) && (u[1] = s.length - 1),
+                u[0] > u[1])
+                return U.info("\u9009\u62E9\u5931\u8D25", "\u8F93\u5165\u8303\u56F4\u9519\u8BEF\uFF01"),
+                    [];
+            if (d[0] = cl(a[0].replace(/[^A-Za-z]/g, "")),
+                d[1] = cl(a[1].replace(/[^A-Za-z]/g, "")),
+                isNaN(d[0]) && (d[0] = 0),
+                isNaN(d[1]) && (d[1] = s[0].length - 1),
+                d[0] > d[1])
+                return U.info("\u9009\u62E9\u5931\u8D25", "\u8F93\u5165\u8303\u56F4\u9519\u8BEF\uFF01"),
+                    [];
+            let f = la(s, {
+                row: u,
+                column: d
             });
-        });
-
-        $('#btn-run-reset').on('click', () => {
-            state[state.currentTab] = { scanned: false, issues: {} };
-            render();
-        });
-
-        $modal.on('click', '.diag-tab', function () {
-            state.currentTab = $(this).data('id');
-            $('.diag-tab').removeClass('active');
-            $(this).addClass('active');
-            render();
-        });
-
-        $modal.on('click', '.sheet-header', function () {
-            $(this).next('.sheet-body').toggleClass('active');
-        });
-
-        modalInstance.show();
-        render();
-        return this;
-    };
-}(jQuery));
+            if (p.execFunctionGlobalData != null)
+                for (let v = u[0]; v <= u[1]; v++)
+                    for (let k = d[0]; k <= d[1]; k++) {
+                        let b = p.execFunctionGlobalData[v + "_" + k + "_" + o];
+                        b != null && (f[v - u[0]][k - d[0]] = b)
+                    }
+            let m = u[1] - u[0] + 1
+                , g = d[1] - d[0] + 1
+                , y = {
+                    sheetName: l,
+                    startCell: a[0],
+                    rowl: m,
+                    coll: g,
+                    data: f
+                };
+            return window.luckysheet_getcelldata_cache[e] = y,
+                y
+        }
+    }
