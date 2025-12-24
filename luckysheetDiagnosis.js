@@ -1,197 +1,141 @@
-   pasteHandler_main: function (e, n) {
+          pasteHandler: function (e, n) {
                 if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
                     return;
-                let l = Q().paste;
 
-                if (h.luckysheet_select_save.length > 1 &&
-                    (de() ? alert(l.errorNotAllowMulti) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMulti))) {
+                const pasteCfg = Q().paste;
+
+                if (h.luckysheet_select_save.length > 1) {
+                    de()
+                        ? alert(pasteCfg.errorNotAllowMulti)
+                        : U.info(`<i class="fa fa-exclamation-triangle"></i>${pasteCfg.warning}`, pasteCfg.errorNotAllowMulti);
                     return;
                 }
 
-                if (typeof e == "object") {
-                    if (e.length == 0) return;
+                const sel = h.luckysheet_select_save[0];
+                const sr = sel.row[0];
+                const sc = sel.column[0];
 
-                    let a = $.extend(!0, {}, h.config);
-                    a.merge == null && (a.merge = {}),
-                        JSON.stringify(n).length > 2 && a.borderInfo == null && (a.borderInfo = []);
+                let data = we.deepCopyFlowData(h.flowdata);
+                let cfg = $.extend(true, {}, h.config);
+                cfg.merge == null && (cfg.merge = {});
+                cfg.rowlen == null && (cfg.rowlen = {});
+                cfg.borderInfo == null && (cfg.borderInfo = []);
 
-                    let o = e.length,
-                        s = e[0].length,
-                        u = h.luckysheet_select_save[0].row[0],
-                        d = u + o - 1,
-                        f = h.luckysheet_select_save[0].column[0],
-                        m = f + s - 1,
-                        g = !1;
-
-                    if (a.merge != null && (g = Dt(a, u, d, f, m)), g) {
-                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
-                        return;
-                    }
-
-                    let y = we.deepCopyFlowData(h.flowdata),
-                        v = y.length,
-                        k = y[0].length,
-                        b = d - v + 1,
-                        w = m - k + 1;
-
-                    (b > 0 || w > 0) && (y = il([].concat(y), b, w, !0)),
-                        a.rowlen == null && (a.rowlen = {});
-
-                    let x = !1,
-                        C = {};
-
-                    // NEW: queue for Ucv calls (detect formulas in object payload: f OR v/m starting with '=')
-                    const __ucvQueue = [];
-
-                    for (let S = u; S <= d; S++) {
-                        let _ = [].concat(y[S]),
-                            T = h.defaultrowlen;
-                        a.rowlen[S] != null && (T = a.rowlen[S]);
-
-                        for (let A = f; A <= m; A++) {
-                            L(_[A]) == "object" && "mc" in _[A] &&
-                                ("rs" in _[A].mc && delete a.merge[_[A].mc.r + "_" + _[A].mc.c], delete _[A].mc);
-
-                            let R = null;
-                            if (e[S - u] != null && e[S - u][A - f] != null && (R = e[S - u][A - f]),
-                                _[A] = $.extend(!0, {}, R),
-
-                                // NEW: if source cell has a formula, queue Ucv call
-                                //      handle both shapes: R.f OR strings in R.v/R.m that start with '='
-                                R && (
-                                    (R.f && __ucvQueue.push([S, A, R.f])) ||
-                                    (typeof R.v === "string" && R.v.trim().charAt(0) === "=" && __ucvQueue.push([S, A, R.v.trim()])) ||
-                                    (typeof R.m === "string" && R.m.trim().charAt(0) === "=" && __ucvQueue.push([S, A, R.m.trim()]))
-                                ),
-
-                                R != null && "mc" in _[A] &&
-                                (_[A].mc.rs != null ? (
-                                    _[A].mc.r = S,
-                                    _[A].mc.c = A,
-                                    a.merge[_[A].mc.r + "_" + _[A].mc.c] = _[A].mc,
-                                    C[R.mc.r + "_" + R.mc.c] = [_[A].mc.r, _[A].mc.c]
-                                ) : _[A] = { mc: { r: C[R.mc.r + "_" + R.mc.c][0], c: C[R.mc.r + "_" + R.mc.c][1] } }),
-                                n[S - u + "_" + (A - f)]) {
-
-                                let N = {
-                                    rangeType: "cell",
-                                    value: {
-                                        row_index: S,
-                                        col_index: A,
-                                        l: n[S - u + "_" + (A - f)].l,
-                                        r: n[S - u + "_" + (A - f)].r,
-                                        t: n[S - u + "_" + (A - f)].t,
-                                        b: n[S - u + "_" + (A - f)].b
-                                    }
-                                };
-                                a.borderInfo.push(N);
-                            }
-
-                            let I = ra(_[A]),
-                                F = be.getTextSize("\u7530", I)[1];
-                            F > T && (T = F, x = !0);
-                        }
-
-                        y[S] = _;
-                        T != h.defaultrowlen && (a.rowlen[S] = T);
-                    }
-
-                    if (h.luckysheet_select_save = [{ row: [u, d], column: [f, m] }],
-                        b > 0 || w > 0 || x) {
-                        Ye(y, h.luckysheet_select_save, { cfg: a, RowlChange: !0 });
-                    } else {
-                        Ye(y, h.luckysheet_select_save, { cfg: a });
-                        tt();
-                    }
-
-                    // NEW: after apply, call Ucv for queued formulas (handles e with v/m like '=A1', '=B1', '=C1')
-                    if (__ucvQueue.length) {
-                        const __sheet = luckysheet.getSheet();
-                        for (const [__r, __c, __f] of __ucvQueue) {
-                            try { Ucv(__sheet, __r, __c, __f, true); } catch (err) { }
-                        }
-                        tt();
-                    }
-
+                let matrix;
+                if (typeof e === "object") {
+                    matrix = e;
                 } else {
                     e = e.replace(/\r/g, "");
-                    let a = [],
-                        o = e.split(`\n`),
-                        s = o[0].split("    ").length;
+                    matrix = e.split("\n").map(r => r.split("\t"));
+                }
+                if (!matrix.length || !matrix[0].length) return;
 
-                    for (let w = 0; w < o.length; w++)
-                        o[w].split("    ").length < s || a.push(o[w].split("    "));
+                const er = sr + matrix.length - 1;
+                const ec = sc + matrix[0].length - 1;
 
-                    let u = we.deepCopyFlowData(h.flowdata),
-                        d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
-                        f = d.row == null ? 0 : d.row[0],
-                        m = d.column == null ? 0 : d.column[0],
-                        g = a.length,
-                        y = a[0].length,
-                        v = !1;
+                if (cfg.merge && Dt(cfg, sr, er, sc, ec)) {
+                    de()
+                        ? alert(pasteCfg.errorNotAllowMerged)
+                        : U.info(`<i class="fa fa-exclamation-triangle"></i>${pasteCfg.warning}`, pasteCfg.errorNotAllowMerged);
+                    return;
+                }
 
-                    if (h.config.merge != null && (v = Dt(h.config, f, f + g - 1, m, m + y - 1)), v) {
-                        de() ? alert(l.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
-                        return;
-                    }
+                const addR = er - data.length + 1;
+                const addC = ec - data[0].length + 1;
+                (addR > 0 || addC > 0) && (data = il([].concat(data), addR, addC, true));
 
-                    let k = f + g - u.length,
-                        b = m + y - u[0].length;
-                    (k > 0 || b > 0) && (u = il([].concat(u), k, b, !0));
+                // =====================================================
+                // 1️⃣ WRITE CELLS (NO CALC)
+                // =====================================================
+                const pastedFormulaCells = [];
 
-                    // NEW: queue for Ucv calls (detect formulas in text tokens)
-                    const __ucvQueue = [];
+                for (let r = 0; r < matrix.length; r++) {
+                    let row = [].concat(data[sr + r]);
+                    let rowH = cfg.rowlen[sr + r] || h.defaultrowlen;
 
-                    for (let w = 0; w < g; w++) {
-                        let x = [].concat(u[w + f]);
-                        for (let C = 0; C < y; C++) {
-                            let S = x[C + m]
-                                , _ = a[w][C];
+                    for (let c = 0; c < matrix[r].length; c++) {
+                        let target = {};
+                        let cell = matrix[r][c];
 
-                            // Unchanged write logic
-                            if (B(_) && (S && S.ct && S.ct.fa === "@" ? _ = String(_) : _ = parseFloat(_)),
-                                S instanceof Object)
-                                S.v = _,
-                                    S.ct != null && S.ct.fa != null ? S.m = mt(S.ct.fa, _) : S.m = _,
-                                    S.f != null && S.f.length > 0 && (S.f = "",
-                                        p.delFunctionGroup(w + f, C + m, h.currentSheetIndex));
-                            else {
-                                let T = {}, A = it(_);
-                                T.v = A[2];
-                                T.ct = A[1];
-                                T.m = A[0];
-                                x[C + m] = T;
+                        if (typeof e === "object" && cell && typeof cell === "object") {
+                            target = $.extend(true, {}, cell);
+
+                            let fml =
+                                cell.f ||
+                                (typeof cell.v === "string" && cell.v.trim().startsWith("=") && cell.v.trim()) ||
+                                (typeof cell.m === "string" && cell.m.trim().startsWith("=") && cell.m.trim());
+
+                            if (fml) {
+                                target.f = fml;
+                                pastedFormulaCells.push([sr + r, sc + c, fml]);
                             }
-
-                            // NEW: token-level formula detection (trim, ignore leading apostrophe)
-                            if (typeof a[w][C] === "string") {
-                                const __trim = a[w][C].trim();
-                                const __forcedText = __trim.startsWith("'");
-                                const __isFormula = !__forcedText && __trim.startsWith("=");
-                                if (__isFormula) {
-                                    __ucvQueue.push([w + f, C + m, __trim]);
-                                }
+                        } else {
+                            let txt = String(cell).trim();
+                            if (txt.startsWith("=") && !txt.startsWith("'")) {
+                                target.v = txt;
+                                target.f = txt;
+                                pastedFormulaCells.push([sr + r, sc + c, txt]);
+                            } else {
+                                let t = it(txt);
+                                target.v = t[2];
+                                target.ct = t[1];
+                                target.m = t[0];
                             }
                         }
-                        u[w + f] = x
+
+                        row[sc + c] = target;
+                        let hgt = be.getTextSize("田", ra(target))[1];
+                        hgt > rowH && (rowH = hgt);
                     }
 
-                    if (d.row = [f, f + g - 1],
-                        d.column = [m, m + y - 1],
-                        k > 0 || b > 0) {
-                        Ye(u, h.luckysheet_select_save, { RowlChange: !0 });
-                    } else {
-                        Ye(u, h.luckysheet_select_save);
-                        tt();
-                    }
+                    data[sr + r] = row;
+                    rowH !== h.defaultrowlen && (cfg.rowlen[sr + r] = rowH);
+                }
 
-                    // NEW: after apply, call Ucv for all detected formulas in text paste
-                    if (__ucvQueue.length) {
-                        const __sheet = luckysheet.getSheet();
-                        for (const [__r, __c, __f] of __ucvQueue) {
-                            try { Ucv(__sheet, __r, __c, __f, true); } catch (err) { }
+                h.luckysheet_select_save = [{ row: [sr, er], column: [sc, ec] }];
+                Ye(data, h.luckysheet_select_save, { cfg: cfg, RowlChange: true });
+                tt();
+
+                // =====================================================
+                // 2️⃣ INLINE calcChain REBUILD (CRITICAL)
+                // =====================================================
+                const sheet = luckysheet.getSheet();
+
+                // 🔥 HARD RESET calcChain
+                sheet.calcChain = [];
+
+                // Re-register ALL formulas in sheet (not just pasted)
+                const sheetsData = sheet.data || data;
+
+                for (let r = 0; r < sheetsData.length; r++) {
+                    for (let c = 0; c < sheetsData[r].length; c++) {
+                        const cell = sheetsData[r][c];
+                        if (cell && cell.f) {
+                            try {
+                                // false → register only
+                                Ucv(sheet, r, c, cell.f, false);
+                            } catch (e) { }
                         }
-                        tt();
                     }
                 }
+
+                // =====================================================
+                // 3️⃣ INLINE calculation pass (DETERMINISTIC)
+                // =====================================================
+                if (sheet.calcChain && sheet.calcChain.length) {
+                    for (let i = 0; i < sheet.calcChain.length; i++) {
+                        const node = sheet.calcChain[i];
+                        if (!node || !node.func) continue;
+
+                        const r = node.r;
+                        const c = node.c;
+                        const fml = node.func[2];
+
+                        try {
+                            Ucv(sheet, r, c, fml, true);
+                        } catch (e) { }
+                    }
+                }
+
+                tt();
             },
