@@ -5,71 +5,51 @@ execFunctionGroup: function (e, n, t, l, a, o = false) {
     if (a == null) a = h.flowdata;
     if (l == null) l = h.currentSheetIndex;
 
-    // ---------- Init helpers ----------
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja;
-        window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr;
-        window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn;
-        window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c;
-        window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t;
-        window.luckysheet_getSpecialReference = Tc;
-    }
-
-    // ---------- Store explicit value ----------
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-    if (t != null) {
-        const tmp = [[{ v: null }]];
-        At(0, 0, tmp, t);
-        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
-    }
 
-    // ---------- Collect function cells ----------
+    // ---------- collect all formula cells ----------
     const allFuncCells = s.getAllFunctionGroup() || [];
     const nodes = {};
     const rangeCache = {};
 
     function keysForRange(R) {
-        const key = `${R.row[0]}_${R.row[1]}_${R.column[0]}_${R.column[1]}_${R.sheetIndex}`;
-        if (rangeCache[key]) return rangeCache[key];
-        const list = [];
+        const k = `${R.row[0]}_${R.row[1]}_${R.column[0]}_${R.column[1]}_${R.sheetIndex}`;
+        if (rangeCache[k]) return rangeCache[k];
+        const out = [];
         for (let r = R.row[0]; r <= R.row[1]; r++) {
             for (let c = R.column[0]; c <= R.column[1]; c++) {
-                list.push("r" + r + "c" + c + "i" + R.sheetIndex);
+                out.push("r" + r + "c" + c + "i" + R.sheetIndex);
             }
         }
-        return (rangeCache[key] = list);
+        return (rangeCache[k] = out);
     }
 
-    // ---------- Build nodes ----------
+    // ---------- build nodes USING REAL CELL DATA ----------
     for (let i = 0; i < allFuncCells.length; i++) {
         const T = allFuncCells[i];
-        const key = "r" + T.r + "c" + T.c + "i" + T.index;
-        const formula = zl(T.r, T.c, T.index);
-        if (!formula) continue;
+        const cell = nr(T.r, T.c, T.index); // ✅ real source of truth
+        if (!cell || !cell.f) continue;
 
+        const key = "r" + T.r + "c" + T.c + "i" + T.index;
         nodes[key] = {
             key,
             r: T.r,
             c: T.c,
             index: T.index,
-            formula,
+            formula: cell.f,
             parents: {},
             children: {}
         };
     }
 
-    // ---------- Build dependency graph ----------
+    // ---------- build dependency graph ----------
     for (const k in nodes) {
         const node = nodes[k];
         const refs = [];
 
         if (/INDIRECT|OFFSET|INDEX/i.test(node.formula)) {
             this.isFunctionRange(node.formula, null, null, node.index, null, ref => {
-                const rg = s.getcellrange($.trim(ref), node.index);
+                const rg = s.getcellrange(ref.trim(), node.index);
                 rg && refs.push(rg);
             });
         } else {
@@ -92,7 +72,7 @@ execFunctionGroup: function (e, n, t, l, a, o = false) {
         }
     }
 
-    // ---------- Initial changed cells ----------
+    // ---------- starting points ----------
     const execSet = {};
     if (s.execFunctionExist) {
         for (let i = 0; i < s.execFunctionExist.length; i++) {
@@ -103,7 +83,7 @@ execFunctionGroup: function (e, n, t, l, a, o = false) {
         execSet["r" + e + "c" + n + "i" + l] = 1;
     }
 
-    // ---------- Expand ALL downstream dependents ----------
+    // ---------- expand downstream ----------
     const queue = Object.keys(execSet);
     while (queue.length) {
         const k = queue.shift();
@@ -117,7 +97,7 @@ execFunctionGroup: function (e, n, t, l, a, o = false) {
         }
     }
 
-    // ---------- Topological sort ----------
+    // ---------- topo sort ----------
     const visited = {};
     const order = [];
 
@@ -132,7 +112,7 @@ execFunctionGroup: function (e, n, t, l, a, o = false) {
 
     for (const k in execSet) dfs(k);
 
-    // ---------- Recalculate ----------
+    // ---------- recalc ----------
     window.luckysheet_getcelldata_cache = null;
     for (let i = 0; i < order.length; i++) {
         const T = order[i];
@@ -145,10 +125,6 @@ execFunctionGroup: function (e, n, t, l, a, o = false) {
             spe: R[3],
             index: T.index
         });
-        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-            v: R[1],
-            f: R[2]
-        };
     }
 
     s.execFunctionExist = null;
