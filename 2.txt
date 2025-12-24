@@ -1,6 +1,9 @@
 update: function () {
     const self = this;
 
+    // ===============================
+    // BASIC GUARDS
+    // ===============================
     if (!gr([self.applyRange], h.currentSheetIndex) || h.allowEdit === false) {
         return;
     }
@@ -9,6 +12,9 @@ update: function () {
     const sheet = h.luckysheetfile[K(sheetIndex)];
     const data = h.flowdata;
 
+    // ===============================
+    // CONFIG SETUP
+    // ===============================
     const cfg = $.extend(true, {}, h.config);
     if (!cfg.merge) cfg.merge = {};
     if (!cfg.borderInfo) cfg.borderInfo = [];
@@ -34,6 +40,10 @@ update: function () {
         c2: dstRange.column[1]
     };
 
+    const rowSpan = src.r2 - src.r1 + 1;
+    const colSpan = src.c2 - src.c1 + 1;
+
+    // Get template cells
     const copyData = self.getCopyData(
         data,
         src.r1, src.r2,
@@ -41,42 +51,40 @@ update: function () {
         dir
     );
 
-    const rowSpan = src.r2 - src.r1 + 1;
-    const colSpan = src.c2 - src.c1 + 1;
-
-    // Track all cells whose formulas were changed
+    // Track all changed cells
     const dirtyCells = [];
 
     // ===============================
     // 1️⃣ COPY / SHIFT FORMULAS ONLY
+    // (NO CALCULATION HERE)
     // ===============================
     for (let r = dst.r1; r <= dst.r2; r++) {
         for (let c = dst.c1; c <= dst.c2; c++) {
 
-            // determine source template position
+            // Source position (for border / validation mapping)
             const sr = src.r1 + (r - dst.r1) % rowSpan;
             const sc = src.c1 + (c - dst.c1) % colSpan;
 
-            let template;
-
+            // Template cell
+            let tpl;
             if (dir === "left" || dir === "right") {
-                template = copyData[r - dst.r1][(c - dst.c1) % colSpan];
+                tpl = copyData[r - dst.r1][(c - dst.c1) % colSpan];
             } else {
-                template = copyData[c - dst.c1][(r - dst.r1) % rowSpan];
+                tpl = copyData[c - dst.c1][(r - dst.r1) % rowSpan];
             }
 
-            if (!template) continue;
+            if (!tpl) continue;
 
-            const cell = template;
+            const cell = tpl;
 
+            // Shift formula text ONLY
             if (cell.f != null) {
-                cell.f = "=" + p.functionCopy(
-                    cell.f,
-                    dir,
-                    dir === "left" || dir === "right"
+                const shiftIndex =
+                    (dir === "left" || dir === "right")
                         ? (c - dst.c1) + 1
-                        : (r - dst.r1) + 1
-                );
+                        : (r - dst.r1) + 1;
+
+                cell.f = "=" + p.functionCopy(cell.f, dir, shiftIndex);
                 cell.v = null;
                 cell.m = null;
             }
@@ -84,7 +92,7 @@ update: function () {
             data[r][c] = cell;
             dirtyCells.push({ r, c, index: sheetIndex });
 
-            // borders
+            // Borders
             if (borders[sr + "_" + sc]) {
                 cfg.borderInfo.push({
                     rangeType: "cell",
@@ -96,7 +104,7 @@ update: function () {
                 });
             }
 
-            // data verification
+            // Data validation
             if (dataVerification[sr + "_" + sc]) {
                 dataVerification[r + "_" + c] =
                     dataVerification[sr + "_" + sc];
@@ -110,7 +118,7 @@ update: function () {
     window.luckysheet_getcelldata_cache = null;
     p.groupValuesRefreshData = [];
 
-    // ONE graph build + topo evaluation
+    // Build dependency graph ONCE + topo evaluate
     p.execFunctionGroup(
         null,
         null,
@@ -123,7 +131,7 @@ update: function () {
     // ===============================
     // 3️⃣ APPLY CALCULATED VALUES
     // ===============================
-    if (p.groupValuesRefreshData && p.groupValuesRefreshData.length) {
+    if (p.groupValuesRefreshData && p.groupValuesRefreshData.length > 0) {
         for (let i = 0; i < p.groupValuesRefreshData.length; i++) {
             const g = p.groupValuesRefreshData[i];
             const cell = data[g.r][g.c];
@@ -132,10 +140,12 @@ update: function () {
             cell.v = g.v;
             cell.f = g.f;
 
+            // Special types (sparklines / dynamic arrays)
             if (g.spe) {
                 cell.spl = g.spe.data;
             }
 
+            // Display formatting
             const V = it(g.v);
             cell.m = V[0].toString();
             cell.ct = V[1];
@@ -144,7 +154,7 @@ update: function () {
     }
 
     // ===============================
-    // 4️⃣ FINAL UI UPDATE
+    // 4️⃣ FINAL UI REFRESH (IMPORTANT)
     // ===============================
     const conditionFormat = $.extend(
         true,
@@ -152,11 +162,12 @@ update: function () {
         sheet.luckysheet_conditionformat_save
     );
 
-    Ye(data, h.luckysheet_select_save, {
+    // 🔴 MUST use applyRange, NOT luckysheet_select_save
+    Ye(data, [self.applyRange], {
         cfg,
         cdformat: conditionFormat,
         dataVerification
     });
 
-    tt();
+    tt(); // final repaint
 }
