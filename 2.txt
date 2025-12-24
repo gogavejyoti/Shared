@@ -53,12 +53,12 @@ update: function () {
         cells.forEach(c => {
             const key = c.r + "_" + c.c;
             nodeMap[key] = c;
-            depMap[key] = getLocalDeps(c.D.f);
+            depMap[key] = getLocalDeps(c.shiftedF); // 🔑 shifted formula
         });
 
         function dfs(key) {
             if (visited[key]) return;
-            if (visiting[key]) return;
+            if (visiting[key]) return; // avoid cycles
             visiting[key] = true;
             (depMap[key] || []).forEach(d => {
                 if (nodeMap[d]) dfs(d);
@@ -87,16 +87,30 @@ update: function () {
                 for (let N = C; N <= S; N++) {
                     let D = F[N - C];
                     n[R][N] = D;
+
                     if (D && D.f != null) {
-                        execCells.push({ r: R, c: N, D: D, off: N - C + 1 });
+                        const shiftedF = "=" + p.functionCopy(D.f, "right", N - C + 1);
+                        execCells.push({
+                            r: R,
+                            c: N,
+                            D: D,
+                            shiftedF: shiftedF
+                        });
                     }
                 }
             } else {
                 for (let N = S; N >= C; N--) {
                     let D = F[S - N];
                     n[R][N] = D;
+
                     if (D && D.f != null) {
-                        execCells.push({ r: R, c: N, D: D, off: S - N + 1 });
+                        const shiftedF = "=" + p.functionCopy(D.f, "left", S - N + 1);
+                        execCells.push({
+                            r: R,
+                            c: N,
+                            D: D,
+                            shiftedF: shiftedF
+                        });
                     }
                 }
             }
@@ -104,10 +118,11 @@ update: function () {
             const ordered = topoSort(execCells);
 
             ordered.forEach(ti => {
-                let z = "=" + p.functionCopy(ti.D.f, s, ti.off),
-                    O = p.execfunction(z, ti.r, ti.c);
+                const O = p.execfunction(ti.shiftedF, ti.r, ti.c);
 
+                // keep old inline behavior
                 p.execFunctionGroup(ti.r, ti.c, O[1], void 0, n);
+
                 ti.D.f = O[2];
                 ti.D.v = O[1];
             });
@@ -127,16 +142,30 @@ update: function () {
                 for (let N = w; N <= x; N++) {
                     let D = F[N - w];
                     n[N][R] = D;
+
                     if (D && D.f != null) {
-                        execCells.push({ r: N, c: R, D: D, off: N - w + 1 });
+                        const shiftedF = "=" + p.functionCopy(D.f, "down", N - w + 1);
+                        execCells.push({
+                            r: N,
+                            c: R,
+                            D: D,
+                            shiftedF: shiftedF
+                        });
                     }
                 }
             } else {
                 for (let N = x; N >= w; N--) {
                     let D = F[x - N];
                     n[N][R] = D;
+
                     if (D && D.f != null) {
-                        execCells.push({ r: N, c: R, D: D, off: x - N + 1 });
+                        const shiftedF = "=" + p.functionCopy(D.f, "up", x - N + 1);
+                        execCells.push({
+                            r: N,
+                            c: R,
+                            D: D,
+                            shiftedF: shiftedF
+                        });
                     }
                 }
             }
@@ -144,10 +173,11 @@ update: function () {
             const ordered = topoSort(execCells);
 
             ordered.forEach(ti => {
-                let z = "=" + p.functionCopy(ti.D.f, s, ti.off),
-                    O = p.execfunction(z, ti.r, ti.c);
+                const O = p.execfunction(ti.shiftedF, ti.r, ti.c);
 
+                // keep old inline behavior
                 p.execFunctionGroup(ti.r, ti.c, O[1], void 0, n);
+
                 ti.D.f = O[2];
                 ti.D.v = O[1];
             });
