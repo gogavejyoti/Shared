@@ -1,6 +1,5 @@
 execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (o) return;
-
     const s = this;
 
     if (a == null) a = h.flowdata;
@@ -21,11 +20,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     let sheetIndices = null;
 
     if (e != null && n != null) {
-        const f =
-            (window.luckysheet_getcelldata_cache &&
-                Object.keys(window.luckysheet_getcelldata_cache).join("+")) ||
-            null;
-        sheetIndices = s.getAllDependentSheetsFromSheet(l, f);
+        sheetIndices = s.getAllDependentSheetsFromSheet(l, null);
         allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
     } else {
         allFuncCells = s.getAllFunctionGroup() || [];
@@ -39,19 +34,11 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // -----------------------------
-    // build execSet
-    // -----------------------------
+    /* ---------------- execSet ---------------- */
     const execSet = {};
-    if (s.execFunctionExist == null) {
-        execSet["r" + e + "c" + n + "i" + l] = 1;
-    } else {
-        for (let i = 0; i < s.execFunctionExist.length; i++) {
-            const T = s.execFunctionExist[i];
-            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-        }
-    }
+    execSet["r" + e + "c" + n + "i" + l] = 1;
 
+    /* ---------------- build nodes ---------------- */
     const nodes = {};
     const rangeCache = {};
 
@@ -68,8 +55,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             for (let c = R.column[0]; c <= R.column[1]; c++) {
                 arr.push({
                     key: "r" + r + "c" + c + "i" + R.sheetIndex,
-                    r, c,
-                    sheetIndex: R.sheetIndex
+                    r, c
                 });
             }
         }
@@ -77,44 +63,24 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         return arr;
     }
 
-    // -----------------------------
-    // build dependency nodes
-    // -----------------------------
     for (let i = 0; i < allFuncCells.length; i++) {
         const T = allFuncCells[i];
         const key = "r" + T.r + "c" + T.c + "i" + T.index;
-        const fStr = zl(T.r, T.c, T.index);
-        if (!fStr) continue;
+        const formula = zl(T.r, T.c, T.index);
+        if (!formula) continue;
 
         const ranges = [];
-        const upper = fStr.toUpperCase();
-
-        if (
-            upper.includes("INDIRECT(") ||
-            upper.includes("OFFSET(") ||
-            upper.includes("INDEX(")
-        ) {
-            s.isFunctionRange(fStr, null, null, T.index, null, ref => {
-                const rg = s.getcellrange($.trim(ref), T.index);
-                if (rg) ranges.push(rg);
-            });
-        } else {
-            const tokens = fStr
-                .split(/==|!=|<>|<=|>=|[,()=+\-/*%&^><]/)
-                .filter(Boolean);
-
-            for (let t = 0; t < tokens.length; t++) {
-                const rg = s.getcellrange($.trim(tokens[t]), T.index);
-                if (rg) ranges.push(rg);
-            }
-        }
+        s.isFunctionRange(formula, null, null, T.index, null, ref => {
+            const rg = s.getcellrange($.trim(ref), T.index);
+            if (rg) ranges.push(rg);
+        });
 
         nodes[key] = {
             key,
             r: T.r,
             c: T.c,
             index: T.index,
-            formula: fStr,
+            formula,
             ranges,
             parents: {},
             children: {},
@@ -122,26 +88,22 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         };
     }
 
-    // -----------------------------
-    // connect graph
-    // -----------------------------
+    /* ---------------- link graph ---------------- */
     for (const k in nodes) {
         const node = nodes[k];
         for (let i = 0; i < node.ranges.length; i++) {
             const refs = keysForRange(node.ranges[i]);
             for (let j = 0; j < refs.length; j++) {
-                const refKey = refs[j].key;
-                if (nodes[refKey]) {
-                    node.children[refKey] = 1;
-                    nodes[refKey].parents[node.key] = 1;
+                const rk = refs[j].key;
+                if (nodes[rk]) {
+                    node.children[rk] = 1;
+                    nodes[rk].parents[node.key] = 1;
                 }
             }
         }
     }
 
-    // -----------------------------
-    // 🔥 FIX #1: expand execSet transitively
-    // -----------------------------
+    /* 🔥 expand execSet transitively */
     const q = Object.keys(execSet);
     const seen = {};
     while (q.length) {
@@ -160,16 +122,12 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // -----------------------------
-    // topological order
-    // -----------------------------
+    /* ---------------- topo sort ---------------- */
     const ordered = [];
     const visited = {};
     const stack = [];
 
-    for (const k in execSet) {
-        if (nodes[k]) stack.push(nodes[k]);
-    }
+    for (const k in execSet) if (nodes[k]) stack.push(nodes[k]);
 
     while (stack.length) {
         const cur = stack.pop();
@@ -190,9 +148,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     ordered.reverse();
 
-    // -----------------------------
-    // 🔥 FIX #2: eager value write-back
-    // -----------------------------
+    /* ---------------- evaluate eagerly ---------------- */
     for (let i = 0; i < ordered.length; i++) {
         const T = ordered[i];
         window.luckysheet_getcelldata_cache = null;
@@ -213,11 +169,6 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             spe: R[3],
             index: T.index
         });
-
-        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-            v: R[1],
-            f: R[2]
-        };
     }
 
     s.execFunctionExist = null;
