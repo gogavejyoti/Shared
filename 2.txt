@@ -1,172 +1,116 @@
 update: function () {
-    const e = this;
+    const self = this;
 
-    if (!gr([e.applyRange], h.currentSheetIndex) || h.allowEdit === false) return;
+    if (!gr([self.applyRange], h.currentSheetIndex) || h.allowEdit === false) {
+        return;
+    }
 
     const sheetIndex = h.currentSheetIndex;
     const sheet = h.luckysheetfile[K(sheetIndex)];
-
-    // 🔴 DO NOT deep copy whole sheet
     const data = h.flowdata;
 
     const cfg = $.extend(true, {}, h.config);
     if (!cfg.merge) cfg.merge = {};
+    if (!cfg.borderInfo) cfg.borderInfo = [];
 
     const borders = Ur();
     const dataVerification = $.extend(true, {}, sheet.dataVerification);
 
-    const dir = e.direction;
-    const copyRange = e.copyRange;
+    const dir = self.direction;
+    const srcRange = self.copyRange;
+    const dstRange = self.applyRange;
 
     const src = {
-        r1: copyRange.row[0],
-        r2: copyRange.row[1],
-        c1: copyRange.column[0],
-        c2: copyRange.column[1]
+        r1: srcRange.row[0],
+        r2: srcRange.row[1],
+        c1: srcRange.column[0],
+        c2: srcRange.column[1]
     };
 
     const dst = {
-        r1: e.applyRange.row[0],
-        r2: e.applyRange.row[1],
-        c1: e.applyRange.column[0],
-        c2: e.applyRange.column[1]
+        r1: dstRange.row[0],
+        r2: dstRange.row[1],
+        c1: dstRange.column[0],
+        c2: dstRange.column[1]
     };
 
-    const copyData = e.getCopyData(
+    const copyData = self.getCopyData(
         data,
         src.r1, src.r2,
         src.c1, src.c2,
         dir
     );
 
-    const span =
-        dir === "left" || dir === "right"
-            ? src.c2 - src.c1 + 1
-            : src.r2 - src.r1 + 1;
+    const rowSpan = src.r2 - src.r1 + 1;
+    const colSpan = src.c2 - src.c1 + 1;
 
-    // 🟢 Track dirty cells
+    // Track all cells whose formulas were changed
     const dirtyCells = [];
 
-    // =========================
-    // APPLY FORMULAS (NO EVAL)
-    // =========================
-
-    if (dir === "right" || dir === "left") {
-        const width = dst.c2 - dst.c1 + 1;
-
-        for (let r = dst.r1; r <= dst.r2; r++) {
-            const template = copyData[r - dst.r1];
-            const applied = e.getApplyData(template, span, width);
-
-            for (
-                let c = dir === "right" ? dst.c1 : dst.c2;
-                dir === "right" ? c <= dst.c2 : c >= dst.c1;
-                dir === "right" ? c++ : c--
-            ) {
-                const idx = dir === "right" ? c - dst.c1 : dst.c2 - c;
-                const cell = applied[idx];
-
-                if (cell.f != null) {
-                    cell.f =
-                        "=" +
-                        p.functionCopy(
-                            cell.f,
-                            dir,
-                            idx + 1
-                        );
-                    cell.v = null;
-                    cell.m = null;
-                }
-
-                data[r][c] = cell;
-                dirtyCells.push({ r, c, index: sheetIndex });
-
-                // borders
-                const srcCol =
-                    dir === "right"
-                        ? src.c1 + (c - dst.c1) % span
-                        : src.c2 - (dst.c2 - c) % span;
-
-                if (borders[r + "_" + srcCol]) {
-                    cfg.borderInfo.push({
-                        rangeType: "cell",
-                        value: {
-                            row_index: r,
-                            col_index: c,
-                            ...borders[r + "_" + srcCol]
-                        }
-                    });
-                }
-
-                if (dataVerification[r + "_" + srcCol]) {
-                    dataVerification[r + "_" + c] =
-                        dataVerification[r + "_" + srcCol];
-                }
-            }
-        }
-    }
-
-    if (dir === "down" || dir === "up") {
-        const height = dst.r2 - dst.r1 + 1;
-
+    // ===============================
+    // 1️⃣ COPY / SHIFT FORMULAS ONLY
+    // ===============================
+    for (let r = dst.r1; r <= dst.r2; r++) {
         for (let c = dst.c1; c <= dst.c2; c++) {
-            const template = copyData[c - dst.c1];
-            const applied = e.getApplyData(template, span, height);
 
-            for (
-                let r = dir === "down" ? dst.r1 : dst.r2;
-                dir === "down" ? r <= dst.r2 : r >= dst.r1;
-                dir === "down" ? r++ : r--
-            ) {
-                const idx = dir === "down" ? r - dst.r1 : dst.r2 - r;
-                const cell = applied[idx];
+            // determine source template position
+            const sr = src.r1 + (r - dst.r1) % rowSpan;
+            const sc = src.c1 + (c - dst.c1) % colSpan;
 
-                if (cell.f != null) {
-                    cell.f =
-                        "=" +
-                        p.functionCopy(
-                            cell.f,
-                            dir,
-                            idx + 1
-                        );
-                    cell.v = null;
-                    cell.m = null;
-                }
+            let template;
 
-                data[r][c] = cell;
-                dirtyCells.push({ r, c, index: sheetIndex });
+            if (dir === "left" || dir === "right") {
+                template = copyData[r - dst.r1][(c - dst.c1) % colSpan];
+            } else {
+                template = copyData[c - dst.c1][(r - dst.r1) % rowSpan];
+            }
 
-                const srcRow =
-                    dir === "down"
-                        ? src.r1 + (r - dst.r1) % span
-                        : src.r2 - (dst.r2 - r) % span;
+            if (!template) continue;
 
-                if (borders[srcRow + "_" + c]) {
-                    cfg.borderInfo.push({
-                        rangeType: "cell",
-                        value: {
-                            row_index: r,
-                            col_index: c,
-                            ...borders[srcRow + "_" + c]
-                        }
-                    });
-                }
+            const cell = template;
 
-                if (dataVerification[srcRow + "_" + c]) {
-                    dataVerification[r + "_" + c] =
-                        dataVerification[srcRow + "_" + c];
-                }
+            if (cell.f != null) {
+                cell.f = "=" + p.functionCopy(
+                    cell.f,
+                    dir,
+                    dir === "left" || dir === "right"
+                        ? (c - dst.c1) + 1
+                        : (r - dst.r1) + 1
+                );
+                cell.v = null;
+                cell.m = null;
+            }
+
+            data[r][c] = cell;
+            dirtyCells.push({ r, c, index: sheetIndex });
+
+            // borders
+            if (borders[sr + "_" + sc]) {
+                cfg.borderInfo.push({
+                    rangeType: "cell",
+                    value: {
+                        row_index: r,
+                        col_index: c,
+                        ...borders[sr + "_" + sc]
+                    }
+                });
+            }
+
+            // data verification
+            if (dataVerification[sr + "_" + sc]) {
+                dataVerification[r + "_" + c] =
+                    dataVerification[sr + "_" + sc];
             }
         }
     }
 
-    // =========================
-    // SINGLE DEPENDENCY BUILD
-    // =========================
-
+    // ===============================
+    // 2️⃣ SINGLE DEPENDENCY BUILD
+    // ===============================
     window.luckysheet_getcelldata_cache = null;
+    p.groupValuesRefreshData = [];
 
-    // 🔥 ONE graph build + topo evaluation
+    // ONE graph build + topo evaluation
     p.execFunctionGroup(
         null,
         null,
@@ -176,11 +120,37 @@ update: function () {
         true
     );
 
-    // =========================
-    // FINAL APPLY
-    // =========================
+    // ===============================
+    // 3️⃣ APPLY CALCULATED VALUES
+    // ===============================
+    if (p.groupValuesRefreshData && p.groupValuesRefreshData.length) {
+        for (let i = 0; i < p.groupValuesRefreshData.length; i++) {
+            const g = p.groupValuesRefreshData[i];
+            const cell = data[g.r][g.c];
+            if (!cell) continue;
 
-    const conditionFormat = $.extend(true, [], sheet.luckysheet_conditionformat_save);
+            cell.v = g.v;
+            cell.f = g.f;
+
+            if (g.spe) {
+                cell.spl = g.spe.data;
+            }
+
+            const V = it(g.v);
+            cell.m = V[0].toString();
+            cell.ct = V[1];
+        }
+        p.groupValuesRefreshData.length = 0;
+    }
+
+    // ===============================
+    // 4️⃣ FINAL UI UPDATE
+    // ===============================
+    const conditionFormat = $.extend(
+        true,
+        [],
+        sheet.luckysheet_conditionformat_save
+    );
 
     Ye(data, h.luckysheet_select_save, {
         cfg,
