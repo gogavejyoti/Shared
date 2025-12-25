@@ -1,39 +1,6 @@
-for (let i = 0; i < ordered.length; i++) {
-    const T = ordered[i];
-
-    // 1️⃣ FULL cache reset (important)
-    window.luckysheet_getcelldata_cache = null;
-    s.execFunctionGlobalData = {};
-
-    // 2️⃣ calculate
-    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
-
-    const value = Rres[1];
-    const formula = Rres[2];
-
-    // 3️⃣ commit to correct sheet
-    const sheetData = h.flowdata[T.index];
-    if (!sheetData[T.r]) sheetData[T.r] = [];
-    if (!sheetData[T.r][T.c]) sheetData[T.r][T.c] = {};
-    sheetData[T.r][T.c].v = value;
-    sheetData[T.r][T.c].f = formula;
-
-    // 4️⃣ 🔥 force overwrite calc-chain value
-    if (h.calcChain) {
-        for (let k = 0; k < h.calcChain.length; k++) {
-            const cc = h.calcChain[k];
-            if (cc.r === T.r && cc.c === T.c && cc.index === T.index) {
-                cc.func[1] = value;   // <-- THIS LINE FIXES IT
-            }
-        }
-    }
-
-    s.groupValuesRefreshData.push({
-        r: T.r,
-        c: T.c,
-        v: value,
-        f: formula,
-        spe: Rres[3],
-        index: T.index
-    });
+function track(fn, name) {
+    return function (...args) {
+        window.__lastCaller = name;
+        return fn.apply(this, args);
+    };
 }
