@@ -1,6 +1,4 @@
-function track(fn, name) {
-    return function (...args) {
-        window.__lastCaller = name;
-        return fn.apply(this, args);
-    };
+function whoCalledMe() {
+    const stack = new Error().stack;
+    console.log(stack);
 }
