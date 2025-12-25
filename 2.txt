@@ -1,9 +1,9 @@
-const value = Rres[1];
-    const formula = Rres[2];
+const sheetData = h.flowdata;          // all sheets
+const sheetIndex = T.index;            // target sheet
 
-    // ✅ IMMEDIATELY write value back
-    const sheetData = h.flowdata;
-    if (!sheetData[T.r]) sheetData[T.r] = [];
-    if (!sheetData[T.r][T.c]) sheetData[T.r][T.c] = {};
-    sheetData[T.r][T.c].v = value;
-    sheetData[T.r][T.c].f = formula;
+if (!sheetData[sheetIndex]) sheetData[sheetIndex] = [];
+if (!sheetData[sheetIndex][T.r]) sheetData[sheetIndex][T.r] = [];
+if (!sheetData[sheetIndex][T.r][T.c]) sheetData[sheetIndex][T.r][T.c] = {};
+
+sheetData[sheetIndex][T.r][T.c].v = value;
+sheetData[sheetIndex][T.r][T.c].f = formula;
