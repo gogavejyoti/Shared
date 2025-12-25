@@ -1,4 +1,8 @@
-  const sheetData = h.flowdata;
+const value = Rres[1];
+    const formula = Rres[2];
+
+    // ✅ IMMEDIATELY write value back
+    const sheetData = h.flowdata;
     if (!sheetData[T.r]) sheetData[T.r] = [];
     if (!sheetData[T.r][T.c]) sheetData[T.r][T.c] = {};
     sheetData[T.r][T.c].v = value;
