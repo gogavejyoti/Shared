@@ -1,4 +1,9 @@
-function whoCalledMe() {
-    const stack = new Error().stack;
-    console.log(stack);
-}
+const sheetData = h.flowdata;          // all sheets
+const sheetIndex = T.index;            // target sheet
+
+if (!sheetData[sheetIndex]) sheetData[sheetIndex] = [];
+if (!sheetData[sheetIndex][T.r]) sheetData[sheetIndex][T.r] = [];
+if (!sheetData[sheetIndex][T.r][T.c]) sheetData[sheetIndex][T.r][T.c] = {};
+
+sheetData[sheetIndex][T.r][T.c].v = value;
+sheetData[sheetIndex][T.r][T.c].f = formula;
