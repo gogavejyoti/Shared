@@ -1,3 +1,4 @@
+=AVERAGEIF('Week Overall Summary'!B$1:DA$1,R$30,'Week Overall Summary'!B$39:DA$39)
 AVERAGEIF: function () {
                 if (arguments.length < this.m[0] || arguments.length > this.m[1])
                     return p.error.na;
@@ -56,3 +57,4 @@ AVERAGEIF: function () {
                         [p.error.v, T]
                 }
             },
+
