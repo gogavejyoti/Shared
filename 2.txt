@@ -1,66 +1,71 @@
 AVERAGEIF: function () {
-
-    // 1. Argument count check
-    if (arguments.length < this.m[0] || arguments.length > this.m[1]) {
+    if (arguments.length < this.m[0] || arguments.length > this.m[1])
         return p.error.na;
-    }
 
-    // 2. Parameter validation
-    for (var i = 0; i < arguments.length; i++) {
-        var chk = p.errorParamCheck(this.p, arguments[i], i);
-        if (!chk[0]) return p.error.v;
+    for (var e = 0; e < arguments.length; e++) {
+        var n = p.errorParamCheck(this.p, arguments[e], e);
+        if (!n[0])
+            return p.error.v;
     }
 
     try {
-        var sum = 0;
-        var count = 0;
+        var sum = 0,
+            count = 0,
+            criteriaRange = arguments[0].data,
+            rowl = arguments[0].rowl,
+            coll = arguments[0].coll,
+            criteria = Ua(arguments[1]),
+            avgRange = [];
 
-        var critArg = arguments[0];
-        var criteria = Ua(arguments[1]);
-        var avgArg = arguments[2] || arguments[0];
+        // Handle average_range (3rd argument)
+        if (arguments[2]) {
+            var startCell = arguments[2].startCell,
+                avgRowl = arguments[2].rowl,
+                avgColl = arguments[2].coll,
+                sheetName = arguments[2].sheetName;
 
-        // Resolve start positions
-        var critStartRow = parseInt(critArg.startCell.replace(/[^0-9]/g, "")) - 1;
-        var critStartCol = cl(critArg.startCell.replace(/[^A-Za-z]/g, ""));
+            if (rowl === avgRowl && coll === avgColl) {
+                avgRange = arguments[2].data;
+            } else {
+                var r = [], c = [];
+                r[0] = parseInt(startCell.replace(/[^0-9]/g, ""), 10) - 1;
+                c[0] = cl(startCell.replace(/[^A-Za-z]/g, ""));
+                r[1] = r[0] + rowl - 1;
+                c[1] = c[0] + coll - 1;
 
-        var avgStartRow = parseInt(avgArg.startCell.replace(/[^0-9]/g, "")) - 1;
-        var avgStartCol = cl(avgArg.startCell.replace(/[^A-Za-z]/g, ""));
+                var endCol = lt(c[1]),
+                    endRow = r[1] + 1,
+                    endCell = endCol + endRow,
+                    rangeStr = sheetName + "!" + startCell + ":" + endCell;
 
-        // Use column-wise or row-wise iteration (Excel logic)
-        if (critArg.rowl === 1) {
-            // HORIZONTAL range (your case)
-            for (var c = 0; c < critArg.coll; c++) {
-                var critVal = critArg.data[critStartRow]?.[critStartCol + c];
-
-                if (critVal != null && p.acompareb(critVal, criteria)) {
-                    var avgVal = avgArg.data[avgStartRow]?.[avgStartCol + c];
-                    if (!B(avgVal)) continue;
-
-                    sum += Number(avgVal);
-                    count++;
-                }
+                avgRange = nr(rangeStr).data;
             }
-        } else {
-            // VERTICAL range
-            for (var r = 0; r < critArg.rowl; r++) {
-                var critVal = critArg.data[critStartRow + r]?.[critStartCol];
+            avgRange = p.getRangeArray(avgRange)[0];
+        }
 
-                if (critVal != null && p.acompareb(critVal, criteria)) {
-                    var avgVal = avgArg.data[avgStartRow + r]?.[avgStartCol];
-                    if (!B(avgVal)) continue;
+        criteriaRange = p.getRangeArray(criteriaRange)[0];
 
-                    sum += Number(avgVal);
-                    count++;
-                }
+        for (var i = 0; i < criteriaRange.length; i++) {
+            var critVal = criteriaRange[i];
+
+            if (critVal !== null && critVal !== undefined && p.acompareb(critVal, criteria)) {
+                var value = avgRange.length ? avgRange[i] : critVal;
+
+                // Excel rules:
+                // include 0, exclude blanks & non-numeric
+                if (value === null || value === undefined || value === "" || isNaN(value))
+                    continue;
+
+                sum += Number(value);
+                count++;
             }
         }
 
-        // Excel behavior
-        if (count === 0) return p.error.d;
-
-        return Il(sum / count);
+        // Excel-compatible result
+        return count === 0 ? p.error.d : Il(sum / count);
 
     } catch (err) {
-        return [p.error.v, p.errorInfo(err)];
+        err = p.errorInfo(err);
+        return [p.error.v, err];
     }
-}
+},
