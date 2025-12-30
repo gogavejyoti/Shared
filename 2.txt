@@ -1,179 +1,226 @@
+@using System.Text.Json
+@model List<Sutherland.DataMagnifier.Entities.Master.MastRPJobCodeLob>
+
+@{
+    ViewData["Title"] = "RP Programs";
+    var vertical = Convert.ToString(ViewData["Vertical"])?.ToUpper() ?? "OVERVIEW";
+}
+
 @section Styles {
     <style>
-        @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap');
+        @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
         :root {
-            --bg-mesh: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                       radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-                       radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-            --glass-card: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --bg-gradient: linear-gradient(135deg, #a5f3fc 0%, #e9d5ff 50%, #fbcfe8 100%);
+            --primary-blue: #4361ee;
+            --accent-pink: #f72585;
+            --glass-white: rgba(255, 255, 255, 0.95);
         }
 
         body {
-            background-color: #0f172a; /* Deep Midnight */
-            background-image: var(--bg-mesh);
+            background: var(--bg-gradient);
+            background-attachment: fixed;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            color: #fff;
             min-height: 100vh;
+            padding: 40px;
         }
 
-        /* Modern Abstract Header */
-        .hero-section {
-            padding: 60px 0 40px;
-            text-align: center;
-        }
-
-        .hero-title {
-            font-size: 3.5rem;
-            font-weight: 800;
-            background: linear-gradient(to right, #fff, #94a3b8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-        }
-
-        /* The "Ultra" Card */
-        .ultra-card {
-            background: var(--glass-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 32px;
-            padding: 32px;
-            position: relative;
+        /* Main Container Shadow Box */
+        .dashboard-container {
+            background: #ffffff;
+            border-radius: 30px;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.1);
             overflow: hidden;
-            transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
-            margin-bottom: 30px;
-            height: 280px;
+            max-width: 1400px;
+            margin: 0 auto;
+            min-height: 85vh;
+        }
+
+        /* Header Area */
+        .top-nav {
+            padding: 30px 50px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .header-top-row {
             display: flex;
-            flex-direction: column;
             justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
         }
 
-        .ultra-card:hover {
-            transform: translateY(-12px);
-            border-color: rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.06);
-            box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+        .header-top-row h1 {
+            font-weight: 800;
+            color: #1e293b;
+            font-size: 28px;
+            margin: 0;
         }
 
-        /* Abstract Floating Icon */
-        .floating-icon {
-            position: absolute;
-            top: -20px;
-            right: -20px;
-            font-size: 120px;
-            opacity: 0.05;
-            transform: rotate(-15deg);
-            transition: 0.5s;
+        /* Search & Toolbar */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 0 50px 20px 50px;
         }
 
-        .ultra-card:hover .floating-icon {
-            opacity: 0.1;
-            transform: rotate(0deg) scale(1.1);
-        }
-
-        .account-tag {
-            background: rgba(99, 102, 241, 0.2);
-            color: #818cf8;
-            padding: 6px 14px;
-            border-radius: 99px;
-            font-size: 11px;
+        .vertical-pill {
+            background: linear-gradient(to right, var(--primary-blue), #7209b7);
+            color: white;
+            padding: 10px 25px;
+            border-radius: 50px;
             font-weight: 700;
-            letter-spacing: 1px;
-            display: inline-block;
-            margin-bottom: 15px;
-        }
-
-        .account-name {
-            font-size: 1.6rem;
-            font-weight: 700;
-            line-height: 1.2;
-            color: #f8fafc;
-        }
-
-        /* Redesigned Button Dock */
-        .button-dock {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 20px;
-        }
-
-        .btn-action {
-            padding: 12px;
-            border-radius: 16px;
-            font-weight: 600;
             font-size: 13px;
-            text-align: center;
-            text-decoration: none !important;
-            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .search-wrapper i {
+            position: absolute;
+            left: 15px;
+            top: 12px;
+            color: #94a3b8;
+        }
+
+        .search-wrapper input {
+            width: 100%;
+            padding: 10px 20px 10px 45px;
+            border-radius: 12px;
+            border: 1px solid #f1f5f9;
+            background: #f8fafc;
+            outline: none;
+        }
+
+        /* Card Row Grid */
+        #cardRow {
+            padding: 40px 50px;
+            background: #fdfdfd;
+        }
+
+        /* The Card - Matching the Image */
+        .program-card {
+            background: #fff;
+            border-radius: 20px;
+            border: 1px solid #f0f0f0;
+            padding: 0;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        }
+
+        .program-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+        }
+
+        .card-header-inner {
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .card-header-inner h5 {
+            font-weight: 800;
+            font-size: 20px;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .card-header-inner small {
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .status-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            background: #f0fdf4;
+            color: #22c55e;
+            font-size: 14px;
         }
 
-        /* Primary Action (Wide) */
-        .btn-rp-input {
-            grid-column: span 2;
-            background: #fff;
-            color: #0f172a !important;
+        /* Button Section - Matching the Image */
+        .card-footer-btns {
+            padding: 20px 25px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #f8fafc;
         }
 
-        .btn-rp-input:hover { background: #e2e8f0; transform: scale(1.02); }
-
-        /* Secondary Actions (Half) */
-        .btn-legacy {
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff !important;
-            border: 1px solid var(--glass-border);
-        }
-
-        .btn-legacy:hover { background: rgba(255, 255, 255, 0.1); }
-
-        .btn-dash-fix {
-            background: linear-gradient(135deg, #38bdf8, #818cf8);
-            color: white !important;
-            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
-        }
-
-        .btn-dash-fix:hover { filter: brightness(1.2); }
-
-        /* List View Transformation */
-        .list-view .ultra-card {
-            flex-direction: row;
-            height: auto;
-            padding: 20px 40px;
+        .btn-pill {
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 12px;
+            text-decoration: none !important;
+            display: inline-flex;
             align-items: center;
-            border-radius: 16px;
+            gap: 6px;
+            border: none;
+            transition: 0.2s;
         }
-        .list-view .button-dock { grid-template-columns: repeat(3, auto); margin-top: 0; }
-        .list-view .btn-rp-input { grid-column: span 1; }
-        .list-view .floating-icon { display: none; }
+
+        .btn-blue { background: #4361ee; color: white !important; }
+        .btn-pink { background: #f72585; color: white !important; }
+        .btn-outline { background: #f8fafc; color: #64748b !important; border: 1px solid #e2e8f0; }
+
+        .btn-pill:hover { filter: brightness(1.1); }
+
+        /* Mode Switcher Buttons */
+        .mode-btn {
+            background: #f1f5f9;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            color: #64748b;
+        }
+        .mode-btn.active {
+            background: #1e293b;
+            color: white;
+        }
 
     </style>
 }
 
-<div class="container-fluid" style="max-width: 1400px; padding: 0 50px;">
-    <div class="hero-section">
-        <div class="account-tag">RESOURCES & PLANNING</div>
-        <h1 class="hero-title">@vertical</h1>
-    </div>
-
-    <div class="d-flex justify-content-between align-items-center mb-5">
-        <div style="position:relative; width: 400px;">
-            <i class="fa fa-search" style="position:absolute; left:20px; top:18px; color:#64748b"></i>
-            <input type="text" id="modernSearch" placeholder="Search account architecture..." 
-                   style="width:100%; padding:15px 15px 15px 50px; border-radius:100px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#fff; outline:none;">
-        </div>
-        <div class="btn-group" style="background:rgba(255,255,255,0.05); padding:5px; border-radius:15px;">
-            <button class="btn text-white px-4" id="viewGrid"><i class="fa fa-th-large"></i></button>
-            <button class="btn text-white px-4" id="viewList"><i class="fa fa-list"></i></button>
+<div class="dashboard-container">
+    <div class="top-nav">
+        <div class="header-top-row">
+            <h1>RP Programs <span style="color: #4361ee; margin-left:10px;">&gt;&gt;</span> <span style="font-weight: 400; color: #94a3b8;">OVERVIEW</span></h1>
+            <div class="user-icon">
+                <div style="width:40px; height:40px; background:#4361ee; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white;">?</div>
+            </div>
         </div>
     </div>
 
-    <div id="dynamicGrid" class="row">
+    <div class="toolbar">
+        <div class="vertical-pill">
+            <i class="fa fa-th-large"></i> @vertical
+        </div>
+        <div class="search-wrapper">
+            <i class="fa fa-search"></i>
+            <input type="text" id="accSearch" placeholder="Search accounts...">
+        </div>
+        <div class="btn-group" style="gap:5px;">
+            <button class="mode-btn active" id="btnGrid"><i class="fa fa-th"></i> Grid</button>
+            <button class="mode-btn" id="btnList"><i class="fa fa-bars"></i></button>
+        </div>
+    </div>
+
+    <div id="cardRow" class="row">
         </div>
 </div>
 
@@ -181,45 +228,56 @@
     <script>
         $(function () {
             const data = @Html.Raw(Json.Serialize(Model));
-            const container = document.getElementById("dynamicGrid");
+            const cardRow = document.getElementById("cardRow");
 
             function render() {
-                container.innerHTML = '';
+                cardRow.innerHTML = '';
                 data.forEach(v => {
                     const vE = encodeURIComponent(btoa(v.vertical || ''));
                     const aE = encodeURIComponent(btoa(v.account || ''));
                     
-                    const card = document.createElement("div");
-                    card.className = "col-xl-4 col-lg-6 card-item-wrapper";
-                    card.setAttribute("data-name", v.account.toLowerCase());
-                    
-                    card.innerHTML = `
-                        <div class="ultra-card">
-                            <div class="floating-icon"><i class="fa fa-fingerprint"></i></div>
-                            <div class="top-meta">
-                                <div class="account-tag">Verified Account</div>
-                                <div class="account-name">${v.account}</div>
+                    let buttons = "";
+                    if (v.isNewRPActivated) {
+                        if (!v.disableLagacy) {
+                            buttons += `<a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-outline">Legacy</a>`;
+                        }
+                        buttons += `<a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-pill btn-blue">RP Input</a>`;
+                        buttons += `<a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-pill btn-pink">Dashboard</a>`;
+                    } else {
+                        buttons += `<a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-blue">RP Input</a>`;
+                    }
+
+                    const col = document.createElement("div");
+                    col.className = "col-xl-4 col-lg-6 card-item";
+                    col.setAttribute("data-name", v.account.toLowerCase());
+                    col.innerHTML = `
+                        <div class="program-card">
+                            <div class="card-header-inner">
+                                <div>
+                                    <small>Account ID</small>
+                                    <h5>${v.account}</h5>
+                                    <div style="font-size:12px; color:#94a3b8; margin-top:5px;">Active Session</div>
+                                </div>
+                                <div class="status-icon"><i class="fa fa-check"></i></div>
                             </div>
-                            <div class="button-dock">
-                                ${!v.disableLagacy ? `<a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-action btn-legacy">Legacy</a>` : ''}
-                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-action btn-dash-fix"><i class="fa fa-chart-pie"></i> Analytics</a>
-                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-action btn-rp-input"><i class="fa fa-bolt"></i> Launch RP Input</a>
+                            <div class="card-footer-btns">
+                                ${buttons}
                             </div>
                         </div>
                     `;
-                    container.appendChild(card);
+                    cardRow.appendChild(col);
                 });
             }
 
-            $("#viewGrid, #viewList").on("click", function() {
-                const isList = this.id === "viewList";
-                $("#dynamicGrid").toggleClass("list-view", isList);
-                $(".card-item-wrapper").toggleClass("col-xl-4 col-lg-6", !isList).toggleClass("col-12", isList);
+            $("#btnGrid, #btnList").on("click", function() {
+                $(".mode-btn").removeClass("active");
+                $(this).addClass("active");
+                // Add list view specific CSS logic here if needed
             });
 
-            $("#modernSearch").on("keyup", function() {
+            $("#accSearch").on("keyup", function() {
                 const val = $(this).val().toLowerCase();
-                $(".card-item-wrapper").each(function() {
+                $(".card-item").each(function() {
                     $(this).toggle($(this).data("name").includes(val));
                 });
             });
