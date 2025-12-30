@@ -1,10 +1,6 @@
 @using System.Text.Json
 @model List<Sutherland.DataMagnifier.Entities.Master.MastRPJobCodeLob>
 
-@{
-    ViewData["Title"] = "Account Dashboard";
-}
-
 @section Styles {
     <style>
         @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
@@ -13,228 +9,167 @@
             --neon-cyan: #00f2ff;
             --neon-purple: #bc13fe;
             --neon-pink: #ff00bd;
-            --bg-dark: #020617;
-            --card-glass: rgba(15, 23, 42, 0.75);
+            --card-base: rgba(13, 17, 23, 0.85);
         }
 
         body {
-            background-color: var(--bg-dark);
-            /* Replace with your locally downloaded background image */
-            background-image: url('/images/cyber-background.jpg');
+            /* Path to the background image you downloaded */
+            background: #020617 url('/images/cyber-background.jpg') no-repeat center center fixed;
             background-size: cover;
-            background-attachment: fixed;
-            background-position: center;
             font-family: 'Plus Jakarta Sans', sans-serif;
             color: #fff;
-            margin: 0;
             padding: 40px;
-            min-height: 100vh;
         }
 
-        /* --- Global Layout --- */
-        .dashboard-container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+        .dashboard-container { max-width: 1400px; margin: 0 auto; }
 
-        /* --- Header & Control Bar --- */
-        .header-bar {
+        /* --- View Switcher & Search Bar --- */
+        .header-controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px 35px;
+            border-radius: 25px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             margin-bottom: 40px;
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(10px);
-            padding: 20px 30px;
-            border-radius: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .search-box {
-            position: relative;
-            width: 350px;
-        }
-
-        .search-box input {
-            width: 100%;
-            background: rgba(0, 0, 0, 0.3);
+        .search-field {
+            background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 12px 15px 12px 45px;
-            border-radius: 14px;
+            padding: 12px 20px 12px 45px;
+            border-radius: 12px;
             color: white;
+            width: 350px;
             outline: none;
         }
 
-        .search-box i {
-            position: absolute;
-            left: 18px;
-            top: 15px;
-            color: #64748b;
-        }
-
-        /* --- Grid/List Switcher --- */
-        .view-controls {
+        .view-toggle {
             display: flex;
-            background: rgba(0, 0, 0, 0.4);
+            gap: 10px;
+            background: rgba(0,0,0,0.3);
             padding: 5px;
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .btn-view {
-            background: transparent;
-            border: none;
-            color: #94a3b8;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: 0.3s;
+        .toggle-btn {
+            background: transparent; border: none; color: #64748b;
+            padding: 8px 18px; border-radius: 8px; cursor: pointer; transition: 0.3s;
         }
 
-        .btn-view.active {
-            background: var(--neon-cyan);
-            color: #000;
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+        .toggle-btn.active {
+            background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px rgba(0, 242, 255, 0.5);
         }
 
-        /* --- The Main Grid (3 Tiles Row) --- */
+        /* --- The Tile Grid --- */
         .tile-grid {
             display: grid;
-            transition: all 0.5s ease;
-        }
-
-        .tile-grid.grid-mode {
             grid-template-columns: repeat(3, 1fr);
             gap: 25px;
+            transition: 0.4s ease;
         }
 
-        .tile-grid.list-mode {
-            grid-template-columns: 1fr;
-            gap: 15px;
-        }
+        .tile-grid.list-mode { grid-template-columns: 1fr; }
 
-        /* --- The Cyber Tile --- */
-        .cyber-tile {
-            background: var(--card-glass);
-            backdrop-filter: blur(20px);
+        /* --- The Elite Tile with Circuitry Background --- */
+        .elite-tile {
+            background: var(--card-base);
             border-radius: 30px;
             border: 1.5px solid var(--neon-cyan);
             padding: 30px;
-            min-height: 250px;
+            height: 260px;
+            position: relative;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            position: relative;
-            overflow: hidden; /* Clips the background watermark */
             transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* The "Image behind the tile" watermark */
-        .cyber-tile::before {
-            content: "\f1b2"; /* FontAwesome Cube Icon */
+        /* THE "IMAGE BEHIND THE TILE" - Circuitry Pattern */
+        .elite-tile::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            /* This SVG creates the faint technical circuit lines seen in your attachment */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 800 800'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='0.5' stroke-opacity='0.07'%3E%3Cpath d='M100 100l100 100h200l100-100M600 700l-100-100H300l-100 100M100 600l100-100v-200l-100-100M700 100l-100 100v200l100 100'/%3E%3Ccircle cx='400' cy='400' r='150'/%3E%3Ccircle cx='400' cy='400' r='50'/%3E%3Cpath d='M400 250v300M250 400h300'/%3E%3C/g%3E%3C/svg%3E");
+            background-size: cover;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* The 3D Cube Icon in the corner */
+        .elite-tile::after {
+            content: "\f1b2";
             font-family: "Font Awesome 5 Free";
             font-weight: 900;
             position: absolute;
-            top: -20px;
-            right: -20px;
-            font-size: 180px;
-            color: rgba(255, 255, 255, 0.03);
-            transform: rotate(-15deg);
-            pointer-events: none;
+            top: 20px; right: 20px;
+            font-size: 32px;
+            color: rgba(255, 255, 255, 0.15);
+            z-index: 1;
         }
 
-        .cyber-tile:hover {
+        .elite-tile:hover {
             transform: translateY(-10px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
             border-color: #fff;
-            background: rgba(30, 41, 59, 0.9);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
         }
 
-        /* Color Variations */
         .tile-purple { border-color: var(--neon-purple); }
         .tile-pink { border-color: var(--neon-pink); }
 
-        .account-name {
-            font-size: 1.6rem;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            margin-top: 10px;
-            z-index: 1;
-        }
+        .account-name { font-size: 1.6rem; font-weight: 800; z-index: 2; position: relative; }
 
-        .status-tag {
-            background: rgba(0, 255, 135, 0.1);
-            color: #00ff87;
-            padding: 4px 12px;
-            border-radius: 8px;
-            font-size: 10px;
-            font-weight: 800;
-            display: inline-block;
-        }
-
-        /* --- Aligned Button Dock --- */
-        .button-dock {
+        /* --- Perfect Button Docking --- */
+        .action-dock {
             display: flex;
             gap: 12px;
             align-items: center;
-            z-index: 1;
+            z-index: 2;
+            position: relative;
         }
 
-        .btn-ui {
-            padding: 12px 20px;
+        .btn-elite {
+            padding: 12px 22px;
             border-radius: 50px;
             font-size: 12px;
             font-weight: 700;
+            text-transform: uppercase;
             text-decoration: none !important;
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 8px;
             transition: 0.3s;
         }
 
-        .btn-glass { 
-            background: rgba(255, 255, 255, 0.05); 
-            color: #fff !important; 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
-        }
-
+        .btn-glass { background: rgba(255, 255, 255, 0.05); color: #fff !important; border: 1px solid rgba(255,255,255,0.1); }
         .btn-neon { background: var(--neon-cyan); color: #000 !important; flex: 1; }
         .btn-white { background: #fff; color: #000 !important; flex: 1; }
 
-        .bolt-action {
+        .bolt-badge {
             width: 44px; height: 44px; background: var(--neon-purple);
             border-radius: 50%; color: #fff; display: flex;
             align-items: center; justify-content: center;
         }
-
-        /* List View Adjustments */
-        .tile-grid.list-mode .cyber-tile {
-            min-height: auto;
-            flex-direction: row;
-            align-items: center;
-            padding: 20px 40px;
-        }
-        .tile-grid.list-mode .button-dock { margin-top: 0; }
-        .tile-grid.list-mode .cyber-tile::before { font-size: 80px; top: 0; }
-
     </style>
 }
 
 <div class="dashboard-container">
-    <div class="header-bar">
-        <div class="search-box">
-            <i class="fa fa-search"></i>
-            <input type="text" id="accSearch" placeholder="Search accounts...">
+    <div class="header-controls">
+        <div style="position:relative;">
+            <i class="fa fa-search" style="position:absolute; left:18px; top:13px; color:#4b5563;"></i>
+            <input type="text" id="mainSearch" class="search-field" placeholder="Search accounts...">
         </div>
-        <div class="view-controls">
-            <button class="btn-view active" id="btnGrid"><i class="fa fa-th-large"></i> Grid</button>
-            <button class="btn-view" id="btnList"><i class="fa fa-list"></i> List</button>
+        <div class="view-toggle">
+            <button class="toggle-btn active" id="btnGridMode"><i class="fa fa-th-large"></i> Grid View</button>
+            <button class="toggle-btn" id="btnListMode"><i class="fa fa-bars"></i> List View</button>
         </div>
     </div>
 
-    <div id="mainTileGrid" class="tile-grid grid-mode">
+    <div id="dynamicGrid" class="tile-grid">
         </div>
 </div>
 
@@ -242,7 +177,7 @@
     <script>
         $(function () {
             const data = @Html.Raw(Json.Serialize(Model));
-            const grid = document.getElementById("mainTileGrid");
+            const grid = document.getElementById("dynamicGrid");
 
             function render() {
                 grid.innerHTML = '';
@@ -250,59 +185,54 @@
                     const vE = encodeURIComponent(btoa(v.vertical || ''));
                     const aE = encodeURIComponent(btoa(v.account || ''));
                     
-                    // Cycle border colors
                     let borderClass = (i % 3 === 1) ? "tile-purple" : (i % 3 === 2) ? "tile-pink" : "";
                     
-                    let actions = "";
-                    // Specifically style the "Launch" button tiles (every 2nd tile to match image variety)
+                    let buttons = "";
+                    // Middle tile special styling
                     if (i % 3 === 1) { 
-                        actions = `
-                            <div class="button-dock">
-                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-ui btn-white">Launch RP Input</a>
-                                <div class="bolt-action"><i class="fa fa-bolt"></i></div>
+                        buttons = `
+                            <div class="action-dock">
+                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-elite btn-white">Launch RP Input</a>
+                                <div class="bolt-badge"><i class="fa fa-bolt"></i></div>
                             </div>`;
                     } else {
-                        actions = `
-                            <div class="button-dock">
-                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-ui btn-glass">Legacy</a>
-                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-ui btn-neon">Analytics <i class="fa fa-arrow-right"></i></a>
+                        buttons = `
+                            <div class="action-dock">
+                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-elite btn-glass">Legacy</a>
+                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-elite btn-neon">Analytics <i class="fa fa-arrow-right"></i></a>
                             </div>`;
                     }
 
                     const tile = document.createElement("div");
-                    tile.className = "tile-wrapper";
-                    tile.setAttribute("data-search", v.account.toLowerCase());
+                    tile.className = "tile-container";
+                    tile.setAttribute("data-name", v.account.toLowerCase());
                     tile.innerHTML = `
-                        <div class="cyber-tile ${borderClass}">
-                            <div class="top-info">
-                                <span class="status-tag">ACTIVE SESSION</span>
+                        <div class="elite-tile ${borderClass}">
+                            <div>
+                                <span style="font-size:10px; color:#00ff87; font-weight:900; letter-spacing:1px;">STATUS: ACTIVE</span>
                                 <div class="account-name">${v.account}</div>
                             </div>
-                            ${actions}
+                            ${buttons}
                         </div>
                     `;
                     grid.appendChild(tile);
                 });
             }
 
-            // --- Grid/List Toggle Logic ---
-            $("#btnGrid").click(function() {
-                $(this).addClass("active");
-                $("#btnList").removeClass("active");
-                $("#mainTileGrid").removeClass("list-mode").addClass("grid-mode");
+            $("#btnGridMode").click(function() {
+                $(this).addClass("active"); $("#btnListMode").removeClass("active");
+                $("#dynamicGrid").removeClass("list-mode");
             });
 
-            $("#btnList").click(function() {
-                $(this).addClass("active");
-                $("#btnGrid").removeClass("active");
-                $("#mainTileGrid").removeClass("grid-mode").addClass("list-mode");
+            $("#btnListMode").click(function() {
+                $(this).addClass("active"); $("#btnGridMode").removeClass("active");
+                $("#dynamicGrid").addClass("list-mode");
             });
 
-            // --- Search Logic ---
-            $("#accSearch").on("keyup", function() {
+            $("#mainSearch").on("keyup", function() {
                 const term = $(this).val().toLowerCase();
-                $(".tile-wrapper").each(function() {
-                    $(this).toggle($(this).data("search").includes(term));
+                $(".tile-container").each(function() {
+                    $(this).toggle($(this).data("name").includes(term));
                 });
             });
 
