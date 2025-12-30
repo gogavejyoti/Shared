@@ -1,242 +1,58 @@
-@using System.Text.Json
-@model List<Sutherland.DataMagnifier.Entities.Master.MastRPJobCodeLob>
-
-@section Styles {
-    <style>
-        @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-
-        :root {
-            --neon-cyan: #00f2ff;
-            --neon-purple: #bc13fe;
-            --neon-pink: #ff00bd;
-            --card-base: rgba(13, 17, 23, 0.85);
-        }
-
-        body {
-            /* Path to the background image you downloaded */
-            background: #020617 url('/images/cyber-background.jpg') no-repeat center center fixed;
-            background-size: cover;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            color: #fff;
-            padding: 40px;
-        }
-
-        .dashboard-container { max-width: 1400px; margin: 0 auto; }
-
-        /* --- View Switcher & Search Bar --- */
-        .header-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 20px 35px;
-            border-radius: 25px;
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            margin-bottom: 40px;
-        }
-
-        .search-field {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 12px 20px 12px 45px;
-            border-radius: 12px;
-            color: white;
-            width: 350px;
-            outline: none;
-        }
-
-        .view-toggle {
-            display: flex;
-            gap: 10px;
-            background: rgba(0,0,0,0.3);
-            padding: 5px;
-            border-radius: 12px;
-        }
-
-        .toggle-btn {
-            background: transparent; border: none; color: #64748b;
-            padding: 8px 18px; border-radius: 8px; cursor: pointer; transition: 0.3s;
-        }
-
-        .toggle-btn.active {
-            background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px rgba(0, 242, 255, 0.5);
-        }
-
-        /* --- The Tile Grid --- */
-        .tile-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 25px;
-            transition: 0.4s ease;
-        }
-
-        .tile-grid.list-mode { grid-template-columns: 1fr; }
-
-        /* --- The Elite Tile with Circuitry Background --- */
-        .elite-tile {
-            background: var(--card-base);
-            border-radius: 30px;
-            border: 1.5px solid var(--neon-cyan);
-            padding: 30px;
-            height: 260px;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* THE "IMAGE BEHIND THE TILE" - Circuitry Pattern */
-        .elite-tile::before {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            /* This SVG creates the faint technical circuit lines seen in your attachment */
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 800 800'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='0.5' stroke-opacity='0.07'%3E%3Cpath d='M100 100l100 100h200l100-100M600 700l-100-100H300l-100 100M100 600l100-100v-200l-100-100M700 100l-100 100v200l100 100'/%3E%3Ccircle cx='400' cy='400' r='150'/%3E%3Ccircle cx='400' cy='400' r='50'/%3E%3Cpath d='M400 250v300M250 400h300'/%3E%3C/g%3E%3C/svg%3E");
-            background-size: cover;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* The 3D Cube Icon in the corner */
-        .elite-tile::after {
-            content: "\f1b2";
-            font-family: "Font Awesome 5 Free";
-            font-weight: 900;
-            position: absolute;
-            top: 20px; right: 20px;
-            font-size: 32px;
-            color: rgba(255, 255, 255, 0.15);
-            z-index: 1;
-        }
-
-        .elite-tile:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-            border-color: #fff;
-        }
-
-        .tile-purple { border-color: var(--neon-purple); }
-        .tile-pink { border-color: var(--neon-pink); }
-
-        .account-name { font-size: 1.6rem; font-weight: 800; z-index: 2; position: relative; }
-
-        /* --- Perfect Button Docking --- */
-        .action-dock {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            z-index: 2;
-            position: relative;
-        }
-
-        .btn-elite {
-            padding: 12px 22px;
-            border-radius: 50px;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            text-decoration: none !important;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: 0.3s;
-        }
-
-        .btn-glass { background: rgba(255, 255, 255, 0.05); color: #fff !important; border: 1px solid rgba(255,255,255,0.1); }
-        .btn-neon { background: var(--neon-cyan); color: #000 !important; flex: 1; }
-        .btn-white { background: #fff; color: #000 !important; flex: 1; }
-
-        .bolt-badge {
-            width: 44px; height: 44px; background: var(--neon-purple);
-            border-radius: 50%; color: #fff; display: flex;
-            align-items: center; justify-content: center;
-        }
-    </style>
-}
-
-<div class="dashboard-container">
-    <div class="header-controls">
-        <div style="position:relative;">
-            <i class="fa fa-search" style="position:absolute; left:18px; top:13px; color:#4b5563;"></i>
-            <input type="text" id="mainSearch" class="search-field" placeholder="Search accounts...">
-        </div>
-        <div class="view-toggle">
-            <button class="toggle-btn active" id="btnGridMode"><i class="fa fa-th-large"></i> Grid View</button>
-            <button class="toggle-btn" id="btnListMode"><i class="fa fa-bars"></i> List View</button>
-        </div>
-    </div>
-
-    <div id="dynamicGrid" class="tile-grid">
-        </div>
-</div>
-
-@section Scripts {
-    <script>
-        $(function () {
-            const data = @Html.Raw(Json.Serialize(Model));
-            const grid = document.getElementById("dynamicGrid");
-
-            function render() {
-                grid.innerHTML = '';
-                data.forEach((v, i) => {
-                    const vE = encodeURIComponent(btoa(v.vertical || ''));
-                    const aE = encodeURIComponent(btoa(v.account || ''));
-                    
-                    let borderClass = (i % 3 === 1) ? "tile-purple" : (i % 3 === 2) ? "tile-pink" : "";
-                    
-                    let buttons = "";
-                    // Middle tile special styling
-                    if (i % 3 === 1) { 
-                        buttons = `
-                            <div class="action-dock">
-                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-elite btn-white">Launch RP Input</a>
-                                <div class="bolt-badge"><i class="fa fa-bolt"></i></div>
-                            </div>`;
-                    } else {
-                        buttons = `
-                            <div class="action-dock">
-                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-elite btn-glass">Legacy</a>
-                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-elite btn-neon">Analytics <i class="fa fa-arrow-right"></i></a>
-                            </div>`;
+AVERAGEIF: function () {
+                if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                    return p.error.na;
+                for (var e = 0; e < arguments.length; e++) {
+                    var n = p.errorParamCheck(this.p, arguments[e], e);
+                    if (!n[0])
+                        return p.error.v
+                }
+                try {
+                    var t = 0
+                        , l = 0
+                        , a = arguments[0].data
+                        , o = arguments[0].rowl
+                        , s = arguments[0].coll
+                        , u = Ua(arguments[1])
+                        , d = [];
+                    if (arguments[2]) {
+                        var f = arguments[2].startCell
+                            , m = arguments[2].rowl
+                            , g = arguments[2].coll
+                            , y = arguments[2].sheetName;
+                        if (o == m && s == g)
+                            d = arguments[2].data;
+                        else {
+                            var v = []
+                                , k = []
+                                , b = ""
+                                , w = "";
+                            v[0] = parseInt(f.replace(/[^0-9]/g, "")) - 1,
+                                k[0] = cl(f.replace(/[^A-Za-z]/g, "")),
+                                v[1] = v[0] + o - 1,
+                                k[1] = k[0] + s - 1;
+                            var x = lt(k[1])
+                                , C = v[1] + 1;
+                            b = x + C,
+                                w = y + "!" + f + ":" + b,
+                                d = nr(w).data
+                        }
+                        d = p.getRangeArray(d)[0]
                     }
-
-                    const tile = document.createElement("div");
-                    tile.className = "tile-container";
-                    tile.setAttribute("data-name", v.account.toLowerCase());
-                    tile.innerHTML = `
-                        <div class="elite-tile ${borderClass}">
-                            <div>
-                                <span style="font-size:10px; color:#00ff87; font-weight:900; letter-spacing:1px;">STATUS: ACTIVE</span>
-                                <div class="account-name">${v.account}</div>
-                            </div>
-                            ${buttons}
-                        </div>
-                    `;
-                    grid.appendChild(tile);
-                });
-            }
-
-            $("#btnGridMode").click(function() {
-                $(this).addClass("active"); $("#btnListMode").removeClass("active");
-                $("#dynamicGrid").removeClass("list-mode");
-            });
-
-            $("#btnListMode").click(function() {
-                $(this).addClass("active"); $("#btnGridMode").removeClass("active");
-                $("#dynamicGrid").addClass("list-mode");
-            });
-
-            $("#mainSearch").on("keyup", function() {
-                const term = $(this).val().toLowerCase();
-                $(".tile-container").each(function() {
-                    $(this).toggle($(this).data("name").includes(term));
-                });
-            });
-
-            render();
-        });
-    </script>
-}
+                    a = p.getRangeArray(a)[0];
+                    for (var e = 0; e < a.length; e++) {
+                        var S = a[e];
+                        if (!!S && p.acompareb(S, u)) {
+                            var _ = d[e] || S;
+                            if (!B(_))
+                                continue;
+                            t += parseFloat(_),
+                                l++
+                        }
+                    }
+                    return t == 0 || l == 0 ? p.error.d : Il(t / l)
+                } catch (A) {
+                    var T = A;
+                    return T = p.errorInfo(T),
+                        [p.error.v, T]
+                }
+            },
