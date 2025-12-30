@@ -3,7 +3,6 @@
 
 @{
     ViewData["Title"] = "RP Programs";
-    var vertical = Convert.ToString(ViewData["Vertical"])?.ToUpper() ?? "OVERVIEW";
 }
 
 @section Styles {
@@ -11,216 +10,186 @@
         @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
         :root {
-            --bg-gradient: linear-gradient(135deg, #a5f3fc 0%, #e9d5ff 50%, #fbcfe8 100%);
-            --primary-blue: #4361ee;
-            --accent-pink: #f72585;
-            --glass-white: rgba(255, 255, 255, 0.95);
+            --bg-dark: #0f0c29;
+            --card-glass: rgba(255, 255, 255, 0.05);
+            --neon-blue: #00d2ff;
+            --neon-pink: #9d50bb;
+            --neon-green: #00ff87;
+            --text-main: #ffffff;
         }
 
         body {
-            background: var(--bg-gradient);
-            background-attachment: fixed;
+            background: #0f0c29;
+            /* Animated Mesh Gradient Background */
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-main);
             min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* Cyberpunk Grid Overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(100, 100, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(100, 100, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            perspective: 1000px;
+            transform: rotateX(60deg) scale(2);
+            transform-origin: top;
+        }
+
+        /* Main Container */
+        .cyber-shell {
+            background: rgba(13, 17, 23, 0.8);
+            backdrop-filter: blur(15px);
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 40px;
-        }
-
-        /* Main Container Shadow Box */
-        .dashboard-container {
-            background: #ffffff;
-            border-radius: 30px;
-            box-shadow: 0 40px 100px rgba(0,0,0,0.1);
-            overflow: hidden;
             max-width: 1400px;
-            margin: 0 auto;
-            min-height: 85vh;
+            margin: auto;
         }
 
-        /* Header Area */
-        .top-nav {
-            padding: 30px 50px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .header-top-row {
+        /* Top Bar */
+        .cyber-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 25px;
+            margin-bottom: 40px;
         }
 
-        .header-top-row h1 {
-            font-weight: 800;
-            color: #1e293b;
-            font-size: 28px;
-            margin: 0;
-        }
-
-        /* Search & Toolbar */
-        .toolbar {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 0 50px 20px 50px;
-        }
-
-        .vertical-pill {
-            background: linear-gradient(to right, var(--primary-blue), #7209b7);
-            color: white;
-            padding: 10px 25px;
-            border-radius: 50px;
-            font-weight: 700;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .search-wrapper {
-            position: relative;
-            flex: 1;
-        }
-
-        .search-wrapper i {
-            position: absolute;
-            left: 15px;
-            top: 12px;
-            color: #94a3b8;
-        }
-
-        .search-wrapper input {
-            width: 100%;
-            padding: 10px 20px 10px 45px;
+        .search-field {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
-            border: 1px solid #f1f5f9;
-            background: #f8fafc;
+            padding: 10px 20px 10px 45px;
+            color: white;
+            width: 350px;
             outline: none;
         }
 
-        /* Card Row Grid */
-        #cardRow {
-            padding: 40px 50px;
-            background: #fdfdfd;
-        }
-
-        /* The Card - Matching the Image */
-        .program-card {
-            background: #fff;
-            border-radius: 20px;
-            border: 1px solid #f0f0f0;
-            padding: 0;
+        /* The Card Architecture */
+        .cyber-card {
+            background: var(--card-glass);
+            border-radius: 24px;
+            padding: 25px;
+            height: 220px;
             margin-bottom: 30px;
-            transition: all 0.3s ease;
+            border: 1px solid rgba(0, 210, 255, 0.3); /* Default Blue Border */
             position: relative;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-        }
-
-        .program-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.05);
-        }
-
-        .card-header-inner {
-            padding: 20px 25px;
+            transition: 0.4s;
             display: flex;
+            flex-direction: column;
             justify-content: space-between;
-            align-items: flex-start;
+            overflow: hidden;
         }
 
-        .card-header-inner h5 {
+        /* Alternate colors like the image */
+        .cyber-card:nth-child(2n) { border-color: rgba(157, 80, 187, 0.3); }
+        .cyber-card:nth-child(3n) { border-color: rgba(0, 255, 135, 0.3); }
+
+        .cyber-card:hover {
+            transform: translateY(-8px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.1);
+        }
+
+        .status-badge {
+            background: rgba(0, 255, 135, 0.2);
+            color: var(--neon-green);
+            font-size: 9px;
             font-weight: 800;
-            font-size: 20px;
-            color: #1e293b;
-            margin: 0;
-        }
-
-        .card-header-inner small {
-            color: #94a3b8;
-            font-weight: 600;
-            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
             text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .status-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f0fdf4;
-            color: #22c55e;
-            font-size: 14px;
+        .project-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-top: 15px;
+            line-height: 1.2;
         }
 
-        /* Button Section - Matching the Image */
-        .card-footer-btns {
-            padding: 20px 25px;
+        .floating-box {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 35px;
+            height: 35px;
+            background: rgba(255, 255, 255, 0.1);
+            clip-path: polygon(25% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 25%);
+        }
+
+        /* Button Layout exactly like image */
+        .cyber-btn-dock {
             display: flex;
             gap: 10px;
-            border-top: 1px solid #f8fafc;
+            align-items: center;
         }
 
-        .btn-pill {
+        .btn-cyber {
             padding: 8px 18px;
-            border-radius: 8px;
+            border-radius: 50px;
+            font-size: 11px;
             font-weight: 700;
-            font-size: 12px;
             text-decoration: none !important;
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            border: none;
-            transition: 0.2s;
+            color: white !important;
+            transition: 0.3s;
         }
 
-        .btn-blue { background: #4361ee; color: white !important; }
-        .btn-pink { background: #f72585; color: white !important; }
-        .btn-outline { background: #f8fafc; color: #64748b !important; border: 1px solid #e2e8f0; }
-
-        .btn-pill:hover { filter: brightness(1.1); }
-
-        /* Mode Switcher Buttons */
-        .mode-btn {
-            background: #f1f5f9;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 8px;
-            color: #64748b;
+        .btn-legacy { background: rgba(255, 107, 107, 0.3); border: 1px solid rgba(255, 107, 107, 0.5); }
+        .btn-analytics { background: var(--neon-blue); box-shadow: 0 0 15px rgba(0, 210, 255, 0.3); }
+        
+        /* Central Large Button Style */
+        .btn-launch {
+            background: white;
+            color: black !important;
+            width: 100%;
+            justify-content: center;
+            padding: 12px;
+            border-radius: 50px;
+            font-size: 13px;
         }
-        .mode-btn.active {
-            background: #1e293b;
+
+        .bolt-icon {
+            width: 40px;
+            height: 40px;
+            background: #6366f1;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: white;
         }
-
     </style>
 }
 
-<div class="dashboard-container">
-    <div class="top-nav">
-        <div class="header-top-row">
-            <h1>RP Programs <span style="color: #4361ee; margin-left:10px;">&gt;&gt;</span> <span style="font-weight: 400; color: #94a3b8;">OVERVIEW</span></h1>
-            <div class="user-icon">
-                <div style="width:40px; height:40px; background:#4361ee; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white;">?</div>
-            </div>
+<div class="cyber-shell">
+    <div class="cyber-header">
+        <div style="position:relative;">
+            <i class="fa fa-search" style="position:absolute; left:18px; top:13px; color:#888;"></i>
+            <input type="text" class="search-field" placeholder="Search accounts...">
+        </div>
+        <div style="display:flex; gap:15px; color:#888;">
+            <i class="fa fa-th-large"></i>
+            <i class="fa fa-bookmark"></i>
+            <i class="fa fa-sliders-h"></i>
         </div>
     </div>
 
-    <div class="toolbar">
-        <div class="vertical-pill">
-            <i class="fa fa-th-large"></i> @vertical
-        </div>
-        <div class="search-wrapper">
-            <i class="fa fa-search"></i>
-            <input type="text" id="accSearch" placeholder="Search accounts...">
-        </div>
-        <div class="btn-group" style="gap:5px;">
-            <button class="mode-btn active" id="btnGrid"><i class="fa fa-th"></i> Grid</button>
-            <button class="mode-btn" id="btnList"><i class="fa fa-bars"></i></button>
-        </div>
-    </div>
-
-    <div id="cardRow" class="row">
+    <div id="cyberGrid" class="row">
         </div>
 </div>
 
@@ -228,60 +197,47 @@
     <script>
         $(function () {
             const data = @Html.Raw(Json.Serialize(Model));
-            const cardRow = document.getElementById("cardRow");
+            const grid = document.getElementById("cyberGrid");
 
             function render() {
-                cardRow.innerHTML = '';
-                data.forEach(v => {
+                grid.innerHTML = '';
+                data.forEach((v, index) => {
                     const vE = encodeURIComponent(btoa(v.vertical || ''));
                     const aE = encodeURIComponent(btoa(v.account || ''));
                     
-                    let buttons = "";
-                    if (v.isNewRPActivated) {
-                        if (!v.disableLagacy) {
-                            buttons += `<a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-outline">Legacy</a>`;
-                        }
-                        buttons += `<a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-pill btn-blue">RP Input</a>`;
-                        buttons += `<a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-pill btn-pink">Dashboard</a>`;
+                    let actions = "";
+                    // Replicating the "Central Launch" vs "Dual Button" look from the image
+                    if (index === 4) { // Specific middle card style from image
+                        actions = `
+                            <div class="d-flex align-items-center gap-2 w-100">
+                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-cyber btn-launch">Launch RP Input</a>
+                                <div class="bolt-icon"><i class="fa fa-bolt"></i></div>
+                            </div>
+                        `;
                     } else {
-                        buttons += `<a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-blue">RP Input</a>`;
+                        actions = `
+                            <div class="cyber-btn-dock">
+                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-cyber btn-legacy"><i class="fa fa-sync-alt"></i> Legacy</a>
+                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-cyber btn-analytics">Analytics <i class="fa fa-chart-line"></i></a>
+                            </div>
+                        `;
                     }
 
                     const col = document.createElement("div");
-                    col.className = "col-xl-4 col-lg-6 card-item";
-                    col.setAttribute("data-name", v.account.toLowerCase());
+                    col.className = "col-xl-4 col-lg-6";
                     col.innerHTML = `
-                        <div class="program-card">
-                            <div class="card-header-inner">
-                                <div>
-                                    <small>Account ID</small>
-                                    <h5>${v.account}</h5>
-                                    <div style="font-size:12px; color:#94a3b8; margin-top:5px;">Active Session</div>
-                                </div>
-                                <div class="status-icon"><i class="fa fa-check"></i></div>
+                        <div class="cyber-card">
+                            <div class="floating-box"></div>
+                            <div>
+                                <div class="status-badge">Status: Active</div>
+                                <div class="project-name">${v.account}</div>
                             </div>
-                            <div class="card-footer-btns">
-                                ${buttons}
-                            </div>
+                            ${actions}
                         </div>
                     `;
-                    cardRow.appendChild(col);
+                    grid.appendChild(col);
                 });
             }
-
-            $("#btnGrid, #btnList").on("click", function() {
-                $(".mode-btn").removeClass("active");
-                $(this).addClass("active");
-                // Add list view specific CSS logic here if needed
-            });
-
-            $("#accSearch").on("keyup", function() {
-                const val = $(this).val().toLowerCase();
-                $(".card-item").each(function() {
-                    $(this).toggle($(this).data("name").includes(val));
-                });
-            });
-
             render();
         });
     </script>
