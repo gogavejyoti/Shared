@@ -7,159 +7,244 @@
 }
 
 @section Styles {
-    <link id="pagestyle" href="/assets/tempcss/app.min.css" rel="stylesheet" />
     <style>
+        @@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
         :root {
-            --glass-bg: rgba(255, 255, 255, 0.95);
-            --primary-grad: linear-gradient(135deg, #20002c 0%, #512b58 100%);
-            --accent-mint: #00ff9d;
-            --soft-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            --transition-main: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --border-color: rgba(0, 0, 0, 0.05);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05);
         }
 
-        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+        body { 
+            background-color: var(--bg-color); 
+            font-family: 'Inter', sans-serif; 
+            color: var(--text-main);
+        }
 
-        /* Dashboard Header */
-        .dashboard-header {
-            background: var(--primary-grad);
-            padding: 25px 35px;
-            border-radius: 16px;
-            margin-bottom: 30px;
-            box-shadow: var(--soft-shadow);
+        /* Top Navigation Bar Styling */
+        .premium-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
+            padding: 24px 0;
+            margin-bottom: 20px;
         }
 
-        .header-left h2 { color: #fff; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
-
-        /* Controls */
-        .search-box { position: relative; width: 300px; }
-        .search-box input {
-            width: 100%;
-            padding: 10px 15px 10px 40px;
-            border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.1);
-            color: white;
+        .vertical-pill {
+            background: white;
+            padding: 8px 16px;
+            border-radius: 99px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            color: var(--primary);
         }
-        .search-box i { position: absolute; left: 15px; top: 13px; color: var(--accent-mint); }
 
-        .view-toggle-btn {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white;
+        /* Controls Area */
+        .controls-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+            padding: 6px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .search-input-modern {
+            border: none;
             padding: 8px 12px;
-            border-radius: 10px;
-            cursor: pointer;
+            outline: none;
+            width: 250px;
+            font-size: 14px;
         }
-        .view-toggle-btn.active { background: var(--accent-mint); color: #20002c; border-color: var(--accent-mint); }
 
-        /* Grid View Layout */
-        .grid-view .program-card {
-            background: var(--glass-bg);
+        .view-btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .view-btn.active {
+            background: var(--bg-color);
+            color: var(--primary);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* GRID VIEW DESIGN */
+        #cardRow.grid-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+        }
+
+        .modern-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.7);
             border-radius: 20px;
             padding: 24px;
-            height: 185px;
-            position: relative;
-            overflow: hidden;
-            transition: var(--transition-main);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            margin-bottom: 24px;
-            box-shadow: var(--soft-shadow);
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+            position: relative;
+            min-height: 180px;
         }
-        .grid-view .program-card:hover { transform: translateY(-8px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
-        .grid-view .account-name { font-size: 1.2rem; font-weight: 800; color: #1a1a1a; z-index: 2; }
 
-        /* List View Layout */
-        .list-view .card-item { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
-        .list-view .program-card {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: space-between;
-            padding: 15px 30px;
-            margin-bottom: 10px;
-            border-radius: 12px;
-            background: white;
+        .modern-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary);
         }
-        .list-view .card-watermark, .list-view small { display: none; }
 
-        /* Tooltip Utility */
-        [data-tooltip] { position: relative; cursor: pointer; }
-        [data-tooltip]:before {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 5px 10px;
-            background: #20002c;
-            color: #fff;
-            font-size: 11px;
-            border-radius: 5px;
-            white-space: nowrap;
-            opacity: 0;
-            transition: 0.3s;
-            pointer-events: none;
-            z-index: 100;
-        }
-        [data-tooltip]:hover:before { opacity: 1; }
-
-        /* Skeleton Loading Animation */
-        .skeleton {
-            background: #eee;
-            background: linear-gradient(110deg, #ececec 8%, #f5f5f5 18%, #ececec 33%);
-            border-radius: 15px;
-            background-size: 200% 100%;
-            animation: 1.5s shine linear infinite;
-        }
-        @@keyframes shine { to { background-position-x: -200%; } }
-
-        /* Card Branding Icons */
-        .card-watermark { position: absolute; right: -10px; bottom: -10px; font-size: 80px; color: rgba(0,0,0,0.03); z-index: 1; }
-        .btn-modern {
-            padding: 8px 15px;
-            border-radius: 8px;
+        .modern-card .account-info h5 {
+            margin: 0;
             font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+        }
+
+        .modern-card .account-info span {
             font-size: 11px;
             text-transform: uppercase;
-            text-decoration: none !important;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        /* LIST VIEW DESIGN (REFINED) */
+        #cardRow.list-view {
             display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .list-view .modern-card {
+            flex-direction: row;
+            align-items: center;
+            min-height: auto;
+            padding: 16px 24px;
+            border-radius: 12px;
+        }
+
+        .list-view .account-info { flex: 1; }
+
+        /* BUTTON ALIGNMENT ENGINE */
+        .action-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .list-view .action-group { margin-top: 0; }
+
+        .btn-saas {
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none !important;
+            display: inline-flex;
             align-items: center;
             gap: 6px;
+            transition: 0.2s;
+            white-space: nowrap; /* Prevents text breaking */
         }
-        .btn-primary { background: var(--primary-grad); color: white !important; }
-        .btn-outline { background: #fff; border: 1.5px solid #eee; color: #555 !important; }
-        .btn-dash { background: #ff4757; color: white !important; }
+
+        .btn-saas-primary {
+            background: var(--primary);
+            color: white !important;
+        }
+
+        .btn-saas-primary:hover { background: var(--primary-hover); }
+
+        .btn-saas-secondary {
+            background: #f1f5f9;
+            color: var(--text-main) !important;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-saas-outline {
+            background: white;
+            border: 1px solid #e2e8f0;
+            color: var(--text-muted) !important;
+        }
+
+        .btn-saas-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary) !important;
+        }
+
+        .icon-circle {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #e0e7ff;
+            color: var(--primary);
+        }
+
+        /* Skeleton Loading */
+        .shimmer {
+            background: #f6f7f8;
+            background-image: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+            background-repeat: no-repeat;
+            background-size: 800px 100%;
+            animation: placeholderShimmer 1.5s linear infinite forwards;
+        }
+
+        @@keyframes placeholderShimmer {
+            0% { background-position: -468px 0; }
+            100% { background-position: 468px 0; }
+        }
     </style>
 }
 
-<div class="container-fluid mt-3">
-    <div class="dashboard-header">
-        <div class="header-left">
-            <h2><i class="fa fa-chart-pie"></i> @vertical</h2>
+<div class="container" style="max-width: 1200px;">
+    <header class="premium-header">
+        <div class="vertical-pill">
+            <i class="fa fa-cube"></i>
+            <span>@vertical</span>
         </div>
-        <div class="controls-right">
-            <div class="search-box">
-                <i class="fa fa-search"></i>
-                <input type="text" id="accountSearch" placeholder="Filter accounts...">
-            </div>
-            <div class="btn-group">
-                <button class="view-toggle-btn active" id="gridMode"><i class="fa fa-th"></i></button>
-                <button class="view-toggle-btn" id="listMode"><i class="fa fa-list"></i></button>
-            </div>
-        </div>
-    </div>
 
-    <div id="cardRow" class="row grid-view">
-        @for(int i=0; i<6; i++) {
-            <div class="col-md-4 skeleton-loader"><div class="skeleton" style="height: 185px; margin-bottom:24px;"></div></div>
-        }
+        <div class="controls-group">
+            <div style="position:relative; display:flex; align-items:center;">
+                <i class="fa fa-search" style="position:absolute; left:12px; color:var(--text-muted)"></i>
+                <input type="text" id="modernSearch" class="search-input-modern" placeholder="Search resources...">
+            </div>
+            <div style="width:1px; height:24px; background:#e2e8f0; margin: 0 4px;"></div>
+            <button class="view-btn active" id="btnGrid" title="Grid View"><i class="fa fa-th-large"></i></button>
+            <button class="view-btn" id="btnList" title="List View"><i class="fa fa-bars"></i></button>
+        </div>
+    </header>
+
+    <div id="cardRow" class="grid-view">
+        <div class="modern-card shimmer"></div>
+        <div class="modern-card shimmer"></div>
+        <div class="modern-card shimmer"></div>
     </div>
 </div>
 
@@ -169,62 +254,61 @@
             const dataArray = @Html.Raw(Json.Serialize(Model));
             const cardRow = document.getElementById("cardRow");
 
-            function initDashboard() {
-                // Short timeout to simulate smooth loading and show skeleton
+            function render() {
                 setTimeout(() => {
-                    $(".skeleton-loader").remove();
-                    renderCards();
-                }, 800);
-            }
-
-            function renderCards() {
-                dataArray.forEach(v => {
-                    const encodedVert = encodeURIComponent(btoa(v.vertical || ''));
-                    const encodedAcc = encodeURIComponent(btoa(v.account || ''));
-                    
-                    let buttons = "";
-                    if (v.isNewRPActivated) {
-                        if (!v.disableLagacy) {
-                            buttons += `<a href='/rpreport/dataentry?vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-outline" data-tooltip="Switch to Legacy View">Legacy</a>`;
+                    cardRow.innerHTML = '';
+                    dataArray.forEach(v => {
+                        const vEnc = encodeURIComponent(btoa(v.vertical || ''));
+                        const aEnc = encodeURIComponent(btoa(v.account || ''));
+                        
+                        let actions = "";
+                        if (v.isNewRPActivated) {
+                            if (!v.disableLagacy) {
+                                actions += `<a href='/rpreport/dataentry?vertical=${vEnc}&account=${aEnc}' class="btn-saas btn-saas-outline">Legacy</a>`;
+                            }
+                            actions += `<a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vEnc}&account=${aEnc}' class="btn-saas btn-saas-primary"><i class="fa fa-edit"></i> RP Input</a>`;
+                            actions += `<a href='/ResourcePlanner/AccountDashboard?vertical=${vEnc}&account=${aEnc}' class="btn-saas btn-saas-secondary" title="Dashboard"><i class="fa fa-chart-line"></i></a>`;
+                        } else {
+                            actions += `<a href='/rpreport/dataentry?vertical=${vEnc}&account=${aEnc}' class="btn-saas btn-saas-primary"><i class="fa fa-edit"></i> RP Input</a>`;
                         }
-                        buttons += `<a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-primary" data-tooltip="Manage Resource Plan"><i class="fa fa-plus"></i> RP Input</a>`;
-                        buttons += `<a href='/ResourcePlanner/AccountDashboard?vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-dash" data-tooltip="View Live Dashboard"><i class="fa fa-chart-line"></i></a>`;
-                    } else {
-                        buttons += `<a href='/rpreport/dataentry?vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-primary" data-tooltip="Open Data Entry"><i class="fa fa-edit"></i> RP Input</a>`;
-                    }
 
-                    const col = document.createElement("div");
-                    col.className = "col-xl-4 col-lg-6 col-md-6 col-sm-12 card-item";
-                    col.setAttribute("data-account", (v.account || '').toLowerCase());
-                    col.innerHTML = `
-                        <div class="program-card">
-                            <div class="card-watermark"><i class="fa fa-folder"></i></div>
-                            <div>
-                                <small style="color: #999; font-weight:700; text-transform:uppercase; letter-spacing:1px; font-size:10px;">Program</small>
-                                <div class="account-name">${v.account}</div>
+                        const card = document.createElement("div");
+                        card.className = "modern-card card-item";
+                        card.setAttribute("data-name", v.account.toLowerCase());
+                        card.innerHTML = `
+                            <div class="account-info">
+                                <span>Project Account</span>
+                                <h5>${v.account}</h5>
                             </div>
-                            <div class="btn-stack">${buttons}</div>
-                        </div>
-                    `;
-                    cardRow.appendChild(col);
-                });
+                            <div class="action-group">
+                                ${actions}
+                            </div>
+                        `;
+                        cardRow.appendChild(card);
+                    });
+                }, 600);
             }
 
-            // Controls logic
-            $("#gridMode, #listMode").on("click", function() {
-                $(".view-toggle-btn").removeClass("active");
+            // View Toggle Logic
+            $("#btnGrid, #btnList").on("click", function() {
+                $(".view-btn").removeClass("active");
                 $(this).addClass("active");
-                $("#cardRow").toggleClass("list-view", this.id === "listMode").toggleClass("grid-view", this.id === "gridMode");
+                if(this.id === "btnList") {
+                    $("#cardRow").removeClass("grid-view").addClass("list-view");
+                } else {
+                    $("#cardRow").removeClass("list-view").addClass("grid-view");
+                }
             });
 
-            $("#accountSearch").on("keyup", function() {
+            // Search Filter
+            $("#modernSearch").on("keyup", function() {
                 const val = $(this).val().toLowerCase();
                 $(".card-item").each(function() {
-                    $(this).toggle($(this).data("account").includes(val));
+                    $(this).toggle($(this).data("name").includes(val));
                 });
             });
 
-            initDashboard();
+            render();
         });
     </script>
 }
