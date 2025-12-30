@@ -3,6 +3,7 @@
 
 @{
     ViewData["Title"] = "RP Programs";
+    var vertical = Convert.ToString(ViewData["Vertical"])?.ToUpper() ?? "OVERVIEW";
 }
 
 @section Styles {
@@ -11,11 +12,10 @@
 
         :root {
             --bg-deep: #050514;
-            --card-bg: rgba(20, 20, 45, 0.6);
+            --card-bg: rgba(20, 20, 45, 0.7);
             --border-cyan: #22d3ee;
             --border-purple: #a855f7;
             --border-pink: #ec4899;
-            --status-green: #4ade80;
         }
 
         body {
@@ -23,173 +23,125 @@
             color: #ffffff;
             font-family: 'Plus Jakarta Sans', sans-serif;
             margin: 0;
-            padding: 40px;
+            padding: 0;
             min-height: 100vh;
             overflow-x: hidden;
-            /* Mesh Gradient Orbs */
-            background-image: 
-                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
-                radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.15) 0%, transparent 40%);
         }
 
-        /* 3D Wireframe Grid Background */
-        body::before {
-            content: "";
+        /* 3D Wireframe Grid Background - FIXED */
+        .background-overlay {
             position: fixed;
-            top: 0; left: -50%; width: 200%; height: 200%;
-            background-image: 
-                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-            background-size: 60px 60px;
-            transform: perspective(500px) rotateX(60deg);
+            top: 0; left: 0; width: 100%; height: 100%;
             z-index: -1;
-            mask-image: linear-gradient(to bottom, transparent, black, transparent);
+            background: radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.2) 0%, transparent 80%);
         }
 
-        /* Outer Shell */
-        .cyber-container {
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 40px;
-            padding: 40px;
+        .background-overlay::before {
+            content: "";
+            position: absolute;
+            bottom: -20%; left: -50%; width: 200%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+            background-size: 50px 50px;
+            transform: perspective(600px) rotateX(60deg);
+            mask-image: linear-gradient(to top, black, transparent);
+        }
+
+        .cyber-shell {
             max-width: 1300px;
-            margin: 0 auto;
-        }
-
-        /* Search Bar */
-        .search-area {
-            position: relative;
-            margin-bottom: 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .search-input {
-            background: rgba(255, 255, 255, 0.05);
+            margin: 60px auto;
+            padding: 40px;
+            background: rgba(13, 17, 23, 0.7);
+            backdrop-filter: blur(20px);
+            border-radius: 40px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 12px 20px 12px 45px;
-            color: #fff;
-            width: 350px;
-            outline: none;
         }
 
-        /* The Exact Card Design */
+        /* Card Design - 3 per row logic */
         .project-card {
             background: var(--card-bg);
             border: 1.5px solid var(--border-cyan);
             border-radius: 28px;
-            padding: 28px;
-            height: 240px;
+            padding: 24px;
+            height: 250px;
             position: relative;
             margin-bottom: 24px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
-            transition: all 0.3s ease;
+            transition: 0.3s;
         }
 
-        /* Alternate Border Colors */
         .card-purple { border-color: var(--border-purple); }
         .card-pink { border-color: var(--border-pink); }
 
-        .project-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 0 30px rgba(34, 211, 238, 0.2);
-            background: rgba(30, 30, 60, 0.8);
-        }
-
-        .status-pill {
-            background: rgba(74, 222, 128, 0.1);
-            color: var(--status-green);
-            font-size: 10px;
-            font-weight: 800;
-            padding: 4px 10px;
-            border-radius: 6px;
-            text-transform: uppercase;
-            display: inline-block;
-        }
-
         .project-title {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 700;
-            margin-top: 15px;
-            letter-spacing: -0.5px;
+            margin-top: 10px;
+            line-height: 1.2;
         }
 
-        .card-cube {
-            position: absolute;
-            top: 30px;
-            right: 30px;
-            width: 32px;
-            height: 32px;
-            background: rgba(255, 255, 255, 0.1);
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-        }
-
-        /* Button Layout Engine */
-        .footer-actions {
+        /* Perfect Button Alignment */
+        .button-wrapper {
+            margin-top: auto; /* Pushes buttons to bottom */
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
         }
 
         .btn-pill {
-            padding: 10px 20px;
+            padding: 10px 15px;
             border-radius: 50px;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 11px;
+            text-transform: uppercase;
             text-decoration: none !important;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: 0.3s;
-        }
-
-        /* Analytics & Legacy Style */
-        .btn-legacy { background: rgba(248, 113, 113, 0.2); color: #f87171 !important; border: 1px solid rgba(248, 113, 113, 0.3); }
-        .btn-analytics { background: #0ea5e9; color: white !important; flex: 1; justify-content: center; }
-
-        /* The White "Launch" Center Button */
-        .btn-launch-white {
-            background: #ffffff;
-            color: #000000 !important;
-            width: 100%;
-            justify-content: center;
-            padding: 14px;
-            font-size: 14px;
-        }
-
-        .bolt-circle {
-            width: 44px;
-            height: 44px;
-            background: #4f46e5;
-            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 18px;
+            gap: 6px;
+            transition: 0.2s;
+        }
+
+        .btn-legacy { background: rgba(255, 255, 255, 0.05); color: #fff !important; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-analytics { background: #0ea5e9; color: white !important; flex: 1; }
+        
+        /* The Middle Card Special Button */
+        .btn-launch-full { background: #fff; color: #000 !important; flex: 1; padding: 14px; }
+        .bolt-btn { 
+            width: 44px; height: 44px; background: #6366f1; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+
+        .status-tag {
+            font-size: 9px;
+            background: rgba(0, 255, 135, 0.15);
+            color: #00ff87;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 800;
+            display: inline-block;
         }
     </style>
 }
 
-<div class="cyber-container">
-    <div class="search-area">
-        <div style="position:relative;">
-            <i class="fa fa-search" style="position:absolute; left:18px; top:15px; color:#64748b;"></i>
-            <input type="text" id="cyberSearch" class="search-input" placeholder="Search accounts...">
+<div class="background-overlay"></div>
+
+<div class="cyber-shell">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div style="position:relative; width: 400px;">
+            <i class="fa fa-search" style="position:absolute; left:20px; top:15px; color:#888;"></i>
+            <input type="text" id="mainSearch" placeholder="Search architecture..." 
+                   style="width:100%; padding:12px 15px 12px 50px; border-radius:12px; border:1px solid #333; background:#000; color:#fff; outline:none;">
         </div>
-        <div style="display:flex; gap:20px; color:#64748b; font-size:18px;">
-            <i class="fa fa-th-large"></i>
-            <i class="fa fa-bookmark"></i>
-            <i class="fa fa-sliders-h"></i>
+        <div class="text-muted">
+            <i class="fa fa-th-large mx-2"></i>
+            <i class="fa fa-bookmark mx-2"></i>
         </div>
     </div>
 
-    <div id="cyberGrid" class="row">
+    <div id="cardGrid" class="row">
         </div>
 </div>
 
@@ -197,57 +149,52 @@
     <script>
         $(function () {
             const data = @Html.Raw(Json.Serialize(Model));
-            const grid = document.getElementById("cyberGrid");
+            const grid = document.getElementById("cardGrid");
 
             function render() {
                 grid.innerHTML = '';
-                data.forEach((v, idx) => {
+                data.forEach((v, i) => {
                     const vE = encodeURIComponent(btoa(v.vertical || ''));
                     const aE = encodeURIComponent(btoa(v.account || ''));
                     
-                    // Determine card border color based on index to match image variety
-                    let colorClass = "";
-                    if (idx % 3 === 1) colorClass = "card-purple";
-                    else if (idx % 3 === 2) colorClass = "card-pink";
-
-                    let buttonHtml = "";
-                    // Replicating the middle "Launch" layout specifically
-                    if (idx === 4) { 
-                        buttonHtml = `
-                            <div class="footer-actions w-100">
-                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-pill btn-launch-white">Launch RP Input</a>
-                                <div class="bolt-circle"><i class="fa fa-bolt"></i></div>
-                            </div>
-                        `;
+                    // Match image variety
+                    let colorClass = (i % 3 === 1) ? "card-purple" : (i % 3 === 2) ? "card-pink" : "";
+                    
+                    let buttons = "";
+                    if (i === 4) { // Specifically styling the middle card like the image
+                        buttons = `
+                            <div class="button-wrapper">
+                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-pill btn-launch-full">Launch RP Input</a>
+                                <div class="bolt-btn text-white"><i class="fa fa-bolt"></i></div>
+                            </div>`;
                     } else {
-                        buttonHtml = `
-                            <div class="footer-actions">
-                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-legacy"><i class="fa fa-history"></i> Legacy</a>
+                        buttons = `
+                            <div class="button-wrapper">
+                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-legacy">Legacy</a>
                                 <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-pill btn-analytics">Analytics <i class="fa fa-chart-line"></i></a>
-                            </div>
-                        `;
+                            </div>`;
                     }
 
                     const col = document.createElement("div");
-                    col.className = "col-xl-4 col-lg-6 card-wrapper";
+                    col.className = "col-xl-4 col-lg-6 col-md-6 mb-4 card-item"; // Forced 3-column on XL
                     col.setAttribute("data-name", v.account.toLowerCase());
                     col.innerHTML = `
                         <div class="project-card ${colorClass}">
-                            <div class="card-cube"></div>
-                            <div class="top-meta">
-                                <span class="status-pill">Status: Active</span>
+                            <div style="position:absolute; top:20px; right:20px; opacity:0.2;"><i class="fa fa-cube fa-2x"></i></div>
+                            <div>
+                                <span class="status-tag">Status: Active</span>
                                 <div class="project-title">${v.account}</div>
                             </div>
-                            ${buttonHtml}
+                            ${buttons}
                         </div>
                     `;
                     grid.appendChild(col);
                 });
             }
 
-            $("#cyberSearch").on("keyup", function() {
+            $("#mainSearch").on("keyup", function() {
                 const val = $(this).val().toLowerCase();
-                $(".card-wrapper").each(function() {
+                $(".card-item").each(function() {
                     $(this).toggle($(this).data("name").includes(val));
                 });
             });
