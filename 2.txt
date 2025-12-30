@@ -11,48 +11,26 @@ AVERAGEIF: function () {
     try {
         var sum = 0,
             count = 0,
-            criteriaRange = arguments[0].data,
-            rowl = arguments[0].rowl,
-            coll = arguments[0].coll,
+            criteriaRange = p.getRangeArray(arguments[0].data)[0],
             criteria = Ua(arguments[1]),
             avgRange = [];
 
-        // Handle average_range (3rd argument)
+        // average_range
         if (arguments[2]) {
-            var startCell = arguments[2].startCell,
-                avgRowl = arguments[2].rowl,
-                avgColl = arguments[2].coll,
-                sheetName = arguments[2].sheetName;
-
-            if (rowl === avgRowl && coll === avgColl) {
-                avgRange = arguments[2].data;
-            } else {
-                var r = [], c = [];
-                r[0] = parseInt(startCell.replace(/[^0-9]/g, ""), 10) - 1;
-                c[0] = cl(startCell.replace(/[^A-Za-z]/g, ""));
-                r[1] = r[0] + rowl - 1;
-                c[1] = c[0] + coll - 1;
-
-                var endCol = lt(c[1]),
-                    endRow = r[1] + 1,
-                    endCell = endCol + endRow,
-                    rangeStr = sheetName + "!" + startCell + ":" + endCell;
-
-                avgRange = nr(rangeStr).data;
-            }
-            avgRange = p.getRangeArray(avgRange)[0];
+            avgRange = p.getRangeArray(arguments[2].data)[0];
         }
-
-        criteriaRange = p.getRangeArray(criteriaRange)[0];
 
         for (var i = 0; i < criteriaRange.length; i++) {
             var critVal = criteriaRange[i];
 
-            if (critVal !== null && critVal !== undefined && p.acompareb(critVal, criteria)) {
+            // ✅ allow ZERO through criteria matching
+            if (
+                (critVal === 0 || critVal === "0" || (critVal !== null && critVal !== undefined)) &&
+                p.acompareb(critVal, criteria)
+            ) {
                 var value = avgRange.length ? avgRange[i] : critVal;
 
-                // Excel rules:
-                // include 0, exclude blanks & non-numeric
+                // ✅ Excel numeric rules
                 if (value === null || value === undefined || value === "" || isNaN(value))
                     continue;
 
@@ -61,7 +39,7 @@ AVERAGEIF: function () {
             }
         }
 
-        // Excel-compatible result
+        // ✅ Excel behaviour
         return count === 0 ? p.error.d : Il(sum / count);
 
     } catch (err) {
