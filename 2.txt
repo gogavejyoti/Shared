@@ -8,247 +8,233 @@
 
 @section Styles {
     <style>
-        @@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');
+        @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
         :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --secondary-gradient: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-            --dash-gradient: linear-gradient(135deg, #00c6fb 0%, #005bea 100%);
-            --legacy-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            --glass: rgba(255, 255, 255, 0.9);
+            --primary-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            --legacy-grad: linear-gradient(135deg, #f43f5e 0%, #fb923c 100%);
+            --dash-grad: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%);
+            --bg-mesh: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0, transparent 50%), 
+                       radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.15) 0, transparent 50%),
+                       radial-gradient(at 100% 100%, rgba(20, 184, 166, 0.15) 0, transparent 50%);
         }
 
         body {
-            background: #f0f2f5;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(118, 75, 162, 0.1) 0, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(0, 255, 157, 0.1) 0, transparent 50%);
-            font-family: 'Poppins', sans-serif;
+            background-color: #f8fafc;
+            background-image: var(--bg-mesh);
+            font-family: 'Plus Jakarta Sans', sans-serif;
             min-height: 100vh;
         }
 
-        /* Animated Header Area */
-        .header-card {
-            background: var(--primary-gradient);
-            border-radius: 24px;
-            padding: 40px;
+        /* Modern Hero Header */
+        .hero-banner {
+            background: var(--primary-grad);
+            border-radius: 30px;
+            padding: 50px;
             color: white;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            margin-bottom: 40px;
+            box-shadow: 0 20px 50px rgba(99, 102, 241, 0.2);
+            margin: 20px 0 40px 0;
             position: relative;
             overflow: hidden;
         }
 
-        .header-card::before {
+        .hero-banner::after {
             content: "";
             position: absolute;
-            top: -50px; right: -50px;
-            width: 200px; height: 200px;
-            background: rgba(255,255,255,0.1);
+            width: 300px; height: 300px;
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 50%;
+            top: -100px; right: -100px;
         }
 
-        /* Search & Toggle Bar */
-        .glass-controls {
-            background: var(--glass);
-            backdrop-filter: blur(10px);
-            padding: 15px 25px;
-            border-radius: 99px;
+        /* Search & Filter Bar */
+        .glass-toolbar {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            padding: 12px 24px;
+            border-radius: 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            margin-top: -30px;
-            width: 90%;
-            margin-left: auto;
-            margin-right: auto;
-            border: 1px solid rgba(255,255,255,0.5);
-            z-index: 10;
-            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.03);
+            margin-bottom: 30px;
         }
 
-        /* GRID VIEW Styling */
-        .grid-view .modern-card {
+        /* Grid Item Design */
+        .program-card {
             background: white;
-            border-radius: 25px;
-            padding: 30px;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border: none;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-            position: relative;
-            margin-bottom: 30px;
+            border-radius: 24px;
+            padding: 28px;
+            border: 1px solid #f1f5f9;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            min-height: 220px;
+            height: 220px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
 
-        .grid-view .modern-card:hover {
-            transform: translateY(-15px);
-            box-shadow: 0 30px 60px rgba(0,0,0,0.12);
+        .program-card:hover {
+            transform: translateY(-12px) scale(1.02);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            border-color: #a855f7;
         }
 
-        .account-badge {
-            background: #f3f0ff;
-            color: #764ba2;
-            padding: 5px 12px;
-            border-radius: 8px;
-            font-size: 10px;
+        .account-name {
+            font-size: 1.3rem;
             font-weight: 800;
-            text-transform: uppercase;
+            color: #1e293b;
+            letter-spacing: -0.5px;
+            margin-top: 5px;
         }
 
-        .account-title {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: #2d3436;
-            margin-top: 10px;
-            display: block;
+        .status-dot {
+            width: 8px; height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+            box-shadow: 0 0 10px #22c55e;
         }
 
-        /* Colorful Buttons - Fixed Alignment */
-        .btn-container {
+        /* Modern Action Buttons */
+        .action-flex {
             display: flex;
-            gap: 10px;
-            margin-top: 25px;
-            flex-wrap: wrap; /* Important for alignment */
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
         }
 
-        .btn-modern {
-            padding: 12px 20px;
-            border-radius: 15px;
+        .btn-premium {
+            padding: 10px 20px;
+            border-radius: 12px;
             font-weight: 700;
             font-size: 12px;
             text-decoration: none !important;
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 8px;
             color: white !important;
-            transition: 0.3s;
             border: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .btn-modern:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+        .btn-premium:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+        }
 
-        .btn-rp { background: var(--primary-gradient); }
-        .btn-legacy { background: var(--legacy-gradient); }
-        .btn-dashboard { background: var(--dash-gradient); }
+        .btn-rp { background: var(--primary-grad); }
+        .btn-legacy { background: var(--legacy-grad); }
+        /* Fixed Dashboard Button */
+        .btn-dash { background: var(--dash-grad); }
 
-        /* LIST VIEW REFINEMENT */
-        .list-view .modern-card {
+        /* List View Overrides */
+        .list-view .program-card {
             flex-direction: row;
+            height: auto;
+            padding: 15px 35px;
             align-items: center;
-            justify-content: space-between;
-            min-height: auto;
-            padding: 15px 40px;
-            border-radius: 15px;
-            margin-bottom: 12px;
+            border-radius: 16px;
         }
-        .list-view .btn-container { margin-top: 0; }
+        .list-view .action-flex { margin-top: 0; }
 
         /* Search Input */
-        .search-wrapper { position: relative; flex: 1; max-width: 400px; }
-        .search-wrapper i { position: absolute; left: 15px; top: 12px; color: #764ba2; }
-        .search-wrapper input {
-            width: 100%;
-            padding: 10px 20px 10px 45px;
-            border-radius: 50px;
-            border: 1px solid #eee;
-            background: #f9f9f9;
-            outline: none;
+        .search-container { position: relative; width: 350px; }
+        .search-container i { position: absolute; left: 15px; top: 12px; color: #6366f1; }
+        .search-container input {
+            width: 100%; padding: 10px 15px 10px 45px;
+            border-radius: 12px; border: 1px solid #e2e8f0;
+            outline: none; background: #fff;
         }
-
-        .toggle-icons { display: flex; gap: 10px; }
-        .tgl-btn {
-            width: 40px; height: 40px;
-            border-radius: 50%;
-            border: none;
-            background: #eee;
-            cursor: pointer;
-            color: #777;
-        }
-        .tgl-btn.active { background: #764ba2; color: white; }
     </style>
 }
 
-<div class="container-fluid" style="padding: 20px 50px;">
-    <div class="header-card">
-        <h1 style="font-weight: 800; margin-bottom: 5px;">RP Programs</h1>
-        <p style="opacity: 0.8; font-weight: 400;">Explore and manage resources for <span style="font-weight: 700; color: #00ff9d;">@vertical</span></p>
+<div class="container-fluid" style="max-width: 1400px; padding: 0 40px;">
+    <div class="hero-banner">
+        <span style="text-transform: uppercase; font-weight: 800; font-size: 12px; letter-spacing: 2px; opacity: 0.8;">Platform Explorer</span>
+        <h1 style="font-weight: 800; font-size: 3rem; margin: 0;">RP Programs</h1>
+        <p style="font-size: 1.1rem; opacity: 0.9;">Managing accounts for <strong>@vertical</strong></p>
     </div>
 
-    <div class="glass-controls">
-        <div class="search-wrapper">
+    <div class="glass-toolbar">
+        <div class="search-container">
             <i class="fa fa-search"></i>
-            <input type="text" id="mainSearch" placeholder="Type account name to search...">
+            <input type="text" id="accSearch" placeholder="Find an account...">
         </div>
-        <div class="toggle-icons">
-            <button class="tgl-btn active" id="btnGrid"><i class="fa fa-th-large"></i></button>
-            <button class="tgl-btn" id="btnList"><i class="fa fa-list"></i></button>
+        <div class="view-controls" style="display:flex; gap:10px;">
+            <button class="btn btn-light" id="setGrid" style="border-radius:10px;"><i class="fa fa-th"></i> Grid</button>
+            <button class="btn btn-light" id="setList" style="border-radius:10px;"><i class="fa fa-list"></i> List</button>
         </div>
     </div>
 
-    <div id="cardRow" class="row grid-view mt-5">
+    <div id="mainGrid" class="row grid-view">
         </div>
 </div>
 
 @section Scripts {
     <script>
         $(function () {
-            const dataArray = @Html.Raw(Json.Serialize(Model));
-            const cardRow = document.getElementById("cardRow");
+            const data = @Html.Raw(Json.Serialize(Model));
+            const grid = document.getElementById("mainGrid");
 
-            function render() {
-                cardRow.innerHTML = '';
-                dataArray.forEach(v => {
-                    const vEnc = encodeURIComponent(btoa(v.vertical || ''));
-                    const aEnc = encodeURIComponent(btoa(v.account || ''));
+            function build() {
+                grid.innerHTML = '';
+                data.forEach(v => {
+                    const vE = encodeURIComponent(btoa(v.vertical || ''));
+                    const aE = encodeURIComponent(btoa(v.account || ''));
                     
-                    let btns = "";
+                    let actions = "";
                     if (v.isNewRPActivated) {
                         if (!v.disableLagacy) {
-                            btns += `<a href='/rpreport/dataentry?vertical=${vEnc}&account=${aEnc}' class="btn-modern btn-legacy"><i class="fa fa-history"></i> Legacy</a>`;
+                            actions += `<a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-premium btn-legacy"><i class="fa fa-clock-rotate-left"></i> Legacy</a>`;
                         }
-                        btns += `<a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vEnc}&account=${aEnc}' class="btn-modern btn-rp"><i class="fa fa-rocket"></i> RP Input</a>`;
-                        // FIXED DASHBOARD BUTTON: Added Text and Icon
-                        btns += `<a href='/ResourcePlanner/AccountDashboard?vertical=${vEnc}&account=${aEnc}' class="btn-modern btn-dashboard"><i class="fa fa-chart-pie"></i> Dashboard</a>`;
+                        actions += `<a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-premium btn-rp"><i class="fa fa-plus-circle"></i> RP Input</a>`;
+                        // Dashboard Button Fix: Added Class and Label
+                        actions += `<a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-premium btn-dash"><i class="fa fa-chart-line"></i> Dashboard</a>`;
                     } else {
-                        btns += `<a href='/rpreport/dataentry?vertical=${vEnc}&account=${aEnc}' class="btn-modern btn-rp"><i class="fa fa-edit"></i> RP Input</a>`;
+                        actions += `<a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-premium btn-rp"><i class="fa fa-edit"></i> RP Input</a>`;
                     }
 
-                    const col = document.createElement("div");
-                    col.className = "col-xl-4 col-lg-6 col-md-6 col-sm-12 card-item";
-                    col.setAttribute("data-name", v.account.toLowerCase());
-                    col.innerHTML = `
-                        <div class="modern-card">
-                            <div class="content-top">
-                                <span class="account-badge">Active Program</span>
-                                <span class="account-title">${v.account}</span>
+                    const card = document.createElement("div");
+                    card.className = "col-xl-4 col-lg-6 card-wrapper";
+                    card.setAttribute("data-title", v.account.toLowerCase());
+                    card.innerHTML = `
+                        <div class="program-card">
+                            <div>
+                                <div style="font-size: 11px; font-weight: 700; color: #64748b;"><span class="status-dot"></span> LIVE PROGRAM</div>
+                                <div class="account-name">${v.account}</div>
                             </div>
-                            <div class="btn-container">
-                                ${btns}
+                            <div class="action-flex">
+                                ${actions}
                             </div>
                         </div>
                     `;
-                    cardRow.appendChild(col);
+                    grid.appendChild(card);
                 });
             }
 
-            $("#btnGrid, #btnList").on("click", function() {
-                $(".tgl-btn").removeClass("active");
-                $(this).addClass("active");
-                $("#cardRow").toggleClass("list-view", this.id === "btnList").toggleClass("grid-view", this.id === "btnGrid");
-            });
-
-            $("#mainSearch").on("keyup", function() {
+            $("#accSearch").on("keyup", function() {
                 const val = $(this).val().toLowerCase();
-                $(".card-item").each(function() {
-                    $(this).toggle($(this).data("name").includes(val));
+                $(".card-wrapper").each(function() {
+                    $(this).toggle($(this).data("title").includes(val));
                 });
             });
 
-            render();
+            $("#setGrid, #setList").on("click", function() {
+                $("#mainGrid").toggleClass("list-view", this.id === "setList").toggleClass("grid-view", this.id === "setGrid");
+                // Re-adjust columns for list view
+                if(this.id === "setList") {
+                    $(".card-wrapper").removeClass("col-xl-4 col-lg-6").addClass("col-12");
+                } else {
+                    $(".card-wrapper").addClass("col-xl-4 col-lg-6").removeClass("col-12");
+                }
+            });
+
+            build();
         });
     </script>
 }
