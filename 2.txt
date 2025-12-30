@@ -2,146 +2,138 @@
 @model List<Sutherland.DataMagnifier.Entities.Master.MastRPJobCodeLob>
 
 @{
-    ViewData["Title"] = "RP Programs";
-    var vertical = Convert.ToString(ViewData["Vertical"])?.ToUpper() ?? "OVERVIEW";
+    ViewData["Title"] = "Account Dashboard";
 }
 
 @section Styles {
     <style>
         @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
-        :root {
-            --bg-deep: #050514;
-            --card-bg: rgba(20, 20, 45, 0.7);
-            --border-cyan: #22d3ee;
-            --border-purple: #a855f7;
-            --border-pink: #ec4899;
-        }
-
         body {
-            background-color: var(--bg-deep);
-            color: #ffffff;
+            /* PATH TO YOUR LOCAL DOWNLOADED IMAGE */
+            background: #020617 url('/images/your-local-background.jpg') no-repeat center center fixed;
+            background-size: cover;
             font-family: 'Plus Jakarta Sans', sans-serif;
+            color: #fff;
             margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* 3D Wireframe Grid Background - FIXED */
-        .background-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: -1;
-            background: radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.2) 0%, transparent 80%);
-        }
-
-        .background-overlay::before {
-            content: "";
-            position: absolute;
-            bottom: -20%; left: -50%; width: 200%; height: 100%;
-            background-image: 
-                linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-            background-size: 50px 50px;
-            transform: perspective(600px) rotateX(60deg);
-            mask-image: linear-gradient(to top, black, transparent);
-        }
-
-        .cyber-shell {
-            max-width: 1300px;
-            margin: 60px auto;
             padding: 40px;
-            background: rgba(13, 17, 23, 0.7);
-            backdrop-filter: blur(20px);
-            border-radius: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 100vh;
         }
 
-        /* Card Design - 3 per row logic */
-        .project-card {
-            background: var(--card-bg);
-            border: 1.5px solid var(--border-cyan);
+        /* The main shell that holds everything */
+        .dashboard-wrapper {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* STRICT 3-COLUMN GRID */
+        .tile-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* Exactly 3 per row */
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        /* THE CARD (Matching the Image Aesthetic) */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.7); /* Deep translucent */
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 210, 255, 0.3); /* Neon Cyan Border */
             border-radius: 28px;
-            padding: 24px;
-            height: 250px;
-            position: relative;
-            margin-bottom: 24px;
+            padding: 30px;
+            height: 260px;
             display: flex;
             flex-direction: column;
-            transition: 0.3s;
+            justify-content: space-between; /* This forces buttons to the bottom */
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
 
-        .card-purple { border-color: var(--border-purple); }
-        .card-pink { border-color: var(--border-pink); }
+        /* Color Variants for the borders */
+        .border-purple { border-color: rgba(168, 85, 247, 0.4); }
+        .border-pink { border-color: rgba(236, 72, 153, 0.4); }
 
-        .project-title {
-            font-size: 1.4rem;
+        .glass-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0, 210, 255, 0.2);
+            background: rgba(30, 41, 59, 0.85);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .status-badge {
+            font-size: 10px;
+            font-weight: 800;
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+
+        .account-title {
+            font-size: 1.5rem;
             font-weight: 700;
-            margin-top: 10px;
+            letter-spacing: -0.5px;
             line-height: 1.2;
         }
 
-        /* Perfect Button Alignment */
-        .button-wrapper {
-            margin-top: auto; /* Pushes buttons to bottom */
+        /* THE BUTTON DOCK (Perfectly Aligned) */
+        .action-dock {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
         }
 
-        .btn-pill {
-            padding: 10px 15px;
+        .btn-modern {
+            padding: 12px 18px;
             border-radius: 50px;
+            font-size: 12px;
             font-weight: 700;
-            font-size: 11px;
             text-transform: uppercase;
             text-decoration: none !important;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            transition: 0.2s;
+            transition: 0.2s ease;
         }
 
-        .btn-legacy { background: rgba(255, 255, 255, 0.05); color: #fff !important; border: 1px solid rgba(255,255,255,0.2); }
-        .btn-analytics { background: #0ea5e9; color: white !important; flex: 1; }
-        
-        /* The Middle Card Special Button */
-        .btn-launch-full { background: #fff; color: #000 !important; flex: 1; padding: 14px; }
-        .bolt-btn { 
-            width: 44px; height: 44px; background: #6366f1; border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        /* Style for standard cards */
+        .btn-legacy { background: rgba(255, 255, 255, 0.05); color: #fff !important; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-analytics { background: #0ea5e9; color: #fff !important; flex: 1; }
+
+        /* Style for the "Main" card (Middle style) */
+        .btn-launch-white { background: #fff; color: #000 !important; flex: 1; }
+        .bolt-circle {
+            width: 44px; height: 44px; background: #6366f1; 
+            border-radius: 50%; color: white; display: flex; 
+            align-items: center; justify-content: center; font-size: 18px;
         }
 
-        .status-tag {
-            font-size: 9px;
-            background: rgba(0, 255, 135, 0.15);
-            color: #00ff87;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-weight: 800;
-            display: inline-block;
+        /* Search bar styling */
+        .search-container input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 20px 12px 45px;
+            border-radius: 12px;
+            color: white;
+            width: 350px;
+            outline: none;
         }
     </style>
 }
 
-<div class="background-overlay"></div>
-
-<div class="cyber-shell">
-    <div class="d-flex justify-content-between align-items-center mb-5">
-        <div style="position:relative; width: 400px;">
-            <i class="fa fa-search" style="position:absolute; left:20px; top:15px; color:#888;"></i>
-            <input type="text" id="mainSearch" placeholder="Search architecture..." 
-                   style="width:100%; padding:12px 15px 12px 50px; border-radius:12px; border:1px solid #333; background:#000; color:#fff; outline:none;">
-        </div>
-        <div class="text-muted">
-            <i class="fa fa-th-large mx-2"></i>
-            <i class="fa fa-bookmark mx-2"></i>
+<div class="dashboard-wrapper">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 style="font-weight:800">Program Management</h2>
+        <div class="search-container" style="position:relative;">
+            <i class="fa fa-search" style="position:absolute; left:18px; top:15px; color:#64748b"></i>
+            <input type="text" id="tileSearch" placeholder="Search accounts...">
         </div>
     </div>
 
-    <div id="cardGrid" class="row">
+    <div id="accountGrid" class="tile-grid">
         </div>
 </div>
 
@@ -149,7 +141,7 @@
     <script>
         $(function () {
             const data = @Html.Raw(Json.Serialize(Model));
-            const grid = document.getElementById("cardGrid");
+            const grid = document.getElementById("accountGrid");
 
             function render() {
                 grid.innerHTML = '';
@@ -157,45 +149,47 @@
                     const vE = encodeURIComponent(btoa(v.vertical || ''));
                     const aE = encodeURIComponent(btoa(v.account || ''));
                     
-                    // Match image variety
-                    let colorClass = (i % 3 === 1) ? "card-purple" : (i % 3 === 2) ? "card-pink" : "";
-                    
-                    let buttons = "";
-                    if (i === 4) { // Specifically styling the middle card like the image
-                        buttons = `
-                            <div class="button-wrapper">
-                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-pill btn-launch-full">Launch RP Input</a>
-                                <div class="bolt-btn text-white"><i class="fa fa-bolt"></i></div>
+                    // Logic to match the color variety in the reference image
+                    let colorClass = "";
+                    if (i % 3 === 1) colorClass = "border-purple";
+                    if (i % 3 === 2) colorClass = "border-pink";
+
+                    let actionContent = "";
+                    // Specifically styling the middle-type tiles like the image
+                    if (i === 1 || i === 4) { 
+                        actionContent = `
+                            <div class="action-dock">
+                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-modern btn-launch-white">Launch RP Input</a>
+                                <div class="bolt-circle"><i class="fa fa-bolt"></i></div>
                             </div>`;
                     } else {
-                        buttons = `
-                            <div class="button-wrapper">
-                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-legacy">Legacy</a>
-                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-pill btn-analytics">Analytics <i class="fa fa-chart-line"></i></a>
+                        actionContent = `
+                            <div class="action-dock">
+                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-modern btn-legacy">Legacy</a>
+                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-modern btn-analytics">Analytics <i class="fa fa-chart-line"></i></a>
                             </div>`;
                     }
 
-                    const col = document.createElement("div");
-                    col.className = "col-xl-4 col-lg-6 col-md-6 mb-4 card-item"; // Forced 3-column on XL
-                    col.setAttribute("data-name", v.account.toLowerCase());
-                    col.innerHTML = `
-                        <div class="project-card ${colorClass}">
-                            <div style="position:absolute; top:20px; right:20px; opacity:0.2;"><i class="fa fa-cube fa-2x"></i></div>
+                    const card = document.createElement("div");
+                    card.className = "card-item-container";
+                    card.setAttribute("data-title", v.account.toLowerCase());
+                    card.innerHTML = `
+                        <div class="glass-card ${colorClass}">
                             <div>
-                                <span class="status-tag">Status: Active</span>
-                                <div class="project-title">${v.account}</div>
+                                <span class="status-badge">ACTIVE SESSION</span>
+                                <div class="account-title">${v.account}</div>
                             </div>
-                            ${buttons}
+                            ${actionContent}
                         </div>
                     `;
-                    grid.appendChild(col);
+                    grid.appendChild(card);
                 });
             }
 
-            $("#mainSearch").on("keyup", function() {
-                const val = $(this).val().toLowerCase();
-                $(".card-item").each(function() {
-                    $(this).toggle($(this).data("name").includes(val));
+            $("#tileSearch").on("keyup", function() {
+                const term = $(this).val().toLowerCase();
+                $(".card-item-container").each(function() {
+                    $(this).toggle($(this).data("title").includes(term));
                 });
             });
 
