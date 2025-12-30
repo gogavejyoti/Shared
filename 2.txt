@@ -3,291 +3,228 @@
 
 @{
     ViewData["Title"] = "RP Programs";
+    var vertical = Convert.ToString(ViewData["Vertical"])?.ToUpper() ?? "OVERVIEW";
 }
-
-@{
-    ViewData["mainmenu_scroll"] = ""; //pagescroll , fixedscroll
-    ViewData["body_class"] = "sidebar-collapse";
-    ViewData["html_class"] = "";
-    ViewData["pagetopbar_class"] = "sidebar_shift";
-    ViewData["maincontent_class"] = "sidebar_shift";
-    ViewData["maincontent_type"] = "";
-    ViewData["pagesidebar_class"] = "collapseit";
-    ViewData["pagechatapi_class"] = "";
-    ViewData["chatapiwindows_demo"] = "";
-    ViewData["chatapiwindows_class"] = "";
-}
-
-
-
-<div class="clearfix"></div>
-<section class="box">
-    <header class="panel_header" style="min-height:30px!important;background: linear-gradient(to right, #20002c, #cbb4d4)!important;">
-        @if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "BANKING AND FINANCE")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-bank icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "TRAVEL")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-plane icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "WAH")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-home icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "INSURANCE")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-medkit icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "RETAIL")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-shopping-cart icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "TECHNOLOGY")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-desktop icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "AMAZON")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-amazon icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "TELECOMATT")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-globe icon-lg"></i> CME </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "MORTGAGE")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-calculator icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "HEALTHCARE")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-stethoscope icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "COMMUNICATIONS")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-globe icon-lg"></i> CME </h2>
-        }
-        else if (Convert.ToString(ViewData["Vertical"]).ToUpper() == "T-MOBILE")
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-globe icon-lg"></i> CME </h2>
-        }
-        else
-        {
-            <h2 class="title pull-left" style="padding-top:0px!important;color:#fff;line-height:0px!important"><i class="fa fa-paper-plane icon-lg"></i> @ViewData["Vertical"] </h2>
-        }
-
-    </header>
-</section>
-
-<div id="cardContainer" class="container mt-4">
-    <div class="row" id="cardRow" style="zoom:90%"></div>
-</div>
-
-
 
 @section Styles {
-@*    <link href="~/lib/fliper/makisu.css" rel="stylesheet" asp-append-version="true" />*@
     <link id="pagestyle" href="/assets/tempcss/app.min.css" rel="stylesheet" />
     <style>
-        .card {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --primary-grad: linear-gradient(135deg, #20002c 0%, #512b58 100%);
+            --accent-mint: #00ff9d;
+            --soft-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            --transition-main: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
-        .card-body {
-            display: flex;
-            flex-direction: column;
-        }
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
 
-        .card-links {
+        /* Dashboard Header */
+        .dashboard-header {
+            background: var(--primary-grad);
+            padding: 25px 35px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: var(--soft-shadow);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 10px;
+            flex-wrap: wrap;
+            gap: 20px;
         }
 
-            .card-links a {
-                padding: 6px 12px;
-                text-decoration: none;
-                border: 1px solid #007bff;
-                border-radius: 4px;
-                color: #007bff;
-            }
+        .header-left h2 { color: #fff; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
 
-                .card-links a:hover {
-                    background-color: #007bff;
-                    color: white;
-                }
+        /* Controls */
+        .search-box { position: relative; width: 300px; }
+        .search-box input {
+            width: 100%;
+            padding: 10px 15px 10px 40px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        .search-box i { position: absolute; left: 15px; top: 13px; color: var(--accent-mint); }
+
+        .view-toggle-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .view-toggle-btn.active { background: var(--accent-mint); color: #20002c; border-color: var(--accent-mint); }
+
+        /* Grid View Layout */
+        .grid-view .program-card {
+            background: var(--glass-bg);
+            border-radius: 20px;
+            padding: 24px;
+            height: 185px;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition-main);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            box-shadow: var(--soft-shadow);
+        }
+        .grid-view .program-card:hover { transform: translateY(-8px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
+        .grid-view .account-name { font-size: 1.2rem; font-weight: 800; color: #1a1a1a; z-index: 2; }
+
+        /* List View Layout */
+        .list-view .card-item { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
+        .list-view .program-card {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 30px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            background: white;
+        }
+        .list-view .card-watermark, .list-view small { display: none; }
+
+        /* Tooltip Utility */
+        [data-tooltip] { position: relative; cursor: pointer; }
+        [data-tooltip]:before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 10px;
+            background: #20002c;
+            color: #fff;
+            font-size: 11px;
+            border-radius: 5px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: 0.3s;
+            pointer-events: none;
+            z-index: 100;
+        }
+        [data-tooltip]:hover:before { opacity: 1; }
+
+        /* Skeleton Loading Animation */
+        .skeleton {
+            background: #eee;
+            background: linear-gradient(110deg, #ececec 8%, #f5f5f5 18%, #ececec 33%);
+            border-radius: 15px;
+            background-size: 200% 100%;
+            animation: 1.5s shine linear infinite;
+        }
+        @@keyframes shine { to { background-position-x: -200%; } }
+
+        /* Card Branding Icons */
+        .card-watermark { position: absolute; right: -10px; bottom: -10px; font-size: 80px; color: rgba(0,0,0,0.03); z-index: 1; }
+        .btn-modern {
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            text-decoration: none !important;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-primary { background: var(--primary-grad); color: white !important; }
+        .btn-outline { background: #fff; border: 1.5px solid #eee; color: #555 !important; }
+        .btn-dash { background: #ff4757; color: white !important; }
     </style>
-    }
+}
+
+<div class="container-fluid mt-3">
+    <div class="dashboard-header">
+        <div class="header-left">
+            <h2><i class="fa fa-chart-pie"></i> @vertical</h2>
+        </div>
+        <div class="controls-right">
+            <div class="search-box">
+                <i class="fa fa-search"></i>
+                <input type="text" id="accountSearch" placeholder="Filter accounts...">
+            </div>
+            <div class="btn-group">
+                <button class="view-toggle-btn active" id="gridMode"><i class="fa fa-th"></i></button>
+                <button class="view-toggle-btn" id="listMode"><i class="fa fa-list"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cardRow" class="row grid-view">
+        @for(int i=0; i<6; i++) {
+            <div class="col-md-4 skeleton-loader"><div class="skeleton" style="height: 185px; margin-bottom:24px;"></div></div>
+        }
+    </div>
+</div>
 
 @section Scripts {
-@*    <script src="~/lib/fliper/makisu.js"></script>*@
     <script>
         $(function () {
-            debugger;
-            init1();
-            function init1(){
-              const cardRow = document.getElementById("cardRow");
-               var dataArray = @Html.Raw(Json.Serialize(Model));
-                var lstAccounts = [];
-                $.each(dataArray, function (k, v) {
-                    const link = v['isNewRPActivated'] ? `<div class="card-body text-center text-dark"> <div class="d-flex justify-content-center align-items-center gap-3"> ${v['disableLagacy'] ? `<a  style="text-decoration: none;color: #fff;background: #fc9712;border-radius: 5px;" href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${encodeURI(btoa(getVertical(v['vertical'])))}&account=${encodeURI(btoa(v['account']))}' class="btn btn-sm">RP Input</a>` : `<a style = "text-decoration: none;background: #414c78;color: #fff;border-radius: 5px;" href = '/rpreport/dataentry?vertical=${encodeURI(btoa(v['vertical']))}&account=${encodeURI(btoa(v['account']))}' class= "btn" >Legacy Input</a><a  style="text-decoration: none;color: #fff;background: #fc9712;border-radius: 5px;" href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${encodeURI(btoa(getVertical(v['vertical'])))}&account=${encodeURI(btoa(v['account']))}' class="btn btn-sm">New RP Input</a>`} <a  style="text-decoration: none;background: #E91E63;color: #fff;border-radius: 5px;" href='/ResourcePlanner/AccountDashboard?vertical=${encodeURI(btoa(getVertical(v['vertical'])))}&account=${encodeURI(btoa(v['account']))}' class="btn btn-sm">Dashboard</a> </div> </div>` : ` <div class="card-body text-center text-dark"> <div class="d-flex justify-content-center align-items-center gap-3"><a style = "text-decoration: none;background: #414c78;color: #fff;border-radius: 5px;" href = '/rpreport/dataentry?vertical=${encodeURI(btoa(v['vertical']))}&account=${encodeURI(btoa(v['account']))}' class= "btn" >RP Input</a></div> </div>`;
-                    const cardCol = document.createElement("div");
-                    cardCol.className = "col-md-4";
-                    cardCol.innerHTML = `
-                                           <div class="card border-0 shadow-lg rounded-4 overflow-hidden hover-scale text-white" style="height: 150px;border: 1px solid #c3abcc !important;">
-          <!-- SVG Header -->
-          <div class="position-relative d-flex justify-content-center align-items-center" style="height: 80px;">
-            <!-- Colorful SVG icon -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="145" height="145" viewBox="0 0 512 512" style="opacity: 0.1;z-index: 0;">
-            <path fill="currentColor" d="M440.9 136.3a4 4 0 0 0 0-6.91L288.16 40.65a64.14 64.14 0 0 0-64.33 0L71.12 129.39a4 4 0 0 0 0 6.91L254 243.88a4 4 0 0 0 4.06 0ZM54 163.51a4 4 0 0 0-6 3.49v173.89a48 48 0 0 0 23.84 41.39L234 479.51a4 4 0 0 0 6-3.46V274.3a4 4 0 0 0-2-3.46ZM272 275v201a4 4 0 0 0 6 3.46l162.15-97.23A48 48 0 0 0 464 340.89V167a4 4 0 0 0-6-3.45l-184 108a4 4 0 0 0-2 3.45"></path></svg>
-            <!-- Account name overlay -->
-            <div class="position-absolute bottom-20 start-0 w-100 p-3" style="text-align: center;color: #fff;">
-                      <h5 class="fw-bold mb-0 text-uppercase" style="color: #00ff9d;">${v['account']}</h5>
-            </div>
-          </div>
+            const dataArray = @Html.Raw(Json.Serialize(Model));
+            const cardRow = document.getElementById("cardRow");
 
-          <!-- Body -->
-              ${link}
-        </div>`;
-                    cardRow.appendChild(cardCol);
-                });
-               
-            };
-
-            function getVertical(displayVertical){
-                if(displayVertical === 'BANKING AND FINANCE')
-                return 'BankFinance';
-                if (displayVertical === 'T-Mobile' || displayVertical === 'TELECOMATT' || displayVertical === 'COMMUNICATIONS')
-                return 'CME';
-                return displayVertical;
+            function initDashboard() {
+                // Short timeout to simulate smooth loading and show skeleton
+                setTimeout(() => {
+                    $(".skeleton-loader").remove();
+                    renderCards();
+                }, 800);
             }
 
-            function init() {
-
-                var dataArray = @Html.Raw(Json.Serialize(Model));
-                var lstAccounts = [];
-                $.each(dataArray, function (k, v) {
-                    let exists = lstAccounts.find(function (a) {
-                        return (a.account == v["account"]);
-                    });
-                    if (exists == undefined || exists == null) {
-                        lstAccounts.push({ vertical: v["vertical"], account: v["account"] });
+            function renderCards() {
+                dataArray.forEach(v => {
+                    const encodedVert = encodeURIComponent(btoa(v.vertical || ''));
+                    const encodedAcc = encodeURIComponent(btoa(v.account || ''));
+                    
+                    let buttons = "";
+                    if (v.isNewRPActivated) {
+                        if (!v.disableLagacy) {
+                            buttons += `<a href='/rpreport/dataentry?vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-outline" data-tooltip="Switch to Legacy View">Legacy</a>`;
+                        }
+                        buttons += `<a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-primary" data-tooltip="Manage Resource Plan"><i class="fa fa-plus"></i> RP Input</a>`;
+                        buttons += `<a href='/ResourcePlanner/AccountDashboard?vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-dash" data-tooltip="View Live Dashboard"><i class="fa fa-chart-line"></i></a>`;
+                    } else {
+                        buttons += `<a href='/rpreport/dataentry?vertical=${encodedVert}&account=${encodedAcc}' class="btn-modern btn-primary" data-tooltip="Open Data Entry"><i class="fa fa-edit"></i> RP Input</a>`;
                     }
+
+                    const col = document.createElement("div");
+                    col.className = "col-xl-4 col-lg-6 col-md-6 col-sm-12 card-item";
+                    col.setAttribute("data-account", (v.account || '').toLowerCase());
+                    col.innerHTML = `
+                        <div class="program-card">
+                            <div class="card-watermark"><i class="fa fa-folder"></i></div>
+                            <div>
+                                <small style="color: #999; font-weight:700; text-transform:uppercase; letter-spacing:1px; font-size:10px;">Program</small>
+                                <div class="account-name">${v.account}</div>
+                            </div>
+                            <div class="btn-stack">${buttons}</div>
+                        </div>
+                    `;
+                    cardRow.appendChild(col);
                 });
-
-
-                var itemcount = 30;
-                itemcount = lstAccounts.length > 30 ? lstAccounts.length % 10 == 0 ? lstAccounts.length : lstAccounts.length - lstAccounts.length % 10 + 10 : itemcount;
-                $('.demo').append(' <dl class="list child-one" id=chld1> <dt>Index 1</dt>');
-                $('.demo').append(' <dl class="list child-two" id=chld2> <dt>Index 2</dt>');
-                $('.demo').append(' <dl class="list child-three" id=chld3> <dt>Index 3</dt>');
-                if (itemcount > 30) {
-                    $('.demo').append(' <dl class="list child-four" id=chld4> <dt>Index 4</dt>');
-                }
-                if (itemcount > 40) {
-                    $('.demo').append(' <dl class="list child-five" id=chld5> <dt>Index 5</dt>');
-                }
-                if (itemcount > 50) {
-                    $('.demo').append(' <dl class="list child-six" id=chld6> <dt>Index 6</dt>');
-                }
-
-                var id = 'chld1';
-                for (var j = 0; j < itemcount; j++) {
-                    if (j < 10)
-                        id = 'chld1'
-                    else if (j < 20)
-                        id = 'chld2'
-                    else if (j < 30)
-                        id = 'chld3'
-                    else if (j < 40)
-                        id = 'chld4'
-                    else if (j < 50)
-                        id = 'chld5'
-                    else if (j < 60)
-                        id = 'chld6'
-
-                    //id = (j < 10) ? 'chld1' : (j >= 10 && j <= 19) ? 'chld2' : 'chld3';
-                    let accountName = (lstAccounts[j] != undefined) ? lstAccounts[j].account : '--';
-                    if (accountName == '--')
-                        $('#' + id).append('<a href="#"><dd>' + accountName + '</dd></a>');
-                    else {
-
-
-                        if (accountName.toLowerCase() == "airbnb inc") {
-                            var url = '/ResourcePlanner/ViewPlans?isHide=false&vertical=' + encodeURI(btoa(lstAccounts[j].vertical)) + '&account=' + encodeURI(btoa(accountName));
-                            $('#' + id).append('<a href=' + url + '><dd>' + accountName + '</dd></a>');
-                        }
-                        else {
-                            var url = '/rpreport/dataentry?vertical=' + encodeURI(btoa(lstAccounts[j].vertical)) + '&account=' + encodeURI(btoa(accountName));
-                            $('#' + id).append('<a href=' + url + '><dd>' + accountName + '</dd></a>');
-                        }
-
-                        //var url = '/rpreport/dataentry?vertical=' + encodeURI(btoa(lstAccounts[j].vertical)) + '&account=' + encodeURI(btoa(accountName));
-                        //$('#' + id).append('<dd><a href=' + url + '>' + accountName + '</a></dd>');
-
-                    }
-
-                    if (j == 9 || j == 19 || j == 29 || j == 39 || j == 49 || j == 59)
-                        $('.demo').append('</dl>');
-                }
-
-
-
-                if ($.fn.makisu.enabled) {
-
-                    var $childone = $('.child-one');
-                    var $childtwo = $('.child-two');
-                    var $childthree = $('.child-three');
-                    // Create Makisus
-                    $childone.makisu({
-                        selector: 'dd',
-                        overlap: 0.85,
-                        speed: 1.7
-                    });
-                    $childtwo.makisu({
-                        selector: 'dd',
-                        overlap: 0.6,
-                        speed: 0.85
-                    });
-                    $childthree.makisu({
-                        selector: 'dd',
-                        overlap: 0.2,
-                        speed: 0.5
-                    });
-
-                    if (itemcount > 30) {
-                        var $childfour = $('.child-four');
-                        $childfour.makisu({
-                            selector: 'dd',
-                            overlap: 0.85,
-                            speed: 1.7
-                        });
-                    }
-                    if (itemcount > 40) {
-                        var $childfive = $('.child-five');
-                        $childfive.makisu({
-                            selector: 'dd',
-                            overlap: 0.6,
-                            speed: 0.85
-                        });
-                    }
-                    if (itemcount > 50) {
-                        var $childsix = $('.child-six');
-                        $childsix.makisu({
-                            selector: 'dd',
-                            overlap: 0.2,
-                            speed: 0.5
-                        });
-                    }
-                    // Open all
-                    $('.list').makisu('open');
-                }
             }
+
+            // Controls logic
+            $("#gridMode, #listMode").on("click", function() {
+                $(".view-toggle-btn").removeClass("active");
+                $(this).addClass("active");
+                $("#cardRow").toggleClass("list-view", this.id === "listMode").toggleClass("grid-view", this.id === "gridMode");
+            });
+
+            $("#accountSearch").on("keyup", function() {
+                const val = $(this).val().toLowerCase();
+                $(".card-item").each(function() {
+                    $(this).toggle($(this).data("account").includes(val));
+                });
+            });
+
+            initDashboard();
         });
     </script>
-    }
+}
