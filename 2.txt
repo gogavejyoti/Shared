@@ -10,179 +10,179 @@
         @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
 
         :root {
-            --bg-dark: #0f0c29;
-            --card-glass: rgba(255, 255, 255, 0.05);
-            --neon-blue: #00d2ff;
-            --neon-pink: #9d50bb;
-            --neon-green: #00ff87;
-            --text-main: #ffffff;
+            --bg-deep: #050514;
+            --card-bg: rgba(20, 20, 45, 0.6);
+            --border-cyan: #22d3ee;
+            --border-purple: #a855f7;
+            --border-pink: #ec4899;
+            --status-green: #4ade80;
         }
 
         body {
-            background: #0f0c29;
-            /* Animated Mesh Gradient Background */
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            background-color: var(--bg-deep);
+            color: #ffffff;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            color: var(--text-main);
+            margin: 0;
+            padding: 40px;
             min-height: 100vh;
-            padding: 20px;
             overflow-x: hidden;
+            /* Mesh Gradient Orbs */
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.15) 0%, transparent 40%);
         }
 
-        /* Cyberpunk Grid Overlay */
+        /* 3D Wireframe Grid Background */
         body::before {
             content: "";
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
+            top: 0; left: -50%; width: 200%; height: 200%;
             background-image: 
-                linear-gradient(rgba(100, 100, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(100, 100, 255, 0.05) 1px, transparent 1px);
-            background-size: 50px 50px;
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 60px 60px;
+            transform: perspective(500px) rotateX(60deg);
             z-index: -1;
-            perspective: 1000px;
-            transform: rotateX(60deg) scale(2);
-            transform-origin: top;
+            mask-image: linear-gradient(to bottom, transparent, black, transparent);
         }
 
-        /* Main Container */
-        .cyber-shell {
-            background: rgba(13, 17, 23, 0.8);
-            backdrop-filter: blur(15px);
-            border-radius: 40px;
+        /* Outer Shell */
+        .cyber-container {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 40px;
             padding: 40px;
-            max-width: 1400px;
-            margin: auto;
+            max-width: 1300px;
+            margin: 0 auto;
         }
 
-        /* Top Bar */
-        .cyber-header {
+        /* Search Bar */
+        .search-area {
+            position: relative;
+            margin-bottom: 40px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 40px;
         }
 
-        .search-field {
-            background: rgba(255, 255, 255, 0.07);
+        .search-input {
+            background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
-            padding: 10px 20px 10px 45px;
-            color: white;
+            padding: 12px 20px 12px 45px;
+            color: #fff;
             width: 350px;
             outline: none;
         }
 
-        /* The Card Architecture */
-        .cyber-card {
-            background: var(--card-glass);
-            border-radius: 24px;
-            padding: 25px;
-            height: 220px;
-            margin-bottom: 30px;
-            border: 1px solid rgba(0, 210, 255, 0.3); /* Default Blue Border */
+        /* The Exact Card Design */
+        .project-card {
+            background: var(--card-bg);
+            border: 1.5px solid var(--border-cyan);
+            border-radius: 28px;
+            padding: 28px;
+            height: 240px;
             position: relative;
-            transition: 0.4s;
+            margin-bottom: 24px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            overflow: hidden;
+            transition: all 0.3s ease;
         }
 
-        /* Alternate colors like the image */
-        .cyber-card:nth-child(2n) { border-color: rgba(157, 80, 187, 0.3); }
-        .cyber-card:nth-child(3n) { border-color: rgba(0, 255, 135, 0.3); }
+        /* Alternate Border Colors */
+        .card-purple { border-color: var(--border-purple); }
+        .card-pink { border-color: var(--border-pink); }
 
-        .cyber-card:hover {
-            transform: translateY(-8px);
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.5);
-            box-shadow: 0 0 30px rgba(0, 210, 255, 0.1);
+        .project-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 0 30px rgba(34, 211, 238, 0.2);
+            background: rgba(30, 30, 60, 0.8);
         }
 
-        .status-badge {
-            background: rgba(0, 255, 135, 0.2);
-            color: var(--neon-green);
-            font-size: 9px;
+        .status-pill {
+            background: rgba(74, 222, 128, 0.1);
+            color: var(--status-green);
+            font-size: 10px;
             font-weight: 800;
             padding: 4px 10px;
             border-radius: 6px;
-            display: inline-block;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            display: inline-block;
         }
 
-        .project-name {
-            font-size: 1.4rem;
+        .project-title {
+            font-size: 1.5rem;
             font-weight: 700;
             margin-top: 15px;
-            line-height: 1.2;
+            letter-spacing: -0.5px;
         }
 
-        .floating-box {
+        .card-cube {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 35px;
-            height: 35px;
+            top: 30px;
+            right: 30px;
+            width: 32px;
+            height: 32px;
             background: rgba(255, 255, 255, 0.1);
-            clip-path: polygon(25% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 25%);
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
         }
 
-        /* Button Layout exactly like image */
-        .cyber-btn-dock {
+        /* Button Layout Engine */
+        .footer-actions {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
         }
 
-        .btn-cyber {
-            padding: 8px 18px;
+        .btn-pill {
+            padding: 10px 20px;
             border-radius: 50px;
-            font-size: 11px;
             font-weight: 700;
+            font-size: 12px;
             text-decoration: none !important;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            color: white !important;
+            gap: 8px;
             transition: 0.3s;
         }
 
-        .btn-legacy { background: rgba(255, 107, 107, 0.3); border: 1px solid rgba(255, 107, 107, 0.5); }
-        .btn-analytics { background: var(--neon-blue); box-shadow: 0 0 15px rgba(0, 210, 255, 0.3); }
-        
-        /* Central Large Button Style */
-        .btn-launch {
-            background: white;
-            color: black !important;
+        /* Analytics & Legacy Style */
+        .btn-legacy { background: rgba(248, 113, 113, 0.2); color: #f87171 !important; border: 1px solid rgba(248, 113, 113, 0.3); }
+        .btn-analytics { background: #0ea5e9; color: white !important; flex: 1; justify-content: center; }
+
+        /* The White "Launch" Center Button */
+        .btn-launch-white {
+            background: #ffffff;
+            color: #000000 !important;
             width: 100%;
             justify-content: center;
-            padding: 12px;
-            border-radius: 50px;
-            font-size: 13px;
+            padding: 14px;
+            font-size: 14px;
         }
 
-        .bolt-icon {
-            width: 40px;
-            height: 40px;
-            background: #6366f1;
+        .bolt-circle {
+            width: 44px;
+            height: 44px;
+            background: #4f46e5;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
+            font-size: 18px;
         }
     </style>
 }
 
-<div class="cyber-shell">
-    <div class="cyber-header">
+<div class="cyber-container">
+    <div class="search-area">
         <div style="position:relative;">
-            <i class="fa fa-search" style="position:absolute; left:18px; top:13px; color:#888;"></i>
-            <input type="text" class="search-field" placeholder="Search accounts...">
+            <i class="fa fa-search" style="position:absolute; left:18px; top:15px; color:#64748b;"></i>
+            <input type="text" id="cyberSearch" class="search-input" placeholder="Search accounts...">
         </div>
-        <div style="display:flex; gap:15px; color:#888;">
+        <div style="display:flex; gap:20px; color:#64748b; font-size:18px;">
             <i class="fa fa-th-large"></i>
             <i class="fa fa-bookmark"></i>
             <i class="fa fa-sliders-h"></i>
@@ -201,43 +201,57 @@
 
             function render() {
                 grid.innerHTML = '';
-                data.forEach((v, index) => {
+                data.forEach((v, idx) => {
                     const vE = encodeURIComponent(btoa(v.vertical || ''));
                     const aE = encodeURIComponent(btoa(v.account || ''));
                     
-                    let actions = "";
-                    // Replicating the "Central Launch" vs "Dual Button" look from the image
-                    if (index === 4) { // Specific middle card style from image
-                        actions = `
-                            <div class="d-flex align-items-center gap-2 w-100">
-                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-cyber btn-launch">Launch RP Input</a>
-                                <div class="bolt-icon"><i class="fa fa-bolt"></i></div>
+                    // Determine card border color based on index to match image variety
+                    let colorClass = "";
+                    if (idx % 3 === 1) colorClass = "card-purple";
+                    else if (idx % 3 === 2) colorClass = "card-pink";
+
+                    let buttonHtml = "";
+                    // Replicating the middle "Launch" layout specifically
+                    if (idx === 4) { 
+                        buttonHtml = `
+                            <div class="footer-actions w-100">
+                                <a href='/ResourcePlanner/ViewPlans?isHide=false&vertical=${vE}&account=${aE}' class="btn-pill btn-launch-white">Launch RP Input</a>
+                                <div class="bolt-circle"><i class="fa fa-bolt"></i></div>
                             </div>
                         `;
                     } else {
-                        actions = `
-                            <div class="cyber-btn-dock">
-                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-cyber btn-legacy"><i class="fa fa-sync-alt"></i> Legacy</a>
-                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-cyber btn-analytics">Analytics <i class="fa fa-chart-line"></i></a>
+                        buttonHtml = `
+                            <div class="footer-actions">
+                                <a href='/rpreport/dataentry?vertical=${vE}&account=${aE}' class="btn-pill btn-legacy"><i class="fa fa-history"></i> Legacy</a>
+                                <a href='/ResourcePlanner/AccountDashboard?vertical=${vE}&account=${aE}' class="btn-pill btn-analytics">Analytics <i class="fa fa-chart-line"></i></a>
                             </div>
                         `;
                     }
 
                     const col = document.createElement("div");
-                    col.className = "col-xl-4 col-lg-6";
+                    col.className = "col-xl-4 col-lg-6 card-wrapper";
+                    col.setAttribute("data-name", v.account.toLowerCase());
                     col.innerHTML = `
-                        <div class="cyber-card">
-                            <div class="floating-box"></div>
-                            <div>
-                                <div class="status-badge">Status: Active</div>
-                                <div class="project-name">${v.account}</div>
+                        <div class="project-card ${colorClass}">
+                            <div class="card-cube"></div>
+                            <div class="top-meta">
+                                <span class="status-pill">Status: Active</span>
+                                <div class="project-title">${v.account}</div>
                             </div>
-                            ${actions}
+                            ${buttonHtml}
                         </div>
                     `;
                     grid.appendChild(col);
                 });
             }
+
+            $("#cyberSearch").on("keyup", function() {
+                const val = $(this).val().toLowerCase();
+                $(".card-wrapper").each(function() {
+                    $(this).toggle($(this).data("name").includes(val));
+                });
+            });
+
             render();
         });
     </script>
