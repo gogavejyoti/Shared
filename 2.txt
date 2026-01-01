@@ -1,23 +1,44 @@
-<div class="luckysheet-loading-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 40px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center;"> 
+<div class="luckysheet-loading-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 20px 40px rgba(0,0,0,0.08); max-width: 400px; margin: auto;"> 
     
-    <div class="${t.imageClass} luckysheet-loading-image" style="margin-bottom: 20px; animation: pulse 2s infinite ease-in-out;">
-        ${l}
+    <div class="${t.imageClass} luckysheet-loading-image" style="position: relative; margin-bottom: 25px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 80px; height: 80px; border: 3px solid transparent; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1.2s linear infinite;"></div>
+        <div style="position: absolute; width: 60px; height: 60px; border: 3px solid transparent; border-bottom-color: #8b5cf6; border-radius: 50%; animation: spin-reverse 1s linear infinite;"></div>
+        <div style="z-index: 2; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));">
+            ${l}
+        </div>
     </div>
 
-    <div class="${t.textClass} luckysheet-loading-text" style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #333;">
-        <span style="display: block; font-size: 16px; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px;">
+    <div class="${t.textClass} luckysheet-loading-text" style="text-align: center; font-family: 'Inter', system-ui, -apple-system, sans-serif;">
+        <span style="display: block; font-size: 18px; font-weight: 700; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.02em; margin-bottom: 6px;">
             ${t.text}
         </span>
-        <span style="display: block; font-size: 13px; color: #777; font-weight: 400;">
-            Please wait while we prepare your data...
-        </span>
+        
+        <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+            <span style="font-size: 13px; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em;">
+                Optimizing Workspace
+            </span>
+            <span class="loading-dots"></span>
+        </div>
     </div>    
 
     <style>
-        @keyframes pulse {
-            0% { transform: scale(0.95); opacity: 0.8; }
-            50% { transform: scale(1.05); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.8; }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes spin-reverse {
+            to { transform: rotate(-360deg); }
+        }
+        .loading-dots::after {
+            content: '.';
+            font-weight: bold;
+            animation: dots 1.5s steps(5, end) infinite;
+            color: #3b82f6;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
         }
     </style>
 </div>
