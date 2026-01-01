@@ -1,8 +1,23 @@
-  <div class="luckysheet-loading-content"> 
-            <div class="${t.imageClass} luckysheet-loading-image">
-                ${l}
-            </div>
-            <div class="${t.textClass} luckysheet-loading-text">
-            <span>${t.text}</span>
-            </div>    
-        </div>
+<div class="luckysheet-loading-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 40px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center;"> 
+    
+    <div class="${t.imageClass} luckysheet-loading-image" style="margin-bottom: 20px; animation: pulse 2s infinite ease-in-out;">
+        ${l}
+    </div>
+
+    <div class="${t.textClass} luckysheet-loading-text" style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #333;">
+        <span style="display: block; font-size: 16px; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px;">
+            ${t.text}
+        </span>
+        <span style="display: block; font-size: 13px; color: #777; font-weight: 400;">
+            Please wait while we prepare your data...
+        </span>
+    </div>    
+
+    <style>
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+    </style>
+</div>
