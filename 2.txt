@@ -1,411 +1,73 @@
+<div class="d-flex justify-content-end mb-3">
+    <div class="btn-group view-toggle">
+        <button class="btn btn-outline-secondary active" id="tileViewBtn">
+            <i class="fas fa-th-large"></i> Tile
+        </button>
+        <button class="btn btn-outline-secondary" id="listViewBtn">
+            <i class="fas fa-list"></i> List
+        </button>
+    </div>
+</div>
+
+
+/* TILE VIEW (default) */
+#plansContainer.tile-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+/* LIST VIEW */
+#plansContainer.list-view {
+    display: block;
+}
+
+#plansContainer.list-view .plan-card {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+/* Optional visual alignment */
+#plansContainer.list-view .plan-card .card-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+/* Preserve hide styles */
+.hide-card {
+    opacity: 0.5;
+}
+
+
 $(function () {
-    let copyModal = new bootstrap.Modal(document.getElementById('copyPlanModal'));
-    let markReportModal = new bootstrap.Modal(document.getElementById('markReportPlanModal'));
-    let deletePlanModal = new bootstrap.Modal(document.getElementById('deletePlanModal'));
+    const container = $('#plansContainer');
 
-    $(document).on('click', '.add-new-plan', function (e) {
-        e.preventDefault();
-        window.location.href = '/ResourcePlanner/CreatePlan?vertical=' + encodeURI(btoa($('#txtVertical').val())) + '&account=' + encodeURI(btoa($('#txtAccount').val()));
-    });
-    $(document).on('click', '.view-staff-summary', function (e) {
-        const $btn = $(this);
-        $btn.prop('disabled', true);
-        $btn.find('.table-icon').removeClass('fa-table');
-        $btn.find('.table-icon').addClass('fa-spinner fa-spin');
-
-
-
-
-            return $.ajax({
-                url: "/ResourcePlanner/GetReportDataByAccount",
-                type: "GET",
-                data: { account: $('#txtAccount').val() },
-
-                success: function (response) {
-                    if (response && response.length > 0)
-                        $("#staffingSummary").staffingSummaryContainer({
-                            data: response
-                        });
-                },
-                error: function (error) {
-                    // Handle error
-                },
-                complete: function () {
-                    // Re-enable button and toggle icons back
-                    $btn.prop('disabled', false);
-                    $btn.find('.table-icon').removeClass('fa-spinner fa-spin');
-                    $btn.find('.table-icon').addClass('fa-table');
-                }
-
-            })
-    });
-
-
-    $('.edit-btn').click(function () {
-        const element = this;
-        const index = $(element).attr('data-edit-input-index');
-        const text = $('#txt-group-name-' + index).text();
-        $('#edit-input-' + index).val(text);
-        const block = $('#div-group-' + index);
-        block.find('.display-text, .edit-btn').hide();
-        block.find('.edit-section').show();
-    });
-
-
-
-    $('.save-btn').click(function () {
-        const index = $(this).attr('data-edit-input-index');
-        const newText = $('#edit-input-' + index).val();
-        const block = $('#div-group-' + index);
-        const oldText = block.find('.display-text').text();
-        block.find('.display-text').text(newText ? newText : oldText);
-        block.find('.edit-section').hide();
-        block.find('.display-text, .edit-btn').show();
-
-
-        if (newText && oldText !== newText)
-        updateGroupName(oldText, newText);
-
-    });
-
-    $('.discard-btn').click(function () {
-        const index = $(this).attr('data-edit-input-index');
-        const block = $('#div-group-' + index);
-        block.find('.display-text, .edit-btn').show();
-        block.find('.edit-section').hide();
-    });
-
-
-    $('.edit-plan-btn').click(function () {
-        const element = this;
-        const index = $(element).attr('data-edit-plan-index');
-        const text = $('#txt-group-plan-' + index).text();
-        $('#edit-plan-input-' + index).val(text);
-        const block = $('#div-group-plan-' + index);
-        block.find('.display-plan-text, .edit-plan-btn').hide();
-        block.find('.display-plan-text')[0].style.setProperty('display', 'none', 'important');
-        block.find('.edit-plan-section').show();
-     
-    });
-
-
-
-    $('.save-plan-btn').click(function () {
-        const rpPlanId = $(this).attr('data-plan-id');
-        const index = $(this).attr('data-edit-plan-index');
-        const newText = $('#edit-plan-input-' + index).val();
-        const block = $('#div-group-plan-' + index);
-        const oldText = block.find('.display-plan-text').text();
-        block.find('.display-plan-text').text(newText ? newText : oldText);
-        block.find('.edit-plan-section').hide();
-        block.find('.display-plan-text, .edit-plan-btn').show();
-        if (newText && oldText !== newText)
-        updatePlanName(rpPlanId, newText);
-
-    });
-
-    $('.discard-plan-btn').click(function () {
-        const index = $(this).attr('data-edit-plan-index');
-        const block = $('#div-group-plan-' + index);
-        block.find('.display-plan-text, .edit-plan-btn').show();
-        block.find('.edit-plan-section').hide();
-    });
-    $('.delete-plan-btn').click(function () {
-        const deletePlanId = $(this).attr('data-plan-id');
-        const index = $(this).attr('data-edit-plan-index');
-        const planName = $('#txt-group-plan-' + index).text();
-        $('#deletePlanId').val(deletePlanId);
-        $('#deletePlanName').text(planName);
-        deletePlanModal.show();
-    });
-
-    $('.hide-plan-btn').click(function () {
-        const hidePlanId = $(this).attr('data-plan-id');
-        const value = $(this).attr('data-value');
-        showHidePlan(hidePlanId, value, $(this));
-    
-    });
-
-
-
-    $(document).on('click', '.view-dashboard', function (e) {
-        e.preventDefault();
-        window.location.href = '/ResourcePlanner/AccountDashboard?vertical=' + encodeURI(btoa($('#txtVertical').val())) + '&account=' + encodeURI(btoa($('#txtAccount').val()));
-    });
-
-    $(document).on('click', '.view-all-plans', function (e) {
-        e.preventDefault();
-        window.location.href = '/ResourcePlanner/ViewPlans?vertical=' + encodeURI(btoa($('#txtVertical').val())) + '&account=' + encodeURI(btoa($('#txtAccount').val()));
-    });
-
-
-    $('input[name="groupOption"]').on('change', function () {
-        if ($(this).val() === 'new') {
-            $('#newGroupName').show();
-            $('#existingGroup').hide();
+    function setView(view) {
+        if (view === 'list') {
+            container.removeClass('tile-view').addClass('list-view');
+            $('#listViewBtn').addClass('active');
+            $('#tileViewBtn').removeClass('active');
         } else {
-            $('#existingGroup').show();
-            $('#newGroupName').hide();
+            container.removeClass('list-view').addClass('tile-view');
+            $('#tileViewBtn').addClass('active');
+            $('#listViewBtn').removeClass('active');
         }
-    });
-
-    // Open modal and populate plan ID
-    $(document).on('click', '.copy-plan-btn', function () {
-        $("#rdoExistingGroup").prop("checked", true);
-        $('#existingGroup').show();
-        $('#newGroupName').hide();
-        const planId = $(this).data('plan-id');
-        const planName = $(this).data('plan-name');
-        const groupPlanName = $(this).data('plan-group-name');
-        $('#existingGroup').val(groupPlanName);
-        $('#sourceGroupName').val(groupPlanName);
-        $('#sourcePlanId').val(planId);
-        $('#copyPlanModalLabel').text("Create a Copy of Plan - " + planName)
-
-        $('#newPlanName').val('');
-        copyModal.show();
-    });
-
-
-    $(document).on('click', '.report-plan-btn', function () {
-        const planId = $(this).data('plan-id');
-        const planName = $(this).data('plan-name');
-        $('#marksourcePlanId').val(planId);
-        $('#msgPlanName').text(planName);
-        $('#errorMsg').hide();
-        markReportModal.show();
-    });
-
-
-    // Handle copy form submit
-    $('#copyPlanForm').on('submit', function (e) {
-        e.preventDefault();
-     
-        const sourcePlanId = $('#sourcePlanId').val();
-        const newPlanName = $('#newPlanName').val().trim();
-        const vertical = $('#txtVertical').val();
-
-        if (!newPlanName) {
-            alert('Please enter a plan name.');
-            return;
-        }
-        const selectedOption = $('input[name="groupOption"]:checked').val();
-        let groupName = '';
-        if (selectedOption === 'new') {
-            groupName = $('#newGroupName').val().trim();
-        } else {
-            groupName = $('#existingGroup').val();
-        }
-        if (!groupName) {
-            alert('Please enter or select a group name.');
-            return;
-        }
-
-
-        $('#btnCreateCopy').prop('disabled', true);
-        $.ajax({
-            url: '/ResourcePlanner/CopyPlan',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                groupName: groupName,
-                sourcePlanId: sourcePlanId,
-                newPlanTitle: newPlanName,
-                vertical: vertical
-            }),
-            success: function (response) {
-                copyModal.hide();
-                $('#btnCreateCopy').prop('disabled', false);
-                alert('Plan copied successfully!');
-                location.reload();
-            },
-            error: function () {
-                $('#btnCreateCopy').prop('disabled', false);
-                alert('Failed to copy plan. Please try again.');
-            }
-        });
-    });
-
-
-    $('#markReportForm').on('submit', function (e) {
-        e.preventDefault();
-        $('#btnYes').prop('disabled', true);
-        const sourcePlanId = $('#marksourcePlanId').val();
-        const vertical = $('#txtVertical').val();
-        $.ajax({
-            url: '/ResourcePlanner/MarkReport',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                vertical: vertical,
-                rpPlanId: sourcePlanId,
-                weekCommencing: $('#weekCommencing').val()
-            }),
-            success: function (response) {
-                if (response == false) {
-                    $('#errorMsg').show();
-                    $('#btnYes').prop('disabled', false);
-                    return;
-                }
-                markReportModal.hide();
-                $('#btnYes').prop('disabled', false);
-                alert('Plan successfully marked for reporting!');
-                location.reload();
-            },
-            error: function () {
-                $('#btnYes').prop('disabled', false);
-                alert('Failed to marked for reporting. Please try again.');
-            }
-        });
-    });
-
-
-    $('#deletePlanForm').on('submit', function (e) {
-        e.preventDefault();
-        $('#btnDeletePlanYes').prop('disabled', true);
-        const sourcePlanId = $('#deletePlanId').val();
-        const vertical = $('#txtVertical').val();
-        $.ajax({
-            url: '/ResourcePlanner/DeletePlan',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                vertical: vertical,
-                rpPlanId: sourcePlanId
-            }),
-            success: function (response) {
-                deletePlanModal.hide();
-                $('#btnDeletePlanYes').prop('disabled', false);
-                alert('Plan successfully Deleted!');
-                location.reload();
-            },
-            error: function () {
-                $('#btnDeletePlanYes').prop('disabled', false);
-                alert('Failed to delete plan. Please try again.');
-            }
-        });
-    });
-
-    function updateGroupName(oldGroupName, newGroupName) {
-        const vertical = $('#txtVertical').val();
-        const account = $('#txtAccount').val();
-        $.ajax({
-            url: '/ResourcePlanner/UpdatePlanGroupName',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                vertical: vertical,
-                account: account,
-                oldGroupName: oldGroupName,
-                groupName: newGroupName
-            }),
-            success: function (response) {
-                location.reload();
-            },
-            error: function () {
-                alert('Failed to update GroupName plan. Please try again.');
-            }
-        });
-
+        localStorage.setItem('planViewMode', view);
     }
 
-    function updatePlanName(rpPlanId, name) {
-        $.ajax({
-            url: '/ResourcePlanner/UpdatePlanName',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                RPPlanId: rpPlanId,
-                Name: name
-            }),
-            success: function (response) {
-                location.reload();
-            },
-            error: function () {
-                alert('Failed to update GroupName plan. Please try again.');
-            }
-        });
-
-    }
-
-
-    // When user clicks Recovery button, open file dialog
-    $('.recover-plan-btn').on('click', function () {
-        var dataPlanId = $(this).attr('data-plan-id');
-        $('#recoverFileInput_' + dataPlanId).click();
+    $('#tileViewBtn').on('click', function () {
+        setView('tile');
     });
 
-    // When user selects a file, upload it using same AJAX method
-    $('.recoverFileInput').on('change', function (event) {
-        var dataPlanId = $(this).attr('data-plan-id');
-        const file = event.target.files[0];
-        if (!file) {
-            alert("No file selected.");
-            return;
-        }
-        const formData = new FormData();
-        formData.append("file", file, file.name);
-        formData.append("planId", dataPlanId); 
-        $('#loader-overlay').css('display', 'flex'); // Show loader
-        $('#btnRecoverSheets').prop('disabled', true);
-        $.ajax({
-            url: '/ResourcePlanner/RecoverPlan', // Same endpoint as original save
-            type: 'POST',
-            processData: false,
-            contentType: false,
-            data: formData,
-            success: function (res) {
-                $('#btnRecoverSheets').prop('disabled', false);
-                if (res.isValid === false) {
-                    alert("The file you are trying to upload is not for the selected plan.");
-                } else {
-                    alert("Recovery successful!");
-                }
-            },
-            error: function () {
-                $('#btnRecoverSheets').prop('disabled', false);
-                alert("Error during recovery.");
-            }
-        });
+    $('#listViewBtn').on('click', function () {
+        setView('list');
     });
 
-    function showHidePlan(rpPlanId, isHide,element) {
-        $.ajax({
-            url: '/ResourcePlanner/HideShowPlan',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                rpPlanId: rpPlanId,
-                isHide: isHide
-            }),
-            success: function (response) {
-                if (isHide == "true") {
-                    element.attr('data-value', "false");
-                    element.attr('title', "Would you like to switch from the Hide plan to the Unhide plan? Click this option and refresh the page to view the changes.");
-                    $('#iconhide' + rpPlanId).removeClass('fas fa-eye-slash');
-                    $('#iconhide' + rpPlanId).addClass('fas fa-eye');
-                    $('#card' + rpPlanId).removeClass('active-card');
-                    $('#card' + rpPlanId).addClass('hide-card');
-
-                }
-                else {
-                    element.attr('data-value', "true");
-                    element.attr('title', "Would you like to switch from the Unhide plan to the Hide plan? Click this option and refresh the page to view the changes.");
-                    $('#iconhide' + rpPlanId).removeClass('fas fa-eye');
-                    $('#iconhide' + rpPlanId).addClass('fas fa-eye-slash');
-                    $('#card' + rpPlanId).removeClass('hide-card');
-                }
-            },
-            error: function () {
-                alert('Failed to delete plan. Please try again.');
-            }
-        });
-
-    }
-
-
+    // Restore preference
+    const savedView = localStorage.getItem('planViewMode') || 'tile';
+    setView(savedView);
 });
-
-
-
-
