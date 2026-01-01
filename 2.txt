@@ -1,45 +1,54 @@
-<div class="luckysheet-loading-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 64px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); border: 1px solid rgba(226, 232, 240, 0.8); position: relative; overflow: hidden; min-width: 320px;"> 
-    
-    <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at center, rgba(99, 102, 241, 0.05) 0%, rgba(236, 72, 153, 0.05) 30%, transparent 70%); animation: rotate-bg 10s linear infinite; z-index: 0;"></div>
+<div class="luckysheet-loading-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); border-radius: 40px; border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 30px 60px rgba(0,0,0,0.12); position: relative; overflow: hidden; min-width: 360px;">
 
-    <div class="${t.imageClass} luckysheet-loading-image" style="position: relative; width: 64px; height: 64px; margin-bottom: 24px; z-index: 1; display: flex; align-items: center; justify-content: center;">
-        <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 4px solid #f1f5f9;"></div>
-        <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 4px solid transparent; border-top-color: #6366f1; border-right-color: #8b5cf6; animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;"></div>
+    <div style="position: absolute; top: -10%; left: -10%; width: 120%; height: 120%; background: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%); z-index: 0;"></div>
+
+    <div class="${t.imageClass} luckysheet-loading-image" style="position: relative; width: 80px; height: 80px; margin-bottom: 32px; z-index: 1;">
+        <div style="position: absolute; inset: 0; background: linear-gradient(135deg, #6366f1, #a855f7); border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%; animation: morph 6s ease-in-out infinite; opacity: 0.15; filter: blur(10px);"></div>
         
-        <div style="z-index: 2; transform: scale(0.85); filter: grayscale(1); opacity: 0.8;">
+        <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; animation: rotate 2s linear infinite;">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(0,0,0,0.05)" stroke-width="4" />
+            <circle cx="50" cy="50" r="45" fill="none" stroke="url(#paint0_linear)" stroke-width="4" stroke-dasharray="140 140" stroke-linecap="round" />
+            <defs>
+                <linearGradient id="paint0_linear" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#6366f1" />
+                    <stop offset="1" stop-color="#ec4899" />
+                </linearGradient>
+            </defs>
+        </svg>
+        
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform: scale(0.9);">
             ${l}
         </div>
     </div>
 
-    <div class="${t.textClass} luckysheet-loading-text" style="text-align: center; z-index: 1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-        <span style="display: block; font-size: 16px; font-weight: 600; color: #1e293b; letter-spacing: -0.01em; margin-bottom: 4px;">
+    <div class="${t.textClass} luckysheet-loading-text" style="text-align: center; z-index: 1; font-family: 'Inter', -apple-system, sans-serif;">
+        <span style="display: block; font-size: 20px; font-weight: 700; color: #0f172a; letter-spacing: -0.03em; margin-bottom: 8px;">
             ${t.text}
         </span>
         
-        <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-            <span style="font-size: 13px; color: #94a3b8; font-weight: 400;">
-                Processing your workbook
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <span style="font-size: 14px; color: #64748b; font-weight: 500; letter-spacing: 0.02em;">
+                Preparing environment
             </span>
-            <span class="loading-pulse-dots" style="display: flex; gap: 3px;">
-                <i style="width: 3px; height: 3px; background: #6366f1; border-radius: 50%; animation: pulse-dot 1.4s infinite 0s;"></i>
-                <i style="width: 3px; height: 3px; background: #8b5cf6; border-radius: 50%; animation: pulse-dot 1.4s infinite 0.2s;"></i>
-                <i style="width: 3px; height: 3px; background: #ec4899; border-radius: 50%; animation: pulse-dot 1.4s infinite 0.4s;"></i>
-            </span>
+            <div class="modern-bar-container" style="width: 40px; height: 4px; background: rgba(0,0,0,0.05); border-radius: 10px; overflow: hidden;">
+                <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #6366f1, #ec4899); animation: progress-slide 1.5s infinite ease-in-out;"></div>
+            </div>
         </div>
-    </div>    
+    </div>
 
     <style>
-        @keyframes spin {
+        @keyframes rotate {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        @keyframes rotate-bg {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        @keyframes morph {
+            0% { border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%; }
+            50% { border-radius: 50% 50% 33% 67% / 63% 48% 52% 37%; }
+            100% { border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%; }
         }
-        @keyframes pulse-dot {
-            0%, 100% { transform: scale(1); opacity: 0.3; }
-            50% { transform: scale(1.5); opacity: 1; }
+        @keyframes progress-slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
     </style>
 </div>
