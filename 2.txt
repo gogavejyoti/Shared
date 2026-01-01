@@ -1,1 +1,12 @@
-We’re preparing your workbook. Thank you for your patience.
+showMessageBox("Plan saved successfully!");
+ function showMessageBox(message) {
+        const messageBox = document.createElement('div');
+        messageBox.className = 'custom-message-box';
+        messageBox.innerHTML = `
+                <div class="custom-message-box-content">
+                    <p class="fs-5 fw-semibold mb-4">${message}</p>
+                    <button class="btn btn-primary" onclick="this.parentNode.parentNode.remove()">Close</button>
+                </div>
+            `;
+        document.body.appendChild(messageBox);
+    }
