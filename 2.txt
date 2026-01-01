@@ -1,49 +1,8 @@
-AVERAGEIF: function () {
-    if (arguments.length < this.m[0] || arguments.length > this.m[1])
-        return p.error.na;
-
-    for (var e = 0; e < arguments.length; e++) {
-        var n = p.errorParamCheck(this.p, arguments[e], e);
-        if (!n[0])
-            return p.error.v;
-    }
-
-    try {
-        var sum = 0,
-            count = 0,
-            criteriaRange = p.getRangeArray(arguments[0].data)[0],
-            criteria = Ua(arguments[1]),
-            avgRange = [];
-
-        // average_range
-        if (arguments[2]) {
-            avgRange = p.getRangeArray(arguments[2].data)[0];
-        }
-
-        for (var i = 0; i < criteriaRange.length; i++) {
-            var critVal = criteriaRange[i];
-
-            // ✅ allow ZERO through criteria matching
-            if (
-                (critVal === 0 || critVal === "0" || (critVal !== null && critVal !== undefined)) &&
-                p.acompareb(critVal, criteria)
-            ) {
-                var value = avgRange.length ? avgRange[i] : critVal;
-
-                // ✅ Excel numeric rules
-                if (value === null || value === undefined || value === "" || isNaN(value))
-                    continue;
-
-                sum += Number(value);
-                count++;
-            }
-        }
-
-        // ✅ Excel behaviour
-        return count === 0 ? p.error.d : Il(sum / count);
-
-    } catch (err) {
-        err = p.errorInfo(err);
-        return [p.error.v, err];
-    }
-},
+  <div class="luckysheet-loading-content"> 
+            <div class="${t.imageClass} luckysheet-loading-image">
+                ${l}
+            </div>
+            <div class="${t.textClass} luckysheet-loading-text">
+            <span>${t.text}</span>
+            </div>    
+        </div>
