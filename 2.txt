@@ -1,91 +1,40 @@
-HLOOKUP: function () {
+function normalizeExcelDate(value) {
+    if (value == null) return value;
 
-    // helper: normalize value to Date only if it represents a date
-    function normalizeExcelDate(value) {
-        if (value == null) return value;
+    // JS Date → Excel serial
+    if (Object.prototype.toString.call(value) === "[object Date]") {
+        if (isNaN(value.getTime())) return value;
+        return Math.floor(
+            (Date.UTC(
+                value.getUTCFullYear(),
+                value.getUTCMonth(),
+                value.getUTCDate()
+            ) - Date.UTC(1899, 11, 30)) / 86400000
+        );
+    }
 
-        // already Date
-        if (Object.prototype.toString.call(value) === "[object Date]") {
-            return isNaN(value.getTime()) ? value : value;
-        }
-
-        // Excel serial number
-        if (typeof value === "number" && isFinite(value)) {
-            const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-            const d = new Date(excelEpoch.getTime() + value * 86400000);
-            return isNaN(d.getTime()) ? value : d;
-        }
-
-        // string date
-        if (typeof value === "string") {
-            const d = new Date(value);
-            if (!isNaN(d.getTime())) {
-                return d;
-            }
-        }
-
+    // Excel serial already
+    if (typeof value === "number" && isFinite(value)) {
         return value;
     }
 
-    if (arguments.length < this.m[0] || arguments.length > this.m[1])
-        return p.error.na;
-
-    for (var e = 0; e < arguments.length; e++) {
-        var n = p.errorParamCheck(this.p, arguments[e], e);
-        if (!n[0])
-            return p.error.v;
-    }
-
-    try {
-        var t = window.luckysheetCurrentRow,
-            l = window.luckysheetCurrentColumn,
-            a = arguments[0];
-
-        // get lookup value
-        typeof a === "object" && (
-            a = arguments[0].data,
-            L(a) === "array"
-                ? (a = a[t], L(a) === "array" && (a = a[l]))
-                : a = a.v
-        );
-
-        var o = arguments[1].data,
-            s = arguments[2],
-            u = false;
-
-        if (arguments.length > 3)
-            u = !!arguments[3];
-
-        if (s > o.rowl)
-            return [p.error.v, "索引超过了范围的长度，" + o[0].length];
-
-        if (s < 1)
-            return [p.error.v, "索引必须大于1"];
-
-        // normalize lookup value ONCE
-        var lookupVal = normalizeExcelDate(a);
-        var d = p.error.na;
-
-        for (var f = 0; f < o[0].length; f++) {
-            var m = Oe(0, f, o),
-                g = Oe(s - 1, f, o);
-
-            // normalize header cell value
-            var headerVal = normalizeExcelDate(m);
-
-            if (u) {
-                headerVal && headerVal.indexOf && headerVal.indexOf(lookupVal) > -1 && (d = g);
-            }
-            else if (p.acompareb(headerVal, lookupVal)) {
-                d = g;
-                return d;
+    // String → date ONLY if it looks like a date
+    if (typeof value === "string") {
+        // prevent "123" from becoming a date
+        if (/[a-zA-Z]|[-\/]/.test(value)) {
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+                return Math.floor(
+                    (Date.UTC(
+                        d.getUTCFullYear(),
+                        d.getUTCMonth(),
+                        d.getUTCDate()
+                    ) - Date.UTC(1899, 11, 30)) / 86400000
+                );
             }
         }
-
-        return d;
-
-    } catch (v) {
-        var y = p.errorInfo(v);
-        return [p.error.v, y];
     }
+
+    // Not a date
+    return value;
 }
