@@ -1,73 +1,39 @@
-<div class="d-flex justify-content-end mb-3">
-    <div class="btn-group view-toggle">
-        <button class="btn btn-outline-secondary active" id="tileViewBtn">
-            <i class="fas fa-th-large"></i> Tile
-        </button>
-        <button class="btn btn-outline-secondary" id="listViewBtn">
-            <i class="fas fa-list"></i> List
-        </button>
-    </div>
-</div>
-
-
-/* TILE VIEW (default) */
-#plansContainer.tile-view {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 16px;
-}
-
-/* LIST VIEW */
-#plansContainer.list-view {
-    display: block;
-}
-
-#plansContainer.list-view .plan-card {
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    margin-bottom: 10px;
-}
-
-/* Optional visual alignment */
-#plansContainer.list-view .plan-card .card-body {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-}
-
-/* Preserve hide styles */
-.hide-card {
-    opacity: 0.5;
-}
-
-
-$(function () {
-    const container = $('#plansContainer');
-
-    function setView(view) {
-        if (view === 'list') {
-            container.removeClass('tile-view').addClass('list-view');
-            $('#listViewBtn').addClass('active');
-            $('#tileViewBtn').removeClass('active');
-        } else {
-            container.removeClass('list-view').addClass('tile-view');
-            $('#tileViewBtn').addClass('active');
-            $('#listViewBtn').removeClass('active');
-        }
-        localStorage.setItem('planViewMode', view);
-    }
-
-    $('#tileViewBtn').on('click', function () {
-        setView('tile');
-    });
-
-    $('#listViewBtn').on('click', function () {
-        setView('list');
-    });
-
-    // Restore preference
-    const savedView = localStorage.getItem('planViewMode') || 'tile';
-    setView(savedView);
-});
+           HLOOKUP: function () {
+                if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                    return p.error.na;
+                for (var e = 0; e < arguments.length; e++) {
+                    var n = p.errorParamCheck(this.p, arguments[e], e);
+                    if (!n[0])
+                        return p.error.v
+                }
+                try {
+                    var t = window.luckysheetCurrentRow
+                        , l = window.luckysheetCurrentColumn
+                        , a = arguments[0];
+                    typeof a == "object" && (a = arguments[0].data,
+                        L(a) == "array" ? (a = a[r],
+                            L(a) == "array" && (a = a[f])) : a = a.v);
+                    var o = arguments[1].data
+                        , s = arguments[2]
+                        , u = !1;
+                    if (arguments.length > 3 && (u = !!arguments[3]),
+                        s > o.rowl)
+                        return [p.error.v, "\u7D22\u5F15\u8D85\u8FC7\u4E86\u8303\u56F4\u7684\u957F\u5EA6\uFF0C" + o[0].length];
+                    if (s < 1)
+                        return [p.error.v, "\u7D22\u5F15\u5FC5\u987B\u5927\u4E8E1"];
+                    for (var d = p.error.na, f = 0; f < o[0].length; f++) {
+                        var m = Oe(0, f, o)
+                            , g = Oe(s - 1, f, o);
+                        if (u)
+                            m.indexOf(a) > -1 && (d = g);
+                        else if (p.acompareb(m, a))
+                            return d = g,
+                                d
+                    }
+                    return d
+                } catch (v) {
+                    var y = v;
+                    return y = p.errorInfo(y),
+                        [p.error.v, y]
+                }
+            },
