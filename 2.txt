@@ -1,39 +1,91 @@
-           HLOOKUP: function () {
-                if (arguments.length < this.m[0] || arguments.length > this.m[1])
-                    return p.error.na;
-                for (var e = 0; e < arguments.length; e++) {
-                    var n = p.errorParamCheck(this.p, arguments[e], e);
-                    if (!n[0])
-                        return p.error.v
-                }
-                try {
-                    var t = window.luckysheetCurrentRow
-                        , l = window.luckysheetCurrentColumn
-                        , a = arguments[0];
-                    typeof a == "object" && (a = arguments[0].data,
-                        L(a) == "array" ? (a = a[r],
-                            L(a) == "array" && (a = a[f])) : a = a.v);
-                    var o = arguments[1].data
-                        , s = arguments[2]
-                        , u = !1;
-                    if (arguments.length > 3 && (u = !!arguments[3]),
-                        s > o.rowl)
-                        return [p.error.v, "\u7D22\u5F15\u8D85\u8FC7\u4E86\u8303\u56F4\u7684\u957F\u5EA6\uFF0C" + o[0].length];
-                    if (s < 1)
-                        return [p.error.v, "\u7D22\u5F15\u5FC5\u987B\u5927\u4E8E1"];
-                    for (var d = p.error.na, f = 0; f < o[0].length; f++) {
-                        var m = Oe(0, f, o)
-                            , g = Oe(s - 1, f, o);
-                        if (u)
-                            m.indexOf(a) > -1 && (d = g);
-                        else if (p.acompareb(m, a))
-                            return d = g,
-                                d
-                    }
-                    return d
-                } catch (v) {
-                    var y = v;
-                    return y = p.errorInfo(y),
-                        [p.error.v, y]
-                }
-            },
+HLOOKUP: function () {
+
+    // helper: normalize value to Date only if it represents a date
+    function normalizeExcelDate(value) {
+        if (value == null) return value;
+
+        // already Date
+        if (Object.prototype.toString.call(value) === "[object Date]") {
+            return isNaN(value.getTime()) ? value : value;
+        }
+
+        // Excel serial number
+        if (typeof value === "number" && isFinite(value)) {
+            const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+            const d = new Date(excelEpoch.getTime() + value * 86400000);
+            return isNaN(d.getTime()) ? value : d;
+        }
+
+        // string date
+        if (typeof value === "string") {
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+                return d;
+            }
+        }
+
+        return value;
+    }
+
+    if (arguments.length < this.m[0] || arguments.length > this.m[1])
+        return p.error.na;
+
+    for (var e = 0; e < arguments.length; e++) {
+        var n = p.errorParamCheck(this.p, arguments[e], e);
+        if (!n[0])
+            return p.error.v;
+    }
+
+    try {
+        var t = window.luckysheetCurrentRow,
+            l = window.luckysheetCurrentColumn,
+            a = arguments[0];
+
+        // get lookup value
+        typeof a === "object" && (
+            a = arguments[0].data,
+            L(a) === "array"
+                ? (a = a[t], L(a) === "array" && (a = a[l]))
+                : a = a.v
+        );
+
+        var o = arguments[1].data,
+            s = arguments[2],
+            u = false;
+
+        if (arguments.length > 3)
+            u = !!arguments[3];
+
+        if (s > o.rowl)
+            return [p.error.v, "索引超过了范围的长度，" + o[0].length];
+
+        if (s < 1)
+            return [p.error.v, "索引必须大于1"];
+
+        // normalize lookup value ONCE
+        var lookupVal = normalizeExcelDate(a);
+        var d = p.error.na;
+
+        for (var f = 0; f < o[0].length; f++) {
+            var m = Oe(0, f, o),
+                g = Oe(s - 1, f, o);
+
+            // normalize header cell value
+            var headerVal = normalizeExcelDate(m);
+
+            if (u) {
+                headerVal && headerVal.indexOf && headerVal.indexOf(lookupVal) > -1 && (d = g);
+            }
+            else if (p.acompareb(headerVal, lookupVal)) {
+                d = g;
+                return d;
+            }
+        }
+
+        return d;
+
+    } catch (v) {
+        var y = p.errorInfo(v);
+        return [p.error.v, y];
+    }
+}
