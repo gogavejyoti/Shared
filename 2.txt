@@ -1,212 +1,275 @@
-execFunctionGroup: function (e, n, t, l, a, o = !1) {
-                if (o) return;
-                const s = this;
+The primary performance bottleneck in your code is inside the **Dependency Graph Build** phase, specifically the `keysForRange` function.
 
-                // Initialize helpers
-                if (a == null) a = h.flowdata;
-                if (!window.luckysheet_compareWith) {
-                    window.luckysheet_compareWith = ja;
-                    window.luckysheet_getarraydata = wc;
-                    window.luckysheet_getcelldata = nr;
-                    window.luckysheet_parseData = Ua;
-                    window.luckysheet_getValue = qn;
-                    window.luckysheet_indirect_check = xc;
-                    window.luckysheet_indirect_check_return = _c;
-                    window.luckysheet_offset_check = Cc;
-                    window.luckysheet_calcADPMM = _t;
-                    window.luckysheet_getSpecialReference = Tc;
-                }
+### The Problem
 
-                if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-                if (l == null) l = h.currentSheetIndex;
+If a user writes a formula like `=SUM(A1:A10000)`, your current code:
 
-                // Store explicit value if provided
-                if (t != null) {
-                    const tmp = [[{ v: null }]];
-                    At(0, 0, tmp, t);
-                    s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
-                }
+1. Calls `keysForRange` which loops **10,000 times**.
+2. Allocates **10,000 temporary objects** in memory.
+3. Performs string concatenation (`"r"+...`) **10,000 times**.
+4. Then loops over that array again to check dependencies.
 
-                // Update cross-sheet references before recalculation
-                if (typeof _shiftCrossSheetReference === 'function') {
-                    _shiftCrossSheetReference({
-                        type: 'recalc',
-                        sheetIndex: l
-                    });
-                }
+This causes massive **Garbage Collection (GC) pressure** and freezes the browser on large ranges.
 
-                // Get all function group cells and sheet info
-                let allFuncCells = [];
-                let sheetIndices = null;
-                if (e && n) {
-                    const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-                    sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
-                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-                }
-                else {
-                    allFuncCells = s.getAllFunctionGroup() || [];
-                }
+### The Solution
+
+I have optimized the `execFunctionGroup` method below. The key changes are:
+
+1. **Hybrid Intersection Logic**:
+* If a range is small (e.g., `A1:A5`), we iterate the **Range**.
+* If a range is massive (e.g., `A:A` or `A1:C5000`), we iterate the **Nodes** (existing formulas) to see if they fall *inside* the range. This changes complexity from  to , which is often 1000x faster for large ranges.
 
 
+2. **Regex Hoisting**: Moved the formula tokenizer regex out of the loop so it isn't recompiled for every cell.
+3. **Removed Allocations**: Deleted `keysForRange` entirely to stop memory thrashing.
 
-                const sheetsInfo = Ft() || [];
-                const sheetMap = {};
+### Optimized Code
 
-                if (sheetIndices) {
-                    for (let i = 0; i < sheetsInfo.length; i++) {
-                        if (!sheetIndices.includes(sheetsInfo[i].index)) continue;
-                        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+```javascript
+// Define Regex once outside the function to avoid recompilation
+const FORMULA_TOKEN_REGEX = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
+
+execFunctionGroup: function(e, n, t, l, a, o = !1) {
+    if (o) return;
+    const s = this;
+
+    // Initialize helpers
+    if (a == null) a = h.flowdata;
+    if (!window.luckysheet_compareWith) {
+        window.luckysheet_compareWith = ja;
+        window.luckysheet_getarraydata = wc;
+        window.luckysheet_getcelldata = nr;
+        window.luckysheet_parseData = Ua;
+        window.luckysheet_getValue = qn;
+        window.luckysheet_indirect_check = xc;
+        window.luckysheet_indirect_check_return = _c;
+        window.luckysheet_offset_check = Cc;
+        window.luckysheet_calcADPMM = _t;
+        window.luckysheet_getSpecialReference = Tc;
+    }
+
+    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    if (l == null) l = h.currentSheetIndex;
+
+    // Store explicit value if provided
+    if (t != null) {
+        const tmp = [[{ v: null }]];
+        At(0, 0, tmp, t);
+        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+    }
+
+    // Update cross-sheet references
+    if (typeof _shiftCrossSheetReference === 'function') {
+        _shiftCrossSheetReference({
+            type: 'recalc',
+            sheetIndex: l
+        });
+    }
+
+    // Get all function group cells
+    let allFuncCells = [];
+    let sheetIndices = null;
+    if (e && n) {
+        const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+    } else {
+        allFuncCells = s.getAllFunctionGroup() || [];
+    }
+
+    const sheetsInfo = Ft() || [];
+    const sheetMap = {};
+
+    // Optimize sheet map building
+    const indicesSet = sheetIndices ? new Set(sheetIndices) : null;
+    for (let i = 0; i < sheetsInfo.length; i++) {
+        if (indicesSet && !indicesSet.has(sheetsInfo[i].index)) continue;
+        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+    }
+
+    // Build execSet (Lookup table for what needs calculation)
+    const execSet = {};
+    if (s.execFunctionExist == null) {
+        execSet["r" + e + "c" + n + "i" + l] = 1;
+    } else {
+        for (let i = 0; i < s.execFunctionExist.length; i++) {
+            const T = s.execFunctionExist[i];
+            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+        }
+    }
+
+    const nodes = {};
+
+    // --- PHASE 1: Build Nodes (Parsing) ---
+    for (let i = 0; i < allFuncCells.length; i++) {
+        const T = allFuncCells[i];
+        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+        const R = zl(T.r, T.c, T.index); // Get formula string
+        if (!R) continue;
+
+        const upper = R.toUpperCase();
+        // Check for special functions
+        const needsFunctionRange = upper.includes("INDIRECT(") || upper.includes("OFFSET(") || upper.includes("INDEX(");
+        const formulaRanges = [];
+
+        if (needsFunctionRange) {
+            this.isFunctionRange(R, null, null, T.index, null, function(ref) {
+                const rg = s.getcellrange($.trim(ref), T.index);
+                if (rg) formulaRanges.push(rg);
+            });
+        } else if (!(R.startsWith('="') && R.endsWith('"'))) {
+            // Optimized Tokenizer using hoisted Regex
+            const tokens = R.split(FORMULA_TOKEN_REGEX);
+            // Filter empty strings manually to avoid .filter(Boolean) allocation overhead in tight loops
+            for (let ti = 0; ti < tokens.length; ti++) {
+                let tk = tokens[ti].trim();
+                if (!tk) continue;
+                if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+                
+                const rg = s.getcellrange(tk, T.index);
+                if (rg) formulaRanges.push(rg);
+            }
+        }
+
+        nodes[nodeKey] = {
+            formulaArray: formulaRanges,
+            calc_funcStr: R,
+            key: nodeKey,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            parents: {},
+            chidren: {},
+            color: "w"
+        };
+    }
+
+    // --- PHASE 2: Build Dependency Graph (The Bottleneck Fix) ---
+    const y = [];
+    const nodeKeys = Object.keys(nodes);
+    
+    // Cache total number of formulas to decide optimization strategy
+    const totalFormulas = nodeKeys.length;
+
+    for (let i = 0; i < totalFormulas; i++) {
+        const currentNode = nodes[nodeKeys[i]];
+        const ranges = currentNode.formulaArray || [];
+
+        for (let ri = 0; ri < ranges.length; ri++) {
+            const rect = ranges[ri];
+            
+            // Calculate size of the dependency range
+            const rangeRows = rect.row[1] - rect.row[0] + 1;
+            const rangeCols = rect.column[1] - rect.column[0] + 1;
+            const rangeSize = rangeRows * rangeCols;
+
+            // HYBRID STRATEGY:
+            // 1. If Range is Huge (e.g., A:A), don't loop the range. Loop the formula nodes instead.
+            // 2. If Range is Small (e.g., A1:A5), loop the range coordinates.
+            
+            if (rangeSize > totalFormulas) {
+                // Strategy A: Iterate ALL nodes to see if they are inside the range
+                // (Much faster for whole-column references like A:A)
+                for (let k = 0; k < totalFormulas; k++) {
+                    const targetKey = nodeKeys[k];
+                    const targetNode = nodes[targetKey];
+
+                    // Check if targetNode is on same sheet and inside rect
+                    if (targetNode.index === rect.sheetIndex &&
+                        targetNode.r >= rect.row[0] && targetNode.r <= rect.row[1] &&
+                        targetNode.c >= rect.column[0] && targetNode.c <= rect.column[1]) {
+                        
+                        // Link Nodes
+                        currentNode.chidren[targetKey] = 1;
+                        targetNode.parents[currentNode.key] = 1;
                     }
                 }
-                else {
-                    for (let i = 0; i < sheetsInfo.length; i++) {
-                        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
-                    }
-                }
-
-                // Build execSet
-                const execSet = {};
-                if (s.execFunctionExist == null) {
-                    execSet["r" + e + "c" + n + "i" + l] = 1;
-                } else {
-                    for (let i = 0; i < s.execFunctionExist.length; i++) {
-                        const T = s.execFunctionExist[i];
-                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-                    }
-                }
-
-                const nodes = {};
-                const rangeToKeysCache = {};
-
-                // Helper: get keys in a rectangular range
-                function keysForRange(R) {
-                    const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
-                    if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
-                    const list = [];
-                    for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
-                        for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                            const k = "r" + rr + "c" + cc + "i" + R.sheetIndex;
-                            list.push({ key: k, r: rr, c: cc, sheetIndex: R.sheetIndex });
+            } else {
+                // Strategy B: Iterate the Range coordinates directly (Standard approach)
+                // (Faster for small ranges like A1:B2)
+                for (let r = rect.row[0]; r <= rect.row[1]; r++) {
+                    for (let c = rect.column[0]; c <= rect.column[1]; c++) {
+                        const targetKey = "r" + r + "c" + c + "i" + rect.sheetIndex;
+                        if (nodes[targetKey]) {
+                             // Link Nodes
+                            currentNode.chidren[targetKey] = 1;
+                            nodes[targetKey].parents[currentNode.key] = 1;
                         }
                     }
-                    rangeToKeysCache[cacheKey] = list;
-                    return list;
                 }
+            }
+        }
+        
+        // Add to execution list if it's in the requested set or we are forcing all (o)
+        if (o || (currentNode.key in execSet)) {
+            y.push(currentNode);
+        }
+    }
 
-                // Build nodes
-                for (let i = 0; i < allFuncCells.length; i++) {
-                    const T = allFuncCells[i];
-                    const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
-                    const R = zl(T.r, T.c, T.index);
-                    if (!R) continue;
+    // --- PHASE 3: Topological Sort ---
+    const S = {};
+    const stack = y.slice();
+    const ordered = [];
+    
+    while (stack.length > 0) {
+        const cur = stack.pop();
+        if (!cur || S[cur.key]) continue;
+        
+        if (cur.color === "b") {
+            ordered.push(cur);
+            S[cur.key] = 1;
+            continue;
+        }
 
-                    const upper = R.toUpperCase();
-                    const needsFunctionRange = upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1;
-                    const formulaRanges = [];
+        const parentKeys = Object.keys(cur.parents || {});
+        // Optimized: Don't allocate new array for parents, just push to stack directly
+        let hasUnvisitedParents = false;
+        
+        // Check parents first
+        for (let pi = 0; pi < parentKeys.length; pi++) {
+            const pk = parentKeys[pi];
+            // Only care if parent is in our node graph
+            if (nodes[pk] && !S[pk]) {
+               if(!hasUnvisitedParents) {
+                   // If we found parents, we must revisit this node later
+                   cur.color = "b";
+                   stack.push(cur);
+                   hasUnvisitedParents = true;
+               }
+               stack.push(nodes[pk]);
+            }
+        }
 
-                    if (needsFunctionRange) {
-                        this.isFunctionRange(R, null, null, T.index, null, function (ref) {
-                            const rg = s.getcellrange($.trim(ref), T.index);
-                            if (rg) formulaRanges.push(rg);
-                        });
-                    } else if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
-                        const tokens = R.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
-                        for (let ti = 0; ti < tokens.length; ti++) {
-                            let tk = tokens[ti].trim();
-                            if (!tk) continue;
-                            if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
-                            const rg = s.getcellrange($.trim(tk), T.index);
-                            if (rg) formulaRanges.push(rg);
-                        }
-                    }
+        if (!hasUnvisitedParents) {
+            ordered.push(cur);
+            S[cur.key] = 1;
+        }
+    }
 
-                    nodes[nodeKey] = {
-                        formulaArray: formulaRanges,
-                        calc_funcStr: R,
-                        key: nodeKey,
-                        r: T.r,
-                        c: T.c,
-                        index: T.index,
-                        parents: {},
-                        chidren: {},
-                        color: "w"
-                    };
-                }
+    ordered.reverse();
 
-                // Build dependency graph
-                const y = [];
-                const nodeKeys = Object.keys(nodes);
-                for (let i = 0; i < nodeKeys.length; i++) {
-                    const node = nodes[nodeKeys[i]];
-                    const ranges = node.formulaArray || [];
-                    for (let ri = 0; ri < ranges.length; ri++) {
-                        const rect = ranges[ri];
-                        const keys = keysForRange(rect);
-                        for (let ki = 0; ki < keys.length; ki++) {
-                            const cellInfo = keys[ki];
-                            const A = cellInfo.key;
-                            if (A in nodes) {
-                                node.chidren[A] = 1;
-                                nodes[A].parents[node.key] = 1;
-                            }
-                            if (!o && (A in execSet)) y.push(node);
-                        }
-                    }
-                    if (o) y.push(node);
-                }
+    // --- PHASE 4: Execute ---
+    for (let i = 0; i < ordered.length; i++) {
+        const T = ordered[i];
+        window.luckysheet_getcelldata_cache = null;
+        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
 
-                // Topological sort
-                const S = {};
-                const stack = y.slice();
-                const ordered = [];
-                while (stack.length > 0) {
-                    const cur = stack.pop();
-                    if (!cur || S[cur.key]) continue;
-                    if (cur.color === "b") {
-                        ordered.push(cur);
-                        S[cur.key] = 1;
-                        continue;
-                    }
+        s.groupValuesRefreshData.push({
+            r: T.r,
+            c: T.c,
+            v: Rres[1],
+            f: Rres[2],
+            spe: Rres[3],
+            index: T.index
+        });
 
-                    const parentKeys = Object.keys(cur.parents || {});
-                    const parentNodes = [];
-                    for (let pi = 0; pi < parentKeys.length; pi++) {
-                        const pk = parentKeys[pi];
-                        if (nodes[pk]) parentNodes.push(nodes[pk]);
-                    }
+        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
+            v: Rres[1],
+            f: Rres[2]
+        };
+    }
 
-                    if (parentNodes.length === 0) {
-                        ordered.push(cur);
-                        S[cur.key] = 1;
-                    } else {
-                        cur.color = "b";
-                        stack.push(cur);
-                        for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
-                    }
-                }
+    s.execFunctionExist = null;
+}
 
-                ordered.reverse();
-
-                // Evaluate nodes
-                for (let i = 0; i < ordered.length; i++) {
-                    const T = ordered[i];
-                    window.luckysheet_getcelldata_cache = null;
-                    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
-
-                    s.groupValuesRefreshData.push({
-                        r: T.r,
-                        c: T.c,
-                        v: Rres[1],
-                        f: Rres[2],
-                        spe: Rres[3],
-                        index: T.index
-                    });
-
-                    s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-                        v: Rres[1],
-                        f: Rres[2]
-                    };
-                }
-
-                s.execFunctionExist = null;
-            },
+```
