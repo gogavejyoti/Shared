@@ -1,161 +1,145 @@
-const FORMULA_SPLIT_REGEX = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
-
 execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (o) return;
     const s = this;
 
-    // 1. Core Initialization
     if (a == null) a = h.flowdata;
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja; window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr; window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn; window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c; window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t; window.luckysheet_getSpecialReference = Tc;
+    if (l == null) l = h.currentSheetIndex;
+
+    /* ---------------- helpers init (ONCE) ---------------- */
+    if (!window.__ls_exec_init__) {
+        window.luckysheet_compareWith = ja;
+        window.luckysheet_getarraydata = wc;
+        window.luckysheet_getcelldata = nr;
+        window.luckysheet_parseData = Ua;
+        window.luckysheet_getValue = qn;
+        window.luckysheet_indirect_check = xc;
+        window.luckysheet_indirect_check_return = _c;
+        window.luckysheet_offset_check = Cc;
+        window.luckysheet_calcADPMM = _t;
+        window.luckysheet_getSpecialReference = Tc;
+        window.__ls_exec_init__ = true;
     }
 
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-    if (!s.formulaCache) s.formulaCache = {}; 
-    if (l == null) l = h.currentSheetIndex;
+    if (!s.__fastDepGraph__) s.__fastDepGraph__ = null;
 
-    // 2. Set Trigger Value
-    if (t != null) {
+    /* ---------------- store explicit value ---------------- */
+    if (t != null && e != null && n != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
-        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+        s.execFunctionGlobalData[`r${e}c${n}i${l}`] = tmp[0][0];
     }
 
-    // 3. Determine Scope
-    let allFuncCells = [];
-    if (e && n) {
-        const cacheKey = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-        const dependentSheets = s.getAllDependentSheetsFromSheet(l, cacheKey);
-        allFuncCells = s.getAllDependentFunctionGroup(dependentSheets) || [];
+    /* ---------------- get function cells ---------------- */
+    let allFuncCells;
+    if (e != null && n != null) {
+        const fkey = window.luckysheet_getcelldata_cache
+            ? Object.keys(window.luckysheet_getcelldata_cache).join("+")
+            : null;
+        const sheets = s.getAllDependentSheetsFromSheet(l, fkey);
+        allFuncCells = s.getAllDependentFunctionGroup(sheets) || [];
     } else {
         allFuncCells = s.getAllFunctionGroup() || [];
     }
+
     if (allFuncCells.length === 0) return;
 
-    // 4. Data Structures for the Graph
-    const nodes = new Map();
-    const spatialIndex = new Map(); // Map<Sheet, Map<Row, Node[]>>
-    const dirtySet = new Set(); // Cells that triggered the change
+    /* ---------------- build graph (ONCE) ---------------- */
+    let nodes = s.__fastDepGraph__;
+    if (!nodes) {
+        nodes = Object.create(null);
 
-    const triggerHash = `${l}_${e}_${n}`;
-    if (s.execFunctionExist == null) {
-        dirtySet.add(triggerHash);
-    } else {
-        for (let i = 0; i < s.execFunctionExist.length; i++) {
-            const d = s.execFunctionExist[i];
-            dirtySet.add(`${d.i}_${d.r}_${d.c}`);
-        }
-    }
+        for (let i = 0; i < allFuncCells.length; i++) {
+            const T = allFuncCells[i];
+            const key = `r${T.r}c${T.c}i${T.index}`;
+            const formula = zl(T.r, T.c, T.index);
+            if (!formula) continue;
 
-    // --- PHASE 1: Node Creation & Dependency Parsing ---
-    for (let i = 0; i < allFuncCells.length; i++) {
-        const T = allFuncCells[i];
-        const rawFormula = zl(T.r, T.c, T.index);
-        if (!rawFormula) continue;
+            const parents = new Set();
+            s.isFunctionRange(formula, null, null, T.index, null, ref => {
+                const rg = s.getcellrange(ref.trim(), T.index);
+                if (rg) parents.add(`r${rg.row[0]}_${rg.row[1]}c${rg.column[0]}_${rg.column[1]}i${rg.sheetIndex}`);
+            });
 
-        const cellId = `${T.index}_${T.r}_${T.c}`;
-        
-        // Cache Logic: Verify by position AND string to handle dragging 100% correctly
-        const cacheKey = cellId + "::" + rawFormula;
-        let ranges = s.formulaCache[cacheKey];
-
-        if (!ranges) {
-            ranges = [];
-            const upper = rawFormula.toUpperCase();
-            if (upper.includes("INDIRECT(") || upper.includes("OFFSET(") || upper.includes("INDEX(")) {
-                this.isFunctionRange(rawFormula, null, null, T.index, null, (ref) => {
-                    const rg = s.getcellrange($.trim(ref), T.index);
-                    if (rg) ranges.push(rg);
-                });
-            } else if (!(rawFormula.startsWith('="') && rawFormula.endsWith('"'))) {
-                const tokens = rawFormula.split(FORMULA_SPLIT_REGEX);
-                for (let ti = 0; ti < tokens.length; ti++) {
-                    const tk = tokens[ti].trim();
-                    if (tk.length > 1 || (tk.length === 1 && s.iscelldata && s.iscelldata(tk))) {
-                        const rg = s.getcellrange(tk, T.index);
-                        if (rg) ranges.push(rg);
-                    }
-                }
-            }
-            s.formulaCache[cacheKey] = ranges;
+            nodes[key] = {
+                r: T.r,
+                c: T.c,
+                index: T.index,
+                f: formula,
+                parents,
+                children: new Set()
+            };
         }
 
-        const node = {
-            id: cellId, r: T.r, c: T.c, i: T.index,
-            formula: rawFormula,
-            ranges: ranges,
-            dependents: [], // Who depends on me
-            inDegree: 0,    // How many I depend on
-            isTriggered: dirtySet.has(cellId)
-        };
-        nodes.set(cellId, node);
-
-        // Add to Spatial Index
-        if (!spatialIndex.has(T.index)) spatialIndex.set(T.index, new Map());
-        const sheetRows = spatialIndex.get(T.index);
-        if (!sheetRows.has(T.r)) sheetRows.set(T.r, []);
-        sheetRows.get(T.r).push(node);
-    }
-
-    // --- PHASE 2: Graph Linkage (Spatial Optimization) ---
-    
-    for (const node of nodes.values()) {
-        for (const rect of node.ranges) {
-            const sheetRows = spatialIndex.get(rect.sheetIndex);
-            if (!sheetRows) continue;
-
-            for (let r = rect.row[0]; r <= rect.row[1]; r++) {
-                const rowNodes = sheetRows.get(r);
-                if (!rowNodes) continue;
-                for (let k = 0; k < rowNodes.length; k++) {
-                    const dependency = rowNodes[k];
-                    if (dependency.id === node.id) continue; // Skip self
-                    if (dependency.c >= rect.column[0] && dependency.c <= rect.column[1]) {
-                        // Dependency -> Node (Dependency must finish for Node to start)
-                        dependency.dependents.push(node);
-                        node.inDegree++;
-                    }
-                }
-            }
+        // reverse edges
+        for (const k in nodes) {
+            nodes[k].parents.forEach(p => {
+                if (nodes[p]) nodes[p].children.add(k);
+            });
         }
+
+        s.__fastDepGraph__ = nodes;
     }
 
-    // --- PHASE 3: Kahn's Algorithm (Topological Queue) ---
+    /* ---------------- dirty propagation ---------------- */
+    const dirty = new Set();
+    const start = (e != null && n != null) ? `r${e}c${n}i${l}` : null;
+    const stack = start ? [start] : Object.keys(nodes);
+
+    while (stack.length) {
+        const k = stack.pop();
+        if (!nodes[k] || dirty.has(k)) continue;
+        dirty.add(k);
+        nodes[k].children.forEach(c => stack.push(c));
+    }
+
+    if (dirty.size === 0) return;
+
+    /* ---------------- ultra-fast topo sort ---------------- */
+    const indeg = Object.create(null);
     const queue = [];
-    // Start with all nodes that have 0 dependencies
-    for (const node of nodes.values()) {
-        if (node.inDegree === 0) queue.push(node);
-    }
+    const ordered = [];
 
-    const sortedOrder = [];
-    let head = 0;
-    while (head < queue.length) {
-        const u = queue[head++];
-        sortedOrder.push(u);
-
-        for (const v of u.dependents) {
-            v.inDegree--;
-            if (v.inDegree === 0) queue.push(v);
-        }
-    }
-
-    // --- PHASE 4: Reliable Execution ---
-    window.luckysheet_getcelldata_cache = null;
-    for (let i = 0; i < sortedOrder.length; i++) {
-        const T = sortedOrder[i];
-        
-        // Reliability check: Only calculate if this cell OR one of its ancestors was dirty
-        // Luckysheet usually handles "need-to-calc" flag via execfunction itself
-        const Rres = s.execfunction(T.formula, T.r, T.c, T.i);
-        
-        s.groupValuesRefreshData.push({
-            r: T.r, c: T.c, v: Rres[1], f: Rres[2], spe: Rres[3], index: T.i
+    dirty.forEach(k => indeg[k] = 0);
+    dirty.forEach(k => {
+        nodes[k].parents.forEach(p => {
+            if (dirty.has(p)) indeg[k]++;
         });
-        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.i] = { v: Rres[1], f: Rres[2] };
+    });
+
+    for (const k in indeg) if (indeg[k] === 0) queue.push(k);
+
+    for (let qi = 0; qi < queue.length; qi++) {
+        const k = queue[qi];
+        ordered.push(k);
+        nodes[k].children.forEach(c => {
+            if (!dirty.has(c)) return;
+            if (--indeg[c] === 0) queue.push(c);
+        });
+    }
+
+    if (ordered.length !== dirty.size) {
+        throw new Error("Circular reference detected");
+    }
+
+    /* ---------------- execution (FAST PATH) ---------------- */
+    for (let i = 0; i < ordered.length; i++) {
+        const n0 = nodes[ordered[i]];
+        const res = s.execfunction(n0.f, n0.r, n0.c, n0.index);
+
+        s.execFunctionGlobalData[ordered[i]] = {
+            v: res[1],
+            f: res[2]
+        };
+
+        s.groupValuesRefreshData.push({
+            r: n0.r,
+            c: n0.c,
+            v: res[1],
+            f: res[2],
+            spe: res[3],
+            index: n0.index
+        });
     }
 
     s.execFunctionExist = null;
