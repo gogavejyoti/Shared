@@ -176,4 +176,66 @@ execFunctionGroup: function(e, n, t, l, a, o = !1) {
         }
         
         // Add to execution queue if dirty
-        const isDirty = o || execSet[(node.r << 12) + (node.c
+        const isDirty = o || execSet[(node.r << 12) + (node.c << 6) + node.i];
+        if (isDirty) y.push(node);
+    }
+
+    // --- PHASE 3: Topological Sort (Iterative DFS) ---
+    const ordered = [];
+    const visited = {}; // integers logic faster? Objects are fine here for sparse
+    const stack = y; // Reuse array
+
+    while (stack.length > 0) {
+        const cur = stack[stack.length - 1]; // Peek
+        
+        if (cur.color === 2) { // Black (Done)
+            stack.pop();
+            continue;
+        }
+
+        if (cur.color === 1) { // Gray (Visiting children/parents)
+            cur.color = 2;
+            ordered.push(cur);
+            stack.pop();
+            continue;
+        }
+
+        cur.color = 1; // Mark Gray
+        const parents = cur.p;
+        const pLen = parents.length;
+        
+        for (let i = 0; i < pLen; i++) {
+            const p = parents[i];
+            if (p.color === 0) {
+                stack.push(p);
+            }
+        }
+    }
+    
+    // Reverse because we pushed post-order
+    ordered.reverse();
+
+    // --- PHASE 4: Execution ---
+    // Batch DOM updates if possible? No, engine needs sequential updates.
+    const execLen = ordered.length;
+    
+    // Clear cache once before loop
+    window.luckysheet_getcelldata_cache = null;
+
+    for (let i = 0; i < execLen; i++) {
+        const T = ordered[i];
+        const Rres = s.execfunction(T.func, T.r, T.c, T.i);
+
+        // Update Global Data directly
+        const resObj = { v: Rres[1], f: Rres[2] };
+        
+        // Only push to RefreshData if strictly needed (Memory opt)
+        s.groupValuesRefreshData.push({
+            r: T.r, c: T.c, v: Rres[1], f: Rres[2], spe: Rres[3], index: T.i
+        });
+
+        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.i] = resObj;
+    }
+
+    s.execFunctionExist = null;
+}
