@@ -1,39 +1,11 @@
-The primary performance bottleneck in your code is inside the **Dependency Graph Build** phase, specifically the `keysForRange` function.
-
-### The Problem
-
-If a user writes a formula like `=SUM(A1:A10000)`, your current code:
-
-1. Calls `keysForRange` which loops **10,000 times**.
-2. Allocates **10,000 temporary objects** in memory.
-3. Performs string concatenation (`"r"+...`) **10,000 times**.
-4. Then loops over that array again to check dependencies.
-
-This causes massive **Garbage Collection (GC) pressure** and freezes the browser on large ranges.
-
-### The Solution
-
-I have optimized the `execFunctionGroup` method below. The key changes are:
-
-1. **Hybrid Intersection Logic**:
-* If a range is small (e.g., `A1:A5`), we iterate the **Range**.
-* If a range is massive (e.g., `A:A` or `A1:C5000`), we iterate the **Nodes** (existing formulas) to see if they fall *inside* the range. This changes complexity from  to , which is often 1000x faster for large ranges.
-
-
-2. **Regex Hoisting**: Moved the formula tokenizer regex out of the loop so it isn't recompiled for every cell.
-3. **Removed Allocations**: Deleted `keysForRange` entirely to stop memory thrashing.
-
-### Optimized Code
-
-```javascript
-// Define Regex once outside the function to avoid recompilation
-const FORMULA_TOKEN_REGEX = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
+// Global RegEx (Compiled once)
+const FORMULA_SPLIT_REGEX = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
 
 execFunctionGroup: function(e, n, t, l, a, o = !1) {
     if (o) return;
     const s = this;
 
-    // Initialize helpers
+    // 1. Setup helpers
     if (a == null) a = h.flowdata;
     if (!window.luckysheet_compareWith) {
         window.luckysheet_compareWith = ja;
@@ -48,228 +20,160 @@ execFunctionGroup: function(e, n, t, l, a, o = !1) {
         window.luckysheet_getSpecialReference = Tc;
     }
 
+    // Initialize Caches
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    if (!s.formulaCache) s.formulaCache = {}; // PERSISTENT CACHE
     if (l == null) l = h.currentSheetIndex;
 
-    // Store explicit value if provided
+    // 2. Set Trigger Value
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // Update cross-sheet references
+    // 3. Shift References
     if (typeof _shiftCrossSheetReference === 'function') {
-        _shiftCrossSheetReference({
-            type: 'recalc',
-            sheetIndex: l
-        });
+        _shiftCrossSheetReference({ type: 'recalc', sheetIndex: l });
     }
 
-    // Get all function group cells
+    // 4. Gather Function Cells
     let allFuncCells = [];
-    let sheetIndices = null;
     if (e && n) {
-        const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
-        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+        const cacheKey = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+        const dependentSheets = s.getAllDependentSheetsFromSheet(l, cacheKey);
+        allFuncCells = s.getAllDependentFunctionGroup(dependentSheets) || [];
     } else {
         allFuncCells = s.getAllFunctionGroup() || [];
     }
 
-    const sheetsInfo = Ft() || [];
-    const sheetMap = {};
+    if (allFuncCells.length === 0) return;
 
-    // Optimize sheet map building
-    const indicesSet = sheetIndices ? new Set(sheetIndices) : null;
-    for (let i = 0; i < sheetsInfo.length; i++) {
-        if (indicesSet && !indicesSet.has(sheetsInfo[i].index)) continue;
-        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
-    }
-
-    // Build execSet (Lookup table for what needs calculation)
-    const execSet = {};
-    if (s.execFunctionExist == null) {
-        execSet["r" + e + "c" + n + "i" + l] = 1;
-    } else {
-        for (let i = 0; i < s.execFunctionExist.length; i++) {
-            const T = s.execFunctionExist[i];
-            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-        }
-    }
-
+    // 5. Build Spatial Index & Node Map (Fast Lookup)
+    // Structure: rowMap[sheetIndex][rowIndex] = [NodeA, NodeB...]
     const nodes = {};
+    const rowMap = {}; 
+    const execSet = {};
 
-    // --- PHASE 1: Build Nodes (Parsing) ---
-    for (let i = 0; i < allFuncCells.length; i++) {
+    // Helper to add to execSet
+    const addToExec = (r, c, i) => execSet[(r << 12) + (c << 6) + i] = 1; // Integer hash is faster than string
+
+    // Populate execSet from existing data
+    if (s.execFunctionExist == null) {
+        addToExec(e, n, l);
+    } else {
+        const len = s.execFunctionExist.length;
+        for (let i = 0; i < len; i++) {
+            const T = s.execFunctionExist[i];
+            addToExec(T.r, T.c, T.i);
+        }
+    }
+
+    // --- PHASE 1: Parse Formulas (With Cache) ---
+    const len = allFuncCells.length;
+    for (let i = 0; i < len; i++) {
         const T = allFuncCells[i];
+        const rawFormula = zl(T.r, T.c, T.index);
+        if (!rawFormula) continue;
+
         const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
-        const R = zl(T.r, T.c, T.index); // Get formula string
-        if (!R) continue;
+        
+        // CHECK CACHE
+        // We use formula string + index as key. If formula text hasn't changed, reuse ranges.
+        const cacheKey = T.index + "_" + rawFormula;
+        let formulaRanges = s.formulaCache[cacheKey];
 
-        const upper = R.toUpperCase();
-        // Check for special functions
-        const needsFunctionRange = upper.includes("INDIRECT(") || upper.includes("OFFSET(") || upper.includes("INDEX(");
-        const formulaRanges = [];
-
-        if (needsFunctionRange) {
-            this.isFunctionRange(R, null, null, T.index, null, function(ref) {
-                const rg = s.getcellrange($.trim(ref), T.index);
-                if (rg) formulaRanges.push(rg);
-            });
-        } else if (!(R.startsWith('="') && R.endsWith('"'))) {
-            // Optimized Tokenizer using hoisted Regex
-            const tokens = R.split(FORMULA_TOKEN_REGEX);
-            // Filter empty strings manually to avoid .filter(Boolean) allocation overhead in tight loops
-            for (let ti = 0; ti < tokens.length; ti++) {
-                let tk = tokens[ti].trim();
-                if (!tk) continue;
-                if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
-                
-                const rg = s.getcellrange(tk, T.index);
-                if (rg) formulaRanges.push(rg);
+        if (!formulaRanges) {
+            // Cache Miss: Parse Expensive Formula
+            formulaRanges = [];
+            const upper = rawFormula.toUpperCase();
+            
+            if (upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1) {
+                this.isFunctionRange(rawFormula, null, null, T.index, null, function(ref) {
+                    const rg = s.getcellrange($.trim(ref), T.index);
+                    if (rg) formulaRanges.push(rg);
+                });
+            } else if (!(rawFormula.startsWith('="') && rawFormula.endsWith('"'))) {
+                const tokens = rawFormula.split(FORMULA_SPLIT_REGEX);
+                const tLen = tokens.length;
+                for (let ti = 0; ti < tLen; ti++) {
+                    const tk = tokens[ti].trim();
+                    if (tk.length > 1 || (tk.length === 1 && s.iscelldata && s.iscelldata(tk))) {
+                         const rg = s.getcellrange(tk, T.index);
+                         if (rg) formulaRanges.push(rg);
+                    }
+                }
             }
+            // Save to Cache
+            s.formulaCache[cacheKey] = formulaRanges;
         }
 
-        nodes[nodeKey] = {
-            formulaArray: formulaRanges,
-            calc_funcStr: R,
+        // Create Node
+        const node = {
+            ranges: formulaRanges,
+            func: rawFormula,
             key: nodeKey,
-            r: T.r,
-            c: T.c,
-            index: T.index,
-            parents: {},
-            chidren: {},
-            color: "w"
+            r: T.r, c: T.c, i: T.index,
+            p: [], // Parents (Array is faster than object keys)
+            color: 0 // 0: white, 1: gray, 2: black
         };
+        nodes[nodeKey] = node;
+
+        // Populate Spatial Index (Row Map)
+        if(!rowMap[T.index]) rowMap[T.index] = {};
+        if(!rowMap[T.index][T.r]) rowMap[T.index][T.r] = [];
+        rowMap[T.index][T.r].push(node);
     }
 
-    // --- PHASE 2: Build Dependency Graph (The Bottleneck Fix) ---
-    const y = [];
+    // --- PHASE 2: Build Graph (Spatial Lookup) ---
+    const y = []; // Nodes to execute
     const nodeKeys = Object.keys(nodes);
-    
-    // Cache total number of formulas to decide optimization strategy
-    const totalFormulas = nodeKeys.length;
+    const nodeLen = nodeKeys.length;
 
-    for (let i = 0; i < totalFormulas; i++) {
-        const currentNode = nodes[nodeKeys[i]];
-        const ranges = currentNode.formulaArray || [];
+    for (let i = 0; i < nodeLen; i++) {
+        const node = nodes[nodeKeys[i]];
+        const ranges = node.ranges;
+        const rLen = ranges.length;
 
-        for (let ri = 0; ri < ranges.length; ri++) {
-            const rect = ranges[ri];
+        for (let j = 0; j < rLen; j++) {
+            const rect = ranges[j];
+            const sheetIdx = rect.sheetIndex;
             
-            // Calculate size of the dependency range
-            const rangeRows = rect.row[1] - rect.row[0] + 1;
-            const rangeCols = rect.column[1] - rect.column[0] + 1;
-            const rangeSize = rangeRows * rangeCols;
+            // Fast Skip: If no formulas on this sheet, skip
+            if (!rowMap[sheetIdx]) continue;
 
-            // HYBRID STRATEGY:
-            // 1. If Range is Huge (e.g., A:A), don't loop the range. Loop the formula nodes instead.
-            // 2. If Range is Small (e.g., A1:A5), loop the range coordinates.
-            
-            if (rangeSize > totalFormulas) {
-                // Strategy A: Iterate ALL nodes to see if they are inside the range
-                // (Much faster for whole-column references like A:A)
-                for (let k = 0; k < totalFormulas; k++) {
-                    const targetKey = nodeKeys[k];
-                    const targetNode = nodes[targetKey];
+            // Spatial Search: Only iterate rows that actually exist in the map and overlap our range
+            const sheetRows = rowMap[sheetIdx];
+            const rStart = rect.row[0];
+            const rEnd = rect.row[1];
+            const cStart = rect.column[0];
+            const cEnd = rect.column[1];
 
-                    // Check if targetNode is on same sheet and inside rect
-                    if (targetNode.index === rect.sheetIndex &&
-                        targetNode.r >= rect.row[0] && targetNode.r <= rect.row[1] &&
-                        targetNode.c >= rect.column[0] && targetNode.c <= rect.column[1]) {
+            // Iterate only relevant rows (Sparse check)
+            for (let r = rStart; r <= rEnd; r++) {
+                const rowNodes = sheetRows[r];
+                if (!rowNodes) continue; // No formulas in this row
+
+                const rowNodeLen = rowNodes.length;
+                for (let k = 0; k < rowNodeLen; k++) {
+                    const neighbor = rowNodes[k];
+                    // Check Column overlap
+                    if (neighbor.c >= cStart && neighbor.c <= cEnd) {
+                        // Link Dependency: neighbor is a dependency of node
+                        // neighbor -> node (neighbor is parent of node)
+                        // Actually: If node A has range B1, then B1 is a child of A? 
+                        // Standard: Logic is "Dependencies must run first". 
+                        // If A = B1, B1 must run before A. B1 is Parent, A is Child.
+                        // Wait, topological sort usually puts dependencies first.
+                        // Let's stick to your original logic structure:
+                        // You had: node.children[neighbor] and neighbor.parents[node]
                         
-                        // Link Nodes
-                        currentNode.chidren[targetKey] = 1;
-                        targetNode.parents[currentNode.key] = 1;
-                    }
-                }
-            } else {
-                // Strategy B: Iterate the Range coordinates directly (Standard approach)
-                // (Faster for small ranges like A1:B2)
-                for (let r = rect.row[0]; r <= rect.row[1]; r++) {
-                    for (let c = rect.column[0]; c <= rect.column[1]; c++) {
-                        const targetKey = "r" + r + "c" + c + "i" + rect.sheetIndex;
-                        if (nodes[targetKey]) {
-                             // Link Nodes
-                            currentNode.chidren[targetKey] = 1;
-                            nodes[targetKey].parents[currentNode.key] = 1;
-                        }
+                        // Optimized: Just push to array
+                        neighbor.p.push(node); 
                     }
                 }
             }
         }
         
-        // Add to execution list if it's in the requested set or we are forcing all (o)
-        if (o || (currentNode.key in execSet)) {
-            y.push(currentNode);
-        }
-    }
-
-    // --- PHASE 3: Topological Sort ---
-    const S = {};
-    const stack = y.slice();
-    const ordered = [];
-    
-    while (stack.length > 0) {
-        const cur = stack.pop();
-        if (!cur || S[cur.key]) continue;
-        
-        if (cur.color === "b") {
-            ordered.push(cur);
-            S[cur.key] = 1;
-            continue;
-        }
-
-        const parentKeys = Object.keys(cur.parents || {});
-        // Optimized: Don't allocate new array for parents, just push to stack directly
-        let hasUnvisitedParents = false;
-        
-        // Check parents first
-        for (let pi = 0; pi < parentKeys.length; pi++) {
-            const pk = parentKeys[pi];
-            // Only care if parent is in our node graph
-            if (nodes[pk] && !S[pk]) {
-               if(!hasUnvisitedParents) {
-                   // If we found parents, we must revisit this node later
-                   cur.color = "b";
-                   stack.push(cur);
-                   hasUnvisitedParents = true;
-               }
-               stack.push(nodes[pk]);
-            }
-        }
-
-        if (!hasUnvisitedParents) {
-            ordered.push(cur);
-            S[cur.key] = 1;
-        }
-    }
-
-    ordered.reverse();
-
-    // --- PHASE 4: Execute ---
-    for (let i = 0; i < ordered.length; i++) {
-        const T = ordered[i];
-        window.luckysheet_getcelldata_cache = null;
-        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
-
-        s.groupValuesRefreshData.push({
-            r: T.r,
-            c: T.c,
-            v: Rres[1],
-            f: Rres[2],
-            spe: Rres[3],
-            index: T.index
-        });
-
-        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-            v: Rres[1],
-            f: Rres[2]
-        };
-    }
-
-    s.execFunctionExist = null;
-}
-
-```
+        // Add to execution queue if dirty
+        const isDirty = o || execSet[(node.r << 12) + (node.c
