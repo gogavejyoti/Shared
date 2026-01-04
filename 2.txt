@@ -27,22 +27,22 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // collect affected formulas
+    // --------------------------------------------------
+    // COLLECT AFFECTED FORMULAS
+    // --------------------------------------------------
     let allFuncCells = [];
     let sheetIndices = null;
 
     if (e != null && n != null) {
-        const formulaOrValue =
-            (window.luckysheet_getcelldata_cache &&
-                Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-
-        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+        sheetIndices = s.getAllDependentSheetsFromSheet(l, null);
         allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
     } else {
         allFuncCells = s.getAllFunctionGroup() || [];
     }
 
-    // execution triggers
+    // --------------------------------------------------
+    // EXECUTION TRIGGERS
+    // --------------------------------------------------
     const execSet = {};
     if (s.execFunctionExist == null) {
         execSet["r" + e + "c" + n + "i" + l] = 1;
@@ -53,17 +53,10 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---------------- BUILD FORMULA NODES ----------------
+    // --------------------------------------------------
+    // BUILD FORMULA NODES
+    // --------------------------------------------------
     const nodes = {};
-
-    function rangeKey(R) {
-        return (
-            "range_" +
-            R.sheetIndex + "_" +
-            R.row[0] + "_" + R.row[1] + "_" +
-            R.column[0] + "_" + R.column[1]
-        );
-    }
 
     for (let i = 0; i < allFuncCells.length; i++) {
         const T = allFuncCells[i];
@@ -77,7 +70,18 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
         if (!formula) continue;
 
-        const ranges = [];
+        nodes[key] = {
+            key,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            calc_funcStr: formula,
+            parents: {},
+            children: {},
+            rangeRefs: [],
+            color: 0 // 0=unvisited,1=visiting,2=done
+        };
+
         const upper = formula.toUpperCase();
         const dynamic =
             upper.includes("INDIRECT(") ||
@@ -87,43 +91,29 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         if (dynamic) {
             s.isFunctionRange(formula, null, null, T.index, null, ref => {
                 const rg = s.getcellrange($.trim(ref), T.index);
-                if (rg) ranges.push(rg);
+                if (rg) nodes[key].rangeRefs.push(rg);
             });
         } else {
             const tokens = formula.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
             for (let ti = 0; ti < tokens.length; ti++) {
                 const rg = s.getcellrange(tokens[ti].trim(), T.index);
-                if (rg) ranges.push(rg);
+                if (rg) nodes[key].rangeRefs.push(rg);
             }
-        }
-
-        nodes[key] = {
-            key,
-            r: T.r,
-            c: T.c,
-            index: T.index,
-            calc_funcStr: formula,
-            parents: {},
-            children: {},
-            rangeParents: {},
-            color: "w"
-        };
-
-        for (let ri = 0; ri < ranges.length; ri++) {
-            nodes[key].rangeParents[rangeKey(ranges[ri])] = ranges[ri];
         }
     }
 
-    // ---------------- RESTORE FORMULA-TO-FORMULA ORDERING ----------------
+    // --------------------------------------------------
+    // FORMULA-TO-FORMULA DEPENDENCY (SAFE, NO CYCLES)
+    // --------------------------------------------------
     for (const k in nodes) {
         const node = nodes[k];
 
-        for (const rk in node.rangeParents) {
-            const R = node.rangeParents[rk];
+        for (const ok in nodes) {
+            if (ok === k) continue; // 🔒 no self dependency
+            const other = nodes[ok];
 
-            for (const ok in nodes) {
-                const other = nodes[ok];
-
+            for (let ri = 0; ri < node.rangeRefs.length; ri++) {
+                const R = node.rangeRefs[ri];
                 if (
                     other.index === R.sheetIndex &&
                     other.r >= R.row[0] && other.r <= R.row[1] &&
@@ -136,7 +126,9 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---------------- SELECT EXECUTION ROOTS ----------------
+    // --------------------------------------------------
+    // SELECT START NODES (TRIGGER + RANGE HIT)
+    // --------------------------------------------------
     const startNodes = [];
     const changedKey = "r" + e + "c" + n + "i" + l;
 
@@ -148,8 +140,8 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             continue;
         }
 
-        for (const rk in node.rangeParents) {
-            const R = node.rangeParents[rk];
+        for (let ri = 0; ri < node.rangeRefs.length; ri++) {
+            const R = node.rangeRefs[ri];
             if (
                 R.sheetIndex === l &&
                 e >= R.row[0] && e <= R.row[1] &&
@@ -161,22 +153,24 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---------------- TOPOLOGICAL SORT ----------------
-    const visited = {};
-    const stack = startNodes.slice();
+    // --------------------------------------------------
+    // TOPOLOGICAL SORT (CYCLE SAFE)
+    // --------------------------------------------------
     const ordered = [];
+    const stack = startNodes.slice();
 
     while (stack.length) {
         const cur = stack.pop();
-        if (!cur || visited[cur.key]) continue;
+        if (!cur) continue;
 
-        if (cur.color === "b") {
-            visited[cur.key] = 1;
+        if (cur.color === 2) continue;
+        if (cur.color === 1) {
+            cur.color = 2;
             ordered.push(cur);
             continue;
         }
 
-        cur.color = "b";
+        cur.color = 1;
         stack.push(cur);
 
         for (const pk in cur.parents) {
@@ -186,7 +180,9 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     ordered.reverse();
 
-    // ---------------- EXECUTE ----------------
+    // --------------------------------------------------
+    // EXECUTE FORMULAS (CORRECT + FAST)
+    // --------------------------------------------------
     window.luckysheet_getcelldata_cache = null;
 
     for (let i = 0; i < ordered.length; i++) {
