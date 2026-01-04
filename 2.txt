@@ -1,176 +1,62 @@
 execFunctionGroup: function (e, n, t, l, a, o = !1) {
+    // Do nothing on forced full recalc flags
     if (o) return;
-    const s = this;
 
-    if (a == null) a = h.flowdata;
-
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja;
-        window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr;
-        window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn;
-        window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c;
-        window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t;
-        window.luckysheet_getSpecialReference = Tc;
-    }
-
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    // Ensure sheet index
     if (l == null) l = h.currentSheetIndex;
 
-    // ---- explicit value injection ----
+    // --------------------------------------------------
+    // 1️⃣ Apply explicit value safely
+    // --------------------------------------------------
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
-        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
-    }
 
-    // ---- collect formula cells ----
-    let allFuncCells = [];
-    let sheetIndices = null;
-
-    if (e != null && n != null) {
-        sheetIndices = s.getAllDependentSheetsFromSheet(l, null);
-        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-    } else {
-        allFuncCells = s.getAllFunctionGroup() || [];
-    }
-
-    // ---- execution trigger set ----
-    const execSet = {};
-    if (s.execFunctionExist == null) {
-        execSet["r" + e + "c" + n + "i" + l] = 1;
-    } else {
-        for (let i = 0; i < s.execFunctionExist.length; i++) {
-            const T = s.execFunctionExist[i];
-            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+        const sheetData = h.flowdata[l];
+        if (sheetData && sheetData[e] && sheetData[e][n]) {
+            sheetData[e][n].v = tmp[0][0].v;
+            sheetData[e][n].f = null;
         }
     }
 
-    // ---- dependency graph (original logic, safe) ----
-    const nodes = {};
-    const rangeToKeysCache = {};
+    // --------------------------------------------------
+    // 2️⃣ Rebuild calcChain (AUTHORITATIVE SOURCE)
+    // --------------------------------------------------
+    const sheets = luckysheet.getAllSheets();
 
-    function keysForRange(R) {
-        const key =
-            R.sheetIndex + "_" +
-            R.row[0] + "_" + R.row[1] + "_" +
-            R.column[0] + "_" + R.column[1];
+    sheets.forEach(sheet => {
+        const { celldata = [] } = sheet;
+        const chain = [];
 
-        if (rangeToKeysCache[key]) return rangeToKeysCache[key];
+        for (const cell of celldata) {
+            if (!cell?.v?.f) continue;
 
-        const list = [];
-        for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
-            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                list.push("r" + rr + "c" + cc + "i" + R.sheetIndex);
-            }
-        }
-        rangeToKeysCache[key] = list;
-        return list;
-    }
-
-    for (let i = 0; i < allFuncCells.length; i++) {
-        const T = allFuncCells[i];
-        const key = "r" + T.r + "c" + T.c + "i" + T.index;
-
-        const formula =
-            zl(T.r, T.c, T.index) ||
-            ve.getSheetByIndex(T.index)?.celldata?.find(
-                x => x?.r === T.r && x?.c === T.c
-            )?.v?.f;
-
-        if (!formula) continue;
-
-        nodes[key] = {
-            key,
-            r: T.r,
-            c: T.c,
-            index: T.index,
-            calc_funcStr: formula,
-            parents: {},
-            color: 0 // 0=unvisited,1=visiting,2=done
-        };
-
-        const tokens = formula
-            .split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/)
-            .filter(Boolean);
-
-        for (let ti = 0; ti < tokens.length; ti++) {
-            const rg = s.getcellrange(tokens[ti].trim(), T.index);
-            if (!rg) continue;
-
-            const depKeys = keysForRange(rg);
-            for (let ki = 0; ki < depKeys.length; ki++) {
-                if (depKeys[ki] !== key) {
-                    nodes[key].parents[depKeys[ki]] = 1;
-                }
-            }
-        }
-    }
-
-    // ---- topological sort (cycle safe) ----
-    const ordered = [];
-    const stack = Object.values(nodes);
-
-    while (stack.length) {
-        const cur = stack.pop();
-        if (cur.color === 2) continue;
-
-        if (cur.color === 1) {
-            cur.color = 2;
-            ordered.push(cur);
-            continue;
+            chain.push({
+                r: cell.r,
+                c: cell.c,
+                index: sheet.index,
+                func: [
+                    typeof cell.v.v !== "undefined",
+                    cell.v.v ?? 0,
+                    cell.v.f
+                ]
+            });
         }
 
-        cur.color = 1;
-        stack.push(cur);
+        sheet.calcChain = chain;
+    });
 
-        for (const pk in cur.parents) {
-            if (nodes[pk]) stack.push(nodes[pk]);
-        }
-    }
-
-    ordered.reverse();
-
-    // ---- execute formulas (CRITICAL FIX INCLUDED) ----
+    // --------------------------------------------------
+    // 3️⃣ Clear all caches (must)
+    // --------------------------------------------------
     window.luckysheet_getcelldata_cache = null;
-
-    for (let i = 0; i < ordered.length; i++) {
-        const T = ordered[i];
-
-        const Rres = s.execfunction(
-            T.calc_funcStr,
-            T.r,
-            T.c,
-            T.index
-        );
-
-        // 🔑 WRITE RESULT BACK TO FLOWDATA IMMEDIATELY
-        const sheetData = h.flowdata[T.index];
-        if (sheetData && sheetData[T.r] && sheetData[T.r][T.c]) {
-            sheetData[T.r][T.c].v = Rres[1];
-            sheetData[T.r][T.c].f = Rres[2];
-        }
-
-        // clear cache AFTER value change
-        window.luckysheet_getcelldata_cache = null;
-
-        s.groupValuesRefreshData.push({
-            r: T.r,
-            c: T.c,
-            v: Rres[1],
-            f: Rres[2],
-            spe: Rres[3],
-            index: T.index
-        });
-
-        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-            v: Rres[1],
-            f: Rres[2]
-        };
+    if (this.execFunctionGlobalData) {
+        this.execFunctionGlobalData = {};
     }
+    this.execFunctionExist = null;
 
-    s.execFunctionExist = null;
+    // --------------------------------------------------
+    // 4️⃣ Let Luckysheet calculate (100% correct)
+    // --------------------------------------------------
+    luckysheet.recalculate();
 },
