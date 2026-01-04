@@ -3,6 +3,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     const s = this;
 
     if (a == null) a = h.flowdata;
+
     if (!window.luckysheet_compareWith) {
         window.luckysheet_compareWith = ja;
         window.luckysheet_getarraydata = wc;
@@ -19,14 +20,14 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
     if (l == null) l = h.currentSheetIndex;
 
-    // Explicit value injection
+    // explicit value injection
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // ---- identify affected formula cells ----
+    // collect affected formulas
     let allFuncCells = [];
     let sheetIndices = null;
 
@@ -41,7 +42,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         allFuncCells = s.getAllFunctionGroup() || [];
     }
 
-    // ---- execution trigger set ----
+    // execution triggers
     const execSet = {};
     if (s.execFunctionExist == null) {
         execSet["r" + e + "c" + n + "i" + l] = 1;
@@ -52,10 +53,10 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---- build nodes ----
+    // ---------------- BUILD FORMULA NODES ----------------
     const nodes = {};
 
-    function makeRangeKey(R) {
+    function rangeKey(R) {
         return (
             "range_" +
             R.sheetIndex + "_" +
@@ -68,34 +69,31 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         const T = allFuncCells[i];
         const key = "r" + T.r + "c" + T.c + "i" + T.index;
 
-        const R =
+        const formula =
             zl(T.r, T.c, T.index) ||
             ve.getSheetByIndex(T.index)?.celldata?.find(
                 x => x?.r === T.r && x?.c === T.c
             )?.v?.f;
 
-        if (!R) continue;
+        if (!formula) continue;
 
-        const upper = R.toUpperCase();
-        const formulaRanges = [];
+        const ranges = [];
+        const upper = formula.toUpperCase();
+        const dynamic =
+            upper.includes("INDIRECT(") ||
+            upper.includes("OFFSET(") ||
+            upper.includes("INDEX(");
 
-        const needsDynamic =
-            upper.indexOf("INDIRECT(") > -1 ||
-            upper.indexOf("OFFSET(") > -1 ||
-            upper.indexOf("INDEX(") > -1;
-
-        if (needsDynamic) {
-            s.isFunctionRange(R, null, null, T.index, null, function (ref) {
+        if (dynamic) {
+            s.isFunctionRange(formula, null, null, T.index, null, ref => {
                 const rg = s.getcellrange($.trim(ref), T.index);
-                if (rg) formulaRanges.push(rg);
+                if (rg) ranges.push(rg);
             });
-        } else if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1) === '"')) {
-            const tokens = R.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
+        } else {
+            const tokens = formula.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
             for (let ti = 0; ti < tokens.length; ti++) {
-                const tk = tokens[ti].trim();
-                if (!tk) continue;
-                const rg = s.getcellrange(tk, T.index);
-                if (rg) formulaRanges.push(rg);
+                const rg = s.getcellrange(tokens[ti].trim(), T.index);
+                if (rg) ranges.push(rg);
             }
         }
 
@@ -104,33 +102,52 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             r: T.r,
             c: T.c,
             index: T.index,
-            calc_funcStr: R,
+            calc_funcStr: formula,
             parents: {},
             children: {},
             rangeParents: {},
             color: "w"
         };
 
-        for (let ri = 0; ri < formulaRanges.length; ri++) {
-            const rg = formulaRanges[ri];
-            nodes[key].rangeParents[makeRangeKey(rg)] = rg;
+        for (let ri = 0; ri < ranges.length; ri++) {
+            nodes[key].rangeParents[rangeKey(ranges[ri])] = ranges[ri];
         }
     }
 
-    // ---- dependency resolution ----
+    // ---------------- RESTORE FORMULA-TO-FORMULA ORDERING ----------------
+    for (const k in nodes) {
+        const node = nodes[k];
+
+        for (const rk in node.rangeParents) {
+            const R = node.rangeParents[rk];
+
+            for (const ok in nodes) {
+                const other = nodes[ok];
+
+                if (
+                    other.index === R.sheetIndex &&
+                    other.r >= R.row[0] && other.r <= R.row[1] &&
+                    other.c >= R.column[0] && other.c <= R.column[1]
+                ) {
+                    node.parents[other.key] = 1;
+                    other.children[node.key] = 1;
+                }
+            }
+        }
+    }
+
+    // ---------------- SELECT EXECUTION ROOTS ----------------
     const startNodes = [];
     const changedKey = "r" + e + "c" + n + "i" + l;
 
     for (const k in nodes) {
         const node = nodes[k];
 
-        // direct cell dependency
         if (execSet[changedKey]) {
             startNodes.push(node);
             continue;
         }
 
-        // range dependency
         for (const rk in node.rangeParents) {
             const R = node.rangeParents[rk];
             if (
@@ -144,7 +161,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---- topological order ----
+    // ---------------- TOPOLOGICAL SORT ----------------
     const visited = {};
     const stack = startNodes.slice();
     const ordered = [];
@@ -169,7 +186,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     ordered.reverse();
 
-    // ---- execute formulas ----
+    // ---------------- EXECUTE ----------------
     window.luckysheet_getcelldata_cache = null;
 
     for (let i = 0; i < ordered.length; i++) {
@@ -182,7 +199,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             T.index
         );
 
-        // invalidate cache AFTER value change
+        // invalidate cache AFTER value update
         window.luckysheet_getcelldata_cache = null;
 
         s.groupValuesRefreshData.push({
