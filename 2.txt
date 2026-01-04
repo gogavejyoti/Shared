@@ -20,14 +20,14 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
     if (l == null) l = h.currentSheetIndex;
 
-    // explicit value injection
+    // ---- explicit value injection ----
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // collect formula cells
+    // ---- collect formula cells ----
     let allFuncCells = [];
     let sheetIndices = null;
 
@@ -38,7 +38,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         allFuncCells = s.getAllFunctionGroup() || [];
     }
 
-    // execution triggers
+    // ---- execution trigger set ----
     const execSet = {};
     if (s.execFunctionExist == null) {
         execSet["r" + e + "c" + n + "i" + l] = 1;
@@ -49,16 +49,17 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
+    // ---- dependency graph (original logic, safe) ----
     const nodes = {};
     const rangeToKeysCache = {};
 
     function keysForRange(R) {
-        const cacheKey =
+        const key =
             R.sheetIndex + "_" +
             R.row[0] + "_" + R.row[1] + "_" +
             R.column[0] + "_" + R.column[1];
 
-        if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+        if (rangeToKeysCache[key]) return rangeToKeysCache[key];
 
         const list = [];
         for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
@@ -66,11 +67,10 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
                 list.push("r" + rr + "c" + cc + "i" + R.sheetIndex);
             }
         }
-        rangeToKeysCache[cacheKey] = list;
+        rangeToKeysCache[key] = list;
         return list;
     }
 
-    // build nodes + dependencies (ORIGINAL LOGIC)
     for (let i = 0; i < allFuncCells.length; i++) {
         const T = allFuncCells[i];
         const key = "r" + T.r + "c" + T.c + "i" + T.index;
@@ -90,7 +90,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             index: T.index,
             calc_funcStr: formula,
             parents: {},
-            color: 0
+            color: 0 // 0=unvisited,1=visiting,2=done
         };
 
         const tokens = formula
@@ -101,30 +101,32 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             const rg = s.getcellrange(tokens[ti].trim(), T.index);
             if (!rg) continue;
 
-            const keys = keysForRange(rg);
-            for (let ki = 0; ki < keys.length; ki++) {
-                const depKey = keys[ki];
-                if (depKey !== key) {
-                    nodes[key].parents[depKey] = 1;
+            const depKeys = keysForRange(rg);
+            for (let ki = 0; ki < depKeys.length; ki++) {
+                if (depKeys[ki] !== key) {
+                    nodes[key].parents[depKeys[ki]] = 1;
                 }
             }
         }
     }
 
-    // topo sort
+    // ---- topological sort (cycle safe) ----
     const ordered = [];
     const stack = Object.values(nodes);
 
     while (stack.length) {
         const cur = stack.pop();
         if (cur.color === 2) continue;
+
         if (cur.color === 1) {
             cur.color = 2;
             ordered.push(cur);
             continue;
         }
+
         cur.color = 1;
         stack.push(cur);
+
         for (const pk in cur.parents) {
             if (nodes[pk]) stack.push(nodes[pk]);
         }
@@ -132,7 +134,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     ordered.reverse();
 
-    // execute
+    // ---- execute formulas (CRITICAL FIX INCLUDED) ----
     window.luckysheet_getcelldata_cache = null;
 
     for (let i = 0; i < ordered.length; i++) {
@@ -145,6 +147,14 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             T.index
         );
 
+        // 🔑 WRITE RESULT BACK TO FLOWDATA IMMEDIATELY
+        const sheetData = h.flowdata[T.index];
+        if (sheetData && sheetData[T.r] && sheetData[T.r][T.c]) {
+            sheetData[T.r][T.c].v = Rres[1];
+            sheetData[T.r][T.c].f = Rres[2];
+        }
+
+        // clear cache AFTER value change
         window.luckysheet_getcelldata_cache = null;
 
         s.groupValuesRefreshData.push({
