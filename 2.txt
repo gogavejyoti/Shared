@@ -186,3 +186,81 @@ public string RenderDashboard(AiDashboardData data)
     html.Append("</div>");
     return html.ToString();
 }
+
+public async Task<string> GenerateInsightsAsync(string aiInput)
+{
+    // The request body follows the standard OpenAI/Azure/Gemini API format
+    var requestBody = new
+    {
+        model = "gpt-4-turbo", // or your specific model deployment name
+        messages = new[]
+        {
+            new { 
+                role = "system", 
+                content = "You are an advanced Capacity Planning Expert. You output ONLY raw JSON." 
+            },
+            new { 
+                role = "user", 
+                content = aiInput 
+            }
+        },
+        temperature = 0.2 // Lower temperature ensures more stable JSON formatting
+    };
+
+    using var http = new HttpClient();
+    
+    // Add your API Key (Best practice: Load this from environment variables or KeyVault)
+    http.DefaultRequestHeaders.Add("api-key", _apiKey);
+
+    var content = new StringContent(
+        Newtonsoft.Json.JsonConvert.SerializeObject(requestBody), 
+        Encoding.UTF8, 
+        "application/json"
+    );
+
+    try 
+    {
+        var response = await http.PostAsync(_apiUrl, content);
+        response.EnsureSuccessStatusCode();
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        
+        using var doc = JsonDocument.Parse(responseJson);
+        var resultText = doc.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString();
+
+        // --- CRITICAL STEP: CLEAN THE JSON ---
+        return CleanAiJson(resultText);
+    }
+    catch (Exception ex)
+    {
+        // Fallback: Return a basic error JSON so the UI doesn't crash
+        return "{\"executiveSummary\": \"Error connecting to AI: " + ex.Message + "\", \"groups\": []}";
+    }
+}
+
+/// <summary>
+/// Removes Markdown formatting (like ```json) that AI often adds.
+/// </summary>
+private string CleanAiJson(string input)
+{
+    if (string.IsNullOrWhiteSpace(input)) return "{}";
+
+    // Remove markdown code block delimiters
+    string cleaned = input.Replace("```json", "").Replace("```", "").Trim();
+    
+    // Find the first '{' and last '}' to ensure we only get the JSON object
+    int start = cleaned.IndexOf('{');
+    int end = cleaned.LastIndexOf('}');
+    
+    if (start != -1 && end != -1)
+    {
+        return cleaned.Substring(start, (end - start) + 1);
+    }
+
+    return cleaned;
+}
+
