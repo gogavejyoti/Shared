@@ -264,3 +264,17 @@ private string CleanAiJson(string input)
     return cleaned;
 }
 
+// 1. Convert the raw request into a structured prompt for the AI
+var aiPrompt = aiAssistant.TransformToAiJsonPrompt(request);
+
+// 2. Send to AI and get the JSON string
+var rawJsonResult = await aiAssistant.GenerateInsightsAsync(aiPrompt);
+
+// 3. Deserialize the JSON into your C# Objects
+var dashboardData = Newtonsoft.Json.JsonConvert.DeserializeObject<AiDashboardData>(rawJsonResult);
+
+// 4. Generate the "Extremely Beautiful" HTML using the hardcoded CSS/HTML Template
+var finalHtmlReport = aiAssistant.RenderDashboard(dashboardData);
+
+// 5. Return this string to your Frontend/Email/PDF Generator
+return finalHtmlReport;
