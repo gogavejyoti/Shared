@@ -1,129 +1,471 @@
-public string RenderInfographic(AiDashboardData data)
-{
-    var html = new StringBuilder();
-    html.Append(@"
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        
-        /* 1. THEME DEFINITION - HIGH CONTRAST */
-        :root { 
-            --bg-gradient: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); 
-            --card-bg: rgba(30, 41, 59, 0.7); /* Translucent Slate */
-            --accent-blue: #38BDF8;   /* Bright Sky Blue */
-            --text-main: #FFFFFF;      /* Pure White for visibility */
-            --text-muted: #94A3B8;    /* Soft Gray for secondary text */
-            --green: #4ADE80;
-            --amber: #FBBF24;
-            --red: #FB7185;
-        }
+            execFunctionGroup: function (e, n, t, l, a, o = !1) {
+                if (o) return;
+                const s = this;
 
-        body { 
-            background: var(--bg-gradient); 
-            background-attachment: fixed;
-            color: var(--text-main); 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            padding: 40px; 
-            margin: 0;
-        }
+                // Initialize helpers
+                if (a == null) a = h.flowdata;
+                if (!window.luckysheet_compareWith) {
+                    window.luckysheet_compareWith = ja;
+                    window.luckysheet_getarraydata = wc;
+                    window.luckysheet_getcelldata = nr;
+                    window.luckysheet_parseData = Ua;
+                    window.luckysheet_getValue = qn;
+                    window.luckysheet_indirect_check = xc;
+                    window.luckysheet_indirect_check_return = _c;
+                    window.luckysheet_offset_check = Cc;
+                    window.luckysheet_calcADPMM = _t;
+                    window.luckysheet_getSpecialReference = Tc;
+                }
 
-        .info-container { max-width: 1100px; margin: 0 auto; }
+                if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+                if (l == null) l = h.currentSheetIndex;
 
-        /* 2. HEADER AREA */
-        .header-box { border-left: 4px solid var(--accent-blue); padding-left: 20px; margin-bottom: 40px; }
-        .header-box h1 { font-size: 28px; font-weight: 800; color: var(--text-main); margin: 0; }
-        .header-box p { color: var(--text-muted); font-size: 16px; margin-top: 8px; line-height: 1.6; }
+                // Store explicit value if provided
+                if (t != null) {
+                    const tmp = [[{ v: null }]];
+                    At(0, 0, tmp, t);
+                    s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+                }
 
-        /* 3. THE INFOGRAPHIC CARD */
-        .info-card { 
-            background: var(--card-bg); 
-            backdrop-filter: blur(10px); 
-            border-radius: 24px; 
-            padding: 35px; 
-            margin-bottom: 30px; 
-            display: grid; 
-            grid-template-columns: 260px 1fr; 
-            gap: 40px; 
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-        }
+                // Update cross-sheet references before recalculation
+                if (typeof _shiftCrossSheetReference === 'function') {
+                    _shiftCrossSheetReference({
+                        type: 'recalc',
+                        sheetIndex: l
+                    });
+                }
 
-        /* 4. CIRCULAR GAUGE LOGIC */
-        .gauge-wrapper { position: relative; width: 160px; height: 160px; margin: 0 auto; }
-        .gauge-svg { transform: rotate(-90deg); }
-        .gauge-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 10; }
-        .gauge-fill { fill: none; stroke: var(--accent-blue); stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray 1s ease; }
-        .gauge-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
-        .gauge-val { font-size: 32px; font-weight: 800; color: var(--text-main); display: block; }
-        
-        /* 5. CONTENT GRID */
-        .section-title { 
-            font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; 
-            color: var(--accent-blue); margin-bottom: 20px; display: flex; align-items: center; 
-        }
-        .section-title::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); margin-left: 15px; }
+                // Get all function group cells and sheet info
+                let allFuncCells = [];
+                let sheetIndices = null;
+                if (e && n) {
+                    const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+                    sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+                }
+                else {
+                    allFuncCells = s.getAllFunctionGroup() || [];
+                }
 
-        /* 6. LIST ITEMS - IMPROVED READABILITY */
-        .item-row { 
-            display: flex; align-items: flex-start; margin-bottom: 12px; 
-            padding: 12px 16px; background: rgba(255, 255, 255, 0.03); 
-            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .item-text { font-size: 13px; color: #E2E8F0; line-height: 1.5; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; margin-right: 12px; flex-shrink: 0; }
-        
-        .bg-High { background: var(--red); box-shadow: 0 0 10px var(--red); }
-        .bg-Medium { background: var(--amber); }
-        .bg-Low { background: var(--green); }
-    </style>
-    <div class='info-container'>");
 
-    // Dashboard Header
-    html.Append($@"
-        <div class='header-box'>
-            <h1>Operational Intelligence Dashboard</h1>
-            <p>{data.ExecutiveSummary}</p>
-        </div>");
 
-    foreach (var group in data.Groups)
-    {
-        // SVG math for progress ring
-        double percentage = group.StaffingLevel;
-        double offset = 251 - (251 * (Math.Min(percentage, 100)) / 100);
+                const sheetsInfo = Ft() || [];
+                const sheetMap = {};
 
-        html.Append($@"
-        <div class='info-card'>
-            <div style='text-align:center; border-right: 1px solid rgba(255,255,255,0.05); padding-right: 20px;'>
-                <div class='gauge-wrapper'>
-                    <svg class='gauge-svg' width='160' height='160' viewBox='0 0 100 100'>
-                        <circle class='gauge-bg' cx='50' cy='50' r='40'/>
-                        <circle class='gauge-fill' cx='50' cy='50' r='40' style='stroke-dasharray: 251; stroke-dashoffset: {offset};'/>
-                    </svg>
-                    <div class='gauge-text'>
-                        <span class='gauge-val'>{percentage:N0}%</span>
-                        <span style='font-size:9px; color:var(--text-muted); font-weight:700; text-transform:uppercase;'>Efficiency</span>
-                    </div>
-                </div>
-                <h3 style='margin: 20px 0 5px 0; font-size: 18px; color: var(--text-main);'>{group.Lob}</h3>
-                <p style='font-size: 12px; color: var(--text-muted); margin: 0;'>{group.Geo} • {group.Site}</p>
-            </div>
-
-            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 24px;'>
-                <div>
-                    <div class='section-title'>Critical Alerts</div>");
-                    foreach(var alert in group.Alerts.Take(5)) {
-                        html.Append($@"<div class='item-row'><div class='dot bg-High'></div><div class='item-text'>{alert}</div></div>");
+                if (sheetIndices) {
+                    for (let i = 0; i < sheetsInfo.length; i++) {
+                        if (!sheetIndices.includes(sheetsInfo[i].index)) continue;
+                        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
                     }
-                html.Append(@"</div>
-                <div>
-                    <div class='section-title' style='color: var(--green);'>Action Plan</div>");
-                    foreach(var rec in group.Recommendations.Take(5)) {
-                        html.Append($@"<div class='item-row'><div class='dot' style='background: var(--accent-blue);'></div><div class='item-text'>{rec}</div></div>");
+                }
+                else {
+                    for (let i = 0; i < sheetsInfo.length; i++) {
+                        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
                     }
-                html.Append(@"</div>
-            </div>
-        </div>");
-    }
+                }
 
-    html.Append("</div>");
-    return html.ToString();
-}
+                // Build execSet
+                const execSet = {};
+                if (s.execFunctionExist == null) {
+                    execSet["r" + e + "c" + n + "i" + l] = 1;
+                } else {
+                    for (let i = 0; i < s.execFunctionExist.length; i++) {
+                        const T = s.execFunctionExist[i];
+                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+                    }
+                }
+
+                const nodes = {};
+                const rangeToKeysCache = {};
+
+                // Helper: get keys in a rectangular range
+                function keysForRange(R) {
+                    const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+                    if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+                    const list = [];
+                    for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
+                        for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                            const k = "r" + rr + "c" + cc + "i" + R.sheetIndex;
+                            list.push({ key: k, r: rr, c: cc, sheetIndex: R.sheetIndex });
+                        }
+                    }
+                    rangeToKeysCache[cacheKey] = list;
+                    return list;
+                }
+
+                // Build nodes
+                for (let i = 0; i < allFuncCells.length; i++) {
+                    const T = allFuncCells[i];
+                    const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+                    const R = zl(T.r, T.c, T.index) || ve.getSheetByIndex(T.index)?.celldata?.find(x => x?.r === T.r && x?.c === T.c)?.v.f;
+                    if (!R) continue;
+
+                    const upper = R.toUpperCase();
+                    const needsFunctionRange = upper.indexOf("INDIRECT(") > -1 || upper.indexOf("OFFSET(") > -1 || upper.indexOf("INDEX(") > -1;
+                    const formulaRanges = [];
+
+                    if (needsFunctionRange) {
+                        this.isFunctionRange(R, null, null, T.index, null, function (ref) {
+                            const rg = s.getcellrange($.trim(ref), T.index);
+                            if (rg) formulaRanges.push(rg);
+                        });
+                    } else if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
+                        const tokens = R.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
+                        for (let ti = 0; ti < tokens.length; ti++) {
+                            let tk = tokens[ti].trim();
+                            if (!tk) continue;
+                            if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+                            const rg = s.getcellrange($.trim(tk), T.index);
+                            if (rg) formulaRanges.push(rg);
+                        }
+                    }
+
+                    nodes[nodeKey] = {
+                        formulaArray: formulaRanges,
+                        calc_funcStr: R,
+                        key: nodeKey,
+                        r: T.r,
+                        c: T.c,
+                        index: T.index,
+                        parents: {},
+                        chidren: {},
+                        color: "w"
+                    };
+                }
+
+                // Build dependency graph
+                const y = [];
+                const nodeKeys = Object.keys(nodes);
+                for (let i = 0; i < nodeKeys.length; i++) {
+                    const node = nodes[nodeKeys[i]];
+                    const ranges = node.formulaArray || [];
+                    for (let ri = 0; ri < ranges.length; ri++) {
+                        const rect = ranges[ri];
+                        const keys = keysForRange(rect);
+                        for (let ki = 0; ki < keys.length; ki++) {
+                            const cellInfo = keys[ki];
+                            const A = cellInfo.key;
+                            if (A in nodes) {
+                                node.chidren[A] = 1;
+                                nodes[A].parents[node.key] = 1;
+                            }
+                            if (!o && (A in execSet)) y.push(node);
+                        }
+                    }
+                    if (o) y.push(node);
+                }
+
+                // Topological sort
+                const S = {};
+                const stack = y.slice();
+                const ordered = [];
+                while (stack.length > 0) {
+                    const cur = stack.pop();
+                    if (!cur || S[cur.key]) continue;
+                    if (cur.color === "b") {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                        continue;
+                    }
+
+                    const parentKeys = Object.keys(cur.parents || {});
+                    const parentNodes = [];
+                    for (let pi = 0; pi < parentKeys.length; pi++) {
+                        const pk = parentKeys[pi];
+                        if (nodes[pk]) parentNodes.push(nodes[pk]);
+                    }
+
+                    if (parentNodes.length === 0) {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                    } else {
+                        cur.color = "b";
+                        stack.push(cur);
+                        for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
+                    }
+                }
+
+                ordered.reverse();
+
+                // Evaluate nodes
+                for (let i = 0; i < ordered.length; i++) {
+                    const T = ordered[i];
+                    window.luckysheet_getcelldata_cache = null;
+                    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+
+                    s.groupValuesRefreshData.push({
+                        r: T.r,
+                        c: T.c,
+                        v: Rres[1],
+                        f: Rres[2],
+                        spe: Rres[3],
+                        index: T.index
+                    });
+
+                    s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
+                        v: Rres[1],
+                        f: Rres[2]
+                    };
+                }
+
+                s.execFunctionExist = null;
+            },
+
+            pasteHandler: async function (e, n) {
+                if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1) return;
+
+                const l = Q().paste;
+
+                if (
+                    h.luckysheet_select_save.length > 1 &&
+                    (de()
+                        ? alert(l.errorNotAllowMulti)
+                        : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMulti))
+                ) {
+                    // Continue; original behavior shows warning but doesn't exit.
+                }
+
+                // Helper: await execfunctionGroup whether it is Promise-based or callback-based
+                async function awaitExecfunctionGroup(args) {
+                    return new Promise((resolve, reject) => {
+                        try {
+                            const maybePromise = p.execfunctionGroup(args, function (err, result) {
+                                if (err) return reject(err);
+                                resolve(result);
+                            });
+                            if (maybePromise && typeof maybePromise.then === "function") {
+                                maybePromise.then(resolve).catch(reject);
+                            }
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                }
+
+                if (typeof e === "object") {
+                    // ------------------------------
+                    // Branch A: structured 2D array paste (with borders/merges)
+                    // ------------------------------
+                    if (e.length == 0) return;
+
+                    let a = $.extend(!0, {}, h.config);
+                    a.merge == null && (a.merge = {});
+                    JSON.stringify(n).length > 2 && a.borderInfo == null && (a.borderInfo = []);
+
+                    const o = e.length,
+                        s = e[0].length,
+                        u = h.luckysheet_select_save[0].row[0],
+                        d = u + o - 1,
+                        f = h.luckysheet_select_save[0].column[0],
+                        m = f + s - 1;
+
+                    let g = !1;
+                    if (a.merge != null && (g = Dt(a, u, d, f, m)), g) {
+                        de()
+                            ? alert(l.errorNotAllowMerged)
+                            : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return;
+                    }
+
+                    let y = we.deepCopyFlowData(h.flowdata),
+                        v = y.length,
+                        k = y[0].length,
+                        b = d - v + 1,
+                        w = m - k + 1;
+
+                    (b > 0 || w > 0) && (y = il([].concat(y), b, w, !0));
+                    a.rowlen == null && (a.rowlen = {});
+
+                    let x = !1,
+                        C = {};
+
+                    for (let S = u; S <= d; S++) {
+                        let _ = [].concat(y[S]),
+                            T = h.defaultrowlen;
+                        a.rowlen[S] != null && (T = a.rowlen[S]);
+
+                        for (let A = f; A <= m; A++) {
+                            // Cleanup merges on destination
+                            console.log(e[S - u][A - f]);
+
+                            L(_[A]) == "object" &&
+                                "mc" in _[A] &&
+                                ("rs" in _[A].mc && delete a.merge[_[A].mc.r + "_" + _[A].mc.c], delete _[A].mc);
+
+                            // Copy cell object
+                            let R = null;
+                            if (e[S - u] != null && e[S - u][A - f] != null) {
+                                R = e[S - u][A - f];
+                            }
+                            _[A] = $.extend(!0, {}, R);
+
+                            // Rebuild merge map for pasted range
+                            if (R != null && "mc" in _[A]) {
+                                if (_[A].mc.rs != null) {
+                                    _[A].mc.r = S;
+                                    _[A].mc.c = A;
+                                    a.merge[_[A].mc.r + "_" + _[A].mc.c] = _[A].mc;
+                                    C[R.mc.r + "_" + R.mc.c] = [_[A].mc.r, _[A].mc.c];
+                                } else {
+                                    _[A] = {
+                                        mc: {
+                                            r: C[R.mc.r + "_" + R.mc.c][0],
+                                            c: C[R.mc.r + "_" + R.mc.c][1],
+                                        },
+                                    };
+                                }
+                            }
+
+                            // Border info mapping from `n`
+                            if (n[S - u + "_" + (A - f)]) {
+                                const N = {
+                                    rangeType: "cell",
+                                    value: {
+                                        row_index: S,
+                                        col_index: A,
+                                        l: n[S - u + "_" + (A - f)].l,
+                                        r: n[S - u + "_" + (A - f)].r,
+                                        t: n[S - u + "_" + (A - f)].t,
+                                        b: n[S - u + "_" + (A - f)].b,
+                                    },
+                                };
+                                a.borderInfo.push(N);
+                            }
+
+                            // Row height adjustment
+                            const I = ra(_[A]),
+                                F = be.getTextSize("\u7530", I)[1];
+                            if (F > T) {
+                                T = F;
+                                x = !0;
+                            }
+                        }
+
+                        y[S] = _;
+                        T != h.defaultrowlen && (a.rowlen[S] = T);
+                    }
+
+                    // Update selection to the pasted block
+                    h.luckysheet_select_save = [
+                        {
+                            row: [u, d],
+                            column: [f, m],
+                        },
+                    ];
+
+                    // 🔴 Wait for async batch formula execution to finish BEFORE UI apply
+                    try {
+                        await awaitExecfunctionGroup({
+                            sheetIndex: h.currentSheetIndex,
+                            flowdata: y,
+                            selection: h.luckysheet_select_save,
+                            range: { row: [u, d], column: [f, m] },
+                        });
+                    } catch (err) {
+                        console.error("execfunctionGroup failed:", err);
+                        // Proceed to keep UI responsive
+                    }
+
+                    if (b > 0 || w > 0 || x) {
+                        const S = { cfg: a, RowlChange: !0 };
+                        Ye(y, h.luckysheet_select_save, S);
+                    } else {
+                        const S = { cfg: a };
+                        Ye(y, h.luckysheet_select_save, S);
+                        tt();
+                    }
+                } else {
+                    // ------------------------------
+                    // Branch B: plain text paste with tab/newline as separators
+                    // ------------------------------
+                    e = e.replace(/\r/g, "");
+
+                    let a = [],
+                        o = e.split(`\n`),
+                        s = o[0].split("    ").length;
+
+                    for (let w = 0; w < o.length; w++) {
+                        if (o[w].split("    ").length >= s) a.push(o[w].split("    "));
+                    }
+
+                    let u = we.deepCopyFlowData(h.flowdata),
+                        d = h.luckysheet_select_save[h.luckysheet_select_save.length - 1],
+                        f = d.row == null ? 0 : d.row[0],
+                        m = d.column == null ? 0 : d.column[0],
+                        g = a.length,
+                        y = a[0].length;
+
+                    let v = !1;
+                    if (h.config.merge != null && (v = Dt(h.config, f, f + g - 1, m, m + y - 1)), v) {
+                        de()
+                            ? alert(l.errorNotAllowMerged)
+                            : U.info(`<i class="fa fa-exclamation-triangle"></i>${l.warning}`, l.errorNotAllowMerged);
+                        return;
+                    }
+
+                    let k = f + g - u.length,
+                        b = m + y - u[0].length;
+
+                    (k > 0 || b > 0) && (u = il([].concat(u), k, b, !0));
+
+                    for (let w = 0; w < g; w++) {
+                        let x = [].concat(u[w + f]);
+
+                        for (let C = 0; C < y; C++) {
+                            let S = x[C + m],
+                                _ = a[w][C];
+
+                            if (B(_) && (S && S.ct && S.ct.fa === "@" ? (_ = String(_)) : (_ = parseFloat(_)))) {
+                                // number coercion handled
+                            }
+
+                            if (S instanceof Object) {
+                                S.v = _;
+                                S.ct != null && S.ct.fa != null ? (S.m = mt(S.ct.fa, _)) : (S.m = _);
+
+                                if (S.f != null && S.f.length > 0) {
+                                    // clear existing formula when pasting plain values
+                                    S.f = "";
+                                    p.delFunctionGroup(w + f, C + m, h.currentSheetIndex);
+                                }
+                            } else {
+                                let T = {},
+                                    A = it(_);
+                                T.v = A[2];
+                                T.ct = A[1];
+                                T.m = A[0];
+                                x[C + m] = T;
+                            }
+                        }
+
+                        u[w + f] = x;
+                    }
+
+                    // Update selection bounds
+                    d.row = [f, f + g - 1];
+                    d.column = [m, m + y - 1];
+
+                    // 🔴 Wait for async batch formula execution to finish BEFORE UI apply
+                    try {
+                        await awaitExecfunctionGroup({
+                            sheetIndex: h.currentSheetIndex,
+                            flowdata: u,
+                            selection: h.luckysheet_select_save,
+                            range: { row: [f, f + g - 1], column: [m, m + y - 1] },
+                        });
+                    } catch (err) {
+                        console.error("execfunctionGroup failed:", err);
+                        // Proceed to keep UI responsive
+                    }
+
+                    if (k > 0 || b > 0) {
+                        const w = { RowlChange: !0 };
+                        Ye(u, h.luckysheet_select_save, w);
+                    } else {
+                        Ye(u, h.luckysheet_select_save);
+                        tt();
+                    }
+                }
+            },
+
+TypeError: p.execfunctionGroup is not a function
