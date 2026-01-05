@@ -1,165 +1,84 @@
-execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    if (o) return;
-    const s = this;
+ public string Transform(SummaryPlannerRequest request)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(@$"
+ - Analyze the provided capacity dataset (Actual & Planned), broken down by LOB, Geo, Site, and Week.
+ - Identify risks, anomalies, capacity shortages, overstaffing, deviations, and trend changes.
+ - Mention specific geographies or LOBs with challenges.
+- Consider region-specific holiday periods that may affect staffing, availability, SLAs, and productivity.
+- Provide **clear alerts**, **trend-based insights**, and **actionable recommendations** that business users can take.
+- Use concise, professional language.
+- Please review shrinkage for upcoming geo-wise holiday period and ensure that shrinkage is not identical across all weeks.
+- Future recommendations should apply to dates on or after ${request.Weeks.NextWeek} based on actual trends.
+- Output must be in **HTML Inline styling** with symbolic svg images and sections.
+- Highlight important numbers and keywords with inline style and max width should be 100%.
+    - Green words (stable areas): style=""color: #27ae60; font-weight: bold;
+    - Amber words (warnings): style=""color: #f39c12; font-weight: bold;
+    - Red words (critical): style=""color: #e74c3c; font-weight: bold;
+- Use a visually appealing illustrative theme. 
+Input:
+");
+            // Group data by LOB + Geo + Site
+            var grouped = request.Data.GroupBy(d => new { d.SheetName, d.Geo, d.Site });
+            sb.AppendLine(@$"   - <strong>Overall Assessment:</strong><br/>\r\n        
+                                        - <Insert overall assessment text here (2–3 lines).>");
 
-    if (a == null) a = h.flowdata;
-    if (l == null) l = h.currentSheetIndex;
+            foreach (var group in grouped)
+            {
+                sb.AppendLine($"LOB: {group.Key.SheetName} | Geo: {group.Key.Geo} | Site: {group.Key.Site}");
 
-    // ----------------------------
-    // 1️⃣ explicit value injection
-    // ----------------------------
-    if (t != null) {
-        const tmp = [[{ v: null }]];
-        At(0, 0, tmp, t);
-
-        const sd = h.flowdata[l];
-        if (sd && sd[e] && sd[e][n]) {
-            sd[e][n].v = tmp[0][0].v;
-            sd[e][n].f = null;
-        }
-    }
-
-    // ----------------------------
-    // 2️⃣ dependency graph (CACHED)
-    // ----------------------------
-    if (!s._execFGCache) {
-        s._execFGCache = { graph: null, dirty: true };
-    }
-
-    let nodes;
-
-    if (!s._execFGCache.dirty && s._execFGCache.graph) {
-        // 🔥 FAST PATH
-        nodes = s._execFGCache.graph;
-    } else {
-        // ❗ SLOW PATH (same logic as before)
-        nodes = {};
-        const rangeToKeysCache = {};
-
-        function keysForRange(R) {
-            const k = `${R.sheetIndex}_${R.row[0]}_${R.row[1]}_${R.column[0]}_${R.column[1]}`;
-            if (rangeToKeysCache[k]) return rangeToKeysCache[k];
-            const list = [];
-            for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
-                for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                    list.push("r" + rr + "c" + cc + "i" + R.sheetIndex);
-                }
-            }
-            rangeToKeysCache[k] = list;
-            return list;
-        }
-
-        const allFuncCells = s.getAllFunctionGroup() || [];
-
-        for (let i = 0; i < allFuncCells.length; i++) {
-            const T = allFuncCells[i];
-            const key = "r" + T.r + "c" + T.c + "i" + T.index;
-
-            const f =
-                zl(T.r, T.c, T.index) ||
-                ve.getSheetByIndex(T.index)?.celldata?.find(
-                    x => x?.r === T.r && x?.c === T.c
-                )?.v?.f;
-
-            if (!f) continue;
-
-            nodes[key] = {
-                key,
-                r: T.r,
-                c: T.c,
-                index: T.index,
-                calc_funcStr: f,
-                parents: {},
-                color: 0
-            };
-
-            const tokens = f.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
-            for (let ti = 0; ti < tokens.length; ti++) {
-                const rg = s.getcellrange(tokens[ti].trim(), T.index);
-                if (!rg) continue;
-
-                const deps = keysForRange(rg);
-                for (let di = 0; di < deps.length; di++) {
-                    if (deps[di] !== key) {
-                        nodes[key].parents[deps[di]] = 1;
+                // ------------------ Planned vs Actual Comparison ------------------
+                var plannedMetrics = group.Where(g => g.Header.StartsWith("Planned", System.StringComparison.OrdinalIgnoreCase)).ToList();
+                var actualMetrics = group.Where(g => g.Header.StartsWith("Actual", System.StringComparison.OrdinalIgnoreCase)).ToList();
+                var staffingPer = group.FirstOrDefault(x => x.Header.Equals("Staffing %", System.StringComparison.OrdinalIgnoreCase));
+                foreach (var planned in plannedMetrics)
+                {
+                    var metricBase = planned.Header.Replace("Planned", "").Trim();
+                    var actual = actualMetrics.FirstOrDefault(a => a.Header.Contains(metricBase, System.StringComparison.OrdinalIgnoreCase));
+                    if (actual == null)
+                    {
+                        sb.AppendLine($"- Metric: {planned.Header} (no Actual data to compare)");
+                        continue;
                     }
+                    sb.AppendLine($"- Metric: {metricBase}");
+                    sb.AppendLine($"Actual Trend:  {string.Join(", ", actual.Values.Where(x => Convert.ToDateTime(x.Week) < Convert.ToDateTime(request.Weeks.NextWeek)).Select(v => $"{v.Week}: {(v.NumValue * 100).ToString("N2")}%"))}");
+                    sb.AppendLine($"Planned : {string.Join(", ", planned.Values.Where(x => Convert.ToDateTime(x.Week) >= Convert.ToDateTime(request.Weeks.NextWeek)).Select(v => $"{v.Week}: {(v.NumValue * 100).ToString("N2")}%"))}");
+                    sb.AppendLine($"Staffing% Trend: {string.Join(", ", staffingPer?.Values.Select(v => $"{v.Week}: {(v.NumValue).ToString("N2")}%"))}");
+                    sb.AppendLine("<hr>");
                 }
+                
+
+
+
             }
+
+            sb.AppendLine(@"
+<div style='font-family:Arial; font-size:14px;'>
+    <p><strong>Task:</strong></p>
+    <p>For each LOB, summarize ONLY:</p>
+    <ol>
+        <li>Key Alerts (2 lines)</li>
+        <li>Recommendations (1–2 lines)</li>
+    </ol>
+    <p><strong>Output Format (strict):</strong></p>
+    <p>For each LOB:</p>
+    <p>
+        <strong>&lt;name&gt;</strong><br/>
+        - <p><strong>Alerts:</strong></p>:<br/>
+        &nbsp;&nbsp;• &lt;Max 5–6 lines – biggest deviation&gt;<br/>
+        &nbsp;&nbsp;• &lt;Max 5–6 lines – trend/holiday impact&gt;<br/>
+        - <p><strong>Recommendations:</strong></p><br/>
+        &nbsp;&nbsp;• &lt;Max 5–6 lines – actionable step&gt;<br/>
+        &nbsp;&nbsp;• &lt;Max 5–6 lines – optional optimization&gt;<br/>
+    </p>
+    <p><strong>Rules:</strong></p>
+    <ul>
+        <li>Max 5–6 lines per LOB.</li>
+        <li>No tables, no long paragraphs.</li>
+        <li>Keep it short, sharp, and decision-oriented.</li>
+    </ul>
+</div>
+");
+
+            return sb.ToString();
         }
-
-        s._execFGCache.graph = nodes;
-        s._execFGCache.dirty = false;
-    }
-
-    // ----------------------------
-    // 3️⃣ topological order (FAST)
-    // ----------------------------
-    const ordered = [];
-    const stack = Object.values(nodes);
-
-    while (stack.length) {
-        const cur = stack.pop();
-        if (cur.color === 2) continue;
-
-        if (cur.color === 1) {
-            cur.color = 2;
-            ordered.push(cur);
-            continue;
-        }
-
-        cur.color = 1;
-        stack.push(cur);
-        for (const pk in cur.parents) {
-            if (nodes[pk]) stack.push(nodes[pk]);
-        }
-    }
-
-    ordered.reverse();
-
-    // ----------------------------
-    // 4️⃣ execute (ACCURATE)
-    // ----------------------------
-    window.luckysheet_getcelldata_cache = null;
-
-    for (let i = 0; i < ordered.length; i++) {
-        const T = ordered[i];
-
-        const Rres = s.execfunction(
-            T.calc_funcStr,
-            T.r,
-            T.c,
-            T.index
-        );
-
-        // 🔑 authoritative updates
-        const sd = h.flowdata[T.index];
-        if (sd && sd[T.r] && sd[T.r][T.c]) {
-            sd[T.r][T.c].v = Rres[1];
-            sd[T.r][T.c].f = Rres[2];
-        }
-
-        const sheet = ve.getSheetByIndex(T.index);
-        if (sheet && Array.isArray(sheet.calcChain)) {
-            for (let ci = 0; ci < sheet.calcChain.length; ci++) {
-                const cc = sheet.calcChain[ci];
-                if (cc.r === T.r && cc.c === T.c) {
-                    cc.func[1] = Rres[1];
-                    break;
-                }
-            }
-        }
-
-        s.groupValuesRefreshData.push({
-            r: T.r,
-            c: T.c,
-            v: Rres[1],
-            f: Rres[2],
-            spe: Rres[3],
-            index: T.index
-        });
-
-        window.luckysheet_getcelldata_cache = null;
-    }
-
-    s.execFunctionExist = null;
-},
