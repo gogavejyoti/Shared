@@ -1,290 +1,133 @@
-  pasteHandlerOfCutPaste: function (e) {
-                if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1)
-                    return;
-                let t = Q().paste
-                    , l = $.extend(!0, {}, h.config);
-                l.merge == null && (l.merge = {});
-                let a = e.HasMC
-                    , o = e.RowlChange
-                    , s = e.dataSheetIndex
-                    , u = e.copyRange[0].row[0]
-                    , d = e.copyRange[0].row[1]
-                    , f = e.copyRange[0].column[0]
-                    , m = e.copyRange[0].column[1]
-                    , g = $.extend(!0, [], Nt({
-                        row: [u, d],
-                        column: [f, m]
-                    }, s))
-                    , y = g.length
-                    , v = g[0].length
-                    , k = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
-                    , b = k.row_focus
-                    , w = b + y - 1
-                    , x = k.column_focus
-                    , C = x + v - 1
-                    , S = !1;
-                if (l.merge != null && (S = Dt(l, b, w, x, C)),
-                    S) {
-                    de() ? alert(t.errorNotAllowMerged) : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
-                    return
+pasteHandlerOfCutPaste: async function (e) {
+    if (!gr(h.luckysheet_select_save, h.currentSheetIndex) || h.allowEdit === !1) return;
+
+    const self = this;
+    const t = Q().paste;
+    let l = $.extend(!0, {}, h.config);
+    l.merge == null && (l.merge = {});
+
+    // async-safe recalculation helper
+    async function recalc(flowdata, row, col) {
+        await Promise.resolve(
+            self.execFunctionGroup(
+                row,
+                col,
+                null,
+                h.currentSheetIndex,
+                flowdata
+            )
+        );
+    }
+
+    let a = e.HasMC,
+        o = e.RowlChange,
+        s = e.dataSheetIndex,
+        u = e.copyRange[0].row[0],
+        d = e.copyRange[0].row[1],
+        f = e.copyRange[0].column[0],
+        m = e.copyRange[0].column[1];
+
+    let g = $.extend(!0, [], Nt({ row: [u, d], column: [f, m] }, s)),
+        y = g.length,
+        v = g[0].length;
+
+    let k = h.luckysheet_select_save.at(-1),
+        b = k.row_focus,
+        w = b + y - 1,
+        x = k.column_focus,
+        C = x + v - 1;
+
+    if (l.merge && Dt(l, b, w, x, C)) {
+        de()
+            ? alert(t.errorNotAllowMerged)
+            : U.info(`<i class="fa fa-exclamation-triangle"></i>${t.warning}`, t.errorNotAllowMerged);
+        return;
+    }
+
+    // clone current flowdata
+    let _ = we.deepCopyFlowData(h.flowdata);
+
+    let addRow = y + b - _.length;
+    let addCol = v + x - _[0].length;
+    (addRow > 0 || addCol > 0) && (_ = il([].concat(_), addRow, addCol, !0));
+
+    /* -----------------------------
+       Clear source (cut operation)
+    ------------------------------ */
+    if (h.currentSheetIndex === s) {
+        for (let r = u; r <= d; r++) {
+            for (let c = f; c <= m; c++) {
+                let cell = _[r][c];
+                if (L(cell) === "object" && cell?.mc) {
+                    cell.mc.rs && delete l.merge[cell.mc.r + "_" + cell.mc.c];
+                    delete cell.mc;
                 }
-                let _ = we.deepCopyFlowData(h.flowdata)
-                    , T = _.length
-                    , A = _[0].length
-                    , R = y + b - T
-                    , I = v + x - A;
-                (R > 0 || I > 0) && (_ = il([].concat(_), R, I, !0));
-                let F = Ur(s)
-                    , N = $.extend(!0, {}, h.luckysheetfile[K(s)].dataVerification)
-                    , D = $.extend(!0, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification);
-                if (h.currentSheetIndex == s) {
-                    for (let O = u; O <= d; O++)
-                        for (let V = f; V <= m; V++) {
-                            let q = _[O][V];
-                            L(q) == "object" && "mc" in q && ("rs" in q.mc && delete l.merge[q.mc.r + "_" + q.mc.c],
-                                delete q.mc),
-                                _[O][V] = null,
-                                delete D[O + "_" + V]
-                        }
-                    if (l.borderInfo && l.borderInfo.length > 0) {
-                        let O = [];
-                        for (let V = 0; V < l.borderInfo.length; V++) {
-                            let q = l.borderInfo[V].rangeType;
-                            if (q == "range") {
-                                let Y = l.borderInfo[V].range
-                                    , X = [];
-                                for (let ee = 0; ee < Y.length; ee++)
-                                    X = X.concat($e.CFSplitRange(Y[ee], {
-                                        row: [u, d],
-                                        column: [f, m]
-                                    }, {
-                                        row: [b, w],
-                                        column: [x, C]
-                                    }, "restPart"));
-                                l.borderInfo[V].range = X,
-                                    O.push(l.borderInfo[V])
-                            } else if (q == "cell") {
-                                let Y = l.borderInfo[V].value.row_index
-                                    , X = l.borderInfo[V].value.col_index;
-                                Y >= u && Y <= d && X >= f && X <= m || O.push(l.borderInfo[V])
-                            }
-                        }
-                        l.borderInfo = O
-                    }
-                }
-                let E = {};
-                for (let O = b; O <= w; O++) {
-                    let V = [].concat(_[O]);
-                    for (let q = x; q <= C; q++) {
-                        if (F[u + O - b + "_" + (f + q - x)]) {
-                            let X = {
-                                rangeType: "cell",
-                                value: {
-                                    row_index: O,
-                                    col_index: q,
-                                    l: F[u + O - b + "_" + (f + q - x)].l,
-                                    r: F[u + O - b + "_" + (f + q - x)].r,
-                                    t: F[u + O - b + "_" + (f + q - x)].t,
-                                    b: F[u + O - b + "_" + (f + q - x)].b
-                                }
-                            };
-                            l.borderInfo == null && (l.borderInfo = []),
-                                l.borderInfo.push(X)
-                        } else if (F[O + "_" + q]) {
-                            let X = {
-                                rangeType: "cell",
-                                value: {
-                                    row_index: O,
-                                    col_index: q,
-                                    l: null,
-                                    r: null,
-                                    t: null,
-                                    b: null
-                                }
-                            };
-                            l.borderInfo == null && (l.borderInfo = []),
-                                l.borderInfo.push(X)
-                        }
-                        N[u + O - b + "_" + (f + q - x)] && (D[O + "_" + q] = N[u + O - b + "_" + (f + q - x)]),
-                            L(V[q]) == "object" && "mc" in V[q] && ("rs" in V[q].mc && delete l.merge[V[q].mc.r + "_" + V[q].mc.c],
-                                delete V[q].mc);
-                        let Y = null;
-                        g[O - b] != null && g[O - b][q - x] != null && (Y = g[O - b][q - x]),
-                            V[q] = $.extend(!0, {}, Y),
-                            Y != null && a && "mc" in V[q] && (V[q].mc.rs != null ? (V[q].mc.r = O,
-                                V[q].mc.c = q,
-                                l.merge[V[q].mc.r + "_" + V[q].mc.c] = V[q].mc,
-                                E[Y.mc.r + "_" + Y.mc.c] = [V[q].mc.r, V[q].mc.c]) : V[q] = {
-                                    mc: {
-                                        r: E[Y.mc.r + "_" + Y.mc.c][0],
-                                        c: E[Y.mc.r + "_" + Y.mc.c][1]
-                                    }
-                                })
-                    }
-                    _[O] = V
-                }
-                k.row = [b, w],
-                    k.column = [x, C],
-                    o && (h.currentSheetIndex != s ? l = yl(_, b, w, l) : (l = yl(_, u, d, l),
-                        l = yl(_, b, w, l)));
-                let P, z;
-                if (h.currentSheetIndex != s) {
-                    let O = $.extend(!0, [], h.luckysheetfile[K(s)].data)
-                        , V = $.extend(!0, {}, h.luckysheetfile[K(s)].config)
-                        , q = $.extend(!0, [], O)
-                        , Y = $.extend(!0, {}, V);
-                    Y.merge == null && (Y.merge = {});
-                    for (let ie = u; ie <= d; ie++)
-                        for (let ue = f; ue <= m; ue++) {
-                            let he = q[ie][ue];
-                            L(he) == "object" && "mc" in he && ("rs" in he.mc && delete Y.merge[he.mc.r + "_" + he.mc.c],
-                                delete he.mc),
-                                q[ie][ue] = null
-                        }
-                    if (o && (Y = yl(q, u, d, Y)),
-                        Y.borderInfo && Y.borderInfo.length > 0) {
-                        let ie = [];
-                        for (let ue = 0; ue < Y.borderInfo.length; ue++) {
-                            let he = Y.borderInfo[ue].rangeType;
-                            if (he == "range") {
-                                let J = Y.borderInfo[ue].range
-                                    , G = [];
-                                for (let le = 0; le < J.length; le++)
-                                    G = G.concat($e.CFSplitRange(J[le], {
-                                        row: [u, d],
-                                        column: [f, m]
-                                    }, {
-                                        row: [b, w],
-                                        column: [x, C]
-                                    }, "restPart"));
-                                Y.borderInfo[ue].range = G,
-                                    ie.push(Y.borderInfo[ue])
-                            } else if (he == "cell") {
-                                let J = Y.borderInfo[ue].value.row_index
-                                    , G = Y.borderInfo[ue].value.col_index;
-                                J >= u && J <= d && G >= f && G <= m || ie.push(Y.borderInfo[ue])
-                            }
-                        }
-                        Y.borderInfo = ie
-                    }
-                    let X = $.extend(!0, [], h.luckysheetfile[K(s)].luckysheet_conditionformat_save)
-                        , ee = $.extend(!0, [], X)
-                        , te = [];
-                    if (ee != null && ee.length > 0)
-                        for (let ie = 0; ie < ee.length; ie++) {
-                            let ue = ee[ie].cellrange
-                                , he = []
-                                , J = [];
-                            for (let G = 0; G < ue.length; G++) {
-                                let le = $e.CFSplitRange(ue[G], {
-                                    row: [u, d],
-                                    column: [f, m]
-                                }, {
-                                    row: [b, w],
-                                    column: [x, C]
-                                }, "restPart");
-                                he = he.concat(le);
-                                let pe = $e.CFSplitRange(ue[G], {
-                                    row: [u, d],
-                                    column: [f, m]
-                                }, {
-                                    row: [b, w],
-                                    column: [x, C]
-                                }, "operatePart");
-                                pe.length > 0 && (J = J.concat(pe))
-                            }
-                            if (ee[ie].cellrange = he,
-                                J.length > 0) {
-                                let G = $.extend(!0, {}, ee[ie]);
-                                G.cellrange = J,
-                                    te.push(G)
-                            }
-                        }
-                    let ce = $.extend(!0, [], h.luckysheetfile[K(h.currentSheetIndex)].luckysheet_conditionformat_save)
-                        , se = $.extend(!0, [], ce);
-                    te.length > 0 && (se = se.concat(te));
-                    for (let ie = u; ie <= d; ie++)
-                        for (let ue = f; ue <= m; ue++)
-                            delete N[ie + "_" + ue];
-                    P = {
-                        sheetIndex: s,
-                        data: O,
-                        curData: q,
-                        config: V,
-                        curConfig: Y,
-                        cdformat: X,
-                        curCdformat: ee,
-                        dataVerification: $.extend(!0, {}, h.luckysheetfile[K(s)].dataVerification),
-                        curDataVerification: N,
-                        range: {
-                            row: [u, d],
-                            column: [f, m]
-                        }
-                    },
-                        z = {
-                            sheetIndex: h.currentSheetIndex,
-                            data: h.flowdata,
-                            curData: _,
-                            config: $.extend(!0, {}, h.config),
-                            curConfig: l,
-                            cdformat: ce,
-                            curCdformat: se,
-                            dataVerification: $.extend(!0, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification),
-                            curDataVerification: D,
-                            range: {
-                                row: [b, w],
-                                column: [x, C]
-                            }
-                        }
+                _[r][c] = null;
+            }
+        }
+    }
+
+    /* -----------------------------
+       Paste into destination
+    ------------------------------ */
+    let mergeMap = {};
+    for (let r = b; r <= w; r++) {
+        let row = [].concat(_[r]);
+        for (let c = x; c <= C; c++) {
+            let src = g[r - b]?.[c - x] ?? null;
+            row[c] = $.extend(!0, {}, src);
+
+            if (src && a && src.mc) {
+                if (src.mc.rs != null) {
+                    row[c].mc.r = r;
+                    row[c].mc.c = c;
+                    l.merge[r + "_" + c] = row[c].mc;
+                    mergeMap[src.mc.r + "_" + src.mc.c] = [r, c];
                 } else {
-                    let O = $.extend(!0, [], h.luckysheetfile[K(h.currentSheetIndex)].luckysheet_conditionformat_save)
-                        , V = $.extend(!0, [], O);
-                    if (V != null && V.length > 0)
-                        for (let q = 0; q < V.length; q++) {
-                            let Y = V[q].cellrange
-                                , X = [];
-                            for (let ee = 0; ee < Y.length; ee++) {
-                                let te = $e.CFSplitRange(Y[ee], {
-                                    row: [u, d],
-                                    column: [f, m]
-                                }, {
-                                    row: [b, w],
-                                    column: [x, C]
-                                }, "allPart");
-                                X = X.concat(te)
-                            }
-                            V[q].cellrange = X
+                    row[c] = {
+                        mc: {
+                            r: mergeMap[src.mc.r + "_" + src.mc.c][0],
+                            c: mergeMap[src.mc.r + "_" + src.mc.c][1]
                         }
-                    P = {
-                        sheetIndex: h.currentSheetIndex,
-                        data: h.flowdata,
-                        curData: _,
-                        config: $.extend(!0, {}, h.config),
-                        curConfig: l,
-                        cdformat: O,
-                        curCdformat: V,
-                        dataVerification: $.extend(!0, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification),
-                        curDataVerification: D,
-                        range: {
-                            row: [u, d],
-                            column: [f, m]
-                        }
-                    },
-                        z = {
-                            sheetIndex: h.currentSheetIndex,
-                            data: h.flowdata,
-                            curData: _,
-                            config: $.extend(!0, {}, h.config),
-                            curConfig: l,
-                            cdformat: O,
-                            curCdformat: V,
-                            dataVerification: $.extend(!0, {}, h.luckysheetfile[K(h.currentSheetIndex)].dataVerification),
-                            curDataVerification: D,
-                            range: {
-                                row: [b, w],
-                                column: [x, C]
-                            }
-                        }
+                    };
                 }
-                R > 0 || I > 0 ? Va(P, z, !0) : Va(P, z, o)
-            },
+            }
+        }
+        _[r] = row;
+    }
+
+    // update selection
+    k.row = [b, w];
+    k.column = [x, C];
+
+    /* -----------------------------
+       ✅ ASYNC FORMULA RECALC
+       (on UPDATED flowdata)
+    ------------------------------ */
+    await recalc(_, b, x);
+
+    /* -----------------------------
+       Final UI apply
+    ------------------------------ */
+    let P = {
+        sheetIndex: h.currentSheetIndex,
+        data: h.flowdata,
+        curData: _,
+        config: $.extend(!0, {}, h.config),
+        curConfig: l,
+        range: { row: [u, d], column: [f, m] }
+    };
+
+    let z = {
+        sheetIndex: h.currentSheetIndex,
+        data: h.flowdata,
+        curData: _,
+        config: $.extend(!0, {}, h.config),
+        curConfig: l,
+        range: { row: [b, w], column: [x, C] }
+    };
+
+    addRow > 0 || addCol > 0
+        ? Va(P, z, !0)
+        : Va(P, z, o);
+}
