@@ -1,84 +1,112 @@
- public string Transform(SummaryPlannerRequest request)
+public string Transform(SummaryPlannerRequest request)
+{
+    var sb = new StringBuilder();
+    
+    // ---------------------------------------------------------
+    // 1. ROLE & DESIGN SYSTEM (The "Brain" & "Look")
+    // ---------------------------------------------------------
+    sb.AppendLine("### INSTRUCTIONS ###");
+    sb.AppendLine("You are an expert Capacity Planning Analyst and UI Designer. Your goal is to analyze the provided dataset and render a beautiful, modern HTML dashboard.");
+    sb.AppendLine("DO NOT output Markdown. Output ONLY raw HTML.");
+
+    // Define the Visual Style Guide for the AI to use
+    sb.AppendLine(@"
+    **DESIGN SYSTEM RULES (Strictly enforce Inline CSS):**
+    1.  **Font:** Use `font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;`
+    2.  **Container:** Use a clean card layout with `box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 8px; padding: 20px; margin-bottom: 20px; background-color: #ffffff; border: 1px solid #e0e0e0;`
+    3.  **Typography:** - Headers: `color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 10px; border-bottom: 2px solid #3498db; padding-bottom: 5px;`
+        - Body: `color: #555; line-height: 1.6; font-size: 14px;`
+    4.  **Status Colors (Use background-color for badges, color for text):**
+        - **Stable (Green):** `#27ae60` (Bg: `#e8f8f5`)
+        - **Warning (Amber):** `#f39c12` (Bg: `#fef9e7`)
+        - **Critical (Red):** `#e74c3c` (Bg: `#fdedec`)
+    5.  **Icons:** Use the provided SVG strings inline.
+    ");
+
+    // Provide raw SVGs so the AI doesn't hallucinate broken links
+    sb.AppendLine(@"
+    **ASSETS (Insert these SVGs inline where relevant):**
+    - [ICON_ALERT]: <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='#e74c3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'></circle><line x1='12' y1='8' x2='12' y2='12'></line><line x1='12' y1='16' x2='12.01' y2='16'></line></svg>
+    - [ICON_TREND]: <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='#3498db' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='23 6 13.5 15.5 8.5 10.5 1 18'></polyline><polyline points='17 6 23 6 23 12'></polyline></svg>
+    - [ICON_CHECK]: <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='#27ae60' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 11.08V12a10 10 0 1 1-5.93-9.14'></path><polyline points='22 4 12 14.01 9 11.01'></polyline></svg>
+    ");
+
+    // ---------------------------------------------------------
+    // 2. LOGIC REQUIREMENTS
+    // ---------------------------------------------------------
+    sb.AppendLine($@"
+    **ANALYSIS LOGIC:**
+    - Future recommendations apply to dates on or after {request.Weeks.NextWeek}.
+    - Highlight numbers:
+      - Green if variance < 5% (Stable)
+      - Amber if variance is 5-10% (Warning)
+      - Red if variance > 10% (Critical)
+    - Review shrinkage for upcoming holidays.
+    ");
+
+    // ---------------------------------------------------------
+    // 3. DATA INJECTION (The Context)
+    // ---------------------------------------------------------
+    sb.AppendLine("### DATA TO ANALYZE ###");
+    
+    // Group data by LOB + Geo + Site
+    var grouped = request.Data.GroupBy(d => new { d.SheetName, d.Geo, d.Site });
+
+    foreach (var group in grouped)
+    {
+        sb.AppendLine($"--- GROUP START: LOB: {group.Key.SheetName} | Geo: {group.Key.Geo} | Site: {group.Key.Site} ---");
+
+        var plannedMetrics = group.Where(g => g.Header.StartsWith("Planned", StringComparison.OrdinalIgnoreCase)).ToList();
+        var actualMetrics = group.Where(g => g.Header.StartsWith("Actual", StringComparison.OrdinalIgnoreCase)).ToList();
+        var staffingPer = group.FirstOrDefault(x => x.Header.Equals("Staffing %", StringComparison.OrdinalIgnoreCase));
+
+        foreach (var planned in plannedMetrics)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine(@$"
- - Analyze the provided capacity dataset (Actual & Planned), broken down by LOB, Geo, Site, and Week.
- - Identify risks, anomalies, capacity shortages, overstaffing, deviations, and trend changes.
- - Mention specific geographies or LOBs with challenges.
-- Consider region-specific holiday periods that may affect staffing, availability, SLAs, and productivity.
-- Provide **clear alerts**, **trend-based insights**, and **actionable recommendations** that business users can take.
-- Use concise, professional language.
-- Please review shrinkage for upcoming geo-wise holiday period and ensure that shrinkage is not identical across all weeks.
-- Future recommendations should apply to dates on or after ${request.Weeks.NextWeek} based on actual trends.
-- Output must be in **HTML Inline styling** with symbolic svg images and sections.
-- Highlight important numbers and keywords with inline style and max width should be 100%.
-    - Green words (stable areas): style=""color: #27ae60; font-weight: bold;
-    - Amber words (warnings): style=""color: #f39c12; font-weight: bold;
-    - Red words (critical): style=""color: #e74c3c; font-weight: bold;
-- Use a visually appealing illustrative theme. 
-Input:
-");
-            // Group data by LOB + Geo + Site
-            var grouped = request.Data.GroupBy(d => new { d.SheetName, d.Geo, d.Site });
-            sb.AppendLine(@$"   - <strong>Overall Assessment:</strong><br/>\r\n        
-                                        - <Insert overall assessment text here (2–3 lines).>");
+            var metricBase = planned.Header.Replace("Planned", "").Trim();
+            var actual = actualMetrics.FirstOrDefault(a => a.Header.Contains(metricBase, StringComparison.OrdinalIgnoreCase));
 
-            foreach (var group in grouped)
-            {
-                sb.AppendLine($"LOB: {group.Key.SheetName} | Geo: {group.Key.Geo} | Site: {group.Key.Site}");
+            if (actual == null) continue;
 
-                // ------------------ Planned vs Actual Comparison ------------------
-                var plannedMetrics = group.Where(g => g.Header.StartsWith("Planned", System.StringComparison.OrdinalIgnoreCase)).ToList();
-                var actualMetrics = group.Where(g => g.Header.StartsWith("Actual", System.StringComparison.OrdinalIgnoreCase)).ToList();
-                var staffingPer = group.FirstOrDefault(x => x.Header.Equals("Staffing %", System.StringComparison.OrdinalIgnoreCase));
-                foreach (var planned in plannedMetrics)
-                {
-                    var metricBase = planned.Header.Replace("Planned", "").Trim();
-                    var actual = actualMetrics.FirstOrDefault(a => a.Header.Contains(metricBase, System.StringComparison.OrdinalIgnoreCase));
-                    if (actual == null)
-                    {
-                        sb.AppendLine($"- Metric: {planned.Header} (no Actual data to compare)");
-                        continue;
-                    }
-                    sb.AppendLine($"- Metric: {metricBase}");
-                    sb.AppendLine($"Actual Trend:  {string.Join(", ", actual.Values.Where(x => Convert.ToDateTime(x.Week) < Convert.ToDateTime(request.Weeks.NextWeek)).Select(v => $"{v.Week}: {(v.NumValue * 100).ToString("N2")}%"))}");
-                    sb.AppendLine($"Planned : {string.Join(", ", planned.Values.Where(x => Convert.ToDateTime(x.Week) >= Convert.ToDateTime(request.Weeks.NextWeek)).Select(v => $"{v.Week}: {(v.NumValue * 100).ToString("N2")}%"))}");
-                    sb.AppendLine($"Staffing% Trend: {string.Join(", ", staffingPer?.Values.Select(v => $"{v.Week}: {(v.NumValue).ToString("N2")}%"))}");
-                    sb.AppendLine("<hr>");
-                }
-                
+            sb.AppendLine($"Metric: {metricBase}");
+            
+            // Format dates and values cleanly for the AI to read
+            var actualTrend = string.Join(", ", actual.Values
+                .Where(x => Convert.ToDateTime(x.Week) < Convert.ToDateTime(request.Weeks.NextWeek))
+                .Select(v => $"{v.Week}: {(v.NumValue * 100):N2}%"));
+            
+            var plannedTrend = string.Join(", ", planned.Values
+                .Where(x => Convert.ToDateTime(x.Week) >= Convert.ToDateTime(request.Weeks.NextWeek))
+                .Select(v => $"{v.Week}: {(v.NumValue * 100):N2}%"));
 
+            var staffingTrend = staffingPer != null 
+                ? string.Join(", ", staffingPer.Values.Select(v => $"{v.Week}: {v.NumValue:N2}%")) 
+                : "N/A";
 
-
-            }
-
-            sb.AppendLine(@"
-<div style='font-family:Arial; font-size:14px;'>
-    <p><strong>Task:</strong></p>
-    <p>For each LOB, summarize ONLY:</p>
-    <ol>
-        <li>Key Alerts (2 lines)</li>
-        <li>Recommendations (1–2 lines)</li>
-    </ol>
-    <p><strong>Output Format (strict):</strong></p>
-    <p>For each LOB:</p>
-    <p>
-        <strong>&lt;name&gt;</strong><br/>
-        - <p><strong>Alerts:</strong></p>:<br/>
-        &nbsp;&nbsp;• &lt;Max 5–6 lines – biggest deviation&gt;<br/>
-        &nbsp;&nbsp;• &lt;Max 5–6 lines – trend/holiday impact&gt;<br/>
-        - <p><strong>Recommendations:</strong></p><br/>
-        &nbsp;&nbsp;• &lt;Max 5–6 lines – actionable step&gt;<br/>
-        &nbsp;&nbsp;• &lt;Max 5–6 lines – optional optimization&gt;<br/>
-    </p>
-    <p><strong>Rules:</strong></p>
-    <ul>
-        <li>Max 5–6 lines per LOB.</li>
-        <li>No tables, no long paragraphs.</li>
-        <li>Keep it short, sharp, and decision-oriented.</li>
-    </ul>
-</div>
-");
-
-            return sb.ToString();
+            sb.AppendLine($"Actuals (Historical): {actualTrend}");
+            sb.AppendLine($"Planned (Future): {plannedTrend}");
+            sb.AppendLine($"Staffing %: {staffingTrend}");
+            sb.AppendLine("");
         }
+        sb.AppendLine("--- GROUP END ---");
+    }
+
+    // ---------------------------------------------------------
+    // 4. OUTPUT TEMPLATE (The Structure)
+    // ---------------------------------------------------------
+    sb.AppendLine(@"
+    ### OUTPUT FORMAT ###
+    Produce a single HTML string containing:
+    1.  **Executive Summary:** A top-level div with a light blue background (#eef2f3) summarizing the global state in 2-3 lines.
+    2.  **LOB Cards:** For each LOB Group, create a Div with the 'Container' style defined above.
+        - **Header:** LOB Name | Geo | Site (Use an H3 tag).
+        - **Metric Grid:** A Flexbox row showing Key Metrics (Staffing %, Biggest Gap).
+        - **Analysis Section:**
+            - Use [ICON_ALERT] and a Red/Amber bold title for RISKS.
+            - Use [ICON_CHECK] and a Green bold title for STABLE areas.
+            - Use [ICON_TREND] for RECOMMENDED ACTIONS.
+    
+    **Constraint:** Keep recommendations short (max 2 lines). Ensure strict inline CSS. No external stylesheets.
+    ");
+
+    return sb.ToString();
+}
