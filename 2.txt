@@ -1,12 +1,15 @@
-public string Transform(SummaryPlannerRequest request)
-{
-    var sb = new StringBuilder();
+            var aiInput = aiAssistant.Transform(request);
+            var insights = await aiAssistant.GenerateInsightsAsync(aiInput);        
 
-    // -------------------------------------------------------------------------
-    // 1. THE DESIGN SYSTEM (Embedded CSS)
-    // -------------------------------------------------------------------------
-    // We inject this strictly into the prompt so the AI outputs it at the top.
-    string designSystem = @"
+public string Transform(SummaryPlannerRequest request)
+        {
+            var sb = new StringBuilder();
+
+            // -------------------------------------------------------------------------
+            // 1. THE DESIGN SYSTEM (Embedded CSS)
+            // -------------------------------------------------------------------------
+            // We inject this strictly into the prompt so the AI outputs it at the top.
+            string designSystem = @"
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     .report-container { font-family: 'Inter', sans-serif; background-color: #f8f9fa; color: #344767; padding: 40px; max-width: 1000px; margin: 0 auto; }
@@ -41,28 +44,28 @@ public string Transform(SummaryPlannerRequest request)
     .text-box span { font-size: 13px; color: #555; }
 </style>";
 
-    // -------------------------------------------------------------------------
-    // 2. CONSTRUCT THE PROMPT
-    // -------------------------------------------------------------------------
-    sb.AppendLine("### INSTRUCTIONS ###");
-    sb.AppendLine("You are a UI Renderer. You do not output Markdown. You output a single raw HTML string.");
-    sb.AppendLine("You must analyze the capacity data and fill it into the Strict HTML Template provided below.");
-    
-    sb.AppendLine("### DESIGN RULES ###");
-    sb.AppendLine("1. Use the CSS classes provided in the <style> block.");
-    sb.AppendLine("2. Do not invent new styles. Use the classes: .lob-card, .metric-box, .type-risk, etc.");
-    sb.AppendLine($"3. Embed this exact CSS block at the start of your response: {designSystem.Replace(Environment.NewLine, "")}");
-    
-    // SVG Icons Definitions for the AI to insert
-    sb.AppendLine(@"
+            // -------------------------------------------------------------------------
+            // 2. CONSTRUCT THE PROMPT
+            // -------------------------------------------------------------------------
+            sb.AppendLine("### INSTRUCTIONS ###");
+            sb.AppendLine("You are a UI Renderer. You do not output Markdown. You output a single raw HTML string.");
+            sb.AppendLine("You must analyze the capacity data and fill it into the Strict HTML Template provided below.");
+
+            sb.AppendLine("### DESIGN RULES ###");
+            sb.AppendLine("1. Use the CSS classes provided in the <style> block.");
+            sb.AppendLine("2. Do not invent new styles. Use the classes: .lob-card, .metric-box, .type-risk, etc.");
+            sb.AppendLine($"3. Embed this exact CSS block at the start of your response: {designSystem.Replace(Environment.NewLine, "")}");
+
+            // SVG Icons Definitions for the AI to insert
+            sb.AppendLine(@"
     ### ICONS TO USE (Insert raw SVG) ###
     [RISK_ICON]: <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#ea0606' stroke-width='2'><path d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'></path><line x1='12' y1='9' x2='12' y2='13'></line><line x1='12' y1='17' x2='12.01' y2='17'></line></svg>
     [OK_ICON]: <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#10b981' stroke-width='2'><path d='M22 11.08V12a10 10 0 1 1-5.93-9.14'></path><polyline points='22 4 12 14.01 9 11.01'></polyline></svg>
     [ACTION_ICON]: <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#3b82f6' stroke-width='2'><circle cx='12' cy='12' r='10'></circle><polyline points='12 6 12 12 16 14'></polyline></svg>
     ");
 
-    sb.AppendLine("### HTML STRUCTURE TO GENERATE ###");
-    sb.AppendLine(@"
+            sb.AppendLine("### HTML STRUCTURE TO GENERATE ###");
+            sb.AppendLine(@"
     <div class='report-container'>
         <div class='hero-card'>
             <div class='hero-title'>Executive Summary</div>
@@ -114,47 +117,73 @@ public string Transform(SummaryPlannerRequest request)
         </div>
     ");
 
-    sb.AppendLine("### INPUT DATA ###");
+            sb.AppendLine("### INPUT DATA ###");
 
-    // -------------------------------------------------------------------------
-    // 3. DATA PREPARATION (Minimizing computation for the AI)
-    // -------------------------------------------------------------------------
-    var grouped = request.Data.GroupBy(d => new { d.SheetName, d.Geo, d.Site });
-    
-    foreach (var group in grouped)
-    {
-        sb.AppendLine($"--- GROUP: {group.Key.SheetName} | {group.Key.Geo} | {group.Key.Site} ---");
-        
-        var plannedMetrics = group.Where(g => g.Header.StartsWith("Planned", StringComparison.OrdinalIgnoreCase)).ToList();
-        var actualMetrics = group.Where(g => g.Header.StartsWith("Actual", StringComparison.OrdinalIgnoreCase)).ToList();
-        var staffingPer = group.FirstOrDefault(x => x.Header.Equals("Staffing %", StringComparison.OrdinalIgnoreCase));
+            // -------------------------------------------------------------------------
+            // 3. DATA PREPARATION (Minimizing computation for the AI)
+            // -------------------------------------------------------------------------
+            var grouped = request.Data.GroupBy(d => new { d.SheetName, d.Geo, d.Site });
 
-        // Pass clean trend data
-        if(staffingPer != null)
-        {
-             sb.AppendLine($"Staffing % Data: {string.Join(", ", staffingPer.Values.Select(v => $"{v.Week}: {v.NumValue:P1}"))}");
-        }
-
-        foreach (var planned in plannedMetrics)
-        {
-            var metricBase = planned.Header.Replace("Planned", "").Trim();
-            var actual = actualMetrics.FirstOrDefault(a => a.Header.Contains(metricBase, StringComparison.OrdinalIgnoreCase));
-            if (actual == null) continue;
-
-            sb.AppendLine($"Metric: {metricBase}");
-            
-            // Calculate specific variances for the AI so it doesn't have to do math
-            // This ensures the "Risk" alerts are accurate
-            var lastActual = actual.Values.OrderByDescending(x => x.Week).FirstOrDefault();
-            var nextPlanned = planned.Values.Where(x => Convert.ToDateTime(x.Week) >= Convert.ToDateTime(request.Weeks.NextWeek)).FirstOrDefault();
-            
-            if(lastActual != null && nextPlanned != null)
+            foreach (var group in grouped)
             {
-                sb.AppendLine($"Last Actual: {lastActual.NumValue:P1} | Next Planned: {nextPlanned.NumValue:P1}");
-            }
-            sb.AppendLine("------------------------------------------------");
-        }
-    }
+                sb.AppendLine($"--- GROUP: {group.Key.SheetName} | {group.Key.Geo} | {group.Key.Site} ---");
 
-    return sb.ToString();
-}
+                var plannedMetrics = group.Where(g => g.Header.StartsWith("Planned", StringComparison.OrdinalIgnoreCase)).ToList();
+                var actualMetrics = group.Where(g => g.Header.StartsWith("Actual", StringComparison.OrdinalIgnoreCase)).ToList();
+                var staffingPer = group.FirstOrDefault(x => x.Header.Equals("Staffing %", StringComparison.OrdinalIgnoreCase));
+
+                // Pass clean trend data
+                if (staffingPer != null)
+                {
+                    sb.AppendLine($"Staffing % Data: {string.Join(", ", staffingPer.Values.Select(v => $"{v.Week}: {v.NumValue:P1}"))}");
+                }
+
+                foreach (var planned in plannedMetrics)
+                {
+                    var metricBase = planned.Header.Replace("Planned", "").Trim();
+                    var actual = actualMetrics.FirstOrDefault(a => a.Header.Contains(metricBase, StringComparison.OrdinalIgnoreCase));
+                    if (actual == null) continue;
+
+                    sb.AppendLine($"Metric: {metricBase}");
+
+                    // Calculate specific variances for the AI so it doesn't have to do math
+                    // This ensures the "Risk" alerts are accurate
+                    var lastActual = actual.Values.OrderByDescending(x => x.Week).FirstOrDefault();
+                    var nextPlanned = planned.Values.Where(x => Convert.ToDateTime(x.Week) >= Convert.ToDateTime(request.Weeks.NextWeek)).FirstOrDefault();
+
+                    if (lastActual != null && nextPlanned != null)
+                    {
+                        sb.AppendLine($"Last Actual: {lastActual.NumValue:P1} | Next Planned: {nextPlanned.NumValue:P1}");
+                    }
+                    sb.AppendLine("------------------------------------------------");
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        public async Task<string> GenerateInsightsAsync(string aiInput)
+        {
+            var requestBody = new
+            {
+                messages = new[]
+                {
+                    new { role = "system", content = "You are an advanced Capacity Planning & Workforce Optimization Expert." },
+                    new { role = "user", content = aiInput }
+                },
+            };
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Add("api-key", _apiKey);
+
+            var url = _apiUrl;
+            var content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(requestBody), Encoding.UTF8, "application/json");
+            var response = await http.PostAsync(url, content);
+            var responseJson = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(responseJson);
+            var resultText = doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+            return resultText;
+        }
