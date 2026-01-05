@@ -1,115 +1,26 @@
-public class AiDashboardData
-{
-    public string ExecutiveSummary { get; set; }
-    public List<LobInsight> Groups { get; set; }
-}
-
-public class LobInsight
-{
-    public string Lob { get; set; }
-    public string Geo { get; set; }
-    public string Site { get; set; }
-    public double StaffingLevel { get; set; }
-    public string Status { get; set; } // Stable, Warning, Critical
-    public List<string> Alerts { get; set; }
-    public List<string> Recommendations { get; set; }
-}
-
-
-public async Task<string> GetExtremeBeautifulReport(SummaryPlannerRequest request)
-{
-    // 1. Prepare the Data for AI
-    var aiInput = TransformToAiJsonPrompt(request);
-    
-    // 2. Get JSON response from AI
-    var rawJson = await GenerateInsightsAsync(aiInput);
-    
-    // 3. Clean and Parse the JSON
-    // Note: AI sometimes adds ```json ... ``` blocks, we strip them.
-    var cleanJson = rawJson.Replace("```json", "").Replace("```", "").Trim();
-    var data = Newtonsoft.Json.JsonConvert.DeserializeObject<AiDashboardData>(cleanJson);
-    
-    // 4. Render the professional HTML
-    return RenderDashboard(data);
-}
-
-
 public string TransformToAiJsonPrompt(SummaryPlannerRequest request)
 {
     var sb = new StringBuilder();
-
-    // 1. SYSTEM ROLE & OUTPUT CONTRACT
-    sb.AppendLine("### ROLE ###");
-    sb.AppendLine("You are a Senior Workforce Management (WFM) Analyst and Data Scientist.");
-    sb.AppendLine("Analyze the provided capacity data and return ONLY a valid JSON object.");
-    sb.AppendLine("Do not include conversational text or markdown code blocks (```json).");
-
-    sb.AppendLine("\n### JSON STRUCTURE REQUIRED ###");
+    sb.AppendLine("Act as a Senior WFM Architect. Analyze the capacity data and return ONLY a JSON object.");
+    sb.AppendLine("### STRICT REQUIREMENTS ###");
+    sb.AppendLine("- Return at least 5 distinct, high-quality points for 'alerts'.");
+    sb.AppendLine("- Return at least 5 distinct, actionable points for 'recommendations'.");
+    sb.AppendLine("- For 'staffingLevel', provide a percentage value between 0 and 100 (e.g., 88.5).");
+    
+    sb.AppendLine("\n### JSON STRUCTURE ###");
     sb.AppendLine(@"{
-        ""executiveSummary"": ""A 2-3 sentence high-level summary of global capacity health, focusing on the most critical risks or successes across all regions."",
+        ""executiveSummary"": ""..."",
         ""groups"": [
             {
-                ""lob"": ""LOB Name"",
-                ""geo"": ""Geography"",
-                ""site"": ""Site Name"",
-                ""staffingLevel"": 0.0, 
-                ""status"": ""Stable|Warning|Critical"", 
-                ""alerts"": [""Specific trend alert"", ""Holiday impact alert""],
-                ""recommendations"": [""Specific actionable step""]
+                ""lob"": ""..."", ""geo"": ""..."", ""site"": ""..."",""staffingLevel"": 85.0,
+                ""status"": ""Stable|Warning|Critical"",
+                ""alerts"": [""Point 1"", ""Point 2"", ""Point 3"", ""Point 4"", ""Point 5""],
+                ""recommendations"": [""Action 1"", ""Action 2"", ""Action 3"", ""Action 4"", ""Action 5""]
             }
         ]
     }");
 
-    // 2. LOGICAL RULES FOR THE AI
-    sb.AppendLine("\n### ANALYTICAL RULES ###");
-    sb.AppendLine($"- The 'Current Week' is defined as the week ending before {request.Weeks.NextWeek}.");
-    sb.AppendLine($"- Recommendations must strictly focus on dates on or after {request.Weeks.NextWeek}.");
-    sb.AppendLine("- STATUS LOGIC: 'Critical' if variance > 15%, 'Warning' if variance 10-15%, 'Stable' if < 10%.");
-    sb.AppendLine("- HOLIDAY CHECK: Identify if shrinkage is identical across weeks (an error) or if upcoming holidays lack staffing adjustments.");
-
-    // 3. DATA INJECTION
-    sb.AppendLine("\n### DATASET ###");
-
-    var grouped = request.Data.GroupBy(d => new { d.SheetName, d.Geo, d.Site });
-
-    foreach (var group in grouped)
-    {
-        sb.AppendLine($"\n--- START LOB: {group.Key.SheetName} | GEO: {group.Key.Geo} | SITE: {group.Key.Site} ---");
-
-        var plannedMetrics = group.Where(g => g.Header.StartsWith("Planned", StringComparison.OrdinalIgnoreCase)).ToList();
-        var actualMetrics = group.Where(g => g.Header.StartsWith("Actual", StringComparison.OrdinalIgnoreCase)).ToList();
-        var staffingPer = group.FirstOrDefault(x => x.Header.Equals("Staffing %", StringComparison.OrdinalIgnoreCase));
-
-        // Inject Staffing % Trend
-        if (staffingPer != null)
-        {
-            var trend = staffingPer.Values.Select(v => $"{v.Week}: {v.NumValue:P1}");
-            sb.AppendLine($"- Staffing % History: {string.Join(", ", trend)}");
-        }
-
-        // Comparison of Planned vs Actuals
-        foreach (var planned in plannedMetrics)
-        {
-            var metricBase = planned.Header.Replace("Planned", "").Trim();
-            var actual = actualMetrics.FirstOrDefault(a => a.Header.Contains(metricBase, StringComparison.OrdinalIgnoreCase));
-            
-            if (actual != null)
-            {
-                var histActual = actual.Values
-                    .Where(x => Convert.ToDateTime(x.Week) < Convert.ToDateTime(request.Weeks.NextWeek))
-                    .Select(v => $"{v.Week}: {v.NumValue:N0}");
-                
-                var futPlanned = planned.Values
-                    .Where(x => Convert.ToDateTime(x.Week) >= Convert.ToDateTime(request.Weeks.NextWeek))
-                    .Select(v => $"{v.Week}: {v.NumValue:N0}");
-
-                sb.AppendLine($"- Metric [{metricBase}] Actuals: {string.Join(", ", histActual)}");
-                sb.AppendLine($"- Metric [{metricBase}] Planned: {string.Join(", ", futPlanned)}");
-            }
-        }
-        sb.AppendLine("--- END LOB ---");
-    }
-
+    // Inject data logic here...
     return sb.ToString();
 }
 
@@ -119,65 +30,85 @@ public string RenderDashboard(AiDashboardData data)
     var html = new StringBuilder();
     html.Append(@"
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
-        :root { --primary: #4318FF; --secondary: #707EAE; --success: #05CD99; --warning: #FFB547; --danger: #EE5D50; --bg: #F4F7FE; }
-        .db-body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); padding: 30px; color: #2B3674; }
-        .hero { background: linear-gradient(135deg, #4318FF 0%, #B088FF 100%); border-radius: 20px; padding: 40px; color: white; margin-bottom: 30px; box-shadow: 0px 20px 40px rgba(67, 24, 255, 0.2); }
-        .card { background: white; border-radius: 20px; padding: 24px; margin-bottom: 24px; box-shadow: 0px 4px 15px rgba(0,0,0,0.03); border: 1px solid #E0E5F2; }
-        .lob-title { font-size: 22px; font-weight: 700; margin: 0; }
-        .site-badge { background: #F4F7FE; color: #707EAE; padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
-        .status-pill { padding: 6px 14px; border-radius: 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
-        .Critical { background: #FFEEF0; color: var(--danger); }
-        .Warning { background: #FFF9E6; color: var(--warning); }
-        .Stable { background: #E6FAF5; color: var(--success); }
-        .progress-container { margin: 20px 0; }
-        .progress-bar { height: 10px; background: #EFF4FB; border-radius: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; border-radius: 10px; transition: width 1s ease-in-out; }
-        .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; border-top: 1px solid #F4F7FE; padding-top: 20px; }
-        .item-list { font-size: 14px; line-height: 1.6; margin: 5px 0; color: #47548C; }
-    </style>
-    <div class='db-body'>");
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        :root { --primary: #4318FF; --bg: #F4F7FE; --card-bg: #ffffff; }
+        body { background-color: var(--bg); margin: 0; padding: 20px; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        
+        /* Hero Section */
+        .hero { background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%); border-radius: 24px; padding: 40px; color: white; margin-bottom: 30px; box-shadow: 0px 20px 40px rgba(67, 24, 255, 0.25); }
+        
+        /* Glass Card */
+        .card { background: var(--card-bg); border-radius: 24px; padding: 32px; margin-bottom: 30px; box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.04); border: 1px solid #E0E5F2; }
+        
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .title-group h2 { margin: 0; font-size: 24px; color: #1B2559; }
+        .badge { background: #F4F7FE; color: #707EAE; padding: 6px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+        
+        /* Fixed Staffing Bar */
+        .efficiency-section { background: #F8FAFF; border-radius: 16px; padding: 20px; margin-bottom: 25px; }
+        .bar-outer { height: 12px; width: 100%; background: #E9EDF7; border-radius: 20px; overflow: hidden; margin-top: 10px; }
+        .bar-inner { height: 100%; border-radius: 20px; transition: width 1s ease; }
+        
+        /* Status Colors */
+        .Critical-text { color: #EE5D50; } .Critical-bg { background: #EE5D50; }
+        .Warning-text { color: #FFB547; } .Warning-bg { background: #FFB547; }
+        .Stable-text { color: #05CD99; } .Stable-bg { background: #05CD99; }
 
-    // Executive Summary
+        /* Dual Column Layout */
+        .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .column-title { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 15px; display: flex; align-items: center; }
+        
+        .list-item { font-size: 13.5px; color: #47548C; margin-bottom: 12px; line-height: 1.5; display: flex; align-items: flex-start; }
+        .list-item span { margin-right: 10px; }
+    </style>
+    <div class='container'>");
+
+    // Hero
     html.Append($@"
         <div class='hero'>
-            <div style='font-size: 12px; font-weight: 700; opacity: 0.8; letter-spacing: 1px; margin-bottom: 10px;'>ANALYTICS INSIGHTS</div>
-            <div style='font-size: 24px; font-weight: 600; line-height: 1.4;'>{data.ExecutiveSummary}</div>
+            <span style='opacity:0.8; font-size:12px; font-weight:700; letter-spacing:1px;'>AI INSIGHTS REPORT</span>
+            <h1 style='margin:10px 0 0 0; font-size:26px;'>{data.ExecutiveSummary}</h1>
         </div>");
 
-    // LOB Cards
     foreach (var group in data.Groups)
     {
-        string statusColor = group.Status == "Stable" ? "var(--success)" : (group.Status == "Warning" ? "var(--warning)" : "var(--danger)");
+        // Ensure StaffingLevel is treated as a percentage for CSS
+        string statusClass = group.Status; 
         
         html.Append($@"
         <div class='card'>
-            <div style='display:flex; justify-content:space-between; align-items:start;'>
-                <div>
-                    <h3 class='lob-title'>{group.Lob}</h3>
-                    <div style='margin-top:5px;'><span class='site-badge'>{group.Geo}</span> <span class='site-badge'>{group.Site}</span></div>
+            <div class='header-row'>
+                <div class='title-group'>
+                    <h2>{group.Lob}</h2>
+                    <div style='margin-top:8px;'>
+                        <span class='badge'>{group.Geo}</span>
+                        <span class='badge'>{group.Site}</span>
+                    </div>
                 </div>
-                <span class='status-pill {group.Status}'>{group.Status}</span>
+                <div style='text-align:right'>
+                    <span style='font-size:12px; font-weight:700;' class='{statusClass}-text'>{statusClass.ToUpper()}</span>
+                </div>
             </div>
 
-            <div class='progress-container'>
-                <div style='display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:8px;'>
-                    <span>STAFFING EFFICIENCY</span>
-                    <span>{group.StaffingLevel}%</span>
+            <div class='efficiency-section'>
+                <div style='display:flex; justify-content:space-between; align-items:baseline;'>
+                    <span style='font-size:14px; font-weight:700; color:#2B3674;'>Staffing Efficiency</span>
+                    <span style='font-size:22px; font-weight:800; color:#2B3674;'>{group.StaffingLevel:N1}%</span>
                 </div>
-                <div class='progress-bar'>
-                    <div class='progress-fill' style='width:{group.StaffingLevel}%; background:{statusColor};'></div>
+                <div class='bar-outer'>
+                    <div class='bar-inner {statusClass}-bg' style='width: {group.StaffingLevel}%'></div>
                 </div>
             </div>
 
             <div class='insight-grid'>
                 <div>
-                    <div style='font-size:11px; font-weight:800; color:var(--danger); margin-bottom:10px;'>KEY ALERTS</div>
-                    {string.Join("", group.Alerts.Select(a => $"<div class='item-list'>⚠️ {a}</div>"))}
+                    <div class='column-title Critical-text'><span>🔴</span> Key Alerts</div>
+                    {string.Join("", group.Alerts.Select(a => $"<div class='list-item'><span>•</span> {a}</div>"))}
                 </div>
                 <div>
-                    <div style='font-size:11px; font-weight:800; color:var(--primary); margin-bottom:10px;'>ACTION PLAN</div>
-                    {string.Join("", group.Recommendations.Select(r => $"<div class='item-list'>• {r}</div>"))}
+                    <div class='column-title' style='color:#4318FF;'><span>🔵</span> Action Plan</div>
+                    {string.Join("", group.Recommendations.Select(r => $"<div class='list-item'><span>•</span> {r}</div>"))}
                 </div>
             </div>
         </div>");
@@ -186,95 +117,3 @@ public string RenderDashboard(AiDashboardData data)
     html.Append("</div>");
     return html.ToString();
 }
-
-public async Task<string> GenerateInsightsAsync(string aiInput)
-{
-    // The request body follows the standard OpenAI/Azure/Gemini API format
-    var requestBody = new
-    {
-        model = "gpt-4-turbo", // or your specific model deployment name
-        messages = new[]
-        {
-            new { 
-                role = "system", 
-                content = "You are an advanced Capacity Planning Expert. You output ONLY raw JSON." 
-            },
-            new { 
-                role = "user", 
-                content = aiInput 
-            }
-        },
-        temperature = 0.2 // Lower temperature ensures more stable JSON formatting
-    };
-
-    using var http = new HttpClient();
-    
-    // Add your API Key (Best practice: Load this from environment variables or KeyVault)
-    http.DefaultRequestHeaders.Add("api-key", _apiKey);
-
-    var content = new StringContent(
-        Newtonsoft.Json.JsonConvert.SerializeObject(requestBody), 
-        Encoding.UTF8, 
-        "application/json"
-    );
-
-    try 
-    {
-        var response = await http.PostAsync(_apiUrl, content);
-        response.EnsureSuccessStatusCode();
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        
-        using var doc = JsonDocument.Parse(responseJson);
-        var resultText = doc.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString();
-
-        // --- CRITICAL STEP: CLEAN THE JSON ---
-        return CleanAiJson(resultText);
-    }
-    catch (Exception ex)
-    {
-        // Fallback: Return a basic error JSON so the UI doesn't crash
-        return "{\"executiveSummary\": \"Error connecting to AI: " + ex.Message + "\", \"groups\": []}";
-    }
-}
-
-/// <summary>
-/// Removes Markdown formatting (like ```json) that AI often adds.
-/// </summary>
-private string CleanAiJson(string input)
-{
-    if (string.IsNullOrWhiteSpace(input)) return "{}";
-
-    // Remove markdown code block delimiters
-    string cleaned = input.Replace("```json", "").Replace("```", "").Trim();
-    
-    // Find the first '{' and last '}' to ensure we only get the JSON object
-    int start = cleaned.IndexOf('{');
-    int end = cleaned.LastIndexOf('}');
-    
-    if (start != -1 && end != -1)
-    {
-        return cleaned.Substring(start, (end - start) + 1);
-    }
-
-    return cleaned;
-}
-
-// 1. Convert the raw request into a structured prompt for the AI
-var aiPrompt = aiAssistant.TransformToAiJsonPrompt(request);
-
-// 2. Send to AI and get the JSON string
-var rawJsonResult = await aiAssistant.GenerateInsightsAsync(aiPrompt);
-
-// 3. Deserialize the JSON into your C# Objects
-var dashboardData = Newtonsoft.Json.JsonConvert.DeserializeObject<AiDashboardData>(rawJsonResult);
-
-// 4. Generate the "Extremely Beautiful" HTML using the hardcoded CSS/HTML Template
-var finalHtmlReport = aiAssistant.RenderDashboard(dashboardData);
-
-// 5. Return this string to your Frontend/Email/PDF Generator
-return finalHtmlReport;
