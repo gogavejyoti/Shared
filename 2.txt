@@ -4,79 +4,120 @@ public string RenderInfographic(AiDashboardData data)
     html.Append(@"
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        :root { --accent: #6366f1; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
-        body { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; padding: 40px; }
-        .info-container { max-width: 1200px; margin: 0 auto; }
         
-        /* Infographic Header */
-        .header-box { border-left: 5px solid var(--accent); padding-left: 20px; margin-bottom: 50px; }
-        .header-box h1 { font-size: 32px; font-weight: 800; margin: 0; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        /* 1. THEME DEFINITION - HIGH CONTRAST */
+        :root { 
+            --bg-gradient: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); 
+            --card-bg: rgba(30, 41, 59, 0.7); /* Translucent Slate */
+            --accent-blue: #38BDF8;   /* Bright Sky Blue */
+            --text-main: #FFFFFF;      /* Pure White for visibility */
+            --text-muted: #94A3B8;    /* Soft Gray for secondary text */
+            --green: #4ADE80;
+            --amber: #FBBF24;
+            --red: #FB7185;
+        }
 
-        /* Modern Grid Card */
-        .info-card { background: var(--card); border-radius: 32px; padding: 40px; margin-bottom: 40px; display: grid; grid-template-columns: 300px 1fr; gap: 40px; border: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden; }
-        .info-card::after { content: ''; position: absolute; top: 0; right: 0; width: 200px; height: 200px; background: var(--accent); filter: blur(150px); opacity: 0.1; }
+        body { 
+            background: var(--bg-gradient); 
+            background-attachment: fixed;
+            color: var(--text-main); 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            padding: 40px; 
+            margin: 0;
+        }
 
-        /* Circular Gauge */
-        .gauge-wrapper { position: relative; width: 200px; height: 200px; margin: 0 auto; }
+        .info-container { max-width: 1100px; margin: 0 auto; }
+
+        /* 2. HEADER AREA */
+        .header-box { border-left: 4px solid var(--accent-blue); padding-left: 20px; margin-bottom: 40px; }
+        .header-box h1 { font-size: 28px; font-weight: 800; color: var(--text-main); margin: 0; }
+        .header-box p { color: var(--text-muted); font-size: 16px; margin-top: 8px; line-height: 1.6; }
+
+        /* 3. THE INFOGRAPHIC CARD */
+        .info-card { 
+            background: var(--card-bg); 
+            backdrop-filter: blur(10px); 
+            border-radius: 24px; 
+            padding: 35px; 
+            margin-bottom: 30px; 
+            display: grid; 
+            grid-template-columns: 260px 1fr; 
+            gap: 40px; 
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 4. CIRCULAR GAUGE LOGIC */
+        .gauge-wrapper { position: relative; width: 160px; height: 160px; margin: 0 auto; }
         .gauge-svg { transform: rotate(-90deg); }
-        .gauge-bg { fill: none; stroke: #334155; stroke-width: 12; }
-        .gauge-fill { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; transition: stroke-dasharray 1s ease; }
+        .gauge-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 10; }
+        .gauge-fill { fill: none; stroke: var(--accent-blue); stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray 1s ease; }
         .gauge-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
-        .gauge-val { font-size: 36px; font-weight: 800; display: block; }
+        .gauge-val { font-size: 32px; font-weight: 800; color: var(--text-main); display: block; }
+        
+        /* 5. CONTENT GRID */
+        .section-title { 
+            font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; 
+            color: var(--accent-blue); margin-bottom: 20px; display: flex; align-items: center; 
+        }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); margin-left: 15px; }
 
-        /* Infographic List */
-        .section-title { font-size: 14px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #94a3b8; margin-bottom: 25px; display: flex; align-items: center; }
-        .section-title span { width: 30px; height: 2px; background: var(--accent); margin-right: 15px; }
-
-        .item-row { display: flex; align-items: flex-start; margin-bottom: 18px; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 16px; transition: 0.3s; }
-        .item-row:hover { background: rgba(255,255,255,0.07); }
-        .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; margin-right: 15px; flex-shrink: 0; }
-        .dot-High { background: #f43f5e; box-shadow: 0 0 10px #f43f5e; }
-        .dot-Medium { background: #fbbf24; }
-        .dot-Low { background: #22c55e; }
+        /* 6. LIST ITEMS - IMPROVED READABILITY */
+        .item-row { 
+            display: flex; align-items: flex-start; margin-bottom: 12px; 
+            padding: 12px 16px; background: rgba(255, 255, 255, 0.03); 
+            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .item-text { font-size: 13px; color: #E2E8F0; line-height: 1.5; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; margin-right: 12px; flex-shrink: 0; }
+        
+        .bg-High { background: var(--red); box-shadow: 0 0 10px var(--red); }
+        .bg-Medium { background: var(--amber); }
+        .bg-Low { background: var(--green); }
     </style>
     <div class='info-container'>");
 
+    // Dashboard Header
     html.Append($@"
         <div class='header-box'>
-            <h1>WFM Operational Intelligence</h1>
-            <p style='color: #94a3b8;'>{data.ExecutiveSummary}</p>
+            <h1>Operational Intelligence Dashboard</h1>
+            <p>{data.ExecutiveSummary}</p>
         </div>");
 
     foreach (var group in data.Groups)
     {
-        // Calculate SVG Dash Array: Circumference = 2 * π * r (r=40) ≈ 251
+        // SVG math for progress ring
         double percentage = group.StaffingLevel;
-        double offset = 251 - (251 * percentage / 100);
+        double offset = 251 - (251 * (Math.Min(percentage, 100)) / 100);
 
         html.Append($@"
         <div class='info-card'>
-            <div style='text-align:center;'>
+            <div style='text-align:center; border-right: 1px solid rgba(255,255,255,0.05); padding-right: 20px;'>
                 <div class='gauge-wrapper'>
-                    <svg class='gauge-svg' width='200' height='200' viewBox='0 0 100 100'>
+                    <svg class='gauge-svg' width='160' height='160' viewBox='0 0 100 100'>
                         <circle class='gauge-bg' cx='50' cy='50' r='40'/>
                         <circle class='gauge-fill' cx='50' cy='50' r='40' style='stroke-dasharray: 251; stroke-dashoffset: {offset};'/>
                     </svg>
                     <div class='gauge-text'>
                         <span class='gauge-val'>{percentage:N0}%</span>
-                        <span style='font-size:10px; color:#94a3b8; font-weight:700;'>EFFICIENCY</span>
+                        <span style='font-size:9px; color:var(--text-muted); font-weight:700; text-transform:uppercase;'>Efficiency</span>
                     </div>
                 </div>
-                <h3 style='margin-top:20px; font-size:20px;'>{group.Lob}</h3>
-                <p style='font-size:12px; color:#94a3b8;'>{group.Geo} | {group.Site}</p>
+                <h3 style='margin: 20px 0 5px 0; font-size: 18px; color: var(--text-main);'>{group.Lob}</h3>
+                <p style='font-size: 12px; color: var(--text-muted); margin: 0;'>{group.Geo} • {group.Site}</p>
             </div>
 
-            <div class='insight-grid' style='display: grid; grid-template-columns: 1fr 1fr; gap: 30px;'>
+            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 24px;'>
                 <div>
-                    <div class='section-title'><span></span>Critical Alerts</div>");
+                    <div class='section-title'>Critical Alerts</div>");
                     foreach(var alert in group.Alerts.Take(5)) {
-                        html.Append($@"<div class='item-row'><div class='dot dot-High'></div><div style='font-size:13px;'>{alert}</div></div>");
+                        html.Append($@"<div class='item-row'><div class='dot bg-High'></div><div class='item-text'>{alert}</div></div>");
                     }
                 html.Append(@"</div>
                 <div>
-                    <div class='section-title'><span></span>Action Plan</div>");
+                    <div class='section-title' style='color: var(--green);'>Action Plan</div>");
                     foreach(var rec in group.Recommendations.Take(5)) {
-                        html.Append($@"<div class='item-row'><div class='dot dot-Low' style='background:#6366f1; box-shadow:none;'></div><div style='font-size:13px;'>{rec}</div></div>");
+                        html.Append($@"<div class='item-row'><div class='dot' style='background: var(--accent-blue);'></div><div class='item-text'>{rec}</div></div>");
                     }
                 html.Append(@"</div>
             </div>
