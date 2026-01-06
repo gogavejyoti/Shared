@@ -1,136 +1,190 @@
-execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    if (o && !this.getAllFunctionGroup) return;
-    const s = this;
-
-    // 1. Setup & Global Data
-    if (a == null) a = h.flowdata;
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja;
-        window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr;
-        window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn;
-        window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c;
-        window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t;
-        window.luckysheet_getSpecialReference = Tc;
-    }
-
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-    if (l == null) l = h.currentSheetIndex;
-
-    if (t != null) {
-        const tmp = [[{ v: null }]];
-        At(0, 0, tmp, t);
-        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
-    }
-
-    // 2. IMPORTANT: Gather formulas from ALL sheets to capture cross-sheet deps
-    // Even if only one sheet changed, a formula on Sheet2 might point to Sheet1.
-    let allFuncCells = s.getAllFunctionGroup() || [];
-
-    const nodes = {};
-    const rangeToKeysCache = {};
-
-    const getKeysInRect = (R) => {
-        const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
-        if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
-        const list = [];
-        for (let rr = R.row[0]; rr <= R.row[1]; rr++) {
-            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                list.push("r" + rr + "c" + cc + "i" + R.sheetIndex);
-            }
-        }
-        rangeToKeysCache[cacheKey] = list;
-        return list;
-    };
-
-    // 3. Build Node Map with improved Sheet Reference support
-    for (let i = 0; i < allFuncCells.length; i++) {
-        const T = allFuncCells[i];
-        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
-        const formula = zl(T.r, T.c, T.index);
-        if (!formula) continue;
-
-        const deps = [];
-        const upper = formula.toUpperCase();
-        
-        // Revised Regex: Included "!" to catch Sheet1!A1 patterns
-        if (upper.includes("INDIRECT(") || upper.includes("OFFSET(") || upper.includes("INDEX(")) {
-            this.isFunctionRange(formula, null, null, T.index, null, (ref) => {
-                const rg = s.getcellrange($.trim(ref), T.index);
-                if (rg) getKeysInRect(rg).forEach(k => deps.push(k));
-            });
-        } else {
-            // Updated regex to preserve '!' and ':' for cross-sheet and ranges
-            const tokens = formula.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><\s]/).filter(Boolean);
-            for (let tk of tokens) {
-                if (tk.indexOf('"') > -1) continue; // Skip strings
-                const rg = s.getcellrange($.trim(tk), T.index);
-                if (rg) getKeysInRect(rg).forEach(k => deps.push(k));
-            }
-        }
-
-        nodes[nodeKey] = {
-            key: nodeKey, r: T.r, c: T.c, index: T.index,
-            formula: formula,
-            dependencies: deps
-        };
-    }
-
-    // 4. Trace the effect chain (Downstream discovery)
-    let affectedKeys = new Set();
-    const triggerKey = "r" + e + "c" + n + "i" + l;
-
-    const findAffected = (startKey) => {
-        // Find every node where 'startKey' is in its dependency list
-        Object.keys(nodes).forEach(nodeKey => {
-            if (nodes[nodeKey].dependencies.includes(startKey) && !affectedKeys.has(nodeKey)) {
-                affectedKeys.add(nodeKey);
-                findAffected(nodeKey); // Recursive check for dependents of dependents
-            }
-        });
-    };
-
-    if (o) {
-        Object.keys(nodes).forEach(k => affectedKeys.add(k));
-    } else {
-        findAffected(triggerKey);
-    }
-
-    // 5. Topological Sort
-    const ordered = [];
-    const visited = new Set();
-
-    const visit = (key) => {
-        if (visited.has(key)) return;
-        visited.add(key);
-        const node = nodes[key];
-        if (node) {
-            node.dependencies.forEach(depKey => {
-                if (affectedKeys.has(depKey)) visit(depKey);
-            });
-            ordered.push(node);
-        }
-    };
-
-    affectedKeys.forEach(key => visit(key));
-
-    // 6. Execute updates
-    for (let i = 0; i < ordered.length; i++) {
-        const T = ordered[i];
-        window.luckysheet_getcelldata_cache = null;
-        const Rres = s.execfunction(T.formula, T.r, T.c, T.index, undefined, undefined, true);
-
-        s.groupValuesRefreshData.push({
-            r: T.r, c: T.c, v: Rres[1], f: Rres[2], spe: Rres[3], index: T.index
-        });
-
-        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-            v: Rres[1], f: Rres[2]
-        };
-    }
-
-    s.execFunctionExist = null;
-},
+ execFunctionGroup: function (e, n, t, l, a, o = !1) {
+                    let s = this;
+                    if (
+                        (a == null && (a = h.flowdata),
+                        window.luckysheet_compareWith ||
+                            ((window.luckysheet_compareWith = ja),
+                            (window.luckysheet_getarraydata = wc),
+                            (window.luckysheet_getcelldata = nr),
+                            (window.luckysheet_parseData = Ua),
+                            (window.luckysheet_getValue = qn),
+                            (window.luckysheet_indirect_check = xc),
+                            (window.luckysheet_indirect_check_return = _c),
+                            (window.luckysheet_offset_check = Cc),
+                            (window.luckysheet_calcADPMM = _t),
+                            (window.luckysheet_getSpecialReference = Tc)),
+                        s.execFunctionGlobalData == null && (s.execFunctionGlobalData = {}),
+                        l == null && (l = h.currentSheetIndex),
+                        t != null)
+                    ) {
+                        let _ = [[{ v: null }]];
+                        At(0, 0, _, t), (s.execFunctionGlobalData[e + "_" + n + "_" + l] = _[0][0]);
+                    }
+                    let u = s.getAllFunctionGroup(),
+                        d = {},
+                        f = Ft(),
+                        m = {};
+                    for (let _ = 0; _ < f.length; _++) {
+                        let T = f[_];
+                        m[T.index] = T.data;
+                    }
+                    let g = {},
+                        y = [];
+                    if (s.execFunctionExist == null) {
+                        let _ = "r" + e + "c" + n + "i" + l;
+                        g[_] = 1;
+                    } else
+                        for (let _ = 0; _ < s.execFunctionExist.length; _++) {
+                            let T = s.execFunctionExist[_],
+                                A = "r" + T.r + "c" + T.c + "i" + T.i;
+                            g[A] = 1;
+                        }
+                    let v = {},
+                        k = function (_, T, A, R) {
+                            for (let I = 0; I < _.length; I++) {
+                                let F = _[I],
+                                    N =
+                                        "r" +
+                                        F.row[0] +
+                                        "" +
+                                        F.row[1] +
+                                        "c" +
+                                        F.column[0] +
+                                        "" +
+                                        F.column[1] +
+                                        "index" +
+                                        F.sheetIndex;
+                                if (N in v)
+                                    v[N].forEach((E) => {
+                                        R(E.key, E.r, E.c, E.sheetIndex);
+                                    });
+                                else {
+                                    let D = [];
+                                    for (let E = F.row[0]; E <= F.row[1]; E++)
+                                        for (let P = F.column[0]; P <= F.column[1]; P++) {
+                                            let z = "r" + E + "c" + P + "i" + F.sheetIndex;
+                                            R(z, E, P, F.sheetIndex),
+                                                ((T && z in T) || (A && z in A)) &&
+                                                    D.push({ key: z, r: E, c: P, sheetIndex: F.sheetIndex });
+                                        }
+                                    (T || A) && (v[N] = D);
+                                }
+                            }
+                        },
+                        b = {},
+                        w = 0;
+                    for (let _ = 0; _ < u.length; _++) {
+                        let T = u[_],
+                            A = "r" + T.r + "c" + T.c + "i" + T.index,
+                            R = zl(T.r, T.c, T.index);
+                        if (R == null) continue;
+                        let I = R.toUpperCase(),
+                            F = I.indexOf("INDIRECT(") > -1 || I.indexOf("OFFSET(") > -1 || I.indexOf("INDEX(") > -1,
+                            N = [];
+                        if (F)
+                            this.isFunctionRange(R, null, null, T.index, null, function (E) {
+                                let P = s.getcellrange($.trim(E), T.index);
+                                P != null && N.push(P);
+                            });
+                        else if (!(R.substr(0, 2) == '="' && R.substr(R.length - 1, 1) == '"')) {
+                            let E = 0,
+                                P = -1,
+                                z = -1,
+                                O = [],
+                                V = [],
+                                q = R.length;
+                            for (let Y = 0; Y < q; Y++) {
+                                let X = R.charAt(Y);
+                                X == "'" &&
+                                    z == -1 &&
+                                    (P == -1
+                                        ? (E != Y &&
+                                              O.push(...R.substring(E, Y).split(/==|!=|<>|<=|>=|[,()=+-\/*%&\^><]/)),
+                                          (P = Y),
+                                          (E = Y))
+                                        : Y < q - 1 && R.charAt(Y + 1) == "'"
+                                          ? Y++
+                                          : ((E = Y + 1), O.push(R.substring(P, E)), V.push(O.length - 1), (P = -1))),
+                                    X == '"' &&
+                                        P == -1 &&
+                                        (z == -1
+                                            ? (E != Y &&
+                                                  O.push(
+                                                      ...R.substring(E, Y).split(/==|!=|<>|<=|>=|[,()=+-\/*%&\^><]/)
+                                                  ),
+                                              (z = Y),
+                                              (E = Y))
+                                            : Y < q - 1 && R.charAt(Y + 1) == '"'
+                                              ? Y++
+                                              : ((E = Y + 1), O.push(R.substring(z, E)), (z = -1)));
+                            }
+                            E != q && O.push(...R.substring(E, q).split(/==|!=|<>|<=|>=|[,()=+-\/*%&\^><]/));
+                            for (let Y = V.length - 1; Y >= 0; Y--)
+                                V[Y] != O.length - 1 && ((O[V[Y]] = O[V[Y]] + O[V[Y] + 1]), O.splice(V[Y] + 1, 1));
+                            for (let Y = 0; Y < O.length; Y++) {
+                                let X = O[Y];
+                                if (
+                                    X.length <= 1 ||
+                                    (X.substr(0, 1) == '"' && X.substr(X.length - 1, 1) == '"' && !s.iscelldata(X))
+                                )
+                                    continue;
+                                let ee = s.getcellrange($.trim(X), T.index);
+                                ee != null && N.push(ee);
+                            }
+                        }
+                        let D = {
+                            formulaArray: N,
+                            calc_funcStr: R,
+                            key: A,
+                            r: T.r,
+                            c: T.c,
+                            index: T.index,
+                            parents: {},
+                            chidren: {},
+                            color: "w",
+                        };
+                        d[A] = D;
+                    }
+                    Object.keys(d).forEach((_) => {
+                        let T = d[_];
+                        k(T.formulaArray, d, g, function (A) {
+                            if (A in d) {
+                                let R = d[A];
+                                (T.chidren[A] = 1), (R.parents[_] = 1);
+                            }
+                            !o && A in g && y.push(T);
+                        }),
+                            o && y.push(T);
+                    });
+                    let x = [],
+                        C = y,
+                        S = {};
+                    for (; C.length > 0; ) {
+                        let _ = C.pop();
+                        if (_ == null || _.key in S) continue;
+                        if (_.color == "b") {
+                            x.push(_), (S[_.key] = 1);
+                            continue;
+                        }
+                        let T = [];
+                        Object.keys(_.parents).forEach((A) => {
+                            let R = d[A];
+                            R != null && T.push(R);
+                        }),
+                            w++,
+                            T.length == 0
+                                ? (x.push(_), (S[_.key] = 1))
+                                : ((_.color = "b"), C.push(_), (C = C.concat(T)));
+                    }
+                    x.reverse();
+                    for (let _ = 0; _ < x.length; _++) {
+                        let T = x[_];
+                        if (T.level == Math.max) continue;
+                        window.luckysheet_getcelldata_cache = null;
+                        let A = T.calc_funcStr,
+                            R = s.execfunction(A, T.r, T.c, T.index);
+                        s.groupValuesRefreshData.push({ r: T.r, c: T.c, v: R[1], f: R[2], spe: R[3], index: T.index }),
+                            (s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = { v: R[1], f: R[2] });
+                    }
+                    s.execFunctionExist = null;
+                },
