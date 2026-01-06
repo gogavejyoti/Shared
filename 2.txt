@@ -1,8 +1,8 @@
 execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    if (o && !this.getAllFunctionGroup) return; // Basic safety check
+    if (o && !this.getAllFunctionGroup) return;
     const s = this;
 
-    // 1. Initialize Helpers & Global Data
+    // 1. Setup & Global Data
     if (a == null) a = h.flowdata;
     if (!window.luckysheet_compareWith) {
         window.luckysheet_compareWith = ja;
@@ -20,28 +20,19 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
     if (l == null) l = h.currentSheetIndex;
 
-    // Store explicit value for the trigger cell if provided
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // 2. Identify all potential formula cells
-    let allFuncCells = [];
-    if (e != null && n != null && !o) {
-        const formulaCache = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-        const sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaCache);
-        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-    } else {
-        allFuncCells = s.getAllFunctionGroup() || [];
-    }
+    // 2. IMPORTANT: Gather formulas from ALL sheets to capture cross-sheet deps
+    // Even if only one sheet changed, a formula on Sheet2 might point to Sheet1.
+    let allFuncCells = s.getAllFunctionGroup() || [];
 
-    // 3. Build the Dependency Graph (Node Map)
     const nodes = {};
     const rangeToKeysCache = {};
 
-    // Inline Helper: Convert range object to unique cell keys
     const getKeysInRect = (R) => {
         const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
         if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
@@ -55,7 +46,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         return list;
     };
 
-    // Populate nodes and extract dependencies
+    // 3. Build Node Map with improved Sheet Reference support
     for (let i = 0; i < allFuncCells.length; i++) {
         const T = allFuncCells[i];
         const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
@@ -65,15 +56,17 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         const deps = [];
         const upper = formula.toUpperCase();
         
-        // Handle complex vs simple ranges
+        // Revised Regex: Included "!" to catch Sheet1!A1 patterns
         if (upper.includes("INDIRECT(") || upper.includes("OFFSET(") || upper.includes("INDEX(")) {
             this.isFunctionRange(formula, null, null, T.index, null, (ref) => {
                 const rg = s.getcellrange($.trim(ref), T.index);
                 if (rg) getKeysInRect(rg).forEach(k => deps.push(k));
             });
         } else {
-            const tokens = formula.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/).filter(Boolean);
+            // Updated regex to preserve '!' and ':' for cross-sheet and ranges
+            const tokens = formula.split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><\s]/).filter(Boolean);
             for (let tk of tokens) {
+                if (tk.indexOf('"') > -1) continue; // Skip strings
                 const rg = s.getcellrange($.trim(tk), T.index);
                 if (rg) getKeysInRect(rg).forEach(k => deps.push(k));
             }
@@ -82,51 +75,39 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         nodes[nodeKey] = {
             key: nodeKey, r: T.r, c: T.c, index: T.index,
             formula: formula,
-            dependencies: deps, // Cells this node points to
-            dependents: []      // Cells that point to this node
+            dependencies: deps
         };
     }
 
-    // Link the graph (invert dependencies to find children)
-    Object.keys(nodes).forEach(key => {
-        nodes[key].dependencies.forEach(depKey => {
-            if (nodes[depKey]) nodes[depKey].dependents.push(key);
-        });
-    });
-
-    // 4. Determine which nodes need recalculation
+    // 4. Trace the effect chain (Downstream discovery)
     let affectedKeys = new Set();
+    const triggerKey = "r" + e + "c" + n + "i" + l;
+
+    const findAffected = (startKey) => {
+        // Find every node where 'startKey' is in its dependency list
+        Object.keys(nodes).forEach(nodeKey => {
+            if (nodes[nodeKey].dependencies.includes(startKey) && !affectedKeys.has(nodeKey)) {
+                affectedKeys.add(nodeKey);
+                findAffected(nodeKey); // Recursive check for dependents of dependents
+            }
+        });
+    };
+
     if (o) {
-        // Recalculate everything
         Object.keys(nodes).forEach(k => affectedKeys.add(k));
     } else {
-        // Recalculate only downstream of the changed cell
-        const triggerKey = "r" + e + "c" + n + "i" + l;
-        const stack = [triggerKey];
-        // Note: Even if the trigger cell isn't a formula, 
-        // we check what depends on it.
-        const findDependents = (key) => {
-            Object.keys(nodes).forEach(nodeKey => {
-                if (nodes[nodeKey].dependencies.includes(key) && !affectedKeys.has(nodeKey)) {
-                    affectedKeys.add(nodeKey);
-                    findDependents(nodeKey);
-                }
-            });
-        };
-        findDependents(triggerKey);
+        findAffected(triggerKey);
     }
 
-    // 5. Topological Sort (Post-order DFS)
+    // 5. Topological Sort
     const ordered = [];
     const visited = new Set();
 
     const visit = (key) => {
         if (visited.has(key)) return;
         visited.add(key);
-
         const node = nodes[key];
         if (node) {
-            // Visit precedents first
             node.dependencies.forEach(depKey => {
                 if (affectedKeys.has(depKey)) visit(depKey);
             });
@@ -136,7 +117,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     affectedKeys.forEach(key => visit(key));
 
-    // 6. Execute in Order
+    // 6. Execute updates
     for (let i = 0; i < ordered.length; i++) {
         const T = ordered[i];
         window.luckysheet_getcelldata_cache = null;
