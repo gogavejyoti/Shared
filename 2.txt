@@ -1,116 +1,34 @@
-execFunctionGroup: function (e, n, t, l, a, o = false) {
-    if (o) return;
-    const s = this;
+(function enforceCorrectOrder() {
+    const maxPass = ordered.length * 2;
+    let pass = 0;
+    let changed = true;
 
-    if (a == null) a = h.flowdata;
-    if (l == null) l = h.currentSheetIndex;
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    while (changed && pass++ < maxPass) {
+        changed = false;
 
-    if (t != null) {
-        const tmp = [[{ v: null }]];
-        At(0, 0, tmp, t);
-        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
-    }
+        for (let i = 0; i < ordered.length; i++) {
+            const node = ordered[i];
+            if (!node || !node.parents) continue;
 
-    if (typeof _shiftCrossSheetReference === "function") {
-        _shiftCrossSheetReference({ type: "recalc", sheetIndex: l });
-    }
+            for (const pk in node.parents) {
+                // parent not in execution list → ignore
+                const pIndex = ordered.findIndex(x => x.key === pk);
+                if (pIndex === -1) continue;
 
-    const allFuncCells = s.getAllFunctionGroup() || [];
-    const nodes = {};
-    const indegree = {};
-    const adj = {};
+                // ❌ parent is AFTER child → swap
+                if (pIndex > i) {
+                    const parentNode = ordered[pIndex];
 
-    // --- helper ---
-    const addEdge = (from, to) => {
-        if (!adj[from]) adj[from] = {};
-        if (!adj[from][to]) {
-            adj[from][to] = 1;
-            indegree[to]++;
-        }
-    };
+                    // remove parent
+                    ordered.splice(pIndex, 1);
+                    // insert parent just before child
+                    ordered.splice(i, 0, parentNode);
 
-    // --- create nodes ---
-    for (const T of allFuncCells) {
-        const key = "r" + T.r + "c" + T.c + "i" + T.index;
-        nodes[key] = T;
-        indegree[key] = 0;
-        adj[key] = {};
-    }
-
-    // --- build dependencies (CLOSED GRAPH) ---
-    for (const key in nodes) {
-        const T = nodes[key];
-        const formula = zl(T.r, T.c, T.index);
-        if (!formula) continue;
-
-        const ranges = [];
-        s.isFunctionRange(formula, null, null, T.index, null, ref => {
-            const rg = s.getcellrange(ref, T.index);
-            if (rg) ranges.push(rg);
-        });
-
-        for (const rg of ranges) {
-            for (let r = rg.row[0]; r <= rg.row[1]; r++) {
-                for (let c = rg.column[0]; c <= rg.column[1]; c++) {
-                    const parentKey = "r" + r + "c" + c + "i" + rg.sheetIndex;
-                    if (nodes[parentKey]) {
-                        addEdge(parentKey, key); // parent → child
-                    }
+                    changed = true;
+                    break;
                 }
             }
+            if (changed) break;
         }
     }
-
-    // --- KAHN TOPO SORT ---
-    const queue = [];
-    for (const k in indegree) {
-        if (indegree[k] === 0) queue.push(k);
-    }
-
-    const ordered = [];
-    while (queue.length) {
-        const k = queue.shift();
-        ordered.push(k);
-        for (const to in adj[k]) {
-            indegree[to]--;
-            if (indegree[to] === 0) queue.push(to);
-        }
-    }
-
-    // --- STABILITY PASS (CRITICAL) ---
-    let stable = false;
-    let pass = 0;
-
-    while (!stable && pass++ < 3) {
-        stable = true;
-
-        for (const k of ordered) {
-            const T = nodes[k];
-            window.luckysheet_getcelldata_cache = null;
-
-            const res = s.execfunction(
-                zl(T.r, T.c, T.index),
-                T.r,
-                T.c,
-                T.index
-            );
-
-            const old = s.execFunctionGlobalData[k]?.v;
-            if (old !== res[1]) stable = false;
-
-            s.execFunctionGlobalData[k] = { v: res[1], f: res[2] };
-
-            s.groupValuesRefreshData.push({
-                r: T.r,
-                c: T.c,
-                v: res[1],
-                f: res[2],
-                spe: res[3],
-                index: T.index
-            });
-        }
-    }
-
-    s.execFunctionExist = null;
-}
+})();
