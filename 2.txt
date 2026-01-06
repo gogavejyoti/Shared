@@ -1,4 +1,6 @@
- execFunctionGroup: function (e, n, t, l, a, o = !1) {
+
+
+            execFunctionGroup: function (e, n, t, l, a, o = !1) {
                 if (o) return;
                 const s = this;
 
@@ -97,8 +99,7 @@
                 for (let i = 0; i < allFuncCells.length; i++) {
                     const T = allFuncCells[i];
                     const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
-                    const R = zl(T.r, T.c, T.index)
-                    || ve.getSheetByIndex(T.index)?.celldata?.find(x => x?.r === T.r && x?.c === T.c)?.v.f;
+                    const R = zl(T.r, T.c, T.index)|| ve.getSheetByIndex(T.index)?.celldata?.find(x => x?.r === T.r && x?.c === T.c)?.v.f;
                     if (!R) continue;
 
                     const upper = R.toUpperCase();
@@ -192,7 +193,7 @@
                 for (let i = 0; i < ordered.length; i++) {
                     const T = ordered[i];
                     window.luckysheet_getcelldata_cache = null;
-                    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index,undefined,undefined,true);
+                    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
 
                     s.groupValuesRefreshData.push({
                         r: T.r,
