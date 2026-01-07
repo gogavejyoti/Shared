@@ -9,228 +9,244 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            /* Corporate Dark Theme Palette */
-            --bg-body: #1e1e2d;
-            --bg-card: #2b2b40;
-            --bg-glass: rgba(43, 43, 64, 0.7);
+            /* Corporate "Sober" Dark Theme */
+            --bg-body: #151521;
+            --bg-card: #1e1e2d;
+            --bg-glass: rgba(30, 30, 45, 0.9);
             
             --text-primary: #ffffff;
-            --text-secondary: #a1a5b7;
+            --text-secondary: #92929f;
             
-            --color-brand: #3699FF;  /* Professional Blue */
-            --color-success: #1BC5BD; /* Sober Teal */
-            --color-warning: #FFA800; /* Amber */
-            --color-danger: #F64E60;  /* Soft Red */
+            --brand-blue: #3699FF;
+            --brand-teal: #0BB783;
+            --brand-warn: #FFA800;
+            --brand-danger: #F64E60;
+            --brand-purple: #8950FC;
             
-            --border-color: rgba(255, 255, 255, 0.08);
-            --radius: 8px;
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --card-radius: 12px;
         }
 
         body {
             background-color: var(--bg-body);
             color: var(--text-primary);
             font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            overflow-x: hidden;
+            font-size: 0.85rem;
+            padding-bottom: 50px;
         }
 
-        /* --- Refined Glass Card --- */
-        .card-glass {
-            background: var(--bg-glass);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.2);
-            margin-bottom: 20px;
-        }
-        
-        .card-header-glass {
-            border-bottom: 1px solid var(--border-color);
-            padding: 15px 20px;
-            font-weight: 600;
-            font-size: 1.05rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        /* --- Compact Control Ribbon (Filters) --- */
+        /* --- 1. Filter Ribbon --- */
         .filter-ribbon {
-            background: rgba(30, 30, 45, 0.95);
-            border-bottom: 1px solid var(--border-color);
-            padding: 15px 0;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            backdrop-filter: blur(10px);
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
         }
 
-        /* --- Select2 Professional Styling --- */
+        .filter-label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        /* Select2 Overrides for Dark Theme */
         .select2-container--default .select2-selection--multiple {
             background-color: #151521;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            min-height: 36px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            min-height: 38px;
         }
         .select2-container--default .select2-selection--multiple .select2-selection__choice {
-            background-color: rgba(54, 153, 255, 0.2);
-            border: 1px solid var(--color-brand);
-            color: var(--color-brand);
-            font-size: 0.8rem;
-            margin-top: 6px;
+            background-color: rgba(54, 153, 255, 0.15);
+            border: 1px solid rgba(54, 153, 255, 0.3);
+            color: var(--brand-blue);
+            font-weight: 500;
         }
         .select2-dropdown {
             background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
         }
-        .select2-results__option { color: var(--text-secondary); }
-        .select2-results__option--highlighted { background-color: var(--color-brand); color: white; }
-        .filter-label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; margin-bottom: 4px; display: block; }
+        .select2-results__option--highlighted { background-color: var(--brand-blue) !important; }
 
-        /* --- KPI Micro-Cards --- */
-        .kpi-stat {
+        /* --- 2. Card Styling --- */
+        .card-pro {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--card-radius);
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            height: 100%;
-            padding: 15px;
-            border-right: 1px solid var(--border-color);
         }
-        .kpi-stat:last-child { border-right: none; }
-        .kpi-val { font-size: 1.6rem; font-weight: 600; color: var(--text-primary); }
-        .kpi-title { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-        .badge-trend { font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; margin-left: 8px; }
-        .bg-trend-up { background: rgba(27, 197, 189, 0.2); color: var(--color-success); }
-        .bg-trend-down { background: rgba(246, 78, 96, 0.2); color: var(--color-danger); }
+        
+        .card-header-pro {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-primary);
+        }
 
-        /* --- DataTables "Sober" Look --- */
-        table.dataTable { border-collapse: separate !important; border-spacing: 0; width: 100% !important; }
-        .table-dark-custom { --bs-table-bg: transparent; color: var(--text-secondary); }
-        .table-dark-custom th { 
-            border-bottom: 1px solid var(--border-color) !important; 
-            color: var(--text-primary); 
-            font-weight: 600; 
-            font-size: 0.85rem;
+        .card-body-pro {
+            padding: 20px;
+            flex-grow: 1;
+            position: relative;
+        }
+
+        /* --- 3. KPI Cards --- */
+        .kpi-box {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: var(--card-radius);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .kpi-title { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .kpi-val { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+        .kpi-icon-box {
+            width: 45px; height: 45px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        /* --- 4. Fixed Table Styling (White Text) --- */
+        table.dataTable {
+            width: 100% !important;
+            border-collapse: separate !important;
+            border-spacing: 0;
+        }
+        
+        .table-glass thead th {
+            background-color: #151521 !important;
+            color: var(--text-secondary) !important;
+            font-weight: 600;
             text-transform: uppercase;
+            font-size: 0.75rem;
+            border-bottom: 1px solid var(--border-subtle) !important;
             padding: 12px !important;
         }
-        .table-dark-custom td { 
-            border-bottom: 1px solid rgba(255,255,255,0.04); 
-            padding: 12px !important; 
-            vertical-align: middle;
-            font-size: 0.9rem;
-        }
-        .table-dark-custom tr:hover td { background-color: rgba(255,255,255,0.02); color: var(--text-primary); }
         
-        /* Drilldown styling */
-        .drilldown-row { background: rgba(0,0,0,0.2) !important; }
-        .drilldown-box { padding: 15px; border-left: 3px solid var(--color-brand); margin-left: 10px; }
+        .table-glass tbody td {
+            background-color: transparent !important;
+            color: #ffffff !important; /* Forces white text */
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 12px !important;
+            vertical-align: middle;
+        }
+        
+        .table-glass tbody tr:hover td {
+            background-color: rgba(255,255,255,0.03) !important;
+        }
+
+        /* Drilldown Child Row */
+        .drilldown-container {
+            background: #12121c;
+            border-left: 4px solid var(--brand-blue);
+            padding: 15px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        .drill-label { color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; }
+        .drill-val { color: #fff; font-weight: 500; }
+
+        /* Pagination Buttons */
+        .page-link { background: var(--bg-body); border-color: var(--border-subtle); color: var(--text-secondary); }
+        .page-item.active .page-link { background: var(--brand-blue); border-color: var(--brand-blue); color: white; }
 
         /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #151521; }
-        ::-webkit-scrollbar-thumb { background: #3f4254; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #323248; border-radius: 4px; }
     </style>
 </head>
 <body>
 
     <div class="filter-ribbon">
-        <div class="container-fluid px-4">
+        <div class="container-fluid">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="d-flex align-items-center">
-                    <div class="bg-primary rounded p-2 me-3 d-flex align-items-center justify-content-center" style="width:40px; height:40px">
-                        <i class="fas fa-chart-pie text-white"></i>
-                    </div>
-                    <div>
-                        <h5 class="mb-0 text-white fw-bold">Project Performance</h5>
-                        <small class="text-muted">Interactive Analytics Board</small>
-                    </div>
-                </div>
+                <h4 class="mb-0 fw-bold"><i class="fas fa-layer-group text-primary me-2"></i>Executive Delivery Dashboard</h4>
                 <div>
-                    <button class="btn btn-sm btn-custom btn-outline-secondary me-2"><i class="fas fa-download me-2"></i>Export</button>
-                    <button class="btn btn-sm btn-custom btn-primary"><i class="fas fa-sync me-2"></i>Refresh</button>
+                    <button class="btn btn-sm btn-outline-secondary me-2">Export PDF</button>
+                    <button class="btn btn-sm btn-primary">Refresh Data</button>
                 </div>
             </div>
-
+            
             <div class="row g-2">
-                <div class="col-md-3 col-lg-1">
-                    <span class="filter-label">Week</span>
-                    <select id="f-week" class="form-control select2" multiple></select>
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <span class="filter-label">Geography</span>
-                    <select id="f-geo" class="form-control select2" multiple></select>
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <span class="filter-label">Client</span>
-                    <select id="f-client" class="form-control select2" multiple></select>
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <span class="filter-label">Project</span>
-                    <select id="f-project" class="form-control select2" multiple></select>
-                </div>
-                <div class="col-md-3 col-lg-2">
-                    <span class="filter-label">Program</span>
-                    <select id="f-program" class="form-control select2" multiple></select>
-                </div>
-                <div class="col-md-3 col-lg-1">
-                    <span class="filter-label">OU</span>
-                    <select id="f-ou" class="form-control select2" multiple></select>
-                </div>
-                <div class="col-md-3 col-lg-1">
-                    <span class="filter-label">OU Desc</span>
-                    <select id="f-oudesc" class="form-control select2" multiple></select>
-                </div>
-                <div class="col-md-3 col-lg-1">
-                    <span class="filter-label">Project ID</span>
-                    <select id="f-pid" class="form-control select2" multiple></select>
-                </div>
+                <div class="col-lg-1 col-md-3"><span class="filter-label">Week</span><select id="f-week" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Geography</span><select id="f-geo" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Client</span><select id="f-client" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Project</span><select id="f-project" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Program</span><select id="f-program" class="form-control select2" multiple></select></div>
+                <div class="col-lg-1 col-md-3"><span class="filter-label">OU</span><select id="f-ou" class="form-control select2" multiple></select></div>
+                <div class="col-lg-1 col-md-3"><span class="filter-label">Description</span><select id="f-desc" class="form-control select2" multiple></select></div>
+                <div class="col-lg-1 col-md-3"><span class="filter-label">Prj ID</span><select id="f-pid" class="form-control select2" multiple></select></div>
             </div>
         </div>
     </div>
 
-    <div class="container-fluid px-4 py-4">
+    <div class="container-fluid px-4">
         
-        <div class="card-glass mb-4">
-            <div class="row g-0">
-                <div class="col-md-3">
-                    <div class="kpi-stat">
-                        <span class="kpi-title">Total Scheduled HC</span>
-                        <div class="d-flex align-items-baseline mt-2">
-                            <span class="kpi-val">1,245</span>
-                            <span class="badge-trend bg-trend-up"><i class="fas fa-arrow-up me-1"></i>2.4%</span>
-                        </div>
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="kpi-box">
+                    <div>
+                        <div class="kpi-title">Total Scheduled HC</div>
+                        <div class="kpi-val">1,245</div>
+                        <small class="text-success"><i class="fas fa-arrow-up"></i> 12 vs last week</small>
+                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(54, 153, 255, 0.1); color: var(--brand-blue);">
+                        <i class="fas fa-users"></i>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="kpi-stat">
-                        <span class="kpi-title">Actual Headcount</span>
-                        <div class="d-flex align-items-baseline mt-2">
-                            <span class="kpi-val text-primary">1,180</span>
-                            <span class="text-muted ms-2 small">95% fulfillment</span>
-                        </div>
+            </div>
+            <div class="col-md-3">
+                <div class="kpi-box">
+                    <div>
+                        <div class="kpi-title">Actual HC</div>
+                        <div class="kpi-val">1,180</div>
+                        <small class="text-secondary">94.7% Fulfillment</small>
+                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(11, 183, 131, 0.1); color: var(--brand-teal);">
+                        <i class="fas fa-user-check"></i>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="kpi-stat">
-                        <span class="kpi-title">Variance (Delta)</span>
-                        <div class="d-flex align-items-baseline mt-2">
-                            <span class="kpi-val" style="color: var(--color-warning)">65</span>
-                            <span class="badge-trend bg-trend-down">Attention</span>
-                        </div>
+            </div>
+            <div class="col-md-3">
+                <div class="kpi-box">
+                    <div>
+                        <div class="kpi-title">Critical Delta</div>
+                        <div class="kpi-val text-warning">65</div>
+                        <small class="text-muted">Unscheduled gaps</small>
+                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(255, 168, 0, 0.1); color: var(--brand-warn);">
+                        <i class="fas fa-exclamation-triangle"></i>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="kpi-stat">
-                        <span class="kpi-title">Billable Ratio</span>
-                        <div class="d-flex align-items-baseline mt-2">
-                            <span class="kpi-val" style="color: var(--color-success)">92.4%</span>
-                            <div class="ms-3" id="sparkline-billable"></div> </div>
+            </div>
+            <div class="col-md-3">
+                <div class="kpi-box">
+                    <div>
+                        <div class="kpi-title">Long Leave / TLOA</div>
+                        <div class="kpi-val">12</div>
+                        <small class="text-danger">Need attention</small>
+                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(246, 78, 96, 0.1); color: var(--brand-danger);">
+                        <i class="fas fa-bed"></i>
                     </div>
                 </div>
             </div>
@@ -238,45 +254,76 @@
 
         <div class="row g-4 mb-4">
             <div class="col-lg-8">
-                <div class="card-glass h-100">
-                    <div class="card-header-glass">
-                        <span><i class="fas fa-chart-line text-primary me-2"></i>Headcount vs Schedule Trend</span>
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-link text-muted" type="button"><i class="fas fa-ellipsis-v"></i></button>
-                        </div>
+                <div class="card-pro">
+                    <div class="card-header-pro">
+                        <span>Headcount Trend Analysis (Sch vs Actual)</span>
+                        <i class="fas fa-chart-area text-secondary"></i>
                     </div>
-                    <div class="card-body p-3">
-                        <div id="trendChart" style="min-height: 320px;"></div>
+                    <div class="card-body-pro">
+                        <div id="chart-trend" style="height: 100%; min-height: 300px;"></div>
                     </div>
                 </div>
             </div>
-            
             <div class="col-lg-4">
-                <div class="card-glass h-100">
-                    <div class="card-header-glass">
-                        <span><i class="fas fa-globe text-success me-2"></i>Geographic Distribution</span>
+                <div class="card-pro">
+                    <div class="card-header-pro">
+                        <span>Distribution by Geo</span>
+                        <i class="fas fa-globe text-secondary"></i>
                     </div>
-                    <div class="card-body p-3 d-flex flex-column justify-content-center">
-                        <div id="geoChart" style="min-height: 250px;"></div>
-                        <div class="text-center mt-3 text-secondary small">
-                            <i class="fas fa-info-circle me-1"></i> Top 3 regions constitute 75% of HC
-                        </div>
+                    <div class="card-body-pro d-flex align-items-center justify-content-center">
+                        <div id="chart-geo" style="width: 100%;"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="card-glass">
-            <div class="card-header-glass">
-                <span><i class="fas fa-table text-warning me-2"></i>Detailed Project Roster</span>
-                <input type="text" class="form-control form-control-sm w-auto bg-dark border-secondary text-white" placeholder="Quick Search...">
+        <div class="row g-4 mb-4">
+            <div class="col-lg-4">
+                <div class="card-pro">
+                    <div class="card-header-pro">
+                        <span>Top 5 Gap Projects (Delta)</span>
+                    </div>
+                    <div class="card-body-pro">
+                        <div id="chart-delta"></div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body p-0">
+            
+            <div class="col-lg-4">
+                <div class="card-pro">
+                    <div class="card-header-pro">
+                        <span>Billable Efficiency</span>
+                    </div>
+                    <div class="card-body-pro">
+                        <div id="chart-billable"></div>
+                        <div class="text-center text-secondary small mt-2">Target: 90% Billability</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card-pro">
+                    <div class="card-header-pro">
+                        <span>Attrition & Leaves</span>
+                    </div>
+                    <div class="card-body-pro">
+                        <div id="chart-hr"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-pro">
+            <div class="card-header-pro">
+                <span>Detailed Roster Data</span>
+                <input type="text" class="form-control form-control-sm w-auto bg-dark border-secondary text-white" placeholder="Search...">
+            </div>
+            <div class="card-body-pro p-0">
                 <div class="table-responsive">
-                    <table id="mainTable" class="table table-dark-custom mb-0">
+                    <table id="mainTable" class="table table-glass w-100">
                         <thead>
                             <tr>
-                                <th style="width: 30px"></th>
+                                <th style="width: 40px"></th>
                                 <th>Week</th>
                                 <th>Geo</th>
                                 <th>Client</th>
@@ -287,11 +334,13 @@
                                 <th class="text-center">Status</th>
                             </tr>
                         </thead>
-                        <tbody></tbody>
+                        <tbody>
+                            </tbody>
                     </table>
                 </div>
             </div>
         </div>
+
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -299,165 +348,162 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
 
     <script>
         $(document).ready(function() {
             
-            // --- 1. FILTER SETUP ---
-            $('.select2').select2({
-                width: '100%',
-                dropdownAutoWidth: true,
-                placeholder: 'Select...',
-                allowClear: true
-            });
-
-            // Mock populating filters (In real app, use AJAX)
-            const geos = ['BGR01 - Sofia', 'IND05 - Bangalore', 'USA01 - New York'];
-            geos.forEach(g => $('#f-geo').append(new Option(g, g)));
-
-
-            // --- 2. PROFESSIONAL CHARTS (ApexCharts) ---
+            // --- 1. Init Filters (Select2) ---
+            $('.select2').select2({ width: '100%', placeholder: 'All...', allowClear: true });
             
-            // A. Main Trend Chart (Area + Line Combo)
-            var trendOptions = {
-                series: [{
-                    name: 'Scheduled',
-                    type: 'area',
-                    data: [140, 155, 145, 160, 180, 200, 190, 210]
-                }, {
-                    name: 'Actual',
-                    type: 'line',
-                    data: [135, 150, 140, 155, 175, 195, 188, 205]
-                }],
-                chart: {
-                    height: 350,
-                    type: 'line',
-                    toolbar: { show: false },
-                    fontFamily: 'Inter, sans-serif'
-                },
-                colors: ['rgba(54, 153, 255, 0.3)', '#3699FF'], // Sober Blue transparency
-                stroke: { width: [0, 3], curve: 'smooth' },
-                fill: { type: ['solid', 'solid'] },
-                grid: {
-                    borderColor: 'rgba(255,255,255,0.05)',
-                    strokeDashArray: 4,
-                },
-                xaxis: {
-                    categories: ['Wk1', 'Wk2', 'Wk3', 'Wk4', 'Wk5', 'Wk6', 'Wk7', 'Wk8'],
-                    labels: { style: { colors: '#a1a5b7' } },
-                    axisBorder: { show: false },
-                    axisTicks: { show: false }
-                },
-                yaxis: { labels: { style: { colors: '#a1a5b7' } } },
-                legend: { labels: { colors: '#ffffff' } },
-                tooltip: { theme: 'dark' }
-            };
-            var trendChart = new ApexCharts(document.querySelector("#trendChart"), trendOptions);
-            trendChart.render();
-
-            // B. Distribution Chart (Clean Donut)
-            var geoOptions = {
-                series: [44, 55, 41, 17],
-                labels: ['EMEA', 'APAC', 'NA', 'LATAM'],
-                chart: { type: 'donut', height: 260, fontFamily: 'Inter' },
-                colors: ['#3699FF', '#1BC5BD', '#FFA800', '#F64E60'], // Brand colors
-                stroke: { show: true, width: 2, colors: ['#2b2b40'] }, // Matches card bg
+            // --- 2. CHART CONFIGURATIONS ---
+            
+            // Chart 1: Area Trend
+            new ApexCharts(document.querySelector("#chart-trend"), {
+                series: [
+                    { name: 'Scheduled', data: [140, 155, 145, 170, 190, 210, 205, 220] }, 
+                    { name: 'Actual', data: [135, 150, 140, 160, 185, 205, 195, 215] }
+                ],
+                chart: { type: 'area', height: 320, toolbar: {show:false}, fontFamily: 'Inter' },
+                colors: ['#3699FF', '#0BB783'],
+                fill: { type: 'gradient', gradient: { opacityFrom: 0.6, opacityTo: 0.1 } },
+                stroke: { width: 2, curve: 'smooth' },
                 dataLabels: { enabled: false },
-                legend: { position: 'bottom', labels: { colors: '#a1a5b7' } },
+                grid: { borderColor: '#2B2B40' },
+                xaxis: { 
+                    categories: ['Wk1', 'Wk2', 'Wk3', 'Wk4', 'Wk5', 'Wk6', 'Wk7', 'Wk8'],
+                    labels: { style: { colors: '#92929f' } } 
+                },
+                yaxis: { labels: { style: { colors: '#92929f' } } },
+                tooltip: { theme: 'dark' },
+                legend: { labels: { colors: '#fff' } }
+            }).render();
+
+            // Chart 2: Geo Donut
+            new ApexCharts(document.querySelector("#chart-geo"), {
+                series: [44, 35, 15, 6],
+                labels: ['BGR01', 'IND05', 'USA01', 'OTHERS'],
+                chart: { type: 'donut', height: 280, fontFamily: 'Inter' },
+                colors: ['#3699FF', '#8950FC', '#0BB783', '#FFA800'],
+                stroke: { width: 0 },
+                plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, color: '#fff' } } } } },
+                dataLabels: { enabled: false },
+                legend: { position: 'bottom', labels: { colors: '#92929f' } }
+            }).render();
+
+            // Chart 3: Top Delta (Bar)
+            new ApexCharts(document.querySelector("#chart-delta"), {
+                series: [{ name: 'Delta Variance', data: [12, 10, 8, 5, 3] }],
+                chart: { type: 'bar', height: 250, toolbar: {show:false}, fontFamily: 'Inter' },
+                plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '50%' } },
+                colors: ['#F64E60'],
+                xaxis: { categories: ['Project A', 'Project B', 'Project C', 'Project D', 'Project E'], labels: { style: { colors: '#92929f' } } },
+                yaxis: { labels: { style: { colors: '#fff' } } },
+                grid: { borderColor: '#2B2B40', xaxis: { lines: { show: true } } },
+                tooltip: { theme: 'dark' }
+            }).render();
+
+            // Chart 4: Billable (Radial)
+            new ApexCharts(document.querySelector("#chart-billable"), {
+                series: [92],
+                chart: { type: 'radialBar', height: 250, fontFamily: 'Inter' },
                 plotOptions: {
-                    pie: { donut: { size: '65%', labels: { show: true, total: { show: true, color: '#fff', fontSize: '16px' } } } }
-                }
-            };
-            var geoChart = new ApexCharts(document.querySelector("#geoChart"), geoOptions);
-            geoChart.render();
+                    radialBar: {
+                        hollow: { size: '70%' },
+                        dataLabels: {
+                            name: { show: false },
+                            value: { color: '#fff', fontSize: '24px', show: true, formatter: function (val) { return val + "%"; } }
+                        },
+                        track: { background: '#2B2B40' }
+                    }
+                },
+                colors: ['#0BB783'],
+                stroke: { lineCap: 'round' }
+            }).render();
 
+            // Chart 5: HR Metrics (Stacked)
+            new ApexCharts(document.querySelector("#chart-hr"), {
+                series: [
+                    { name: 'Attrition', data: [2, 3, 1, 4] },
+                    { name: 'Long Leave', data: [1, 0, 2, 1] },
+                    { name: 'TLOA', data: [0, 1, 0, 1] }
+                ],
+                chart: { type: 'bar', height: 250, stacked: true, toolbar: {show:false}, fontFamily: 'Inter' },
+                colors: ['#F64E60', '#FFA800', '#8950FC'],
+                plotOptions: { bar: { columnWidth: '40%' } },
+                xaxis: { categories: ['Wk5', 'Wk6', 'Wk7', 'Wk8'], labels: { style: { colors: '#92929f' } } },
+                yaxis: { labels: { style: { colors: '#92929f' } } },
+                grid: { borderColor: '#2B2B40' },
+                legend: { show: false }, // Hiding legend to save space
+                tooltip: { theme: 'dark' }
+            }).render();
 
-            // --- 3. DATA TABLE & DRILLDOWN ---
-            var mockData = [
-                { id: 1, week: '12/29', geo: 'BGR01', client: 'Alpha Corp', project: 'AI Support', sch: 55, act: 53, delta: 2, status: 'Active' },
-                { id: 2, week: '12/29', geo: 'IND05', client: 'Beta Ltd', project: 'DevOps', sch: 120, act: 120, delta: 0, status: 'Active' },
-                { id: 3, week: '12/29', geo: 'USA01', client: 'Gamma Inc', project: 'Migration', sch: 40, act: 35, delta: 5, status: 'Risk' },
+            // --- 3. DATA TABLE CONFIG ---
+            // Mock Data reflecting your columns
+            const tableData = [
+                { id:1, week:'12/29', geo:'BGR01', client:'Client M', proj:'M - Bulgaria', sch:55, act:53, delta:2, prog:'M Program', desc:'Sofia - BC', bill:'Yes' },
+                { id:2, week:'12/29', geo:'BG03', client:'Client A', proj:'Language Supp', sch:7, act:7, delta:0, prog:'A EU Support', desc:'Burgas-DM', bill:'No' },
+                { id:3, week:'12/29', geo:'BG07', client:'Client A', proj:'A.de Sofia', sch:120, act:119, delta:1, prog:'A.de Prog', desc:'Sofia - BC', bill:'Yes' },
+                { id:4, week:'12/29', geo:'USA01', client:'Client X', proj:'DevOps', sch:20, act:15, delta:5, prog:'Infra', desc:'NY-Tech', bill:'Yes' },
+                { id:5, week:'12/29', geo:'IND05', client:'Client Z', proj:'Migration', sch:40, act:40, delta:0, prog:'Cloud', desc:'BLR-SEZ', bill:'Yes' },
             ];
 
-            var table = $('#mainTable').DataTable({
-                data: mockData,
-                dom: 't<"d-flex justify-content-between mt-3"ip>', // Custom minimalist layout
+            const table = $('#mainTable').DataTable({
+                data: tableData,
                 pageLength: 5,
+                dom: 'rtip', // Clean layout
                 columns: [
-                    {
-                        className: 'dt-control text-center',
-                        orderable: false,
-                        data: null,
-                        defaultContent: '<i class="fas fa-chevron-right text-muted" style="cursor:pointer; font-size: 0.8rem;"></i>'
+                    { 
+                        className: 'dt-control text-center', 
+                        data: null, 
+                        defaultContent: '<i class="fas fa-plus-circle text-primary" style="cursor:pointer"></i>' 
                     },
                     { data: 'week' },
                     { data: 'geo' },
                     { data: 'client' },
-                    { data: 'project' },
+                    { data: 'proj' },
                     { data: 'sch', className: 'text-end' },
                     { data: 'act', className: 'text-end' },
                     { 
                         data: 'delta', 
                         className: 'text-center',
-                        render: function(data) {
-                            if(data > 0) return `<span class="badge bg-light text-dark fw-bold">${data}</span>`;
-                            return `<span class="text-muted">-</span>`;
-                        }
+                        render: function(d) { return d > 0 ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">${d}</span>` : `<span class="text-muted">-</span>`; }
                     },
-                    { 
-                        data: 'status',
+                    {
+                        data: 'delta',
                         className: 'text-center',
-                        render: function(data) {
-                            let color = data === 'Risk' ? 'danger' : 'success';
-                            return `<span class="badge bg-soft-${color} text-${color}" style="background: rgba(var(--color-${color}-rgb), 0.1)">${data}</span>`;
-                        }
+                        render: function(d) { return d === 0 ? '<span class="badge bg-success bg-opacity-10 text-success">On Track</span>' : '<span class="badge bg-warning bg-opacity-10 text-warning">Review</span>'; }
                     }
-                ],
-                language: {
-                    paginate: { next: '<i class="fas fa-angle-right"></i>', previous: '<i class="fas fa-angle-left"></i>' }
-                }
+                ]
             });
 
-            // Drilldown Logic
+            // Drilldown Interaction
             $('#mainTable tbody').on('click', 'td.dt-control', function () {
                 var tr = $(this).closest('tr');
                 var row = table.row(tr);
                 var icon = $(this).find('i');
-
+        
                 if (row.child.isShown()) {
                     row.child.hide();
-                    tr.removeClass('drilldown-row');
-                    icon.removeClass('fa-chevron-down').addClass('fa-chevron-right');
+                    tr.removeClass('shown');
+                    icon.removeClass('fa-minus-circle').addClass('fa-plus-circle');
                 } else {
-                    // Detail View
                     var d = row.data();
                     var content = `
-                        <div class="drilldown-box">
-                            <div class="row text-secondary">
-                                <div class="col-md-3">
-                                    <small class="d-block text-uppercase text-muted" style="font-size:0.7rem">OU Description</small>
-                                    <span class="text-white">Sofia - Business Center (BG07)</span>
-                                </div>
-                                <div class="col-md-3">
-                                    <small class="d-block text-uppercase text-muted" style="font-size:0.7rem">Program</small>
-                                    <span class="text-white">EU Language U/W Support</span>
-                                </div>
-                                <div class="col-md-3">
-                                    <small class="d-block text-uppercase text-muted" style="font-size:0.7rem">Billable Status</small>
-                                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>Billable</span>
-                                </div>
-                                <div class="col-md-3 text-end">
-                                    <button class="btn btn-sm btn-outline-light">View Roster</button>
-                                </div>
+                        <div class="drilldown-container">
+                            <div class="row">
+                                <div class="col-3"><span class="drill-label">Program</span><div class="drill-val">${d.prog}</div></div>
+                                <div class="col-3"><span class="drill-label">OU Description</span><div class="drill-val">${d.desc}</div></div>
+                                <div class="col-3"><span class="drill-label">Billable Status</span><div class="drill-val">${d.bill}</div></div>
+                                <div class="col-3"><span class="drill-label">Action</span><br><button class="btn btn-xs btn-outline-light py-0">View Details</button></div>
                             </div>
-                        </div>
-                    `;
+                        </div>`;
                     row.child(content).show();
-                    tr.addClass('drilldown-row');
-                    icon.removeClass('fa-chevron-right').addClass('fa-chevron-down');
+                    tr.addClass('shown');
+                    icon.removeClass('fa-plus-circle').addClass('fa-minus-circle');
                 }
             });
+
         });
     </script>
 </body>
