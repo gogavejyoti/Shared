@@ -1,10 +1,37 @@
-// HR Stacked (Corrected for Array of Objects)
-if (data.HrChart || data.hrChart) {
-    const hrData = data.HrChart || data.hrChart;
-    hrChart.updateSeries([
-        { name: 'Attrition', data: hrData.map(x => x.attrition) },
-        { name: 'Long Leave', data: hrData.map(x => x.leaves) },
-        { name: 'TLOA', data: hrData.map(x => x.tloa) }
-    ]);
-    hrChart.updateOptions({ xaxis: { categories: hrData.map(x => x.label) } });
+function exportToCSV() {
+    // 1. Get data from the DataTable
+    const data = mainTable.rows({ search: 'applied' }).data().toArray();
+    if (data.length === 0) {
+        alert("No data available to export.");
+        return;
+    }
+
+    // 2. Define Headers (matching your table columns)
+    const headers = ["Week", "Geo", "Client", "Project", "Sch HC", "Act HC", "Delta"];
+    
+    // 3. Build CSV Content
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += headers.join(",") + "\r\n";
+
+    data.forEach(row => {
+        const line = [
+            row.Week || row.week,
+            row.Geo || row.geo,
+            row.Client || row.client,
+            row.Project || row.project,
+            row.SchHC || row.schHC,
+            row.ActSchHC || row.actSchHC,
+            row.Delta || row.delta
+        ];
+        csvContent += line.join(",") + "\r\n";
+    });
+
+    // 4. Create Download Link
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Workforce_Export_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
