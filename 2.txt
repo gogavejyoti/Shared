@@ -1,467 +1,93 @@
-public IActionResult GetFilters()
+[HttpPost]
+[Route("GetData")]
+public IActionResult GetData([FromBody] DashboardRequest filters)
 {
-    // Replace 'db.WorkforceData' with your actual data source/EF Context
-    var data = _context.WorkforceData.ToList();
+    // 1. Get and Filter Data
+    var query = _context.WorkforceData.AsQueryable();
 
-    var filterLists = new
-    {
-        weeks = data.Select(x => x.Week).Distinct().OrderBy(x => x).ToList(),
-        geos = data.Select(x => x.Geo).Distinct().OrderBy(x => x).ToList(),
-        clients = data.Select(x => x.Client).Distinct().OrderBy(x => x).ToList(),
-        projects = data.Select(x => x.Project).Distinct().OrderBy(x => x).ToList(),
-        programs = data.Select(x => x.Program).Distinct().OrderBy(x => x).ToList(),
-        ous = data.Select(x => x.OU).Distinct().OrderBy(x => x).ToList(),
-        descs = data.Select(x => x.Description).Distinct().OrderBy(x => x).ToList(),
-        pids = data.Select(x => x.ProjectID).Distinct().OrderBy(x => x).ToList()
-    };
+    if (filters.Weeks?.Any() == true) query = query.Where(x => filters.Weeks.Contains(x.Week));
+    if (filters.Geos?.Any() == true) query = query.Where(x => filters.Geos.Contains(x.Geo));
+    if (filters.Clients?.Any() == true) query = query.Where(x => filters.Clients.Contains(x.Client));
+    if (filters.Projects?.Any() == true) query = query.Where(x => filters.Projects.Contains(x.Project));
+    // ... apply other filters similarly
 
-    return Json(filterLists);
-}
+    var filteredList = query.ToList();
 
+    // 2. Calculate KPI Totals
+    var totalSch = filteredList.Sum(x => x.SchHC);
+    var totalAct = filteredList.Sum(x => x.ActHC);
+    var totalDelta = filteredList.Sum(x => Math.Max(0, x.SchHC - x.ActHC));
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enterprise Workforce Analytics</title>
+    // 3. SHAPE DATA FOR THE 3 MISSING CHARTS
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    // CHART: Project Delta (Top 5 Projects with highest gap)
+    var deltaChartData = filteredList
+        .GroupBy(x => x.Project)
+        .Select(g => new { 
+            Label = g.Key, 
+            Value = g.Sum(x => Math.Max(0, x.SchHC - x.ActHC)) 
+        })
+        .OrderByDescending(x => x.Value)
+        .Take(5)
+        .ToList();
 
-    <style>
-        :root {
-            /* Corporate "Sober" Dark Theme */
-            --bg-body: #151521;
-            --bg-card: #1e1e2d;
-            --text-primary: #ffffff;
-            --text-secondary: #92929f;
-            --brand-blue: #3699FF;
-            --brand-teal: #0BB783;
-            --brand-warn: #FFA800;
-            --brand-danger: #F64E60;
-            --brand-purple: #8950FC;
-            --border-subtle: rgba(255, 255, 255, 0.05);
-            --card-radius: 12px;
-        }
+    // CHART: Billable Efficiency (Radial Bar)
+    // Formula: (Billable Act HC / Total Act HC) * 100
+    var totalBillable = filteredList.Where(x => x.IsBillable == "Yes").Sum(x => x.ActHC);
+    double billableRate = totalAct > 0 ? Math.Round((double)totalBillable / totalAct * 100, 1) : 0;
 
-        body { background-color: var(--bg-body); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 0.85rem; padding-bottom: 50px; }
+    // CHART: Attrition & Leaves (Stacked Bar)
+    var hrChartData = filteredList
+        .GroupBy(x => x.Week)
+        .OrderBy(g => g.Key)
+        .Select(g => new {
+            Label = g.Key,
+            Attrition = g.Count(x => x.Status == "Resigned"),
+            Leaves = g.Count(x => x.Status == "Long Leave"),
+            TLOA = g.Count(x => x.Status == "TLOA")
+        }).ToList();
 
-        /* Filter Ribbon */
-        .filter-ribbon { background: var(--bg-card); border-bottom: 1px solid var(--border-subtle); padding: 15px 20px; margin-bottom: 25px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
-        .filter-label { display: block; color: var(--text-secondary); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+    // 4. Trend Chart (Scheduled vs Actual)
+    var trendChartData = filteredList
+        .GroupBy(x => x.Week)
+        .OrderBy(g => g.Key)
+        .Select(g => new {
+            Label = g.Key,
+            Sch = g.Sum(x => x.SchHC),
+            Act = g.Sum(x => x.ActHC)
+        }).ToList();
 
-        /* Select2 Dark Theme */
-        .select2-container--default .select2-selection--multiple { background-color: #151521; border: 1px solid var(--border-subtle); border-radius: 6px; min-height: 38px; }
-        .select2-container--default .select2-selection--multiple .select2-selection__choice { background-color: rgba(54, 153, 255, 0.15); border: 1px solid rgba(54, 153, 255, 0.3); color: var(--brand-blue); }
-        .select2-dropdown { background-color: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary); }
-        .select2-results__option--highlighted { background-color: var(--brand-blue) !important; }
-
-        /* Cards */
-        .card-pro { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--card-radius); box-shadow: 0 0 20px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; }
-        .card-header-pro { padding: 15px 20px; border-bottom: 1px solid var(--border-subtle); font-weight: 600; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; color: var(--text-primary); }
-        .card-body-pro { padding: 20px; flex-grow: 1; position: relative; }
-
-        /* KPI Box */
-        .kpi-box { background: var(--bg-card); padding: 20px; border-radius: var(--card-radius); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; }
-        .kpi-title { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
-        .kpi-val { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
-        .kpi-icon-box { width: 45px; height: 45px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
-
-        /* Tables */
-        table.dataTable { width: 100% !important; border-collapse: separate !important; border-spacing: 0; }
-        .table-glass thead th { background-color: #151521 !important; color: var(--text-secondary) !important; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; border-bottom: 1px solid var(--border-subtle) !important; padding: 12px !important; }
-        .table-glass tbody td { background-color: transparent !important; color: #ffffff !important; border-bottom: 1px solid var(--border-subtle); padding: 12px !important; vertical-align: middle; }
-        .drilldown-container { background: #12121c; border-left: 4px solid var(--brand-blue); padding: 15px; margin: 5px 0; border-radius: 4px; }
-        .drill-label { color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; }
-        .drill-val { color: #fff; font-weight: 500; }
-        
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #151521; }
-        ::-webkit-scrollbar-thumb { background: #323248; border-radius: 4px; }
-    </style>
-</head>
-<body>
-
-    <div class="filter-ribbon">
-        <div class="container-fluid">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 class="mb-0 fw-bold"><i class="fas fa-layer-group text-primary me-2"></i>Executive Delivery Dashboard</h4>
-                <div>
-                    <button class="btn btn-sm btn-primary" onclick="refreshDashboard()"><i class="fas fa-sync-alt me-1"></i> Apply Filters</button>
-                </div>
-            </div>
-
-            <div class="row g-2">
-                <div class="col-lg-1 col-md-3"><span class="filter-label">Week</span><select id="f-week" class="form-control select2" multiple></select></div>
-                <div class="col-lg-2 col-md-3"><span class="filter-label">Geography</span><select id="f-geo" class="form-control select2" multiple></select></div>
-                <div class="col-lg-2 col-md-3"><span class="filter-label">Client</span><select id="f-client" class="form-control select2" multiple></select></div>
-                <div class="col-lg-2 col-md-3"><span class="filter-label">Project</span><select id="f-project" class="form-control select2" multiple></select></div>
-                <div class="col-lg-2 col-md-3"><span class="filter-label">Program</span><select id="f-program" class="form-control select2" multiple></select></div>
-                <div class="col-lg-1 col-md-3"><span class="filter-label">OU</span><select id="f-ou" class="form-control select2" multiple></select></div>
-                <div class="col-lg-1 col-md-3"><span class="filter-label">Description</span><select id="f-desc" class="form-control select2" multiple></select></div>
-                <div class="col-lg-1 col-md-3"><span class="filter-label">Prj ID</span><select id="f-pid" class="form-control select2" multiple></select></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="container-fluid px-4">
-
-        <div class="row g-4 mb-4">
-            <div class="col-md-3">
-                <div class="kpi-box">
-                    <div><div class="kpi-title">Total Scheduled HC</div><div class="kpi-val" id="kpi-sch">0</div></div>
-                    <div class="kpi-icon-box" style="background: rgba(54, 153, 255, 0.1); color: var(--brand-blue);"><i class="fas fa-users"></i></div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="kpi-box">
-                    <div><div class="kpi-title">Actual HC</div><div class="kpi-val" id="kpi-act">0</div></div>
-                    <div class="kpi-icon-box" style="background: rgba(11, 183, 131, 0.1); color: var(--brand-teal);"><i class="fas fa-user-check"></i></div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="kpi-box">
-                    <div><div class="kpi-title">Critical Delta</div><div class="kpi-val text-warning" id="kpi-delta">0</div></div>
-                    <div class="kpi-icon-box" style="background: rgba(255, 168, 0, 0.1); color: var(--brand-warn);"><i class="fas fa-exclamation-triangle"></i></div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="kpi-box">
-                    <div><div class="kpi-title">Long Leave / TLOA</div><div class="kpi-val text-danger" id="kpi-leave">0</div></div>
-                    <div class="kpi-icon-box" style="background: rgba(246, 78, 96, 0.1); color: var(--brand-danger);"><i class="fas fa-bed"></i></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row g-4 mb-4">
-            <div class="col-lg-8">
-                <div class="card-pro">
-                    <div class="card-header-pro"><span>Headcount Trend Analysis</span></div>
-                    <div class="card-body-pro"><div id="chart-trend" style="height: 100%; min-height: 300px;"></div></div>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="card-pro">
-                    <div class="card-header-pro"><span>Distribution by Geo</span></div>
-                    <div class="card-body-pro d-flex align-items-center justify-content-center"><div id="chart-geo" style="width: 100%;"></div></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row g-4 mb-4">
-            <div class="col-lg-4">
-                <div class="card-pro">
-                    <div class="card-header-pro"><span>Top 5 Gap Projects (Delta)</span></div>
-                    <div class="card-body-pro"><div id="chart-delta"></div></div>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="card-pro">
-                    <div class="card-header-pro"><span>Billable Efficiency</span></div>
-                    <div class="card-body-pro">
-                        <div id="chart-billable"></div>
-                        <div class="text-center text-secondary small mt-2">Target: 90% Billability</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="card-pro">
-                    <div class="card-header-pro"><span>Attrition & Leaves</span></div>
-                    <div class="card-body-pro"><div id="chart-hr"></div></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card-pro">
-            <div class="card-header-pro"><span>Detailed Roster Data</span></div>
-            <div class="card-body-pro p-0">
-                <div class="table-responsive">
-                    <table id="mainTable" class="table table-glass w-100">
-                        <thead>
-                            <tr>
-                                <th style="width: 40px"></th><th>Week</th><th>Geo</th><th>Client</th><th>Project</th>
-                                <th class="text-end">Sch HC</th><th class="text-end">Act HC</th><th class="text-center">Delta</th><th class="text-center">Status</th>
-                            </tr>
-                        </thead>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
-
-    <script>
-        // Global Chart Instances
-        let trendChart, geoChart, deltaChart, billChart, hrChart, mainTable;
-
-        // Base Chart Config
-        const baseConfig = {
-            fontFamily: 'Inter', theme: { mode: 'dark' },
-            chart: { background: 'transparent', toolbar: { show: false } },
-            grid: { borderColor: '#2B2B40' },
-            dataLabels: { enabled: false },
-            xaxis: { labels: { style: { colors: '#92929f' } } },
-            yaxis: { labels: { style: { colors: '#92929f' } } },
-            legend: { labels: { colors: '#fff' } }
-        };
-
-        $(document).ready(function() {
-            // 1. Init UI
-            $('.select2').select2({ width: '100%', placeholder: 'All...', allowClear: true });
-            initCharts();
-            initTable();
-
-            // 2. Load Filter Options (Request 1)
-            loadFilterOptions();
-
-            // 3. Load Dashboard Data (Request 2)
-            refreshDashboard();
-
-            // 4. Listen for Filter Changes
-            $('.select2').on('change', function() {
-                refreshDashboard();
-            });
-        });
-
-        // ----------------------------------------------------
-        // REQUEST 1: Get Filter Options (Populate Dropdowns)
-        // ----------------------------------------------------
-        function loadFilterOptions() {
-            // In Production: replace with $.ajax('/api/Workforce/GetFilters')
-            
-            // Simulating API Response
-            const mockFilters = {
-                weeks: ['Wk1', 'Wk2', 'Wk3'],
-                geos: ['USA', 'IND', 'BGR'],
-                clients: ['Client A', 'Client B'],
-                projects: ['Project Alpha', 'Project Beta'],
-                programs: ['Prog X', 'Prog Y'],
-                ous: ['OU_1', 'OU_2'],
-                descs: ['Technical', 'Support'],
-                pids: ['P001', 'P002']
-            };
-
-            // Populate Function
-            const fill = (id, arr) => {
-                const $el = $(id);
-                arr.forEach(val => $el.append(new Option(val, val, false, false)));
-                $el.trigger('change.select2'); // Notify Select2 of updates
-            };
-
-            // Only run if Select2 is currently empty
-            if($('#f-week option').length <= 1) {
-                fill('#f-week', mockFilters.weeks);
-                fill('#f-geo', mockFilters.geos);
-                fill('#f-client', mockFilters.clients);
-                fill('#f-project', mockFilters.projects);
-                fill('#f-program', mockFilters.programs);
-                fill('#f-ou', mockFilters.ous);
-                fill('#f-desc', mockFilters.descs);
-                fill('#f-pid', mockFilters.pids);
+    // 5. Final Response Object
+    return Json(new {
+        kpis = new {
+            totalSch,
+            totalAct,
+            totalDelta,
+            totalLeaves = filteredList.Count(x => x.Status == "Long Leave"),
+            billableRate
+        },
+        charts = new {
+            trend = new {
+                labels = trendChartData.Select(x => x.Label).ToList(),
+                sch = trendChartData.Select(x => x.Sch).ToList(),
+                act = trendChartData.Select(x => x.Act).ToList()
+            },
+            geo = filteredList.GroupBy(x => x.Geo).Select(g => new { 
+                labels = g.Key, 
+                values = g.Count() 
+            }).ToList(),
+            delta = new {
+                labels = deltaChartData.Select(x => x.Label).ToList(),
+                values = deltaChartData.Select(x => x.Value).ToList()
+            },
+            billable = billableRate,
+            hr = new {
+                labels = hrChartData.Select(x => x.Label).ToList(),
+                attrition = hrChartData.Select(x => x.Attrition).ToList(),
+                leaves = hrChartData.Select(x => x.Leaves).ToList(),
+                tloa = hrChartData.Select(x => x.TLOA).ToList()
             }
-        }
-
-        // ----------------------------------------------------
-        // REQUEST 2: Get Dashboard Data (Charts & Table)
-        // ----------------------------------------------------
-        function refreshDashboard() {
-            // Collect Filter Data to send to Server
-            const filterPayload = {
-                weeks: $('#f-week').val(),
-                geos: $('#f-geo').val(),
-                clients: $('#f-client').val(),
-                // ... add other IDs
-            };
-
-            // In Production: replace with $.ajax({ url: '/api/Workforce/GetData', data: filterPayload ... })
-            
-            // Simulating Data Response based on logic
-            // FIX: Ensure your C# returns JSON matching exactly this structure
-            setTimeout(() => {
-                const data = getMockData(); // Use mock data generator below
-                updateUI(data);
-            }, 300); 
-        }
-
-        // ----------------------------------------------------
-        // UI Update Logic (Fixes the missing graphs)
-        // ----------------------------------------------------
-        function updateUI(data) {
-            // 1. KPIs
-            $('#kpi-sch').text(data.kpis.totalSch);
-            $('#kpi-act').text(data.kpis.totalAct);
-            $('#kpi-delta').text(data.kpis.totalDelta);
-            $('#kpi-leave').text(data.kpis.totalLeaves);
-
-            // 2. Trend Chart
-            trendChart.updateSeries([
-                { name: 'Scheduled', data: data.charts.trend.sch },
-                { name: 'Actual', data: data.charts.trend.act }
-            ]);
-            trendChart.updateOptions({ xaxis: { categories: data.charts.trend.labels } });
-
-            // 3. Geo Chart
-            geoChart.updateSeries(data.charts.geo.values);
-            geoChart.updateOptions({ labels: data.charts.geo.labels });
-
-            // 4. FIX: Billable Chart (Simple Number)
-            billChart.updateSeries([data.charts.billable]); 
-
-            // 5. FIX: Delta Chart (Top 5 Gap)
-            // Expecting: [{ data: [10, 8, 5] }] and categories: ['ProjA', 'ProjB']
-            deltaChart.updateSeries([{ name: 'Gap', data: data.charts.delta.values }]);
-            deltaChart.updateOptions({ xaxis: { categories: data.charts.delta.labels } });
-
-            // 6. FIX: HR Chart (Stacked)
-            // Expecting: series array with names matching what we init
-            hrChart.updateSeries([
-                { name: 'Attrition', data: data.charts.hr.attrition },
-                { name: 'Long Leave', data: data.charts.hr.leaves },
-                { name: 'TLOA', data: data.charts.hr.tloa }
-            ]);
-            hrChart.updateOptions({ xaxis: { categories: data.charts.hr.labels } });
-
-            // 7. Table
-            mainTable.clear().rows.add(data.tableData).draw();
-        }
-
-        // ----------------------------------------------------
-        // Chart Initialization
-        // ----------------------------------------------------
-        function initCharts() {
-            // Trend
-            trendChart = new ApexCharts(document.querySelector("#chart-trend"), {
-                ...baseConfig, series: [],
-                chart: { type: 'area', height: 320, toolbar: { show: false }, background: 'transparent' },
-                colors: ['#3699FF', '#0BB783'],
-                fill: { type: 'gradient', gradient: { opacityFrom: 0.6, opacityTo: 0.1 } },
-                stroke: { width: 2, curve: 'smooth' }
-            });
-            trendChart.render();
-
-            // Geo
-            geoChart = new ApexCharts(document.querySelector("#chart-geo"), {
-                ...baseConfig, series: [], labels: [],
-                chart: { type: 'donut', height: 280, background: 'transparent' },
-                colors: ['#3699FF', '#8950FC', '#0BB783', '#FFA800'],
-                stroke: { width: 0 },
-                plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, color: '#fff' } } } } },
-                legend: { position: 'bottom' }
-            });
-            geoChart.render();
-
-            // Delta (Bar)
-            deltaChart = new ApexCharts(document.querySelector("#chart-delta"), {
-                ...baseConfig, series: [],
-                chart: { type: 'bar', height: 250, background: 'transparent' },
-                plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '50%' } },
-                colors: ['#F64E60'],
-                xaxis: { categories: [], labels: { style: { colors: '#92929f' } } }
-            });
-            deltaChart.render();
-
-            // Billable (Radial)
-            billChart = new ApexCharts(document.querySelector("#chart-billable"), {
-                ...baseConfig, series: [0],
-                chart: { type: 'radialBar', height: 250, background: 'transparent' },
-                plotOptions: {
-                    radialBar: {
-                        hollow: { size: '70%' }, track: { background: '#2B2B40' },
-                        dataLabels: { name: { show: false }, value: { color: '#fff', fontSize: '24px', show: true, formatter: val => val + "%" } }
-                    }
-                },
-                colors: ['#0BB783'], stroke: { lineCap: 'round' }
-            });
-            billChart.render();
-
-            // HR (Stacked)
-            hrChart = new ApexCharts(document.querySelector("#chart-hr"), {
-                ...baseConfig, series: [],
-                chart: { type: 'bar', height: 250, stacked: true, background: 'transparent' },
-                colors: ['#F64E60', '#FFA800', '#8950FC'],
-                plotOptions: { bar: { columnWidth: '40%' } }
-            });
-            hrChart.render();
-        }
-
-        function initTable() {
-            mainTable = $('#mainTable').DataTable({
-                data: [], pageLength: 5, dom: 'rtip',
-                columns: [
-                    { className: 'custom-drill text-center', data: null, orderable: false, defaultContent: '<i class="fas fa-plus-circle text-primary" style="cursor:pointer; font-size: 1.1rem;"></i>' },
-                    { data: 'Week' }, { data: 'Geo' }, { data: 'Client' }, { data: 'Project' },
-                    { data: 'Sch', className: 'text-end' }, { data: 'Act', className: 'text-end' },
-                    { data: 'Delta', className: 'text-center', render: d => d > 0 ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">${d}</span>` : `<span class="text-muted">-</span>` },
-                    { data: 'Delta', className: 'text-center', render: d => d === 0 ? '<span class="badge bg-success bg-opacity-10 text-success">On Track</span>' : '<span class="badge bg-warning bg-opacity-10 text-warning">Review</span>' }
-                ]
-            });
-
-            // Drilldown
-            $('#mainTable tbody').on('click', 'td.custom-drill', function () {
-                var tr = $(this).closest('tr');
-                var row = mainTable.row(tr);
-                var icon = $(this).find('i');
-                if (row.child.isShown()) {
-                    row.child.hide(); tr.removeClass('shown'); icon.removeClass('fa-minus-circle').addClass('fa-plus-circle');
-                } else {
-                    var d = row.data();
-                    var content = `<div class="drilldown-container"><div class="row">
-                        <div class="col-md-3"><span class="drill-label">Program</span><div class="drill-val">${d.Prog}</div></div>
-                        <div class="col-md-3"><span class="drill-label">OU Desc</span><div class="drill-val">${d.Desc}</div></div>
-                        <div class="col-md-3"><span class="drill-label">Billable</span><div class="drill-val">${d.Bill === 'Yes' ? '<span class="text-success">Billable</span>' : '<span class="text-secondary">Non-Billable</span>'}</div></div>
-                        </div></div>`;
-                    row.child(content).show(); tr.addClass('shown'); icon.removeClass('fa-plus-circle').addClass('fa-minus-circle');
-                }
-            });
-        }
-
-        // ----------------------------------------------------
-        // MOCK DATA GENERATOR (Ensures graphs light up)
-        // ----------------------------------------------------
-        function getMockData() {
-            return {
-                kpis: { totalSch: 1250, totalAct: 1200, totalDelta: 50, totalLeaves: 15, billableRate: 92 },
-                charts: {
-                    trend: {
-                        labels: ['Wk1', 'Wk2', 'Wk3', 'Wk4', 'Wk5'],
-                        sch: [100, 120, 130, 140, 150],
-                        act: [90, 110, 125, 135, 148]
-                    },
-                    geo: {
-                        labels: ['USA', 'India', 'Europe', 'APAC'],
-                        values: [40, 30, 20, 10]
-                    },
-                    billable: 92, // Fixed single number
-                    delta: {
-                        labels: ['Proj A', 'Proj B', 'Proj C', 'Proj D', 'Proj E'],
-                        values: [12, 10, 8, 5, 2]
-                    },
-                    hr: {
-                        labels: ['Wk1', 'Wk2', 'Wk3', 'Wk4'],
-                        attrition: [2, 3, 1, 4],
-                        leaves: [1, 2, 0, 1],
-                        tloa: [0, 1, 0, 0]
-                    }
-                },
-                tableData: [
-                    { Week: 'Wk1', Geo: 'USA', Client: 'Client A', Project: 'Migration', Sch: 50, Act: 45, Delta: 5, Prog: 'Cloud', Desc: 'NY', Bill: 'Yes' },
-                    { Week: 'Wk1', Geo: 'IND', Client: 'Client B', Project: 'Support', Sch: 100, Act: 100, Delta: 0, Prog: 'Ops', Desc: 'BLR', Bill: 'Yes' },
-                    { Week: 'Wk2', Geo: 'BGR', Client: 'Client A', Project: 'Dev', Sch: 20, Act: 18, Delta: 2, Prog: 'DevOps', Desc: 'SOF', Bill: 'No' },
-                ]
-            };
-        }
-    </script>
-</body>
-</html>
-
+        },
+        tableData = filteredList // Raw list for the DataTable
+    });
+}
