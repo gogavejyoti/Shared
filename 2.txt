@@ -1,93 +1,41 @@
-[HttpPost]
-[Route("GetData")]
-public IActionResult GetData([FromBody] DashboardRequest filters)
-{
-    // 1. Get and Filter Data
-    var query = _context.WorkforceData.AsQueryable();
+        [HttpPost]
+        public async Task<JsonResult> GetData([FromBody] HcReconFilter filters)
+        {
+          var data = await _hcReconService.GetDataAsync(filters);
+          var filtered = data.Where(x =>
+          (filters.Weeks == null || !filters.Weeks.Any() || filters.Weeks.Contains(x.Week)) &&
+          (filters.Geos == null || !filters.Geos.Any() || filters.Geos.Contains(x.Geo))
+          ).ToList();
 
-    if (filters.Weeks?.Any() == true) query = query.Where(x => filters.Weeks.Contains(x.Week));
-    if (filters.Geos?.Any() == true) query = query.Where(x => filters.Geos.Contains(x.Geo));
-    if (filters.Clients?.Any() == true) query = query.Where(x => filters.Clients.Contains(x.Client));
-    if (filters.Projects?.Any() == true) query = query.Where(x => filters.Projects.Contains(x.Project));
-    // ... apply other filters similarly
+            var response = new
+            {
+                // Ensure these match the keys used in: data.KPIs.TotalSch, etc.
+                KPIs = new
+                {
+                    TotalSch = filtered.Sum(x => x.SchHC),
+                    TotalAct = filtered.Sum(x => x.ActSchHC),
+                    TotalDelta = filtered.Sum(x => x.Delta),
+                    // Fix: Calculate as a percentage rounded to 1 decimal
+                    BillableRate = filtered.Count > 0
+              ? Math.Round((double)filtered.Count(x => x.BillableStatus == "Yes") / filtered.Count * 100, 1)
+              : 0
+                },
+                // The Frontend JS looks for 'TableData' (PascalCase) based on my previous script
+                TableData = filtered,
 
-    var filteredList = query.ToList();
+                TrendChart = filtered.GroupBy(x => x.Week).Select(g => new {
+                    label = g.Key,
+                    sch = g.Sum(s => s.SchHC),
+                    act = g.Sum(a => a.ActSchHC)
+                }).OrderBy(x => x.label).ToList(),
 
-    // 2. Calculate KPI Totals
-    var totalSch = filteredList.Sum(x => x.SchHC);
-    var totalAct = filteredList.Sum(x => x.ActHC);
-    var totalDelta = filteredList.Sum(x => Math.Max(0, x.SchHC - x.ActHC));
+                GeoChart = filtered.GroupBy(x => x.Geo).Select(g => new {
+                    label = g.Key,
+                    value = g.Sum(s => s.ActSchHC)
+                }).ToList(),
 
-    // 3. SHAPE DATA FOR THE 3 MISSING CHARTS
 
-    // CHART: Project Delta (Top 5 Projects with highest gap)
-    var deltaChartData = filteredList
-        .GroupBy(x => x.Project)
-        .Select(g => new { 
-            Label = g.Key, 
-            Value = g.Sum(x => Math.Max(0, x.SchHC - x.ActHC)) 
-        })
-        .OrderByDescending(x => x.Value)
-        .Take(5)
-        .ToList();
 
-    // CHART: Billable Efficiency (Radial Bar)
-    // Formula: (Billable Act HC / Total Act HC) * 100
-    var totalBillable = filteredList.Where(x => x.IsBillable == "Yes").Sum(x => x.ActHC);
-    double billableRate = totalAct > 0 ? Math.Round((double)totalBillable / totalAct * 100, 1) : 0;
-
-    // CHART: Attrition & Leaves (Stacked Bar)
-    var hrChartData = filteredList
-        .GroupBy(x => x.Week)
-        .OrderBy(g => g.Key)
-        .Select(g => new {
-            Label = g.Key,
-            Attrition = g.Count(x => x.Status == "Resigned"),
-            Leaves = g.Count(x => x.Status == "Long Leave"),
-            TLOA = g.Count(x => x.Status == "TLOA")
-        }).ToList();
-
-    // 4. Trend Chart (Scheduled vs Actual)
-    var trendChartData = filteredList
-        .GroupBy(x => x.Week)
-        .OrderBy(g => g.Key)
-        .Select(g => new {
-            Label = g.Key,
-            Sch = g.Sum(x => x.SchHC),
-            Act = g.Sum(x => x.ActHC)
-        }).ToList();
-
-    // 5. Final Response Object
-    return Json(new {
-        kpis = new {
-            totalSch,
-            totalAct,
-            totalDelta,
-            totalLeaves = filteredList.Count(x => x.Status == "Long Leave"),
-            billableRate
-        },
-        charts = new {
-            trend = new {
-                labels = trendChartData.Select(x => x.Label).ToList(),
-                sch = trendChartData.Select(x => x.Sch).ToList(),
-                act = trendChartData.Select(x => x.Act).ToList()
-            },
-            geo = filteredList.GroupBy(x => x.Geo).Select(g => new { 
-                labels = g.Key, 
-                values = g.Count() 
-            }).ToList(),
-            delta = new {
-                labels = deltaChartData.Select(x => x.Label).ToList(),
-                values = deltaChartData.Select(x => x.Value).ToList()
-            },
-            billable = billableRate,
-            hr = new {
-                labels = hrChartData.Select(x => x.Label).ToList(),
-                attrition = hrChartData.Select(x => x.Attrition).ToList(),
-                leaves = hrChartData.Select(x => x.Leaves).ToList(),
-                tloa = hrChartData.Select(x => x.TLOA).ToList()
-            }
-        },
-        tableData = filteredList // Raw list for the DataTable
-    });
-}
+            };
+            return Json(response);
+        }
