@@ -1,23 +1,10 @@
-    // Billable (Radial)
-        const billRate = kpi.BillableRate || kpi.billableRate;
-        billChart.updateSeries([billRate]);
-
-        // Top Deltas (Bar)
-        // Assuming API sends {DeltaChart: [{label: 'Proj A', value: 10 }...] }
-        if (data.deltaChart) {
-            const dChart = data.DeltaChart || data.deltaChart;
-            deltaChart.updateSeries([{ data: dChart.map(x => x.value) }]);
-            deltaChart.updateOptions({ xaxis: { categories: dChart.map(x => x.label) } });
-        }
-
-        // HR Stacked
-        // Assuming API sends {HRChart: {Attrition: [1,2], Leaves: [3,4], Labels: ['W1','W2'] } }
-        if (data.hrChart) {
-            const hr = data.HRChart || data.hrChart;
-            hrChart.updateSeries([
-                { name: 'Attrition', data: hr.Attrition },
-                { name: 'Long Leave', data: hr.Leaves },
-                { name: 'TLOA', data: hr.TLOA }
-            ]);
-            hrChart.updateOptions({ xaxis: { categories: hr.Labels } });
-        }
+// HR Stacked (Corrected for Array of Objects)
+if (data.HrChart || data.hrChart) {
+    const hrData = data.HrChart || data.hrChart;
+    hrChart.updateSeries([
+        { name: 'Attrition', data: hrData.map(x => x.attrition) },
+        { name: 'Long Leave', data: hrData.map(x => x.leaves) },
+        { name: 'TLOA', data: hrData.map(x => x.tloa) }
+    ]);
+    hrChart.updateOptions({ xaxis: { categories: hrData.map(x => x.label) } });
+}
