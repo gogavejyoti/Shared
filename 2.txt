@@ -1,83 +1,271 @@
-columns: [
-    { 
-        // CHANGED: Removed 'dt-control' to stop the double icon. 
-        // Used 'custom-drill' instead.
-        className: 'custom-drill text-center', 
-        data: null,
-        orderable: false,
-        // Only your specific icon will show now
-        defaultContent: '<i class="fas fa-plus-circle text-primary" style="cursor:pointer; font-size: 1.1rem;"></i>' 
-    },
-    { data: 'week' },
-    { data: 'geo' },
-    { data: 'client' },
-    { data: 'proj' },
-    { data: 'sch', className: 'text-end' },
-    { data: 'act', className: 'text-end' },
-    { 
-        data: 'delta', 
-        className: 'text-center',
-        render: function(d) { 
-            return d > 0 
-            ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">${d}</span>` 
-            : `<span class="text-muted">-</span>`; 
-        }
-    },
+// The main record representing a row from your SQL result
+public class WorkforceData
+{
+    public string Week { get; set; }
+    public string Geo { get; set; }
+    public string Client { get; set; }
+    public string Project { get; set; }
+    public int SchHC { get; set; }
+    public int ActSchHC { get; set; }
+    public int Delta => SchHC - ActSchHC; // Calculated
+    public string Program { get; set; }
+    public string OUDescription { get; set; }
+    public string ProjectID { get; set; }
+    public string BillableStatus { get; set; } // "Yes" or "No"
+}
+
+// Object sent from Frontend to API
+public class DashboardRequest
+{
+    public List<string> Weeks { get; set; }
+    public List<string> Geos { get; set; }
+    public List<string> Clients { get; set; }
+    public List<string> Projects { get; set; }
+    public List<string> Programs { get; set; }
+    public List<string> OUs { get; set; }
+    public List<string> Descriptions { get; set; }
+    public List<string> ProjectIDs { get; set; }
+}
+
+
+
+[Route("api/Workforce")]
+public class WorkforceController : Controller
+{
+    [HttpPost]
+    [Route("GetData")]
+    public JsonResult GetData([FromBody] DashboardRequest filters)
     {
-        data: 'delta',
-        className: 'text-center',
-        render: function(d) { 
-            return d === 0 
-            ? '<span class="badge bg-success bg-opacity-10 text-success">On Track</span>' 
-            : '<span class="badge bg-warning bg-opacity-10 text-warning">Review</span>'; 
+        // 1. Fetch data from your database (Mocked for this example)
+        var allData = GetSQLData(); 
+
+        // 2. Apply dynamic filtering
+        var filtered = allData.Where(x => 
+            (filters.Weeks == null || !filters.Weeks.Any() || filters.Weeks.Contains(x.Week)) &&
+            (filters.Geos == null || !filters.Geos.Any() || filters.Geos.Contains(x.Geo))
+            // ... add other 6 filters here
+        ).ToList();
+
+        // 3. Shape the data for the 5 charts
+        var response = new {
+            TableData = filtered,
+            KPIs = new {
+                TotalSch = filtered.Sum(x => x.SchHC),
+                TotalAct = filtered.Sum(x => x.ActSchHC),
+                TotalDelta = filtered.Sum(x => x.Delta),
+                BillableRate = filtered.Count > 0 ? (filtered.Count(x => x.BillableStatus == "Yes") * 100 / filtered.Count) : 0
+            },
+            TrendChart = filtered.GroupBy(x => x.Week).Select(g => new { 
+                label = g.Key, 
+                sch = g.Sum(s => s.SchHC), 
+                act = g.Sum(a => a.ActSchHC) 
+            }).OrderBy(x => x.label),
+            GeoChart = filtered.GroupBy(x => x.Geo).Select(g => new { 
+                label = g.Key, 
+                value = g.Sum(s => s.ActSchHC) 
+            })
+        };
+
+        return Json(response);
+    }
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Enterprise Analytics Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #11111d;
+            --card-bg: #1e1e2d;
+            --accent: #3699FF;
+            --border: rgba(255,255,255,0.08);
+            --text: #ffffff;
+            --text-muted: #92929f;
         }
-    }
-]
 
-
-/ CHANGED: Listen for 'td.custom-drill' instead of 'td.dt-control'
-$('#mainTable tbody').on('click', 'td.custom-drill', function () {
-    var tr = $(this).closest('tr');
-    var row = table.row(tr);
-    var icon = $(this).find('i');
-
-    if (row.child.isShown()) {
-        // This row is already open - close it
-        row.child.hide();
-        tr.removeClass('shown');
-        // Toggle Icon back to Plus
-        icon.removeClass('fa-minus-circle').addClass('fa-plus-circle');
-    } else {
-        // Open this row
-        var d = row.data();
+        body { background: var(--bg-dark); color: var(--text); font-family: 'Inter', sans-serif; }
         
-        // Detailed Card Design
-        var content = `
-            <div class="drilldown-container">
-                <div class="row">
-                    <div class="col-md-3">
-                        <span class="drill-label">Program</span>
-                        <div class="drill-val text-white">${d.prog}</div>
-                    </div>
-                    <div class="col-md-3">
-                        <span class="drill-label">OU Description</span>
-                        <div class="drill-val text-white">${d.desc}</div>
-                    </div>
-                    <div class="col-md-3">
-                        <span class="drill-label">Billable Status</span>
-                        <div class="drill-val text-white">
-                            ${d.bill === 'Yes' ? '<i class="fas fa-check text-success"></i> Billable' : '<i class="fas fa-times text-muted"></i> Non-Billable'}
-                        </div>
-                    </div>
-                    <div class="col-md-3 text-end align-self-center">
-                        <button class="btn btn-sm btn-outline-primary">View Full Roster</button>
-                    </div>
-                </div>
-            </div>`;
+        /* Glass Card */
+        .glass-card { 
+            background: var(--card-bg); 
+            border: 1px solid var(--border); 
+            border-radius: 12px; 
+            padding: 1.5rem; 
+            height: 100%;
+        }
+
+        /* Filter Bar */
+        .filter-section { 
+            background: #1a1a27; 
+            padding: 20px; 
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 25px;
+        }
+        .filter-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+
+        /* DataTable Visibility Fix */
+        table.dataTable { color: #ffffff !important; width: 100% !important; }
+        .table thead th { color: var(--text-muted); border-bottom: 1px solid var(--border) !important; font-size: 0.75rem; }
+        .table td { border-bottom: 1px solid var(--border); vertical-align: middle; color: #fff !important; }
+        .dataTables_info, .dataTables_paginate { color: var(--text-muted) !important; margin-top: 15px; }
+        
+        /* Select2 Dark */
+        .select2-container--default .select2-selection--multiple { background: #151521; border-color: var(--border); }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice { background: var(--accent); color: white; border: none; }
+
+        .drilldown-container { background: rgba(0,0,0,0.3); padding: 15px; border-left: 3px solid var(--accent); margin: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="filter-section">
+        <div class="container-fluid">
+            <h5 class="mb-3 text-white fw-bold"><i class="fas fa-database me-2"></i>Workforce Intelligence</h5>
+            <div class="row g-2">
+                <div class="col-lg-1 col-md-3"><span class="filter-label">Week</span><select id="f-week" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Geo</span><select id="f-geo" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Client</span><select id="f-client" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Project</span><select id="f-project" class="form-control select2" multiple></select></div>
+                <div class="col-lg-2 col-md-3"><span class="filter-label">Program</span><select id="f-program" class="form-control select2" multiple></select></div>
+                <div class="col-lg-1 col-md-3"><span class="filter-label">OU</span><select id="f-ou" class="form-control select2" multiple></select></div>
+                <div class="col-lg-1 col-md-3"><span class="filter-label">Desc</span><select id="f-desc" class="form-control select2" multiple></select></div>
+                <div class="col-lg-1 col-md-3"><span class="filter-label">PID</span><select id="f-pid" class="form-control select2" multiple></select></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid px-4">
+        <div class="row g-4 mb-4 text-center">
+            <div class="col-md-3"><div class="glass-card"><div class="filter-label">Scheduled</div><h2 id="kpi-sch" class="fw-bold mb-0">0</h2></div></div>
+            <div class="col-md-3"><div class="glass-card"><div class="filter-label">Actual HC</div><h2 id="kpi-act" class="fw-bold mb-0 text-info">0</h2></div></div>
+            <div class="col-md-3"><div class="glass-card"><div class="filter-label">Gap (Delta)</div><h2 id="kpi-delta" class="fw-bold mb-0 text-danger">0</h2></div></div>
+            <div class="col-md-3"><div class="glass-card"><div class="filter-label">Billable %</div><h2 id="kpi-bill" class="fw-bold mb-0 text-success">0%</h2></div></div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-lg-8"><div class="glass-card"><h6>Trend Analysis</h6><div id="chart-trend"></div></div></div>
+            <div class="col-lg-4"><div class="glass-card"><h6>Geo Distribution</h6><div id="chart-geo"></div></div></div>
+        </div>
+        <div class="row g-4 mb-4">
+            <div class="col-lg-4"><div class="glass-card"><h6>Efficiency Ratio</h6><div id="chart-radial"></div></div></div>
+            <div class="col-lg-4"><div class="glass-card"><h6>Top Projects Delta</h6><div id="chart-bar"></div></div></div>
+            <div class="col-lg-4"><div class="glass-card"><h6>HR Exceptions</h6><div id="chart-stacked"></div></div></div>
+        </div>
+
+        <div class="glass-card mb-5">
+            <h6>Detailed Project Roster</h6>
+            <table id="mainTable" class="table table-hover mt-3">
+                <thead>
+                    <tr>
+                        <th></th><th>Week</th><th>Geo</th><th>Client</th><th>Project</th><th>Sch HC</th><th>Act HC</th><th>Delta</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        let trendChart, geoChart, radialChart, barChart, stackedChart;
+
+        $(document).ready(function() {
+            $('.select2').select2();
+            initCharts();
+            initTable();
             
-        row.child(content).show();
-        tr.addClass('shown');
-        // Toggle Icon to Minus
-        icon.removeClass('fa-plus-circle').addClass('fa-minus-circle');
-    }
-});
+            // Trigger Load
+            refreshDashboard();
+
+            $('.select2').on('change', refreshDashboard);
+        });
+
+        function refreshDashboard() {
+            const filters = {
+                Weeks: $('#f-week').val(),
+                Geos: $('#f-geo').val(),
+                Clients: $('#f-client').val(),
+                Projects: $('#f-project').val(),
+                Programs: $('#f-program').val(),
+                OUs: $('#f-ou').val(),
+                Descriptions: $('#f-desc').val(),
+                ProjectIDs: $('#f-pid').val()
+            };
+
+            $.ajax({
+                url: '/api/Workforce/GetData',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(filters),
+                success: function(res) {
+                    // Update KPIs
+                    $('#kpi-sch').text(res.KPIs.TotalSch);
+                    $('#kpi-act').text(res.KPIs.TotalAct);
+                    $('#kpi-delta').text(res.KPIs.TotalDelta);
+                    $('#kpi-bill').text(res.KPIs.BillableRate + '%');
+
+                    // Update Table
+                    $('#mainTable').DataTable().clear().rows.add(res.TableData).draw();
+
+                    // Update Charts
+                    trendChart.updateSeries([{ name:'Sch', data: res.TrendChart.map(x=>x.sch) }, { name:'Act', data: res.TrendChart.map(x=>x.act) }]);
+                    geoChart.updateSeries(res.GeoChart.map(x=>x.value));
+                    geoChart.updateOptions({ labels: res.GeoChart.map(x=>x.label) });
+                }
+            });
+        }
+
+        function initCharts() {
+            // Trend
+            trendChart = new ApexCharts(document.querySelector("#chart-trend"), {
+                series: [], chart: { type:'area', height:300, toolbar:{show:false}, theme:{mode:'dark'} },
+                stroke: { curve:'smooth', width:2 }, colors:['#3699FF', '#0BB783']
+            });
+            trendChart.render();
+
+            // Geo
+            geoChart = new ApexCharts(document.querySelector("#chart-geo"), {
+                series: [], chart: { type:'donut', height:300 }, labels: [], theme:{mode:'dark'}
+            });
+            geoChart.render();
+
+            // Other 3 chart initializations go here... (using same logic)
+        }
+
+        function initTable() {
+            $('#mainTable').DataTable({
+                columns: [
+                    { className: 'custom-drill', data: null, orderable: false, defaultContent: '<i class="fas fa-plus-circle text-primary"></i>' },
+                    { data: 'Week' }, { data: 'Geo' }, { data: 'Client' }, { data: 'Project' },
+                    { data: 'SchHC' }, { data: 'ActSchHC' }, { data: 'Delta' }
+                ],
+                dom: 'rtp', pageLength: 10
+            });
+
+            // Drilldown
+            $('#mainTable tbody').on('click', 'td.custom-drill', function() {
+                var tr = $(this).closest('tr');
+                var row = $('#mainTable').DataTable().row(tr);
+                if (row.child.isShown()) {
+                    row.child.hide(); tr.removeClass('shown');
+                } else {
+                    const d = row.data();
+                    row.child(`<div class="drilldown-container"><strong>Program:</strong> ${d.Program} | <strong>OU:</strong> ${d.OUDescription}</div>`).show();
+                    tr.addClass('shown');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
