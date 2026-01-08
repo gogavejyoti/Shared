@@ -1,3 +1,24 @@
+public IActionResult GetFilters()
+{
+    // Replace 'db.WorkforceData' with your actual data source/EF Context
+    var data = _context.WorkforceData.ToList();
+
+    var filterLists = new
+    {
+        weeks = data.Select(x => x.Week).Distinct().OrderBy(x => x).ToList(),
+        geos = data.Select(x => x.Geo).Distinct().OrderBy(x => x).ToList(),
+        clients = data.Select(x => x.Client).Distinct().OrderBy(x => x).ToList(),
+        projects = data.Select(x => x.Project).Distinct().OrderBy(x => x).ToList(),
+        programs = data.Select(x => x.Program).Distinct().OrderBy(x => x).ToList(),
+        ous = data.Select(x => x.OU).Distinct().OrderBy(x => x).ToList(),
+        descs = data.Select(x => x.Description).Distinct().OrderBy(x => x).ToList(),
+        pids = data.Select(x => x.ProjectID).Distinct().OrderBy(x => x).ToList()
+    };
+
+    return Json(filterLists);
+}
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -443,3 +464,4 @@
     </script>
 </body>
 </html>
+
