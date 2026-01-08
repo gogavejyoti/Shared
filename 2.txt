@@ -1,62 +1,23 @@
-[HttpPost]
-public async Task<JsonResult> GetData([FromBody] HcReconFilter filters)
-{
-    var data = await _hcReconService.GetDataAsync(filters);
-    
-    // 1. Apply Filtering
-    var filtered = data.Where(x =>
-        (filters.Weeks == null || !filters.Weeks.Any() || filters.Weeks.Contains(x.Week)) &&
-        (filters.Geos == null || !filters.Geos.Any() || filters.Geos.Contains(x.Geo)) &&
-        (filters.Clients == null || !filters.Clients.Any() || filters.Clients.Contains(x.Client)) &&
-        (filters.Projects == null || !filters.Projects.Any() || filters.Projects.Contains(x.Project))
-    ).ToList();
+    // Billable (Radial)
+        const billRate = kpi.BillableRate || kpi.billableRate;
+        billChart.updateSeries([billRate]);
 
-    // 2. Prepare Response
-    var response = new
-    {
-        KPIs = new
-        {
-            TotalSch = filtered.Sum(x => x.SchHC),
-            TotalAct = filtered.Sum(x => x.ActSchHC),
-            TotalDelta = filtered.Sum(x => x.Delta),
-            TotalLeaves = filtered.Count(x => x.Status == "Long Leave" || x.Status == "TLOA"),
-            // This powers the "Billable Efficiency" Radial Chart
-            BillableRate = filtered.Sum(x => x.ActSchHC) > 0
-                ? Math.Round((double)filtered.Where(x => x.BillableStatus == "Yes").Sum(x => x.ActSchHC) / filtered.Sum(x => x.ActSchHC) * 100, 1)
-                : 0
-        },
+        // Top Deltas (Bar)
+        // Assuming API sends {DeltaChart: [{label: 'Proj A', value: 10 }...] }
+        if (data.deltaChart) {
+            const dChart = data.DeltaChart || data.deltaChart;
+            deltaChart.updateSeries([{ data: dChart.map(x => x.value) }]);
+            deltaChart.updateOptions({ xaxis: { categories: dChart.map(x => x.label) } });
+        }
 
-        TableData = filtered,
-
-        TrendChart = filtered.GroupBy(x => x.Week).Select(g => new {
-            label = g.Key,
-            sch = g.Sum(s => s.SchHC),
-            act = g.Sum(a => a.ActSchHC)
-        }).OrderBy(x => x.label).ToList(),
-
-        GeoChart = filtered.GroupBy(x => x.Geo).Select(g => new {
-            label = g.Key,
-            value = g.Sum(s => s.ActSchHC)
-        }).ToList(),
-
-        // NEW: Project Delta Chart (Top 5 projects with highest gaps)
-        DeltaChart = filtered.GroupBy(x => x.Project)
-            .Select(g => new {
-                label = g.Key,
-                value = g.Sum(s => s.Delta)
-            })
-            .Where(x => x.value > 0)
-            .OrderByDescending(x => x.value)
-            .Take(5).ToList(),
-
-        // NEW: HR Chart (Attrition & Leaves stacked bar)
-        HrChart = filtered.GroupBy(x => x.Week).Select(g => new {
-            label = g.Key,
-            attrition = g.Count(x => x.Status == "Resigned"),
-            leaves = g.Count(x => x.Status == "Long Leave"),
-            tloa = g.Count(x => x.Status == "TLOA")
-        }).OrderBy(x => x.label).ToList()
-    };
-
-    return Json(response);
-}
+        // HR Stacked
+        // Assuming API sends {HRChart: {Attrition: [1,2], Leaves: [3,4], Labels: ['W1','W2'] } }
+        if (data.hrChart) {
+            const hr = data.HRChart || data.hrChart;
+            hrChart.updateSeries([
+                { name: 'Attrition', data: hr.Attrition },
+                { name: 'Long Leave', data: hr.Leaves },
+                { name: 'TLOA', data: hr.TLOA }
+            ]);
+            hrChart.updateOptions({ xaxis: { categories: hr.Labels } });
+        }
