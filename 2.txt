@@ -17,16 +17,13 @@
             --bg-body: #151521;
             --bg-card: #1e1e2d;
             --bg-glass: rgba(30, 30, 45, 0.9);
-
             --text-primary: #ffffff;
             --text-secondary: #92929f;
-
             --brand-blue: #3699FF;
             --brand-teal: #0BB783;
             --brand-warn: #FFA800;
             --brand-danger: #F64E60;
             --brand-purple: #8950FC;
-
             --border-subtle: rgba(255, 255, 255, 0.05);
             --card-radius: 12px;
         }
@@ -46,6 +43,7 @@
             padding: 15px 20px;
             margin-bottom: 25px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            position: sticky; top: 0; z-index: 1000;
         }
 
         .filter-label {
@@ -57,7 +55,7 @@
             margin-bottom: 5px;
         }
 
-        /* Select2 Overrides for Dark Theme */
+        /* Select2 Overrides */
         .select2-container--default .select2-selection--multiple {
             background-color: #151521;
             border: 1px solid var(--border-subtle);
@@ -70,11 +68,7 @@
             color: var(--brand-blue);
             font-weight: 500;
         }
-        .select2-dropdown {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-subtle);
-            color: var(--text-primary);
-        }
+        .select2-dropdown { background-color: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary); }
         .select2-results__option--highlighted { background-color: var(--brand-blue) !important; }
 
         /* --- 2. Card Styling --- */
@@ -84,26 +78,18 @@
             border-radius: var(--card-radius);
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
             height: 100%;
-            display: flex;
-            flex-direction: column;
+            display: flex; flex-direction: column;
         }
 
         .card-header-pro {
             padding: 15px 20px;
             border-bottom: 1px solid var(--border-subtle);
-            font-weight: 600;
-            font-size: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            font-weight: 600; font-size: 1rem;
+            display: flex; justify-content: space-between; align-items: center;
             color: var(--text-primary);
         }
 
-        .card-body-pro {
-            padding: 20px;
-            flex-grow: 1;
-            position: relative;
-        }
+        .card-body-pro { padding: 20px; flex-grow: 1; position: relative; }
 
         /* --- 3. KPI Cards --- */
         .kpi-box {
@@ -111,62 +97,37 @@
             padding: 20px;
             border-radius: var(--card-radius);
             border: 1px solid var(--border-subtle);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: flex; align-items: center; justify-content: space-between;
         }
         .kpi-title { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
         .kpi-val { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
         .kpi-icon-box {
-            width: 45px; height: 45px;
-            border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem;
+            width: 45px; height: 45px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
         }
 
-        /* --- 4. Fixed Table Styling (White Text) --- */
-        table.dataTable {
-            width: 100% !important;
-            border-collapse: separate !important;
-            border-spacing: 0;
-        }
-
+        /* --- 4. Fixed Table Styling --- */
+        table.dataTable { width: 100% !important; border-collapse: separate !important; border-spacing: 0; }
         .table-glass thead th {
-            background-color: #151521 !important;
-            color: var(--text-secondary) !important;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            border-bottom: 1px solid var(--border-subtle) !important;
-            padding: 12px !important;
+            background-color: #151521 !important; color: var(--text-secondary) !important;
+            font-weight: 600; text-transform: uppercase; font-size: 0.75rem;
+            border-bottom: 1px solid var(--border-subtle) !important; padding: 12px !important;
         }
-
         .table-glass tbody td {
-            background-color: transparent !important;
-            color: #ffffff !important; /* Forces white text */
-            border-bottom: 1px solid var(--border-subtle);
-            padding: 12px !important;
-            vertical-align: middle;
+            background-color: transparent !important; color: #ffffff !important;
+            border-bottom: 1px solid var(--border-subtle); padding: 12px !important; vertical-align: middle;
         }
+        .table-glass tbody tr:hover td { background-color: rgba(255,255,255,0.03) !important; }
+        .dataTables_info, .dataTables_paginate { color: var(--text-secondary) !important; margin-top: 10px; }
 
-        .table-glass tbody tr:hover td {
-            background-color: rgba(255,255,255,0.03) !important;
-        }
-
-        /* Drilldown Child Row */
+        /* Drilldown */
         .drilldown-container {
-            background: #12121c;
-            border-left: 4px solid var(--brand-blue);
-            padding: 15px;
-            margin: 5px 0;
-            border-radius: 4px;
+            background: #12121c; border-left: 4px solid var(--brand-blue);
+            padding: 15px; margin: 5px 0; border-radius: 4px;
         }
         .drill-label { color: var(--text-secondary); font-size: 0.7rem; text-transform: uppercase; }
         .drill-val { color: #fff; font-weight: 500; }
-
-        /* Pagination Buttons */
-        .page-link { background: var(--bg-body); border-color: var(--border-subtle); color: var(--text-secondary); }
-        .page-item.active .page-link { background: var(--brand-blue); border-color: var(--brand-blue); color: white; }
+        table.dataTable td.custom-drill { cursor: pointer; }
 
         /* Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -182,7 +143,7 @@
                 <h4 class="mb-0 fw-bold"><i class="fas fa-layer-group text-primary me-2"></i>Executive Delivery Dashboard</h4>
                 <div>
                     <button class="btn btn-sm btn-outline-secondary me-2">Export PDF</button>
-                    <button class="btn btn-sm btn-primary">Refresh Data</button>
+                    <button class="btn btn-sm btn-primary" onclick="refreshDashboard()"><i class="fas fa-sync-alt me-1"></i> Refresh</button>
                 </div>
             </div>
 
@@ -206,48 +167,36 @@
                 <div class="kpi-box">
                     <div>
                         <div class="kpi-title">Total Scheduled HC</div>
-                        <div class="kpi-val">1,245</div>
-                        <small class="text-success"><i class="fas fa-arrow-up"></i> 12 vs last week</small>
+                        <div class="kpi-val" id="kpi-sch">0</div>
                     </div>
-                    <div class="kpi-icon-box" style="background: rgba(54, 153, 255, 0.1); color: var(--brand-blue);">
-                        <i class="fas fa-users"></i>
-                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(54, 153, 255, 0.1); color: var(--brand-blue);"><i class="fas fa-users"></i></div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="kpi-box">
                     <div>
                         <div class="kpi-title">Actual HC</div>
-                        <div class="kpi-val">1,180</div>
-                        <small class="text-secondary">94.7% Fulfillment</small>
+                        <div class="kpi-val" id="kpi-act">0</div>
                     </div>
-                    <div class="kpi-icon-box" style="background: rgba(11, 183, 131, 0.1); color: var(--brand-teal);">
-                        <i class="fas fa-user-check"></i>
-                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(11, 183, 131, 0.1); color: var(--brand-teal);"><i class="fas fa-user-check"></i></div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="kpi-box">
                     <div>
                         <div class="kpi-title">Critical Delta</div>
-                        <div class="kpi-val text-warning">65</div>
-                        <small class="text-muted">Unscheduled gaps</small>
+                        <div class="kpi-val text-warning" id="kpi-delta">0</div>
                     </div>
-                    <div class="kpi-icon-box" style="background: rgba(255, 168, 0, 0.1); color: var(--brand-warn);">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(255, 168, 0, 0.1); color: var(--brand-warn);"><i class="fas fa-exclamation-triangle"></i></div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="kpi-box">
                     <div>
                         <div class="kpi-title">Long Leave / TLOA</div>
-                        <div class="kpi-val">12</div>
-                        <small class="text-danger">Need attention</small>
+                        <div class="kpi-val text-danger" id="kpi-leave">0</div>
                     </div>
-                    <div class="kpi-icon-box" style="background: rgba(246, 78, 96, 0.1); color: var(--brand-danger);">
-                        <i class="fas fa-bed"></i>
-                    </div>
+                    <div class="kpi-icon-box" style="background: rgba(246, 78, 96, 0.1); color: var(--brand-danger);"><i class="fas fa-bed"></i></div>
                 </div>
             </div>
         </div>
@@ -280,35 +229,23 @@
         <div class="row g-4 mb-4">
             <div class="col-lg-4">
                 <div class="card-pro">
-                    <div class="card-header-pro">
-                        <span>Top 5 Gap Projects (Delta)</span>
-                    </div>
-                    <div class="card-body-pro">
-                        <div id="chart-delta"></div>
-                    </div>
+                    <div class="card-header-pro"><span>Top 5 Gap Projects (Delta)</span></div>
+                    <div class="card-body-pro"><div id="chart-delta"></div></div>
                 </div>
             </div>
-
             <div class="col-lg-4">
                 <div class="card-pro">
-                    <div class="card-header-pro">
-                        <span>Billable Efficiency</span>
-                    </div>
+                    <div class="card-header-pro"><span>Billable Efficiency</span></div>
                     <div class="card-body-pro">
                         <div id="chart-billable"></div>
                         <div class="text-center text-secondary small mt-2">Target: 90% Billability</div>
                     </div>
                 </div>
             </div>
-
             <div class="col-lg-4">
                 <div class="card-pro">
-                    <div class="card-header-pro">
-                        <span>Attrition & Leaves</span>
-                    </div>
-                    <div class="card-body-pro">
-                        <div id="chart-hr"></div>
-                    </div>
+                    <div class="card-header-pro"><span>Attrition & Leaves</span></div>
+                    <div class="card-body-pro"><div id="chart-hr"></div></div>
                 </div>
             </div>
         </div>
@@ -324,23 +261,17 @@
                         <thead>
                             <tr>
                                 <th style="width: 40px"></th>
-                                <th>Week</th>
-                                <th>Geo</th>
-                                <th>Client</th>
-                                <th>Project</th>
+                                <th>Week</th><th>Geo</th><th>Client</th><th>Project</th>
                                 <th class="text-end">Sch HC</th>
                                 <th class="text-end">Act HC</th>
                                 <th class="text-center">Delta</th>
                                 <th class="text-center">Status</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            </tbody>
                     </table>
                 </div>
             </div>
         </div>
-
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -351,193 +282,257 @@
     <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
 
     <script>
+        // Global Instances
+        let trendChart, geoChart, deltaChart, billChart, hrChart, mainTable;
+
+        // Base Configuration for Charts (Sober Theme)
+        const baseChartConfig = {
+            fontFamily: 'Inter',
+            theme: { mode: 'dark' },
+            chart: { background: 'transparent', toolbar: { show: false } },
+            grid: { borderColor: '#2B2B40' },
+            dataLabels: { enabled: false },
+            tooltip: { theme: 'dark' },
+            xaxis: { labels: { style: { colors: '#92929f' } } },
+            yaxis: { labels: { style: { colors: '#92929f' } } },
+            legend: { labels: { colors: '#fff' } }
+        };
+
         $(document).ready(function() {
-
-            // --- 1. Init Filters (Select2) ---
+            // 1. Initialize Components
             $('.select2').select2({ width: '100%', placeholder: 'All...', allowClear: true });
+            
+            initCharts();
+            initTable();
 
-            // --- 2. CHART CONFIGURATIONS ---
+            // 2. Fetch Initial Data
+            refreshDashboard();
 
-            // Chart 1: Area Trend
-            new ApexCharts(document.querySelector("#chart-trend"), {
-                series: [
-                    { name: 'Scheduled', data: [140, 155, 145, 170, 190, 210, 205, 220] }, 
-                    { name: 'Actual', data: [135, 150, 140, 160, 185, 205, 195, 215] }
-                ],
-                chart: { type: 'area', height: 320, toolbar: {show:false}, fontFamily: 'Inter' },
+            // 3. Trigger Refresh on Filter Change
+            $('.select2').on('change', function() {
+                refreshDashboard();
+            });
+        });
+
+        // --- AJAX LOGIC ---
+        function refreshDashboard() {
+            // Collect Filters
+            const filters = {
+                Weeks: $('#f-week').val(),
+                Geos: $('#f-geo').val(),
+                Clients: $('#f-client').val(),
+                Projects: $('#f-project').val(),
+                Programs: $('#f-program').val(),
+                OUs: $('#f-ou').val(),
+                Descriptions: $('#f-desc').val(),
+                ProjectIDs: $('#f-pid').val()
+            };
+
+            // AJAX Call to your MVC API
+            $.ajax({
+                url: '/api/Workforce/GetData', // Your Controller Endpoint
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(filters),
+                success: function(response) {
+                    updateUI(response);
+                },
+                error: function(err) {
+                    console.error("Error fetching data:", err);
+                    // Optional: Show error toast
+                }
+            });
+        }
+
+        function updateUI(data) {
+            // 1. Update KPIs (Handling Case Sensitivity)
+            // Assumes API returns { KPIs: { TotalSch: 100... }, ... }
+            const kpi = data.KPIs || data.kpis; 
+            $('#kpi-sch').text(kpi.TotalSch || kpi.totalSch);
+            $('#kpi-act').text(kpi.TotalAct || kpi.totalAct);
+            $('#kpi-delta').text(kpi.TotalDelta || kpi.totalDelta);
+            // Example of mapping "Leaves" if your API sends it
+            $('#kpi-leave').text(kpi.TotalLeaves || kpi.totalLeaves || 0);
+
+            // 2. Update Charts
+            
+            // Trend
+            const trend = data.TrendChart || data.trendChart;
+            trendChart.updateSeries([
+                { name: 'Scheduled', data: trend.map(x => x.sch) },
+                { name: 'Actual', data: trend.map(x => x.act) }
+            ]);
+            trendChart.updateOptions({ xaxis: { categories: trend.map(x => x.label) }});
+
+            // Geo
+            const geo = data.GeoChart || data.geoChart;
+            geoChart.updateSeries(geo.map(x => x.value));
+            geoChart.updateOptions({ labels: geo.map(x => x.label) });
+
+            // Billable (Radial)
+            const billRate = kpi.BillableRate || kpi.billableRate;
+            billChart.updateSeries([billRate]);
+
+            // Top Deltas (Bar)
+            // Assuming API sends { DeltaChart: [{ label: 'Proj A', value: 10 }...] }
+            if(data.DeltaChart || data.deltaChart) {
+                const dChart = data.DeltaChart || data.deltaChart;
+                deltaChart.updateSeries([{ data: dChart.map(x => x.value) }]);
+                deltaChart.updateOptions({ xaxis: { categories: dChart.map(x => x.label) }});
+            }
+
+            // HR Stacked
+            // Assuming API sends { HRChart: { Attrition: [1,2], Leaves: [3,4], Labels: ['W1','W2'] } }
+            if(data.HRChart || data.hrChart) {
+                const hr = data.HRChart || data.hrChart;
+                hrChart.updateSeries([
+                    { name: 'Attrition', data: hr.Attrition },
+                    { name: 'Long Leave', data: hr.Leaves },
+                    { name: 'TLOA', data: hr.TLOA }
+                ]);
+                hrChart.updateOptions({ xaxis: { categories: hr.Labels }});
+            }
+
+            // 3. Update Table
+            const tableRows = data.TableData || data.tableData;
+            mainTable.clear().rows.add(tableRows).draw();
+        }
+
+        // --- INITIALIZATION ---
+        function initCharts() {
+            // 1. Trend
+            trendChart = new ApexCharts(document.querySelector("#chart-trend"), {
+                ...baseChartConfig,
+                series: [], // Starts empty
+                chart: { type: 'area', height: 320, toolbar:{show:false}, background: 'transparent' },
                 colors: ['#3699FF', '#0BB783'],
                 fill: { type: 'gradient', gradient: { opacityFrom: 0.6, opacityTo: 0.1 } },
-                stroke: { width: 2, curve: 'smooth' },
-                dataLabels: { enabled: false },
-                grid: { borderColor: '#2B2B40' },
-                xaxis: { 
-                    categories: ['Wk1', 'Wk2', 'Wk3', 'Wk4', 'Wk5', 'Wk6', 'Wk7', 'Wk8'],
-                    labels: { style: { colors: '#92929f' } } 
-                },
-                yaxis: { labels: { style: { colors: '#92929f' } } },
-                tooltip: { theme: 'dark' },
-                legend: { labels: { colors: '#fff' } }
-            }).render();
+                stroke: { width: 2, curve: 'smooth' }
+            });
+            trendChart.render();
 
-            // Chart 2: Geo Donut
-            new ApexCharts(document.querySelector("#chart-geo"), {
-                series: [44, 35, 15, 6],
-                labels: ['BGR01', 'IND05', 'USA01', 'OTHERS'],
-                chart: { type: 'donut', height: 280, fontFamily: 'Inter' },
+            // 2. Geo
+            geoChart = new ApexCharts(document.querySelector("#chart-geo"), {
+                ...baseChartConfig,
+                series: [],
+                labels: [],
+                chart: { type: 'donut', height: 280, background: 'transparent' },
                 colors: ['#3699FF', '#8950FC', '#0BB783', '#FFA800'],
                 stroke: { width: 0 },
                 plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, color: '#fff' } } } } },
-                dataLabels: { enabled: false },
-                legend: { position: 'bottom', labels: { colors: '#92929f' } }
-            }).render();
+                legend: { position: 'bottom' }
+            });
+            geoChart.render();
 
-            // Chart 3: Top Delta (Bar)
-            new ApexCharts(document.querySelector("#chart-delta"), {
-                series: [{ name: 'Delta Variance', data: [12, 10, 8, 5, 3] }],
-                chart: { type: 'bar', height: 250, toolbar: {show:false}, fontFamily: 'Inter' },
+            // 3. Delta Bar
+            deltaChart = new ApexCharts(document.querySelector("#chart-delta"), {
+                ...baseChartConfig,
+                series: [],
+                chart: { type: 'bar', height: 250, background: 'transparent' },
                 plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '50%' } },
                 colors: ['#F64E60'],
-                xaxis: { categories: ['Project A', 'Project B', 'Project C', 'Project D', 'Project E'], labels: { style: { colors: '#92929f' } } },
-                yaxis: { labels: { style: { colors: '#fff' } } },
-                grid: { borderColor: '#2B2B40', xaxis: { lines: { show: true } } },
-                tooltip: { theme: 'dark' }
-            }).render();
+                xaxis: { categories: [], labels: { style: { colors: '#92929f' } } }
+            });
+            deltaChart.render();
 
-            // Chart 4: Billable (Radial)
-            new ApexCharts(document.querySelector("#chart-billable"), {
-                series: [92],
-                chart: { type: 'radialBar', height: 250, fontFamily: 'Inter' },
+            // 4. Billable Radial
+            billChart = new ApexCharts(document.querySelector("#chart-billable"), {
+                ...baseChartConfig,
+                series: [0],
+                chart: { type: 'radialBar', height: 250, background: 'transparent' },
                 plotOptions: {
                     radialBar: {
                         hollow: { size: '70%' },
+                        track: { background: '#2B2B40' },
                         dataLabels: {
                             name: { show: false },
-                            value: { color: '#fff', fontSize: '24px', show: true, formatter: function (val) { return val + "%"; } }
-                        },
-                        track: { background: '#2B2B40' }
+                            value: { color: '#fff', fontSize: '24px', show: true, formatter: val => val + "%" }
+                        }
                     }
                 },
                 colors: ['#0BB783'],
                 stroke: { lineCap: 'round' }
-            }).render();
+            });
+            billChart.render();
 
-            // Chart 5: HR Metrics (Stacked)
-            new ApexCharts(document.querySelector("#chart-hr"), {
-                series: [
-                    { name: 'Attrition', data: [2, 3, 1, 4] },
-                    { name: 'Long Leave', data: [1, 0, 2, 1] },
-                    { name: 'TLOA', data: [0, 1, 0, 1] }
-                ],
-                chart: { type: 'bar', height: 250, stacked: true, toolbar: {show:false}, fontFamily: 'Inter' },
+            // 5. HR Stacked
+            hrChart = new ApexCharts(document.querySelector("#chart-hr"), {
+                ...baseChartConfig,
+                series: [],
+                chart: { type: 'bar', height: 250, stacked: true, background: 'transparent' },
                 colors: ['#F64E60', '#FFA800', '#8950FC'],
-                plotOptions: { bar: { columnWidth: '40%' } },
-                xaxis: { categories: ['Wk5', 'Wk6', 'Wk7', 'Wk8'], labels: { style: { colors: '#92929f' } } },
-                yaxis: { labels: { style: { colors: '#92929f' } } },
-                grid: { borderColor: '#2B2B40' },
-                legend: { show: false }, // Hiding legend to save space
-                tooltip: { theme: 'dark' }
-            }).render();
+                plotOptions: { bar: { columnWidth: '40%' } }
+            });
+            hrChart.render();
+        }
 
-            // --- 3. DATA TABLE CONFIG ---
-            // Mock Data reflecting your columns
-            const tableData = [
-                { id:1, week:'12/29', geo:'BGR01', client:'Client M', proj:'M - Bulgaria', sch:55, act:53, delta:2, prog:'M Program', desc:'Sofia - BC', bill:'Yes' },
-                { id:2, week:'12/29', geo:'BG03', client:'Client A', proj:'Language Supp', sch:7, act:7, delta:0, prog:'A EU Support', desc:'Burgas-DM', bill:'No' },
-                { id:3, week:'12/29', geo:'BG07', client:'Client A', proj:'A.de Sofia', sch:120, act:119, delta:1, prog:'A.de Prog', desc:'Sofia - BC', bill:'Yes' },
-                { id:4, week:'12/29', geo:'USA01', client:'Client X', proj:'DevOps', sch:20, act:15, delta:5, prog:'Infra', desc:'NY-Tech', bill:'Yes' },
-                { id:5, week:'12/29', geo:'IND05', client:'Client Z', proj:'Migration', sch:40, act:40, delta:0, prog:'Cloud', desc:'BLR-SEZ', bill:'Yes' },
-            ];
-
-            const table = $('#mainTable').DataTable({
-                data: tableData,
+        function initTable() {
+            mainTable = $('#mainTable').DataTable({
+                data: [], // Starts empty
                 pageLength: 5,
-                dom: 'rtip', // Clean layout
+                dom: 'rtip',
                 columns: [
                     {
-                        // CHANGED: Removed 'dt-control' to stop the double icon.
-                        // Used 'custom-drill' instead.
+                        // Fixed Double Icon Issue: Using custom-drill
                         className: 'custom-drill text-center',
-                        data: null,
-                        orderable: false,
-                        // Only your specific icon will show now
+                        data: null, orderable: false,
                         defaultContent: '<i class="fas fa-plus-circle text-primary" style="cursor:pointer; font-size: 1.1rem;"></i>'
                     },
-                    { data: 'week' },
-                    { data: 'geo' },
-                    { data: 'client' },
-                    { data: 'proj' },
-                    { data: 'sch', className: 'text-end' },
-                    { data: 'act', className: 'text-end' },
+                    { data: 'Week' },
+                    { data: 'Geo' },
+                    { data: 'Client' },
+                    { data: 'Project' },
+                    { data: 'SchHC', className: 'text-end' },
+                    { data: 'ActSchHC', className: 'text-end' },
                     {
-                        data: 'delta',
-                        className: 'text-center',
+                        data: 'Delta', className: 'text-center',
                         render: function (d) {
-                            return d > 0
-                                ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">${d}</span>`
-                                : `<span class="text-muted">-</span>`;
+                            return d > 0 
+                            ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">${d}</span>` 
+                            : `<span class="text-muted">-</span>`;
                         }
                     },
                     {
-                        data: 'delta',
-                        className: 'text-center',
+                        data: 'Delta', className: 'text-center',
                         render: function (d) {
-                            return d === 0
-                                ? '<span class="badge bg-success bg-opacity-10 text-success">On Track</span>'
-                                : '<span class="badge bg-warning bg-opacity-10 text-warning">Review</span>';
+                            return d === 0 
+                            ? '<span class="badge bg-success bg-opacity-10 text-success">On Track</span>' 
+                            : '<span class="badge bg-warning bg-opacity-10 text-warning">Review</span>';
                         }
                     }
                 ]
-
             });
 
             // Drilldown Interaction
             $('#mainTable tbody').on('click', 'td.custom-drill', function () {
                 var tr = $(this).closest('tr');
-                var row = table.row(tr);
+                var row = mainTable.row(tr);
                 var icon = $(this).find('i');
 
                 if (row.child.isShown()) {
-                    // This row is already open - close it
                     row.child.hide();
                     tr.removeClass('shown');
-                    // Toggle Icon back to Plus
                     icon.removeClass('fa-minus-circle').addClass('fa-plus-circle');
                 } else {
-                    // Open this row
                     var d = row.data();
-
-                    // Detailed Card Design
+                    // Sober Design for Drilldown
                     var content = `
                     <div class="drilldown-container">
                         <div class="row">
-                            <div class="col-md-3">
-                                <span class="drill-label">Program</span>
-                                <div class="drill-val text-white">${d.prog}</div>
+                            <div class="col-md-3"><span class="drill-label">Program</span><div class="drill-val">${d.Program}</div></div>
+                            <div class="col-md-3"><span class="drill-label">OU Desc</span><div class="drill-val">${d.OUDescription}</div></div>
+                            <div class="col-md-3"><span class="drill-label">Billable</span>
+                                <div class="drill-val">${d.BillableStatus === 'Yes' ? '<span class="text-success">Billable</span>' : '<span class="text-secondary">Non-Billable</span>'}</div>
                             </div>
-                            <div class="col-md-3">
-                                <span class="drill-label">OU Description</span>
-                                <div class="drill-val text-white">${d.desc}</div>
-                            </div>
-                            <div class="col-md-3">
-                                <span class="drill-label">Billable Status</span>
-                                <div class="drill-val text-white">
-                                    ${d.bill === 'Yes' ? '<i class="fas fa-check text-success"></i> Billable' : '<i class="fas fa-times text-muted"></i> Non-Billable'}
-                                </div>
-                            </div>
-                            <div class="col-md-3 text-end align-self-center">
-                                <button class="btn btn-sm btn-outline-primary">View Full Roster</button>
-                            </div>
+                            <div class="col-md-3 text-end"><button class="btn btn-sm btn-outline-primary">Details</button></div>
                         </div>
                     </div>`;
-
                     row.child(content).show();
                     tr.addClass('shown');
-                    // Toggle Icon to Minus
                     icon.removeClass('fa-plus-circle').addClass('fa-minus-circle');
                 }
             });
-
-        });
+        }
     </script>
 </body>
 </html>
