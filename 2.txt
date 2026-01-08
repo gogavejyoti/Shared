@@ -1,41 +1,62 @@
-        [HttpPost]
-        public async Task<JsonResult> GetData([FromBody] HcReconFilter filters)
+[HttpPost]
+public async Task<JsonResult> GetData([FromBody] HcReconFilter filters)
+{
+    var data = await _hcReconService.GetDataAsync(filters);
+    
+    // 1. Apply Filtering
+    var filtered = data.Where(x =>
+        (filters.Weeks == null || !filters.Weeks.Any() || filters.Weeks.Contains(x.Week)) &&
+        (filters.Geos == null || !filters.Geos.Any() || filters.Geos.Contains(x.Geo)) &&
+        (filters.Clients == null || !filters.Clients.Any() || filters.Clients.Contains(x.Client)) &&
+        (filters.Projects == null || !filters.Projects.Any() || filters.Projects.Contains(x.Project))
+    ).ToList();
+
+    // 2. Prepare Response
+    var response = new
+    {
+        KPIs = new
         {
-          var data = await _hcReconService.GetDataAsync(filters);
-          var filtered = data.Where(x =>
-          (filters.Weeks == null || !filters.Weeks.Any() || filters.Weeks.Contains(x.Week)) &&
-          (filters.Geos == null || !filters.Geos.Any() || filters.Geos.Contains(x.Geo))
-          ).ToList();
+            TotalSch = filtered.Sum(x => x.SchHC),
+            TotalAct = filtered.Sum(x => x.ActSchHC),
+            TotalDelta = filtered.Sum(x => x.Delta),
+            TotalLeaves = filtered.Count(x => x.Status == "Long Leave" || x.Status == "TLOA"),
+            // This powers the "Billable Efficiency" Radial Chart
+            BillableRate = filtered.Sum(x => x.ActSchHC) > 0
+                ? Math.Round((double)filtered.Where(x => x.BillableStatus == "Yes").Sum(x => x.ActSchHC) / filtered.Sum(x => x.ActSchHC) * 100, 1)
+                : 0
+        },
 
-            var response = new
-            {
-                // Ensure these match the keys used in: data.KPIs.TotalSch, etc.
-                KPIs = new
-                {
-                    TotalSch = filtered.Sum(x => x.SchHC),
-                    TotalAct = filtered.Sum(x => x.ActSchHC),
-                    TotalDelta = filtered.Sum(x => x.Delta),
-                    // Fix: Calculate as a percentage rounded to 1 decimal
-                    BillableRate = filtered.Count > 0
-              ? Math.Round((double)filtered.Count(x => x.BillableStatus == "Yes") / filtered.Count * 100, 1)
-              : 0
-                },
-                // The Frontend JS looks for 'TableData' (PascalCase) based on my previous script
-                TableData = filtered,
+        TableData = filtered,
 
-                TrendChart = filtered.GroupBy(x => x.Week).Select(g => new {
-                    label = g.Key,
-                    sch = g.Sum(s => s.SchHC),
-                    act = g.Sum(a => a.ActSchHC)
-                }).OrderBy(x => x.label).ToList(),
+        TrendChart = filtered.GroupBy(x => x.Week).Select(g => new {
+            label = g.Key,
+            sch = g.Sum(s => s.SchHC),
+            act = g.Sum(a => a.ActSchHC)
+        }).OrderBy(x => x.label).ToList(),
 
-                GeoChart = filtered.GroupBy(x => x.Geo).Select(g => new {
-                    label = g.Key,
-                    value = g.Sum(s => s.ActSchHC)
-                }).ToList(),
+        GeoChart = filtered.GroupBy(x => x.Geo).Select(g => new {
+            label = g.Key,
+            value = g.Sum(s => s.ActSchHC)
+        }).ToList(),
 
+        // NEW: Project Delta Chart (Top 5 projects with highest gaps)
+        DeltaChart = filtered.GroupBy(x => x.Project)
+            .Select(g => new {
+                label = g.Key,
+                value = g.Sum(s => s.Delta)
+            })
+            .Where(x => x.value > 0)
+            .OrderByDescending(x => x.value)
+            .Take(5).ToList(),
 
+        // NEW: HR Chart (Attrition & Leaves stacked bar)
+        HrChart = filtered.GroupBy(x => x.Week).Select(g => new {
+            label = g.Key,
+            attrition = g.Count(x => x.Status == "Resigned"),
+            leaves = g.Count(x => x.Status == "Long Leave"),
+            tloa = g.Count(x => x.Status == "TLOA")
+        }).OrderBy(x => x.label).ToList()
+    };
 
-            };
-            return Json(response);
-        }
+    return Json(response);
+}
