@@ -65,7 +65,6 @@ getcellrange: function (e, n) {
     cols[0] = cl(l[0].replace(/[^A-Za-z]/g, ""));
     cols[1] = cl(l[1].replace(/[^A-Za-z]/g, ""));
 
-    // ✅ FIX: column-only range like C:D
     const isColumnOnly =
         isNaN(rows[0]) &&
         isNaN(rows[1]) &&
@@ -90,9 +89,16 @@ getcellrange: function (e, n) {
 
         rows[0] = firstUsedRow;
         rows[1] = lastUsedRow;
+
+        // ❗ IMPORTANT: do NOT cache column-only ranges
+        return {
+            row: rows,
+            column: cols,
+            sheetIndex: a
+        };
     }
 
-    // ---------- fallback to original behavior ----------
+    // ---------- fallback (original behavior) ----------
     if (isNaN(rows[0])) rows[0] = 0;
     if (isNaN(rows[1]) && o) rows[1] = o.length - 1;
 
