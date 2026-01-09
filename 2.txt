@@ -1,46 +1,18 @@
-EOMONTH: function () {
-    if (arguments.length < this.m[0] || arguments.length > this.m[1]) {
-        return p.error.na;
-    }
-
-    for (var i = 0; i < arguments.length; i++) {
-        var chk = p.errorParamCheck(this.p, arguments[i], i);
-        if (!chk[0]) return p.error.v;
-    }
-
-    try {
-        // Get Excel serial date
-        var base = M.getCellDate(arguments[0]);
-        if (H(base)) return base;
-
-        var months = M.getFirstValue(arguments[1]);
-        if (H(months)) return months;
-        if (!B(months)) return p.error.v;
-
-        months = parseInt(months, 10);
-
-        // ---- Excel serial → JS Date (UTC-safe) ----
-        var EXCEL_EPOCH = Date.UTC(1899, 11, 30);
-        var baseMs = EXCEL_EPOCH + base * 86400000;
-        var d = new Date(baseMs);
-
-        if (isNaN(d.getTime())) return p.error.v;
-
-        // ---- Calculate End Of Month ----
-        var y = d.getUTCFullYear();
-        var m = d.getUTCMonth();
-
-        // Move to first day of (target month + 1)
-        var eom = new Date(Date.UTC(y, m + months + 1, 0));
-
-        // ---- JS Date → Excel serial ----
-        var result =
-            (eom.getTime() - EXCEL_EPOCH) / 86400000;
-
-        return result;
-
-    } catch (err) {
-        var info = p.errorInfo(err);
-        return [p.error.v, info];
-    }
-}
+ getCellDate: function (e) {
+                    let n = this, t;
+                    if (L(e) == "array")
+                        if (L(e[0]) == "array") {
+                            if (!n.isDyadicArr(e))
+                                return xn.v;
+                            t = e[0][0]
+                        } else
+                            t = e[0];
+                    else if (L(e) == "object" && e.startCell != null) {
+                        if (e.data == null || L(e.data) == "array" || fe(e.data.v))
+                            return xn.v;
+                        t = e.data.v,
+                            e.data.ct != null && e.data.ct.t == "d" && (t = mt("YYYY-MM-DD h:mm:ss", t))
+                    } else
+                        t = e;
+                    return t
+                },
