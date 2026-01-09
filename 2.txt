@@ -52,6 +52,9 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
+    // 🔥 KEY FIX: any edit invalidates lookup tables (Excel behavior)
+    const forceLookupInvalidate = (e != null && n != null);
+
     const nodes = {};
     const rangeToKeysCache = {};
 
@@ -141,11 +144,8 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         for (const rect of node.formulaArray || []) {
 
             if (rect.__lazy__) {
-                // LAZY RANGE INVALIDATION TRIGGER (fixes B → C replace)
-                const lazyKey =
-                    `lazy_${rect.sheetIndex}_${rect.row[0]}_${rect.row[1]}_${rect.column[0]}_${rect.column[1]}`;
-
-                if (execSet[lazyKey]) {
+                // ✅ FINAL FIX: invalidate lookup tables on ANY edit
+                if (forceLookupInvalidate && rect.sheetIndex === l) {
                     y.push(node);
                 }
                 continue;
