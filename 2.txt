@@ -1,1 +1,252 @@
-=Vlookup(G4,E:F,2,0)
+execFunctionGroup: function (e, n, t, l, a, o = !1) {
+    if (o) return;
+    const s = this;
+
+    /* ================= INIT ================= */
+
+    if (a == null) a = h.flowdata;
+    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    if (l == null) l = h.currentSheetIndex;
+
+    if (t != null) {
+        const tmp = [[{ v: null }]];
+        At(0, 0, tmp, t);
+        s.execFunctionGlobalData[`${e}_${n}_${l}`] = tmp[0][0];
+    }
+
+    if (typeof _shiftCrossSheetReference === "function") {
+        _shiftCrossSheetReference({ type: "recalc", sheetIndex: l });
+    }
+
+    /* ================= GET FORMULAS ================= */
+
+    let allFuncCells = [];
+    let sheetIndices = null;
+
+    if (e != null && n != null) {
+        const cacheKey =
+            window.luckysheet_getcelldata_cache &&
+            Object.keys(window.luckysheet_getcelldata_cache).join("+");
+        sheetIndices = s.getAllDependentSheetsFromSheet(l, cacheKey || null);
+        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+    } else {
+        allFuncCells = s.getAllFunctionGroup() || [];
+    }
+
+    /* ================= EXEC SEED ================= */
+
+    const execSet = {};
+    if (s.execFunctionExist == null) {
+        execSet[`r${e}c${n}i${l}`] = 1;
+    } else {
+        for (const T of s.execFunctionExist) {
+            execSet[`r${T.r}c${T.c}i${T.i}`] = 1;
+        }
+    }
+
+    /* ================= HELPERS (INLINE) ================= */
+
+    const nodes = {};
+    const rangeCache = {};
+
+    function keysForRange(R) {
+        const k = `${R.sheetIndex}:${R.row[0]}:${R.row[1]}:${R.column[0]}:${R.column[1]}`;
+        if (rangeCache[k]) return rangeCache[k];
+
+        const out = [];
+        for (let r = R.row[0]; r <= R.row[1]; r++) {
+            for (let c = R.column[0]; c <= R.column[1]; c++) {
+                out.push({ key: `r${r}c${c}i${R.sheetIndex}`, r, c });
+            }
+        }
+        rangeCache[k] = out;
+        return out;
+    }
+
+    function extractFirstArgument(formula) {
+        const start = formula.indexOf("(");
+        if (start === -1) return null;
+
+        let depth = 0;
+        for (let i = start + 1; i < formula.length; i++) {
+            const ch = formula[i];
+            if (ch === "(") depth++;
+            else if (ch === ")") {
+                if (depth === 0) return formula.slice(start + 1, i).trim();
+                depth--;
+            } else if (ch === "," && depth === 0) {
+                return formula.slice(start + 1, i).trim();
+            }
+        }
+        return null;
+    }
+
+    /* ================= BUILD NODES ================= */
+
+    for (const T of allFuncCells) {
+        const nodeKey = `r${T.r}c${T.c}i${T.index}`;
+
+        const formula =
+            zl(T.r, T.c, T.index) ||
+            ve.getSheetByIndex(T.index)?.celldata
+                ?.find(x => x?.r === T.r && x?.c === T.c)?.v?.f;
+
+        if (!formula) continue;
+
+        const upper = formula.toUpperCase();
+
+        const isLookup =
+            upper.includes("VLOOKUP(") ||
+            upper.includes("HLOOKUP(") ||
+            upper.includes("XLOOKUP(");
+
+        const isDynamic =
+            upper.includes("INDIRECT(") ||
+            upper.includes("OFFSET(") ||
+            upper.includes("INDEX(");
+
+        const ranges = [];
+
+        /* ---- HARD dependency: lookup key ---- */
+        if (isLookup) {
+            const firstArg = extractFirstArgument(formula);
+            if (firstArg) {
+                const tokens = firstArg
+                    .split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/)
+                    .filter(Boolean);
+
+                for (const tk of tokens) {
+                    const rg = s.getcellrange(tk.trim(), T.index);
+                    if (rg) ranges.push(rg);
+                }
+            }
+        }
+
+        /* ---- RANGES ---- */
+        if (isDynamic || isLookup) {
+            s.isFunctionRange(formula, null, null, T.index, null, function (ref) {
+                const rg = s.getcellrange(ref.trim(), T.index);
+                if (!rg) return;
+
+                if (isLookup) {
+                    ranges.push({ ...rg, __lazy__: true }); // critical
+                } else {
+                    ranges.push(rg);
+                }
+            });
+        } else {
+            const tokens = formula
+                .split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/)
+                .filter(Boolean);
+
+            for (const tk of tokens) {
+                const rg = s.getcellrange(tk.trim(), T.index);
+                if (rg) ranges.push(rg);
+            }
+        }
+
+        nodes[nodeKey] = {
+            key: nodeKey,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            calc_funcStr: formula,
+            formulaArray: ranges,
+            parents: {},
+            chidren: {},
+            color: "w"
+        };
+    }
+
+    /* ================= BUILD GRAPH ================= */
+
+    const y = [];
+
+    for (const node of Object.values(nodes)) {
+        for (const rect of node.formulaArray) {
+            if (rect.__lazy__) {
+                const lazyKey =
+                    `lazy_${rect.sheetIndex}_${rect.row[0]}_${rect.row[1]}_${rect.column[0]}_${rect.column[1]}`;
+                node.parents[lazyKey] = 1;
+                continue;
+            }
+
+            for (const k of keysForRange(rect)) {
+                if (nodes[k.key]) {
+                    node.chidren[k.key] = 1;
+                    nodes[k.key].parents[node.key] = 1;
+                }
+                if (!o && execSet[k.key]) y.push(node);
+            }
+        }
+        if (o) y.push(node);
+    }
+
+    /* ================= TOPO SORT ================= */
+
+    const visited = {};
+    const stack = y.slice();
+    const ordered = [];
+
+    while (stack.length) {
+        const cur = stack.pop();
+        if (!cur || visited[cur.key]) continue;
+
+        if (cur.color === "b") {
+            visited[cur.key] = 1;
+            ordered.push(cur);
+            continue;
+        }
+
+        const parents = Object.keys(cur.parents)
+            .map(k => nodes[k])
+            .filter(Boolean);
+
+        if (!parents.length) {
+            visited[cur.key] = 1;
+            ordered.push(cur);
+        } else {
+            cur.color = "b";
+            stack.push(cur);
+            for (const p of parents) stack.push(p);
+        }
+    }
+
+    ordered.reverse();
+
+    /* ================= EXECUTION ================= */
+
+    const indexMap = new Map(ordered.map((n, i) => [n.key, i]));
+    const reexec = new Set();
+
+    for (let i = 0; i < ordered.length; i++) {
+        const T = ordered[i];
+        window.luckysheet_getcelldata_cache = null;
+
+        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+
+        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
+            v: Rres[1],
+            f: Rres[2]
+        };
+
+        s.groupValuesRefreshData.push({
+            r: T.r,
+            c: T.c,
+            v: Rres[1],
+            f: Rres[2],
+            spe: Rres[3],
+            index: T.index
+        });
+
+        for (const pk of Object.keys(T.parents)) {
+            const pi = indexMap.get(pk);
+            if (pi != null && pi < i && !reexec.has(pk)) {
+                reexec.add(pk);
+                ordered.push(ordered[pi]);
+            }
+        }
+    }
+
+    s.execFunctionExist = null;
+}
