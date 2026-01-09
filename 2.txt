@@ -1,118 +1,99 @@
 getcellrange: function (e, n) {
-    if (e == null || e.length === 0) return;
+    if (!e) return;
 
-    let t = "",
-        l = "",
-        a = null,
-        o = null,
-        s = Ft();
+    let t = "", l = "", a = null, o = null;
+    const sheets = Ft();
 
+    // ---------- sheet resolve ----------
     if (e.indexOf("!") > -1) {
-        if (e in this.cellTextToIndexList) return this.cellTextToIndexList[e];
+        if (this.cellTextToIndexList[e]) return this.cellTextToIndexList[e];
 
-        let u = e.split("!");
-        t = u[0];
-        l = u[1];
-        t = t.replace(/\\'/g, "'").replace(/''/g, "'");
+        const sp = e.split("!");
+        t = sp[0].replace(/\\'/g, "'").replace(/''/g, "'");
+        l = sp[1];
+
         if (t[0] === "'" && t[t.length - 1] === "'") {
             t = t.substring(1, t.length - 1);
         }
 
-        for (let d in s) {
-            if (t === s[d].name) {
-                a = s[d].index;
-                o = s[d].data;
+        for (let i = 0; i < sheets.length; i++) {
+            if (sheets[i].name === t) {
+                a = sheets[i].index;
+                o = sheets[i].data;
                 break;
             }
         }
     } else {
-        let u = n;
-        if (u == null) u = h.currentSheetIndex;
+        if (n == null) n = h.currentSheetIndex;
+        if (this.cellTextToIndexList[e + "_" + n])
+            return this.cellTextToIndexList[e + "_" + n];
 
-        if (e + "_" + u in this.cellTextToIndexList) {
-            return this.cellTextToIndexList[e + "_" + u];
-        }
-
-        let d = K(u);
-        t = s[d].name;
-        a = s[d].index;
+        const si = K(n);
+        t = sheets[si].name;
+        a = sheets[si].index;
         o = h.flowdata;
         l = e;
     }
 
-    // ---------- Single cell ----------
+    // ---------- single cell ----------
     if (l.indexOf(":") === -1) {
-        let r = parseInt(l.replace(/[^0-9]/g, "")) - 1;
-        let c = cl(l.replace(/[^A-Za-z]/g, ""));
+        const r = parseInt(l.replace(/[^0-9]/g, "")) - 1;
+        const c = cl(l.replace(/[^A-Za-z]/g, ""));
 
         if (!isNaN(r) && !isNaN(c)) {
-            let f = { row: [r, r], column: [c, c], sheetIndex: a };
+            const f = { row: [r, r], column: [c, c], sheetIndex: a };
             this.addToCellIndexList(e, f);
             return f;
         }
         return null;
     }
 
-    // ---------- Range ----------
-    l = l.split(":");
+    // ---------- range ----------
+    const parts = l.split(":");
 
-    let rows = [];
-    let cols = [];
-
-    rows[0] = parseInt(l[0].replace(/[^0-9]/g, "")) - 1;
-    rows[1] = parseInt(l[1].replace(/[^0-9]/g, "")) - 1;
-
-    cols[0] = cl(l[0].replace(/[^A-Za-z]/g, ""));
-    cols[1] = cl(l[1].replace(/[^A-Za-z]/g, ""));
+    let r1 = parseInt(parts[0].replace(/[^0-9]/g, "")) - 1;
+    let r2 = parseInt(parts[1].replace(/[^0-9]/g, "")) - 1;
+    let c1 = cl(parts[0].replace(/[^A-Za-z]/g, ""));
+    let c2 = cl(parts[1].replace(/[^A-Za-z]/g, ""));
 
     const isColumnOnly =
-        isNaN(rows[0]) &&
-        isNaN(rows[1]) &&
-        !isNaN(cols[0]) &&
-        !isNaN(cols[1]);
+        isNaN(r1) && isNaN(r2) &&
+        !isNaN(c1) && !isNaN(c2);
 
+    // ✅ COLUMN-ONLY RANGE (C:D)
     if (isColumnOnly && o) {
-        let firstUsedRow = null;
-        let lastUsedRow = null;
+        let firstUsed = null;
+        let lastUsed = null;
 
         for (let r = 0; r < o.length; r++) {
-            for (let c = cols[0]; c <= cols[1]; c++) {
-                const cell = o[r] && o[r][c];
+            for (let c = c1; c <= c2; c++) {
+                const cell = o[r]?.[c];
                 if (cell && cell.v !== null && cell.v !== "") {
-                    if (firstUsedRow === null) firstUsedRow = r;
-                    lastUsedRow = r;
+                    if (firstUsed === null) firstUsed = r;
+                    lastUsed = r;
                 }
             }
         }
 
-        if (firstUsedRow === null) return null;
+        if (firstUsed === null) return null;
 
-        rows[0] = firstUsedRow;
-        rows[1] = lastUsedRow;
-
-        // ❗ IMPORTANT: do NOT cache column-only ranges
+        // ❗ DO NOT CACHE → dynamic range
         return {
-            row: rows,
-            column: cols,
+            row: [firstUsed, lastUsed],
+            column: [c1, c2],
             sheetIndex: a
         };
     }
 
-    // ---------- fallback (original behavior) ----------
-    if (isNaN(rows[0])) rows[0] = 0;
-    if (isNaN(rows[1]) && o) rows[1] = o.length - 1;
+    // ---------- fallback (unchanged behavior) ----------
+    if (isNaN(r1)) r1 = 0;
+    if (isNaN(r2) && o) r2 = o.length - 1;
+    if (isNaN(c1)) c1 = 0;
+    if (isNaN(c2) && o && o[0]) c2 = o[0].length - 1;
 
-    if (isNaN(cols[0])) cols[0] = 0;
-    if (isNaN(cols[1]) && o && o[0]) cols[1] = o[0].length - 1;
+    if (r1 > r2 || c1 > c2) return null;
 
-    if (rows[0] > rows[1] || cols[0] > cols[1]) return null;
-
-    let f = {
-        row: rows,
-        column: cols,
-        sheetIndex: a
-    };
-
+    const f = { row: [r1, r2], column: [c1, c2], sheetIndex: a };
     this.addToCellIndexList(e, f);
     return f;
 }
