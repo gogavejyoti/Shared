@@ -1,37 +1,46 @@
-   EOMONTH: function () {
-                if (arguments.length < this.m[0] || arguments.length > this.m[1])
-                    return p.error.na;
-                for (var e = 0; e < arguments.length; e++) {
-                    var n = p.errorParamCheck(this.p, arguments[e], e);
-                    if (!n[0])
-                        return p.error.v
-                }
-                try {
-                    var t = M.getCellDate(arguments[0]);
-                    if (H(t))
-                        return t;
-                    var l = M.getFirstValue(arguments[1]);
-                    if (H(l))
-                        return l;
-                    if (!B(l))
-                        return p.error.v;
-                    if (l = parseInt(l),
-                        !(0,
-                            j.default)(t).isValid())
-                        return p.error.v;
-                    var a = (0,
-                        j.default)(t).add(l + 1, "months").set("date", 1).subtract(1, "days")
-                        , o = it((0,
-                            j.default)(a).format("YYYY-MM-DD H:mm:ss"))
-                        , s = o[2];
-                    return s
-                } catch (d) {
-                    var u = d;
-                    return u = p.errorInfo(u),
-                        [p.error.v, u]
-                }
-            },
+EOMONTH: function () {
+    if (arguments.length < this.m[0] || arguments.length > this.m[1]) {
+        return p.error.na;
+    }
 
-S39 = 46054
-=EOMONTH(S39,0)+1 result is 
-25600.2297
+    for (var i = 0; i < arguments.length; i++) {
+        var chk = p.errorParamCheck(this.p, arguments[i], i);
+        if (!chk[0]) return p.error.v;
+    }
+
+    try {
+        // Get Excel serial date
+        var base = M.getCellDate(arguments[0]);
+        if (H(base)) return base;
+
+        var months = M.getFirstValue(arguments[1]);
+        if (H(months)) return months;
+        if (!B(months)) return p.error.v;
+
+        months = parseInt(months, 10);
+
+        // ---- Excel serial → JS Date (UTC-safe) ----
+        var EXCEL_EPOCH = Date.UTC(1899, 11, 30);
+        var baseMs = EXCEL_EPOCH + base * 86400000;
+        var d = new Date(baseMs);
+
+        if (isNaN(d.getTime())) return p.error.v;
+
+        // ---- Calculate End Of Month ----
+        var y = d.getUTCFullYear();
+        var m = d.getUTCMonth();
+
+        // Move to first day of (target month + 1)
+        var eom = new Date(Date.UTC(y, m + months + 1, 0));
+
+        // ---- JS Date → Excel serial ----
+        var result =
+            (eom.getTime() - EXCEL_EPOCH) / 86400000;
+
+        return result;
+
+    } catch (err) {
+        var info = p.errorInfo(err);
+        return [p.error.v, info];
+    }
+}
