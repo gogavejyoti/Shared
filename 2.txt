@@ -32,7 +32,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     let allFuncCells = [];
     let sheetIndices = null;
 
-    if (e && n) {
+    if (e != null && n != null) {
         const formulaOrValue =
             (window.luckysheet_getcelldata_cache &&
                 Object.keys(window.luckysheet_getcelldata_cache).join("+")) ||
@@ -46,13 +46,8 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     const sheetsInfo = Ft() || [];
     const sheetMap = {};
 
-    if (sheetIndices) {
-        for (let i = 0; i < sheetsInfo.length; i++) {
-            if (!sheetIndices.includes(sheetsInfo[i].index)) continue;
-            sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
-        }
-    } else {
-        for (let i = 0; i < sheetsInfo.length; i++) {
+    for (let i = 0; i < sheetsInfo.length; i++) {
+        if (!sheetIndices || sheetIndices.includes(sheetsInfo[i].index)) {
             sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
         }
     }
@@ -61,8 +56,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     if (s.execFunctionExist == null) {
         execSet["r" + e + "c" + n + "i" + l] = 1;
     } else {
-        for (let i = 0; i < s.execFunctionExist.length; i++) {
-            const T = s.execFunctionExist[i];
+        for (const T of s.execFunctionExist) {
             execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
         }
     }
@@ -90,90 +84,88 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         return list;
     }
 
+    function extractLookupKey(formula) {
+        const m = formula.match(/(?:VLOOKUP|HLOOKUP|XLOOKUP)\s*\(\s*([^,]+)/i);
+        return m ? m[1].trim() : null;
+    }
+
     /* ================= BUILD NODES ================= */
 
-    for (let i = 0; i < allFuncCells.length; i++) {
-        const T = allFuncCells[i];
+    for (const T of allFuncCells) {
         const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
 
         const R =
             zl(T.r, T.c, T.index) ||
-            ve
-                .getSheetByIndex(T.index)
-                ?.celldata?.find(x => x?.r === T.r && x?.c === T.c)?.v.f;
+            ve.getSheetByIndex(T.index)?.celldata
+                ?.find(x => x?.r === T.r && x?.c === T.c)?.v?.f;
 
         if (!R) continue;
 
         const upper = R.toUpperCase();
 
-        const needsFunctionRange =
-            upper.indexOf("INDIRECT(") > -1 ||
-            upper.indexOf("OFFSET(") > -1 ||
-            upper.indexOf("INDEX(") > -1;
+        const isLookup =
+            upper.includes("VLOOKUP(") ||
+            upper.includes("HLOOKUP(") ||
+            upper.includes("XLOOKUP(");
 
-        // ✅ NEW: lookup detection
-        const isLookupFunction =
-            upper.indexOf("VLOOKUP(") > -1 ||
-            upper.indexOf("HLOOKUP(") > -1 ||
-            upper.indexOf("XLOOKUP(") > -1;
+        const needsDynamicRange =
+            upper.includes("INDIRECT(") ||
+            upper.includes("OFFSET(") ||
+            upper.includes("INDEX(");
 
         const formulaRanges = [];
 
-        if (needsFunctionRange || isLookupFunction) {
-            this.isFunctionRange(R, null, null, T.index, null, function (ref) {
+        /* --- Lookup key MUST be hard dependency --- */
+        if (isLookup) {
+            const keyRef = extractLookupKey(R);
+            if (keyRef) {
+                const kr = s.getcellrange(keyRef, T.index);
+                if (kr) formulaRanges.push(kr);
+            }
+        }
+
+        /* --- Ranges --- */
+        if (needsDynamicRange || isLookup) {
+            s.isFunctionRange(R, null, null, T.index, null, function (ref) {
                 const rg = s.getcellrange($.trim(ref), T.index);
                 if (!rg) return;
 
-                if (isLookupFunction) {
-                    // ✅ LAZY dependency (do NOT expand Q:V)
-                    formulaRanges.push({
-                        ...rg,
-                        __lazy__: true
-                    });
+                if (isLookup) {
+                    formulaRanges.push({ ...rg, __lazy__: true });
                 } else {
                     formulaRanges.push(rg);
                 }
             });
-        } else if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
+        } else {
             const tokens = R
                 .split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/)
                 .filter(Boolean);
 
-            for (let ti = 0; ti < tokens.length; ti++) {
-                const tk = tokens[ti].trim();
-                if (!tk) continue;
-                if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+            for (const tk of tokens) {
                 const rg = s.getcellrange($.trim(tk), T.index);
                 if (rg) formulaRanges.push(rg);
             }
         }
 
         nodes[nodeKey] = {
-            formulaArray: formulaRanges,
-            calc_funcStr: R,
             key: nodeKey,
             r: T.r,
             c: T.c,
             index: T.index,
+            calc_funcStr: R,
+            formulaArray: formulaRanges,
             parents: {},
             chidren: {},
             color: "w"
         };
     }
 
-    /* ================= BUILD DEPENDENCIES ================= */
+    /* ================= BUILD DEP GRAPH ================= */
 
     const y = [];
-    const nodeKeys = Object.keys(nodes);
 
-    for (let i = 0; i < nodeKeys.length; i++) {
-        const node = nodes[nodeKeys[i]];
-        const ranges = node.formulaArray || [];
-
-        for (let ri = 0; ri < ranges.length; ri++) {
-            const rect = ranges[ri];
-
-            // ✅ LAZY range → ONE dependency only
+    for (const node of Object.values(nodes)) {
+        for (const rect of node.formulaArray || []) {
             if (rect.__lazy__) {
                 const lazyKey =
                     `lazy_${rect.sheetIndex}_${rect.row[0]}_${rect.row[1]}_${rect.column[0]}_${rect.column[1]}`;
@@ -181,14 +173,12 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
                 continue;
             }
 
-            const keys = keysForRange(rect);
-            for (let ki = 0; ki < keys.length; ki++) {
-                const A = keys[ki].key;
-                if (A in nodes) {
-                    node.chidren[A] = 1;
-                    nodes[A].parents[node.key] = 1;
+            for (const k of keysForRange(rect)) {
+                if (nodes[k.key]) {
+                    node.chidren[k.key] = 1;
+                    nodes[k.key].parents[node.key] = 1;
                 }
-                if (!o && A in execSet) y.push(node);
+                if (!o && execSet[k.key]) y.push(node);
             }
         }
         if (o) y.push(node);
@@ -196,37 +186,29 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     /* ================= TOPO SORT ================= */
 
-    const S = {};
+    const seen = {};
     const stack = y.slice();
     const ordered = [];
 
-    while (stack.length > 0) {
+    while (stack.length) {
         const cur = stack.pop();
-        if (!cur || S[cur.key]) continue;
+        if (!cur || seen[cur.key]) continue;
 
         if (cur.color === "b") {
+            seen[cur.key] = 1;
             ordered.push(cur);
-            S[cur.key] = 1;
             continue;
         }
 
-        const parentKeys = Object.keys(cur.parents || {});
-        const parentNodes = [];
+        const parents = Object.keys(cur.parents).map(k => nodes[k]).filter(Boolean);
 
-        for (let pi = 0; pi < parentKeys.length; pi++) {
-            const pk = parentKeys[pi];
-            if (nodes[pk]) parentNodes.push(nodes[pk]);
-        }
-
-        if (parentNodes.length === 0) {
+        if (!parents.length) {
+            seen[cur.key] = 1;
             ordered.push(cur);
-            S[cur.key] = 1;
         } else {
             cur.color = "b";
             stack.push(cur);
-            for (let p = 0; p < parentNodes.length; p++) {
-                stack.push(parentNodes[p]);
-            }
+            for (const p of parents) stack.push(p);
         }
     }
 
@@ -234,8 +216,8 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     /* ================= EXECUTE ================= */
 
-    const appendedForReexec = new Set();
     const indexMap = new Map(ordered.map((n, i) => [n.key, i]));
+    const appended = new Set();
 
     for (let i = 0; i < ordered.length; i++) {
         const T = ordered[i];
@@ -257,12 +239,11 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             index: T.index
         });
 
-        const parents = Object.keys(T.parents || {});
-        for (const k of parents) {
-            const parentIdx = indexMap.get(k);
-            if (parentIdx != null && parentIdx < i && !appendedForReexec.has(k)) {
-                appendedForReexec.add(k);
-                ordered.push(ordered[parentIdx]);
+        for (const pk of Object.keys(T.parents)) {
+            const pi = indexMap.get(pk);
+            if (pi != null && pi < i && !appended.has(pk)) {
+                appended.add(pk);
+                ordered.push(ordered[pi]);
             }
         }
     }
