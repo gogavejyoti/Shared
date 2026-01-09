@@ -52,7 +52,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // 🔥 KEY FIX: any edit invalidates lookup tables (Excel behavior)
+    // Excel-style: any edit invalidates lookup tables
     const forceLookupInvalidate = (e != null && n != null);
 
     const nodes = {};
@@ -83,6 +83,54 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         return m ? m[1].trim() : null;
     }
 
+    // 🔑 NEW: resolve actual matched cell (value-based)
+    function resolveLookupMatchCell(formula, sheetIndex) {
+        const m = formula.match(/(?:VLOOKUP|HLOOKUP|XLOOKUP)\s*\(\s*([^,]+)\s*,\s*([^,]+)/i);
+        if (!m) return null;
+
+        const lookupRef = m[1].trim();
+        const rangeRef = m[2].trim();
+
+        const lookupRange = s.getcellrange(rangeRef, sheetIndex);
+        if (!lookupRange) return null;
+
+        let lookupValue = null;
+        const lookupCell = s.getcellrange(lookupRef, sheetIndex);
+
+        if (lookupCell) {
+            lookupValue = window.luckysheet_getcelldata(
+                lookupCell.row[0],
+                lookupCell.column[0],
+                sheetIndex
+            )?.v;
+        } else {
+            lookupValue = Ua(lookupRef);
+        }
+
+        if (lookupValue == null) return null;
+
+        const isHLookup = /^HLOOKUP/i.test(formula);
+
+        if (isHLookup) {
+            const r = lookupRange.row[0];
+            for (let c = lookupRange.column[0]; c <= lookupRange.column[1]; c++) {
+                const cell = window.luckysheet_getcelldata(r, c, sheetIndex);
+                if (cell && cell.v === lookupValue) {
+                    return { row: [r, r], column: [c, c], sheetIndex };
+                }
+            }
+        } else {
+            const c = lookupRange.column[0];
+            for (let r = lookupRange.row[0]; r <= lookupRange.row[1]; r++) {
+                const cell = window.luckysheet_getcelldata(r, c, sheetIndex);
+                if (cell && cell.v === lookupValue) {
+                    return { row: [r, r], column: [c, c], sheetIndex };
+                }
+            }
+        }
+        return null;
+    }
+
     /* ================= BUILD NODES ================= */
 
     for (const T of allFuncCells) {
@@ -104,10 +152,19 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         const formulaRanges = [];
         const lookupKeyRef = isLookup ? extractLookupKey(R) : null;
 
-        // HARD dependency: lookup key
+        // HARD dependency: lookup key cell
         if (lookupKeyRef) {
             const kr = s.getcellrange(lookupKeyRef, T.index);
             if (kr) formulaRanges.push(kr);
+        }
+
+        // HARD dependency: matched lookup cell
+        const matchedCell = isLookup
+            ? resolveLookupMatchCell(R, T.index)
+            : null;
+
+        if (matchedCell) {
+            formulaRanges.push(matchedCell);
         }
 
         s.isFunctionRange(R, null, null, T.index, null, function (ref) {
@@ -144,7 +201,6 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         for (const rect of node.formulaArray || []) {
 
             if (rect.__lazy__) {
-                // ✅ FINAL FIX: invalidate lookup tables on ANY edit
                 if (forceLookupInvalidate && rect.sheetIndex === l) {
                     y.push(node);
                 }
@@ -196,7 +252,6 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     for (const T of ordered) {
         window.luckysheet_getcelldata_cache = null;
-
         const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
 
         s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
