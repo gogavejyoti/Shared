@@ -1,123 +1,40 @@
-function extractAllLookups(formula) {
-    const regex = /(VLOOKUP|HLOOKUP)\s*\(([^)]*)\)/gi;
-    const lookups = [];
-    let m;
-
-    while ((m = regex.exec(formula)) !== null) {
-        lookups.push({
-            fn: m[1].toUpperCase(),
-            args: m[2]
-        });
-    }
-    return lookups;
-}
-
-// Resolve exact matched row / column (exact match only)
-function resolveExactLookupRangeSimple(fn, lookupExpr, rangeExpr, sheetIndex) {
-    // lookup value
-    let lookupValue = null;
-    const keyRange = s.getusedcellrange(lookupExpr, sheetIndex);
-
-    if (keyRange) {
-        lookupValue = window.luckysheet_getcelldata(
-            keyRange.row[0],
-            keyRange.column[0],
-            keyRange.sheetIndex
-        )?.v;
-    } else {
-        lookupValue = Ua(lookupExpr);
-    }
-
-    if (lookupValue == null) return null;
-
-    const rg = s.getusedcellrange(rangeExpr, sheetIndex);
-    if (!rg) return null;
-
-    const r0 = rg.row[0], r1 = rg.row[1];
-    const c0 = rg.column[0], c1 = rg.column[1];
-
-    // VLOOKUP → matched ROW
-    if (fn === "VLOOKUP") {
-        for (let r = r0; r <= r1; r++) {
-            const cell = window.luckysheet_getcelldata(r, c0, sheetIndex);
-            if (cell && cell.v === lookupValue) {
-                return { row: [r, r], column: [c0, c1], sheetIndex };
-            }
-        }
-    }
-
-    // HLOOKUP → matched COLUMN
-    if (fn === "HLOOKUP") {
-        for (let c = c0; c <= c1; c++) {
-            const cell = window.luckysheet_getcelldata(r0, c, sheetIndex);
-            if (cell && cell.v === lookupValue) {
-                return { row: [r0, r1], column: [c, c], sheetIndex };
-            }
-        }
-    }
-
-    return null;
-}
-
-
-
-const formulaRanges = [];
-
-// ---------- LOOKUP HANDLING (MULTIPLE OCCURRENCES) ----------
-if (/(?:VLOOKUP|HLOOKUP)\s*\(/i.test(R)) {
-
-    const lookups = extractAllLookups(R);
-
-    for (let i = 0; i < lookups.length; i++) {
-        const lk = lookups[i];
-
-        // simple argument split (lookup, range, index, match)
-        const parts = lk.args.split(",");
-        if (parts.length < 2) continue;
-
-        const lookupExpr = parts[0].trim();
-        const rangeExpr = parts[1].trim();
-        const matchExpr = parts[3]?.trim();
-
-        // only exact match supported
-        if (matchExpr && matchExpr !== "0" && matchExpr.toUpperCase() !== "FALSE") {
-            continue;
-        }
-
-        // 1️⃣ lookup key cell
-        const keyRange = s.getusedcellrange(lookupExpr, T.index);
-        if (keyRange) formulaRanges.push(keyRange);
-
-        // 2️⃣ exact matched row / column
-        const exactRange = resolveExactLookupRangeSimple(
-            lk.fn,
-            lookupExpr,
-            rangeExpr,
-            T.index
-        );
-        if (exactRange) formulaRanges.push(exactRange);
-
-        // 3️⃣ lazy fallback table range
-        const tableRange = s.getusedcellrange(rangeExpr, T.index);
-        if (tableRange) {
-            formulaRanges.push({ ...tableRange, __lazy__: true });
-        }
-    }
-}
-
-// ---------- ALL OTHER FORMULAS (UNCHANGED) ----------
-else if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
-
-    const tokens = R
-        .split(/==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/)
-        .filter(Boolean);
-
-    for (let ti = 0; ti < tokens.length; ti++) {
-        let tk = tokens[ti].trim();
-        if (!tk) continue;
-        if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
-
-        const rg = s.getusedcellrange(tk, T.index);
-        if (rg) formulaRanges.push(rg);
-    }
-}
+=IFERROR(HLOOKUP(B520,'Customer Care (EXP)'!2:23,22,0),0)*H520
+       HLOOKUP: function () {
+                if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                    return p.error.na;
+                for (var e = 0; e < arguments.length; e++) {
+                    var n = p.errorParamCheck(this.p, arguments[e], e);
+                    if (!n[0])
+                        return p.error.v
+                }
+                try {
+                    var t = window.luckysheetCurrentRow
+                        , l = window.luckysheetCurrentColumn
+                        , a = arguments[0];
+                    typeof a == "object" && (a = arguments[0].data,
+                        L(a) == "array" ? (a = a[r],
+                            L(a) == "array" && (a = a[f])) : a = a.v);
+                    var o = arguments[1].data
+                        , s = arguments[2]
+                        , u = !1;
+                    if (arguments.length > 3 && (u = !!arguments[3]),
+                        s > o.rowl)
+                        return [p.error.v, "\u7D22\u5F15\u8D85\u8FC7\u4E86\u8303\u56F4\u7684\u957F\u5EA6\uFF0C" + o[0].length];
+                    if (s < 1)
+                        return [p.error.v, "\u7D22\u5F15\u5FC5\u987B\u5927\u4E8E1"];
+                    for (var d = p.error.na, f = 0; f < o[0].length; f++) {
+                        var m = Oe(0, f, o)
+                            , g = Oe(s - 1, f, o);
+                        if (u)
+                            m.indexOf(a) > -1 && (d = g);
+                        else if (p.acompareb(p.normalizeExcelDate(m), p.normalizeExcelDate(a)))
+                            return d = g,
+                                d
+                    }
+                    return d
+                } catch (v) {
+                    var y = v;
+                    return y = p.errorInfo(y),
+                        [p.error.v, y]
+                }
+            },
