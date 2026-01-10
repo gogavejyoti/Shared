@@ -1,1 +1,44 @@
-=Vlookup(E2,C:D,2,0)+Vlookup(E2,C:D,2,0)
+function resolveLookupDependencies(formula, sheetIndex, formulaRanges) {
+    const lookups = extractAllLookups(formula);
+
+    for (let i = 0; i < lookups.length; i++) {
+        const lk = lookups[i];
+
+        // split args safely (simple, exact-match case)
+        const parts = lk.args.split(",");
+        if (parts.length < 2) continue;
+
+        const lookupExpr = parts[0].trim();
+        const rangeExpr = parts[1].trim();
+
+        // 1️⃣ lookup key cell
+        const keyRange = s.getusedcellrange(lookupExpr, sheetIndex);
+        if (keyRange) formulaRanges.push(keyRange);
+
+        // 2️⃣ exact matched row / column
+        const exactRange = resolveExactLookupRange(
+            lk.fn + "(" + lk.args + ")",
+            sheetIndex
+        );
+        if (exactRange) formulaRanges.push(exactRange);
+
+        // 3️⃣ lazy fallback table
+        const tableRange = s.getusedcellrange(rangeExpr, sheetIndex);
+        if (tableRange) {
+            formulaRanges.push({ ...tableRange, __lazy__: true });
+        }
+    }
+}
+function extractAllLookups(formula) {
+    const regex = /(VLOOKUP|HLOOKUP)\s*\(([^)]+)\)/gi;
+    const result = [];
+    let m;
+
+    while ((m = regex.exec(formula)) !== null) {
+        result.push({
+            fn: m[1].toUpperCase(),
+            args: m[2]
+        });
+    }
+    return result;
+}
