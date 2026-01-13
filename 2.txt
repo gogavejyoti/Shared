@@ -1,220 +1,49 @@
-$("#luckysheet-icon-excel").click(async function () {
-    try {
-        // --- Helpers ---
-        function hexToARGB(color) {
-            if (!color) return undefined;
-            if (color.startsWith("rgb")) {
-                const nums = color.match(/\d+/g).map(Number);
-                const [r, g, b] = nums;
-                return "FF" + [r, g, b].map(n => n.toString(16).padStart(2, "0")).join("").toUpperCase();
-            }
-            let hex = color.replace("#", "");
-            if (hex.length === 3) hex = hex.split("").map(h => h + h).join("");
-            if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
-                console.warn("Invalid HEX color:", color);
-                return undefined;
-            }
-            return "FF" + hex.toUpperCase();
+// --- Revised Value / Formula Handling ---
+if (cell.f) {
+    let f = normalizeFormula(cell.f, sheetNames);
+    if (f.startsWith('=')) f = f.slice(1);
+
+    // 1. Fix common mis-names
+    f = f.replace(/\bMINIF\b/gi, 'MINIFS');
+
+    // 2. Future Functions (require _xlfn. prefix)
+    const futureFunctions = ["MINIFS", "MAXIFS", "IFS", "SWITCH", "CONCAT", "TEXTJOIN"];
+    let isFuture = false;
+    futureFunctions.forEach(func => {
+        const reg = new RegExp(`(?<!_xlfn\\.)\\b${func}\\b`, 'gi');
+        if (reg.test(f)) {
+            f = f.replace(reg, `_xlfn.${func}`);
+            isFuture = true;
         }
+    });
 
-        function pxToExcelWidth(px) {
-            if (!px) return 10;
-            return Math.max(3, Math.round(px / 7));
+    // 3. Dynamic Array Functions (require _xlfn._xlws. prefix)
+    const dynamicFunctions = ["UNIQUE", "FILTER", "SORT", "XLOOKUP", "SEQUENCE"];
+    let isDynamic = false;
+    dynamicFunctions.forEach(func => {
+        const reg = new RegExp(`(?<!_xlfn\\._xlws\\.)\\b${func}\\b`, 'gi');
+        if (reg.test(f)) {
+            f = f.replace(reg, `_xlfn._xlws.${func}`);
+            isDynamic = true;
         }
+    });
 
-        function normalizeFormula(formula, sheetNames) {
-            if (!formula) return formula;
-            sheetNames.forEach(name => {
-                if (/\s/.test(name) && formula.includes(name + "!")) {
-                    const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, '\\$&') + '!', 'g');
-                    formula = formula.replace(re, `'${name}'!`);
-                }
-            });
-            return formula;
-        }
-
-        const sheets = luckysheet.getAllSheets();
-        const workbook = new ExcelJS.Workbook();
-        workbook.creator = "LuckySheet";
-        workbook.created = new Date();
-        const sheetNames = sheets.map(s => s.name || 'Sheet');
-
-        for (let si = 0; si < sheets.length; si++) {
-            const sheet = sheets[si];
-            const ws = workbook.addWorksheet(sheet.name || `Sheet${si + 1}`);
-            const data = sheet.data || [];
-
-            // 🔹 Column widths
-            if (sheet.config?.columnlen) {
-                for (const [colIndex, px] of Object.entries(sheet.config.columnlen)) {
-                    ws.getColumn(Number(colIndex) + 1).width = pxToExcelWidth(px);
-                }
-            }
-
-            // 🔹 Fill cell data
-            for (let r = 0; r < data.length; r++) {
-                const row = data[r] || [];
-                for (let c = 0; c < row.length; c++) {
-                    const cell = row[c];
-                    if (!cell) continue;
-                    const cellRef = ws.getCell(r + 1, c + 1);
-
-                    // --- Normalize values (percents, numbers, dates) ---
-                    if (!cell.f && cell.v !== null && cell.v !== undefined) {
-                        let val = cell.v;
-                        const strVal = String(val).trim();
-
-                        if (/^-?\d+(\.\d+)?%$/.test(strVal)) {
-                            const num = parseFloat(strVal.replace('%', ''));
-                            cell.v = num / 100;
-                            cell.ct = cell.ct || {};
-                            cell.ct.fa = "0.00%";
-                        }
-                        else if (/^-?\d+(\.\d+)?$/.test(strVal)) {
-                            cell.v = parseFloat(strVal);
-                        }
-                        else if (
-                            /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(strVal) ||
-                            /^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{2,4}$/.test(strVal)
-                        ) {
-                            cell.v = strVal;
-                            cell.ct = cell.ct || {};
-                            cell.ct.fa = "@";
-                        }
-                    }
-
-                    // --- Revised Formula Handling ---
-                    if (cell.f) {
-                        let f = normalizeFormula(cell.f, sheetNames);
-                        if (f.startsWith('=')) f = f.slice(1);
-
-                        // 1. Fix common mis-names
-                        f = f.replace(/\bMINIF\b/gi, 'MINIFS');
-
-                        // 2. Add _xlfn. prefix to modern functions to prevent the "@" symbol
-                        const futureFunctions = ["MINIFS", "MAXIFS", "IFS", "SWITCH", "CONCAT", "TEXTJOIN"];
-                        futureFunctions.forEach(func => {
-                            const reg = new RegExp(`(?<!_xlfn\\.)\\b${func}\\b`, 'gi');
-                            f = f.replace(reg, `_xlfn.${func}`);
-                        });
-
-                        // 3. Add _xlfn._xlws. prefix for Dynamic Array functions (optional but recommended)
-                        const dynamicFunctions = ["UNIQUE", "FILTER", "SORT", "XLOOKUP"];
-                        dynamicFunctions.forEach(func => {
-                            const reg = new RegExp(`(?<!_xlfn\\._xlws\\.)\\b${func}\\b`, 'gi');
-                            f = f.replace(reg, `_xlfn._xlws.${func}`);
-                        });
-
-                        cellRef.value = { formula: f, result: cell.v ?? null };
-                    } else {
-                        cellRef.value = cell.v ?? null;
-                    }
-
-                    // --- Styles (Font) ---
-                    if (cell.fc || cell.bl || cell.it || cell.ff || cell.fs) {
-                        cellRef.font = {};
-                        if (cell.fc) cellRef.font.color = { argb: hexToARGB(cell.fc) };
-                        if (cell.bl) cellRef.font.bold = true;
-                        if (cell.it) cellRef.font.italic = true;
-                        if (cell.ff) cellRef.font.name = cell.ff;
-                        if (cell.fs) cellRef.font.size = Number(cell.fs);
-                    }
-
-                    // --- Styles (Fill) ---
-                    if (cell.bg) {
-                        cellRef.fill = {
-                            type: 'pattern',
-                            pattern: 'solid',
-                            fgColor: { argb: hexToARGB(cell.bg) }
-                        };
-                    }
-
-                    // --- Styles (Alignment) ---
-                    if (cell.ht || cell.vt || cell.tb) {
-                        cellRef.alignment = {};
-                        if (cell.ht) cellRef.alignment.horizontal = {0: 'center', 1: 'left', 2: 'right'}[cell.ht] || 'left';
-                        if (cell.vt) cellRef.alignment.vertical = {0: 'middle', 1: 'top', 2: 'bottom'}[cell.vt] || 'middle';
-                        if (cell.tb) cellRef.alignment.wrapText = cell.tb === 2;
-                    }
-
-                    // --- Styles (Border) ---
-                    if (cell.border) {
-                        const border = {};
-                        for (const [side, val] of Object.entries(cell.border)) {
-                            if (val?.color) {
-                                border[side] = {
-                                    style: 'thin',
-                                    color: { argb: hexToARGB(val.color) }
-                                };
-                            }
-                        }
-                        cellRef.border = border;
-                    }
-
-                    // --- Number format ---
-                    if (cell.ct?.fa) {
-                        const fmt = cell.ct.fa;
-                        if (typeof cell.v === "number" || (typeof cell.v === "string" && fmt === "@")) {
-                            cellRef.numFmt = fmt;
-                        }
-                    }
-                }
-            }
-
-            // 🔹 Merged cells
-            if (sheet.config?.merge) {
-                Object.values(sheet.config.merge).forEach(m => {
-                    if (m) {
-                        try {
-                            ws.mergeCells(
-                                m.r + 1,
-                                m.c + 1,
-                                m.r + (m.rowspan || 1),
-                                m.c + (m.colspan || 1)
-                            );
-                        } catch (e) { console.warn("Merge skipped:", e); }
-                    }
-                });
-            }
-
-            // 🔹 Row heights
-            if (sheet.config?.rowlen) {
-                Object.entries(sheet.config.rowlen).forEach(([k, px]) => {
-                    ws.getRow(Number(k) + 1).height = Math.round(px / 1.3333);
-                });
-            }
-
-            // 🔹 Visibility
-            if (sheet.config?.colhidden) {
-                Object.keys(sheet.config.colhidden).forEach(k => {
-                    ws.getColumn(Number(k) + 1).hidden = true;
-                });
-            }
-            if (sheet.config?.rowhidden) {
-                Object.keys(sheet.config.rowhidden).forEach(k => {
-                    ws.getRow(Number(k) + 1).hidden = true;
-                });
-            }
-            if (sheet.hide === 1) ws.state = 'hidden';
-        }
-
-        // 🔹 Finalize and Save
-        const activeIndex = sheets.findIndex(s => s.status === 1);
-        if (activeIndex >= 0) {
-            workbook.views = [{
-                x: 0, y: 0, width: 10000, height: 20000,
-                firstSheet: 0,
-                activeTab: activeIndex,
-                visibility: 'visible'
-            }];
-        }
-
-        const buf = await workbook.xlsx.writeBuffer();
-        const fileName = (window.h?.exportFileName || 'Export') + '.xlsx';
-        saveAs(new Blob([buf], { type: "application/octet-stream" }), fileName);
-
-    } catch (err) {
-        console.error("❌ Export failed:", err);
-        alert("Export failed. See console for details.");
+    // 4. Handle INDEX and others that get the "@" symbol
+    // If the formula contains INDEX but is NOT a "Future" or "Dynamic" function,
+    // we set it as an array type to prevent the "@" symbol.
+    if (!isFuture && !isDynamic && f.toUpperCase().includes("INDEX")) {
+        cellRef.value = {
+            formula: f,
+            result: cell.v ?? null,
+            shareType: 'array', // Forces Excel to treat as CSE, removing the "@"
+            ref: cellRef.address  // Required when using shareType
+        };
+    } else {
+        cellRef.value = { 
+            formula: f, 
+            result: cell.v ?? null 
+        };
     }
-});
+} else {
+    cellRef.value = cell.v ?? null;
+}
