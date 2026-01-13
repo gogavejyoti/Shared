@@ -1,14 +1,29 @@
-            setCaretPosition: function (e, n, t) {
-                try {
-                    let l = e
-                        , a = document.createRange()
-                        , o = window.getSelection();
-                        a.setStart(l.childNodes[n], t),
-                        a.collapse(!0),
-                        o.removeAllRanges(),
-                        o.addRange(a),
-                        l.focus()
-                } catch (l) {
-                    xr(this.rangeResizeTo[0])
-                }
-            },
+setCaretPosition: function (e, n, t) {
+    try {
+        let l = e,
+            a = document.createRange(),
+            o = window.getSelection();
+
+        // ---- ORIGINAL LOGIC ----
+        let node = l.childNodes[n];
+
+        // ---- FIX: if node is invalid or not text, move to last ----
+        if (!node || node.nodeType !== Node.TEXT_NODE) {
+            node = l;
+            while (node && node.lastChild) {
+                node = node.lastChild;
+            }
+            t = node && node.textContent ? node.textContent.length : 0;
+        }
+
+        a.setStart(node, t);
+        a.collapse(true);
+
+        o.removeAllRanges();
+        o.addRange(a);
+        l.focus();
+
+    } catch (err) {
+        xr(this.rangeResizeTo[0]);
+    }
+}
