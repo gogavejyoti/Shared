@@ -1,10 +1,2 @@
-if (f.toUpperCase().includes("INDEX")) {
-        // We replace INDEX with _xlfn._xlws.INDEX
-        // The regex (?<!_xlfn\._xlws\.) ensures we don't add it twice
-        f = f.replace(/(?<!_xlfn\._xlws\.)\bINDEX\b/gi, '_xlfn._xlws.INDEX');
-        
-        cellRef.value = { 
-            formula: f 
-            // result: cell.v // DO NOT include result for INDEX
-        };
-    }
+workbook.calcProperties.fullCalcOnLoad = true;
+workbook.calcProperties.iterate = true; //
