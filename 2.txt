@@ -1,49 +1,10 @@
-// --- Revised Value / Formula Handling ---
-if (cell.f) {
-    let f = normalizeFormula(cell.f, sheetNames);
-    if (f.startsWith('=')) f = f.slice(1);
-
-    // 1. Fix common mis-names
-    f = f.replace(/\bMINIF\b/gi, 'MINIFS');
-
-    // 2. Future Functions (require _xlfn. prefix)
-    const futureFunctions = ["MINIFS", "MAXIFS", "IFS", "SWITCH", "CONCAT", "TEXTJOIN"];
-    let isFuture = false;
-    futureFunctions.forEach(func => {
-        const reg = new RegExp(`(?<!_xlfn\\.)\\b${func}\\b`, 'gi');
-        if (reg.test(f)) {
-            f = f.replace(reg, `_xlfn.${func}`);
-            isFuture = true;
-        }
-    });
-
-    // 3. Dynamic Array Functions (require _xlfn._xlws. prefix)
-    const dynamicFunctions = ["UNIQUE", "FILTER", "SORT", "XLOOKUP", "SEQUENCE"];
-    let isDynamic = false;
-    dynamicFunctions.forEach(func => {
-        const reg = new RegExp(`(?<!_xlfn\\._xlws\\.)\\b${func}\\b`, 'gi');
-        if (reg.test(f)) {
-            f = f.replace(reg, `_xlfn._xlws.${func}`);
-            isDynamic = true;
-        }
-    });
-
-    // 4. Handle INDEX and others that get the "@" symbol
-    // If the formula contains INDEX but is NOT a "Future" or "Dynamic" function,
-    // we set it as an array type to prevent the "@" symbol.
-    if (!isFuture && !isDynamic && f.toUpperCase().includes("INDEX")) {
-        cellRef.value = {
-            formula: f,
-            result: cell.v ?? null,
-            shareType: 'array', // Forces Excel to treat as CSE, removing the "@"
-            ref: cellRef.address  // Required when using shareType
-        };
-    } else {
+if (f.toUpperCase().includes("INDEX")) {
+        // We replace INDEX with _xlfn._xlws.INDEX
+        // The regex (?<!_xlfn\._xlws\.) ensures we don't add it twice
+        f = f.replace(/(?<!_xlfn\._xlws\.)\bINDEX\b/gi, '_xlfn._xlws.INDEX');
+        
         cellRef.value = { 
-            formula: f, 
-            result: cell.v ?? null 
+            formula: f 
+            // result: cell.v // DO NOT include result for INDEX
         };
     }
-} else {
-    cellRef.value = cell.v ?? null;
-}
