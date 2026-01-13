@@ -1,2 +1,23 @@
-=INDEX('Shrinkage Monthly'!$H3:$H75,COLUMN(E1))
+if (f.toUpperCase().includes("INDEX")) {
+        
+        // Transform INDEX(range, row) -> INDEX(range, row, 1)
+        // This satisfies Excel's "Array" signature requirement
+        let revisedF = f.trim();
+        if (revisedF.endsWith(')')) {
+            revisedF = revisedF.substring(0, revisedF.length - 1) + ',1)';
+        }
 
+        // Add the modern engine prefix
+        revisedF = revisedF.replace(/\bINDEX\b/gi, '_xlfn._xlws.INDEX');
+
+        // 2. Use the 'model' property to force "Master" behavior
+        // This is the ONLY way to prevent the @ without curly brackets
+        cellRef.model = {
+            address: cellRef.address,
+            type: ExcelJS.ValueType.Formula,
+            formula: revisedF,
+            shareType: 'array', // Tells Excel 365: "This is a dynamic formula"
+            ref: cellRef.address, // Refers to itself so it doesn't "spill"
+            result: undefined     // FORCES Excel to calculate (the "double-click" fix)
+        };
+    }
