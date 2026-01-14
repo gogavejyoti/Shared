@@ -1,87 +1,67 @@
-function getLookupMatchedRange(type, keyCell, tableRange, sheetIndex) {
-    const sheetData = sheetMap[sheetIndex];
-    if (!sheetData) return null;
+ if (upper.includes("VLOOKUP(") || upper.includes("HLOOKUP(")) {
 
-    const keyVal = nr(keyCell.row, keyCell.column, sheetIndex)?.v;
-    if (keyVal == null) return null;
+            const m = R.match(/(VLOOKUP|HLOOKUP)\s*\(([^)]+)\)/i);
+            if (m) {
 
-    if (type === "VLOOKUP") {
-        const col = tableRange.column[0];
-        for (let r = tableRange.row[0]; r <= tableRange.row[1]; r++) {
-            const v = nr(r, col, sheetIndex)?.v;
-            if (v === keyVal) {
-                return {
-                    row: [r, r],
-                    column: tableRange.column,
-                    sheetIndex
-                };
-            }
-        }
-    }
+                const fnType = m[1].toUpperCase();   // VLOOKUP / HLOOKUP
+                const args = m[2].split(",");
 
-    if (type === "HLOOKUP") {
-        const row = tableRange.row[0];
-        for (let c = tableRange.column[0]; c <= tableRange.column[1]; c++) {
-            const v = nr(row, c, sheetIndex)?.v;
-            if (v === keyVal) {
-                return {
-                    row: tableRange.row,
-                    column: [c, c],
-                    sheetIndex
-                };
-            }
-        }
-    }
+                if (args.length >= 2) {
 
-    return null;
-}
+                    const keyRg = s.getcellrange(args[0].trim(), T.index);
+                    const tableRg = s.getcellrange(args[1].trim(), T.index);
 
+                    if (keyRg && tableRg) {
 
-if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
+                        const keyCellKey =
+                            "r" + keyRg.row[0] + "c" + keyRg.column[0] + "i" + keyRg.sheetIndex;
 
-    const upper = R.toUpperCase();
+                        // 🔑 CRITICAL FILTER
+                        // Only proceed if THIS lookup key changed
+                        if (keyCellKey in execSet) {
 
-    // ---------------------------
-    // 1️⃣ Handle LOOKUP first
-    // ---------------------------
-    if (upper.includes("VLOOKUP(") || upper.includes("HLOOKUP(")) {
+                            const keyVal = nr(
+                                keyRg.row[0],
+                                keyRg.column[0],
+                                keyRg.sheetIndex
+                            )?.v;
 
-        const isV = upper.includes("VLOOKUP(");
-        const m = R.match(/(VLOOKUP|HLOOKUP)\s*\(([^)]+)\)/i);
+                            if (keyVal != null) {
 
-        if (m) {
-            const args = m[2].split(",");
-            if (args.length >= 2) {
+                                // -------- VLOOKUP --------
+                                if (fnType === "VLOOKUP") {
+                                    const lookupCol = tableRg.column[0];
+                                    for (let r = tableRg.row[0]; r <= tableRg.row[1]; r++) {
+                                        const v = nr(r, lookupCol, tableRg.sheetIndex)?.v;
+                                        if (v === keyVal) {
+                                            formulaRanges.push({
+                                                row: [r, r],
+                                                column: tableRg.column,
+                                                sheetIndex: tableRg.sheetIndex
+                                            });
+                                            break;
+                                        }
+                                    }
+                                }
 
-                const keyRg = s.getcellrange(args[0].trim(), T.index);
-                const tableRg = s.getcellrange(args[1].trim(), T.index);
-
-                if (keyRg && tableRg) {
-                    const matched = getLookupMatchedRange(
-                        isV ? "VLOOKUP" : "HLOOKUP",
-                        { row: keyRg.row[0], column: keyRg.column[0] },
-                        tableRg,
-                        tableRg.sheetIndex
-                    );
-
-                    if (matched) {
-                        formulaRanges.push(matched);
+                                // -------- HLOOKUP --------
+                                if (fnType === "HLOOKUP") {
+                                    const lookupRow = tableRg.row[0];
+                                    for (let c = tableRg.column[0]; c <= tableRg.column[1]; c++) {
+                                        const v = nr(lookupRow, c, tableRg.sheetIndex)?.v;
+                                        if (v === keyVal) {
+                                            formulaRanges.push({
+                                                row: tableRg.row,
+                                                column: [c, c],
+                                                sheetIndex: tableRg.sheetIndex
+                                            });
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-    }
-
-    // ---------------------------
-    // 2️⃣ Normal static references
-    // ---------------------------
-    const tokens = R.split(fmrSplit).filter(Boolean);
-    for (let ti = 0; ti < tokens.length; ti++) {
-        let tk = tokens[ti].trim();
-        if (!tk) continue;
-        if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
-
-        const rg = s.getcellrange(tk, T.index);
-        if (rg) formulaRanges.push(rg);
-    }
-}
