@@ -1,67 +1,121 @@
- if (upper.includes("VLOOKUP(") || upper.includes("HLOOKUP(")) {
+if (upper.includes("VLOOKUP(") || upper.includes("HLOOKUP(")) {
 
-            const m = R.match(/(VLOOKUP|HLOOKUP)\s*\(([^)]+)\)/i);
-            if (m) {
+    const m = R.match(/(VLOOKUP|HLOOKUP)\s*\(([^)]+)\)/i);
+    if (m) {
 
-                const fnType = m[1].toUpperCase();   // VLOOKUP / HLOOKUP
-                const args = m[2].split(",");
+        const fnType = m[1].toUpperCase(); // VLOOKUP / HLOOKUP
+        const args = m[2].split(",");
 
-                if (args.length >= 2) {
+        if (args.length >= 2) {
 
-                    const keyRg = s.getcellrange(args[0].trim(), T.index);
-                    const tableRg = s.getcellrange(args[1].trim(), T.index);
+            const keyRg = s.getcellrange(args[0].trim(), T.index);
+            const tableRg = s.getcellrange(args[1].trim(), T.index);
 
-                    if (keyRg && tableRg) {
+            if (!keyRg || !tableRg) continue;
 
-                        const keyCellKey =
-                            "r" + keyRg.row[0] + "c" + keyRg.column[0] + "i" + keyRg.sheetIndex;
+            let lookupImpacted = false;
 
-                        // 🔑 CRITICAL FILTER
-                        // Only proceed if THIS lookup key changed
-                        if (keyCellKey in execSet) {
+            // 🔑 VALUE-DRIVEN FILTER USING execSet
+            for (const ek in execSet) {
+                const info = parseExecSetKey(ek);
+                if (!info) continue;
 
-                            const keyVal = nr(
-                                keyRg.row[0],
-                                keyRg.column[0],
-                                keyRg.sheetIndex
-                            )?.v;
+                const changedValue = getCellValue(info.r, info.c, info.i);
 
-                            if (keyVal != null) {
+                if (info.i !== tableRg.sheetIndex) continue;
 
-                                // -------- VLOOKUP --------
-                                if (fnType === "VLOOKUP") {
-                                    const lookupCol = tableRg.column[0];
-                                    for (let r = tableRg.row[0]; r <= tableRg.row[1]; r++) {
-                                        const v = nr(r, lookupCol, tableRg.sheetIndex)?.v;
-                                        if (v === keyVal) {
-                                            formulaRanges.push({
-                                                row: [r, r],
-                                                column: tableRg.column,
-                                                sheetIndex: tableRg.sheetIndex
-                                            });
-                                            break;
-                                        }
-                                    }
-                                }
+                if (
+                    fnType === "VLOOKUP" &&
+                    valueExistsInVLookup(changedValue, tableRg)
+                ) {
+                    lookupImpacted = true;
+                    break;
+                }
 
-                                // -------- HLOOKUP --------
-                                if (fnType === "HLOOKUP") {
-                                    const lookupRow = tableRg.row[0];
-                                    for (let c = tableRg.column[0]; c <= tableRg.column[1]; c++) {
-                                        const v = nr(lookupRow, c, tableRg.sheetIndex)?.v;
-                                        if (v === keyVal) {
-                                            formulaRanges.push({
-                                                row: tableRg.row,
-                                                column: [c, c],
-                                                sheetIndex: tableRg.sheetIndex
-                                            });
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                if (
+                    fnType === "HLOOKUP" &&
+                    valueExistsInHLookup(changedValue, tableRg)
+                ) {
+                    lookupImpacted = true;
+                    break;
+                }
+            }
+
+            // ❌ Not impacted → skip this lookup completely
+            if (!lookupImpacted) continue;
+
+            // ✅ Resolve actual matched row / column using KEY CELL
+            const keyVal = getCellValue(
+                keyRg.row[0],
+                keyRg.column[0],
+                keyRg.sheetIndex
+            );
+
+            if (keyVal == null) continue;
+
+            // -------- VLOOKUP --------
+            if (fnType === "VLOOKUP") {
+                const lookupCol = tableRg.column[0];
+                for (let r = tableRg.row[0]; r <= tableRg.row[1]; r++) {
+                    if (nr(r, lookupCol, tableRg.sheetIndex)?.v === keyVal) {
+                        formulaRanges.push({
+                            row: [r, r],
+                            column: tableRg.column,
+                            sheetIndex: tableRg.sheetIndex
+                        });
+                        break;
+                    }
+                }
+            }
+
+            // -------- HLOOKUP --------
+            if (fnType === "HLOOKUP") {
+                const lookupRow = tableRg.row[0];
+                for (let c = tableRg.column[0]; c <= tableRg.column[1]; c++) {
+                    if (nr(lookupRow, c, tableRg.sheetIndex)?.v === keyVal) {
+                        formulaRanges.push({
+                            row: tableRg.row,
+                            column: [c, c],
+                            sheetIndex: tableRg.sheetIndex
+                        });
+                        break;
                     }
                 }
             }
         }
+    }
+}
+
+
+function valueExistsInVLookup(value, tableRg) {
+    if (value == null) return false;
+    const col = tableRg.column[0];
+    for (let r = tableRg.row[0]; r <= tableRg.row[1]; r++) {
+        if (nr(r, col, tableRg.sheetIndex)?.v === value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function valueExistsInHLookup(value, tableRg) {
+    if (value == null) return false;
+    const row = tableRg.row[0];
+    for (let c = tableRg.column[0]; c <= tableRg.column[1]; c++) {
+        if (nr(row, c, tableRg.sheetIndex)?.v === value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+function parseExecSetKey(k) {
+    const m = k.match(/^r(\d+)c(\d+)i(\d+)$/);
+    if (!m) return null;
+    return { r: +m[1], c: +m[2], i: +m[3] };
+}
+
+function getCellValue(r, c, i) {
+    return nr(r, c, i)?.v;
+}
