@@ -1,121 +1,84 @@
-if (upper.includes("VLOOKUP(") || upper.includes("HLOOKUP(")) {
+ // Build dependency graph
+                const y = [];
+                const nodeKeys = Object.keys(nodes);
+                for (let i = 0; i < nodeKeys.length; i++) {
+                    const node = nodes[nodeKeys[i]];
+                    const ranges = node.formulaArray || [];
+                    for (let ri = 0; ri < ranges.length; ri++) {
+                        const rect = ranges[ri];
+                        const keys = keysForRange(rect, sheetMap);
+                        for (let ki = 0; ki < keys.length; ki++) {
+                            const cellInfo = keys[ki];
+                            const A = cellInfo.key;
+                            if (A in nodes) {
+                                //node.chidren[A] = 1;
+                                //nodes[A].parents[node.key] = 1;
 
-    const m = R.match(/(VLOOKUP|HLOOKUP)\s*\(([^)]+)\)/i);
-    if (m) {
+                                node.parents[A] = 1;
+                                nodes[A].chidren[node.key] = 1;
 
-        const fnType = m[1].toUpperCase(); // VLOOKUP / HLOOKUP
-        const args = m[2].split(",");
-
-        if (args.length >= 2) {
-
-            const keyRg = s.getcellrange(args[0].trim(), T.index);
-            const tableRg = s.getcellrange(args[1].trim(), T.index);
-
-            if (!keyRg || !tableRg) continue;
-
-            let lookupImpacted = false;
-
-            // 🔑 VALUE-DRIVEN FILTER USING execSet
-            for (const ek in execSet) {
-                const info = parseExecSetKey(ek);
-                if (!info) continue;
-
-                const changedValue = getCellValue(info.r, info.c, info.i);
-
-                if (info.i !== tableRg.sheetIndex) continue;
-
-                if (
-                    fnType === "VLOOKUP" &&
-                    valueExistsInVLookup(changedValue, tableRg)
-                ) {
-                    lookupImpacted = true;
-                    break;
+                                //node.parents[A] = 1;          // node depends on A  
+                                //nodes[A].chidren[node.key] = 1;  // A is a parent of node  
+                            }
+                            if (!o && (A in execSet)) y.push(node);
+                        }
+                    }
+                    if (o) y.push(node);
                 }
 
-                if (
-                    fnType === "HLOOKUP" &&
-                    valueExistsInHLookup(changedValue, tableRg)
-                ) {
-                    lookupImpacted = true;
-                    break;
-                }
-            }
+                // Topological sort
+                const S = {};
+                const stack = y.slice();
+                const ordered = [];
+                while (stack.length > 0) {
+                    const cur = stack.pop();
+                    if (!cur || S[cur.key]) continue;
+                    if (cur.color === "b") {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                        continue;
+                    }
 
-            // ❌ Not impacted → skip this lookup completely
-            if (!lookupImpacted) continue;
+                    const parentKeys = Object.keys(cur.parents || {});
+                    const parentNodes = [];
+                    for (let pi = 0; pi < parentKeys.length; pi++) {
+                        const pk = parentKeys[pi];
+                        if (nodes[pk]) parentNodes.push(nodes[pk]);
+                    }
 
-            // ✅ Resolve actual matched row / column using KEY CELL
-            const keyVal = getCellValue(
-                keyRg.row[0],
-                keyRg.column[0],
-                keyRg.sheetIndex
-            );
-
-            if (keyVal == null) continue;
-
-            // -------- VLOOKUP --------
-            if (fnType === "VLOOKUP") {
-                const lookupCol = tableRg.column[0];
-                for (let r = tableRg.row[0]; r <= tableRg.row[1]; r++) {
-                    if (nr(r, lookupCol, tableRg.sheetIndex)?.v === keyVal) {
-                        formulaRanges.push({
-                            row: [r, r],
-                            column: tableRg.column,
-                            sheetIndex: tableRg.sheetIndex
-                        });
-                        break;
+                    if (parentNodes.length === 0) {
+                        ordered.push(cur);
+                        S[cur.key] = 1;
+                    } else {
+                        cur.color = "b";
+                        stack.push(cur);
+                        for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
                     }
                 }
-            }
 
-            // -------- HLOOKUP --------
-            if (fnType === "HLOOKUP") {
-                const lookupRow = tableRg.row[0];
-                for (let c = tableRg.column[0]; c <= tableRg.column[1]; c++) {
-                    if (nr(lookupRow, c, tableRg.sheetIndex)?.v === keyVal) {
-                        formulaRanges.push({
-                            row: tableRg.row,
-                            column: [c, c],
-                            sheetIndex: tableRg.sheetIndex
-                        });
-                        break;
-                    }
-                }
-            }
-        }
-    }
-}
+                ordered.reverse();
 
 
-function valueExistsInVLookup(value, tableRg) {
-    if (value == null) return false;
-    const col = tableRg.column[0];
-    for (let r = tableRg.row[0]; r <= tableRg.row[1]; r++) {
-        if (nr(r, col, tableRg.sheetIndex)?.v === value) {
-            return true;
-        }
-    }
-    return false;
-}
-
-function valueExistsInHLookup(value, tableRg) {
-    if (value == null) return false;
-    const row = tableRg.row[0];
-    for (let c = tableRg.column[0]; c <= tableRg.column[1]; c++) {
-        if (nr(row, c, tableRg.sheetIndex)?.v === value) {
-            return true;
-        }
-    }
-    return false;
-}
+node.parents[A] = 1;       
+nodes[A].chidren[node.key] = 1;  
+ Example - 
+Sheet_n6rGibTl0ii3_1766500200534=>D12=>=IFERROR(D10-D7,0)
+Sheet_n6rGibTl0ii3_1766500200534=>D15=>=ROUND(IFERROR(D10/D7,0),2)
+Sheet_n6rGibTl0ii3_1766500200534=>D10=>=IFERROR(D19+D22+D23,0)
+Sheet_n6rGibTl0ii3_1766500200534=>D19=>=IF(LEN(D82)=0,(83*(1-C41))-D81+D92+D124,(83-D81+D92+D124))
+Sheet_n6rGibTl0ii3_1766500200534=>D81=>=SUM(D82:D91)
+Sheet_n6rGibTl0ii3_1766500200534=>D92=>=SUM(D93:D99)
+Sheet_n6rGibTl0ii3_1766500200534=>D22=>=SUM(D120:D121)
+Sheet_n6rGibTl0ii3_1766500200534=>D23=>=SUM(D122:D123)
+Sheet_f6r5e3pC050k_1766508421290=>D7=>=AirCover_BAN!D7+AirCover_LV!D7
 
 
-function parseExecSetKey(k) {
-    const m = k.match(/^r(\d+)c(\d+)i(\d+)$/);
-    if (!m) return null;
-    return { r: +m[1], c: +m[2], i: +m[3] };
-}
+ node.chidren[A] = 1;
+ nodes[A].parents[node.key] = 1;
+ Example -
+ Sheet_n6rGibTl0ii3_1766500200534=>D12=>=IFERROR(D10-D7,0)
+ Sheet_n6rGibTl0ii3_1766500200534=>D15=>=ROUND(IFERROR(D10/D7,0),2)
+ Sheet_f6r5e3pC050k_1766508421290=>D7=>=AirCover_BAN!D7+AirCover_LV!D7
+ Sheet_f6r5e3pC050k_1766508421290=>D12=>=IFERROR(D10-D7,0)
+ Sheet_f6r5e3pC050k_1766508421290=>D15=>=ROUND(IFERROR(D10/D7,0),2)
 
-function getCellValue(r, c, i) {
-    return nr(r, c, i)?.v;
-}
