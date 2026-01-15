@@ -85,3 +85,86 @@ Sheet_f6r5e3pC050k_1766508421290=>D7=>=AirCover_BAN!D7+AirCover_LV!D7
 I found 2 formulas K1090=&gt; IFERROR(F1090/SUMIF($D$50:$D$1176,$D1090,$F$50:$F$1176),0) E1090=&gt; VLOOKUP($D1090,$D$12:$E$48,2,0)*K1090'  but  K1090 comes after the E1090 in list why?
 
 
+
+// Build dependency graph (keep this part the same)
+const y = [];
+const nodeKeys = Object.keys(nodes);
+for (let i = 0; i < nodeKeys.length; i++) {
+    const node = nodes[nodeKeys[i]];
+    const ranges = node.formulaArray || [];
+    for (let ri = 0; ri < ranges.length; ri++) {
+        const rect = ranges[ri];
+        const keys = keysForRange(rect, sheetMap);
+        for (let ki = 0; ki < keys.length; ki++) {
+            const cellInfo = keys[ki];
+            const A = cellInfo.key;
+            if (A in nodes) {
+                node.parents[A] = 1;  // node depends on A
+                nodes[A].children[node.key] = 1;  // A is used by node (fixed typo)
+            }
+            if (!o && (A in execSet)) y.push(node);
+        }
+    }
+    if (o) y.push(node);
+}
+
+// NEW: If not recalculating all (o=false), expand y to include all downstream dependents
+if (!o) {
+    const visited = {};
+    const queue = y.slice();
+    const allAffected = [];
+    
+    // BFS to find all cells affected by changes in execSet
+    while (queue.length > 0) {
+        const cur = queue.shift();
+        if (!cur || visited[cur.key]) continue;
+        
+        visited[cur.key] = 1;
+        allAffected.push(cur);
+        
+        // Add all children (cells that depend on this one) to queue
+        const childKeys = Object.keys(cur.children || {});
+        for (let ci = 0; ci < childKeys.length; ci++) {
+            const childKey = childKeys[ci];
+            if (nodes[childKey] && !visited[childKey]) {
+                queue.push(nodes[childKey]);
+            }
+        }
+    }
+    
+    // Replace y with the expanded list
+    y.length = 0;
+    for (let i = 0; i < allAffected.length; i++) {
+        y.push(allAffected[i]);
+    }
+}
+
+// Topological sort (keep your existing code, but fix the typo)
+const S = {};
+const stack = y.slice();
+const ordered = [];
+while (stack.length > 0) {
+    const cur = stack.pop();
+    if (!cur || S[cur.key]) continue;
+    if (cur.color === "b") {
+        ordered.push(cur);
+        S[cur.key] = 1;
+        continue;
+    }
+    const parentKeys = Object.keys(cur.parents || {});
+    const parentNodes = [];
+    for (let pi = 0; pi < parentKeys.length; pi++) {
+        const pk = parentKeys[pi];
+        if (nodes[pk]) parentNodes.push(nodes[pk]);
+    }
+    if (parentNodes.length === 0) {
+        ordered.push(cur);
+        S[cur.key] = 1;
+    } else {
+        cur.color = "b";
+        stack.push(cur);
+        for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
+    }
+}
+ordered.reverse();
+
