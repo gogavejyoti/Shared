@@ -1,92 +1,4 @@
- // Build dependency graph
-                const y = [];
-                const nodeKeys = Object.keys(nodes);
-                for (let i = 0; i < nodeKeys.length; i++) {
-                    const node = nodes[nodeKeys[i]];
-                    const ranges = node.formulaArray || [];
-                    for (let ri = 0; ri < ranges.length; ri++) {
-                        const rect = ranges[ri];
-                        const keys = keysForRange(rect, sheetMap);
-                        for (let ki = 0; ki < keys.length; ki++) {
-                            const cellInfo = keys[ki];
-                            const A = cellInfo.key;
-                            if (A in nodes) {
-                                //node.chidren[A] = 1;
-                                //nodes[A].parents[node.key] = 1;
-
-                                node.parents[A] = 1;
-                                nodes[A].chidren[node.key] = 1;
-
-                                //node.parents[A] = 1;          // node depends on A  
-                                //nodes[A].chidren[node.key] = 1;  // A is a parent of node  
-                            }
-                            if (!o && (A in execSet)) y.push(node);
-                        }
-                    }
-                    if (o) y.push(node);
-                }
-
-                // Topological sort
-                const S = {};
-                const stack = y.slice();
-                const ordered = [];
-                while (stack.length > 0) {
-                    const cur = stack.pop();
-                    if (!cur || S[cur.key]) continue;
-                    if (cur.color === "b") {
-                        ordered.push(cur);
-                        S[cur.key] = 1;
-                        continue;
-                    }
-
-                    const parentKeys = Object.keys(cur.parents || {});
-                    const parentNodes = [];
-                    for (let pi = 0; pi < parentKeys.length; pi++) {
-                        const pk = parentKeys[pi];
-                        if (nodes[pk]) parentNodes.push(nodes[pk]);
-                    }
-
-                    if (parentNodes.length === 0) {
-                        ordered.push(cur);
-                        S[cur.key] = 1;
-                    } else {
-                        cur.color = "b";
-                        stack.push(cur);
-                        for (let p = 0; p < parentNodes.length; p++) stack.push(parentNodes[p]);
-                    }
-                }
-
-                ordered.reverse();
-
-
-node.parents[A] = 1;       
-nodes[A].chidren[node.key] = 1;  
- Example - 
-Sheet_n6rGibTl0ii3_1766500200534=>D12=>=IFERROR(D10-D7,0)
-Sheet_n6rGibTl0ii3_1766500200534=>D15=>=ROUND(IFERROR(D10/D7,0),2)
-Sheet_n6rGibTl0ii3_1766500200534=>D10=>=IFERROR(D19+D22+D23,0)
-Sheet_n6rGibTl0ii3_1766500200534=>D19=>=IF(LEN(D82)=0,(83*(1-C41))-D81+D92+D124,(83-D81+D92+D124))
-Sheet_n6rGibTl0ii3_1766500200534=>D81=>=SUM(D82:D91)
-Sheet_n6rGibTl0ii3_1766500200534=>D92=>=SUM(D93:D99)
-Sheet_n6rGibTl0ii3_1766500200534=>D22=>=SUM(D120:D121)
-Sheet_n6rGibTl0ii3_1766500200534=>D23=>=SUM(D122:D123)
-Sheet_f6r5e3pC050k_1766508421290=>D7=>=AirCover_BAN!D7+AirCover_LV!D7
-
-
- node.chidren[A] = 1;
- nodes[A].parents[node.key] = 1;
- Example -
- Sheet_n6rGibTl0ii3_1766500200534=>D12=>=IFERROR(D10-D7,0)
- Sheet_n6rGibTl0ii3_1766500200534=>D15=>=ROUND(IFERROR(D10/D7,0),2)
- Sheet_f6r5e3pC050k_1766508421290=>D7=>=AirCover_BAN!D7+AirCover_LV!D7
- Sheet_f6r5e3pC050k_1766508421290=>D12=>=IFERROR(D10-D7,0)
- Sheet_f6r5e3pC050k_1766508421290=>D15=>=ROUND(IFERROR(D10/D7,0),2)
-
-I found 2 formulas K1090=&gt; IFERROR(F1090/SUMIF($D$50:$D$1176,$D1090,$F$50:$F$1176),0) E1090=&gt; VLOOKUP($D1090,$D$12:$E$48,2,0)*K1090'  but  K1090 comes after the E1090 in list why?
-
-
-
-// Build dependency graph (keep this part the same)
+// Build dependency graph
 const y = [];
 const nodeKeys = Object.keys(nodes);
 for (let i = 0; i < nodeKeys.length; i++) {
@@ -100,29 +12,41 @@ for (let i = 0; i < nodeKeys.length; i++) {
             const A = cellInfo.key;
             if (A in nodes) {
                 node.parents[A] = 1;  // node depends on A
-                nodes[A].children[node.key] = 1;  // A is used by node (fixed typo)
+                nodes[A].children[node.key] = 1;  // A is used by node
             }
-            if (!o && (A in execSet)) y.push(node);
         }
     }
-    if (o) y.push(node);
 }
 
-// NEW: If not recalculating all (o=false), expand y to include all downstream dependents
-if (!o) {
+// Determine which cells need recalculation
+if (o) {
+    // Recalculate everything
+    for (let i = 0; i < nodeKeys.length; i++) {
+        y.push(nodes[nodeKeys[i]]);
+    }
+} else {
+    // Start from cells in execSet and traverse all dependents
     const visited = {};
-    const queue = y.slice();
-    const allAffected = [];
+    const queue = [];
     
-    // BFS to find all cells affected by changes in execSet
+    // Add all cells from execSet to the queue
+    const execKeys = Object.keys(execSet);
+    for (let i = 0; i < execKeys.length; i++) {
+        const key = execKeys[i];
+        if (nodes[key]) {
+            queue.push(nodes[key]);
+        }
+    }
+    
+    // BFS to find ALL cells affected by changes
     while (queue.length > 0) {
         const cur = queue.shift();
         if (!cur || visited[cur.key]) continue;
         
         visited[cur.key] = 1;
-        allAffected.push(cur);
+        y.push(cur);
         
-        // Add all children (cells that depend on this one) to queue
+        // Add all children (cells that depend on this cell)
         const childKeys = Object.keys(cur.children || {});
         for (let ci = 0; ci < childKeys.length; ci++) {
             const childKey = childKeys[ci];
@@ -131,15 +55,9 @@ if (!o) {
             }
         }
     }
-    
-    // Replace y with the expanded list
-    y.length = 0;
-    for (let i = 0; i < allAffected.length; i++) {
-        y.push(allAffected[i]);
-    }
 }
 
-// Topological sort (keep your existing code, but fix the typo)
+// Topological sort
 const S = {};
 const stack = y.slice();
 const ordered = [];
@@ -167,4 +85,20 @@ while (stack.length > 0) {
     }
 }
 ordered.reverse();
+```
 
+**What changed:**
+
+1. **Separated dependency graph building from selection logic** - First build the complete graph, then determine what to recalculate
+2. **Start BFS from execSet cells directly** - Instead of checking `if (A in execSet)` during graph building
+3. **Traverse children properly** - Use the `children` property to find ALL downstream dependents across all sheets
+
+Now the flow is:
+```
+execSet = {Sheet1=>D1}
+
+1. Queue: [Sheet1=>D1]
+2. Process Sheet1=>D1 → Add its children → Queue: [Sheet2=>D7]
+3. Process Sheet2=>D7 → Add its children → Queue: [Sheet2=>D10]
+4. Process Sheet2=>D10 → Add its children → Queue: [Sheet2=>D15]
+5. Continue until all dependents are found
