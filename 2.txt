@@ -133,16 +133,16 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
                 const A = cellInfo.key;
                 
                 // FIXED: Correct parent-child relationship
-                node.parents[A] = 1;  // node depends on A
+                node.parents[A] = 1;  // node depends on A (A is parent)
                 
                 if (A in nodes) {
-                    nodes[A].children[node.key] = 1;  // A is used by node
+                    nodes[A].children[node.key] = 1;  // A is used by node (node is child)
                 }
             }
         }
     }
 
-    // === FIXED: Find all cells that need recalculation ===
+    // === FIXED: Find all cells that need recalculation using BFS ===
     const y = [];
     
     if (o) {
@@ -197,6 +197,8 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     const S = {};
     const stack = y.slice();
     const ordered = [];
+    
+    // Create set of keys in y for quick lookup
     const ySet = {};
     for (let i = 0; i < y.length; i++) {
         ySet[y[i].key] = 1;
@@ -216,7 +218,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         const parentNodes = [];
         for (let pi = 0; pi < parentKeys.length; pi++) {
             const pk = parentKeys[pi];
-            // Only include parents that are in y (need recalculation)
+            // FIXED: Only include parents that are also in y (need recalculation)
             if (nodes[pk] && ySet[pk]) {
                 parentNodes.push(nodes[pk]);
             }
@@ -265,6 +267,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             index: T.index
         });
         
+        // Re-append parents that appeared earlier for re-execution
         const parents = T.parents ? Object.keys(T.parents) : [];
         for (const k of parents) {
             const parentIdx = indexMap[k]?.idx ?? -1;
@@ -278,4 +281,4 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
     s.execFunctionExist = null;
-}
+},
