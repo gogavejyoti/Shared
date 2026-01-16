@@ -1,3 +1,297 @@
-function cellKey(r, c, i) {
-    return "r" + r + "c" + c + "i" + i;
-}
+            execFunctionGroup_new: function (e, n, t, l, a, o = !1) {
+                // Preserve original early return semantics
+                if (o) return;
+
+                const s = this;
+
+                // ---------- Initialize helpers (unchanged from your code) ----------
+                if (a == null) a = h.flowdata;
+                if (!window.luckysheet_compareWith) {
+                    window.luckysheet_compareWith = ja;
+                    window.luckysheet_getarraydata = wc;
+                    window.luckysheet_getcelldata = nr;
+                    window.luckysheet_parseData = Ua;
+                    window.luckysheet_getValue = qn;
+                    window.luckysheet_indirect_check = xc;
+                    window.luckysheet_indirect_check_return = _c;
+                    window.luckysheet_offset_check = Cc;
+                    window.luckysheet_calcADPMM = _t;
+                    window.luckysheet_getSpecialReference = Tc;
+                }
+
+                if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+                if (l == null) l = h.currentSheetIndex;
+
+                // ---------- Store explicit value if provided ----------
+                if (t != null) {
+                    const tmp = [[{ v: null }]];
+                    At(0, 0, tmp, t);
+                    s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+                }
+
+                
+
+                // ---------- Get all function group cells ----------
+                let allFuncCells = [];
+                let sheetIndices = null;
+                if (e != null && n != null) {
+                    const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+                    sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+                } else {
+                    allFuncCells = s.getAllFunctionGroup() || [];
+                }
+
+                // ---------- Build sheetMap ----------
+                const sheetsInfo = Ft() || [];
+                const sheetMap = {};
+                for (let i = 0; i < sheetsInfo.length; i++) {
+                    sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+                }
+
+                // ---------- Build execSet (changed/explicit targets) ----------
+                const execSet = {};
+                if (s.execFunctionExist == null) {
+                    execSet["r" + e + "c" + n + "i" + l] = 1;
+                } else {
+                    for (let i = 0; i < s.execFunctionExist.length; i++) {
+                        const T = s.execFunctionExist[i];
+                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+                    }
+                }
+
+                // ---------- Local range -> keys cache ----------
+                const rangeToKeysCache = {};
+                function keysForRange(R, sheetMap) {
+                    // R: { row: [r0, r1], column: [c0, c1], sheetIndex }
+                    const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+                    if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+
+                    const maxRow = (sheetMap[R.sheetIndex] && sheetMap[R.sheetIndex].length - 1) ?? R.row[1];
+                    const aRow = R.row[1] > maxRow ? maxRow : R.row[1];
+
+                    const list = [];
+                    for (let rr = R.row[0]; rr <= aRow; rr++) {
+                        for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                            const k = "r" + rr + "c" + cc + "i" + R.sheetIndex;
+                            list.push({ key: k, r: rr, c: cc, sheetIndex: R.sheetIndex });
+                        }
+                    }
+                    rangeToKeysCache[cacheKey] = list;
+                    return list;
+                }
+
+                // ---------- Build formula nodes ----------
+                const nodes = {};  // { key: {key, r,c,index,formulaArray,calc_funcStr,parents,children,color,cellAddress} }
+                // IMPORTANT: We also collect a reverse index from ANY reference (including value cells) → dependent formula nodes
+                // This allows us to find impacted formula nodes when a *value* cell changes.
+                const refToChildren = {};  // { refKey: Set(nodeKey, ...) }
+
+                // Tokenizer (as-is)
+                const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
+
+                for (let i = 0; i < allFuncCells.length; i++) {
+                    const T = allFuncCells[i];
+                    const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+
+                    // Prefer zl(...) formula fetch; fallback to ve.getSheetByIndex
+                    const R =
+                        zl(T.r, T.c, T.index) ||
+                        ve.getSheetByIndex(T.index)?.celldata?.find(x => x?.r === T.r && x?.c === T.c)?.v?.f;
+
+                    if (!R) continue;
+
+                    const formulaRanges = [];
+                    // Ignore literal string formulas like ="..."
+                    if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
+                        const tokens = R.split(fmrSplit).filter(Boolean);
+                        for (let ti = 0; ti < tokens.length; ti++) {
+                            let tk = tokens[ti].trim();
+                            if (!tk) continue;
+                            if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+
+                            // s.getcellrange(token, currentSheetIndex) must return { row:[r0,r1], column:[c0,c1], sheetIndex }
+                            const rg = s.getcellrange($.trim(tk), T.index);
+                            if (rg) formulaRanges.push(rg);
+                        }
+                    }
+
+                    nodes[nodeKey] = {
+                        formulaArray: formulaRanges,
+                        calc_funcStr: R,
+                        key: nodeKey,
+                        r: T.r,
+                        c: T.c,
+                        index: T.index,
+                        parents: {},     // incoming (true dependencies)
+                        children: {},    // outgoing (dependents)
+                        color: "w",
+                        cellAddress: s.getExcelAddr(T.r, T.c)
+                    };
+                }
+
+                // ---------- Build dependency graph (Excel-style: parents-first) ----------
+                // Also fill refToChildren for ALL references (even if not nodes), so change in a *value* cell finds dependents.
+                for (const nodeKey of Object.keys(nodes)) {
+                    const node = nodes[nodeKey];
+                    const ranges = node.formulaArray || [];
+
+                    for (let ri = 0; ri < ranges.length; ri++) {
+                        const rect = ranges[ri];
+                        const refs = keysForRange(rect, sheetMap) || [];
+
+                        for (let ki = 0; ki < refs.length; ki++) {
+                            const A = refs[ki].key; // canonical "r{row}c{col}i{sheet}"
+
+                            // Reverse index: ANY referenced cell → formula node (child)
+                            if (!refToChildren[A]) refToChildren[A] = new Set();
+                            refToChildren[A].add(node.key);
+
+                            // If the referenced cell is itself a formula node, connect graph edges
+                            if (A in nodes) {
+                                // node depends on A
+                                node.parents[A] = 1;                 // A → node (incoming)
+                                nodes[A].children[node.key] = 1;     // node is child of A (outgoing from A)
+                            }
+                        }
+                    }
+                }
+
+                // ---------- Build IMPACTED set (downstream closure) ----------
+                // Start from execSet keys (changed cells). These may be VALUE cells (not in nodes).
+                // We must include all formula nodes that depend on them (via refToChildren), plus their downstream dependents (children).
+                const impacted = new Set();
+                const queue = [];
+
+                const execKeys = Object.keys(execSet);
+                for (let i = 0; i < execKeys.length; i++) {
+                    const changedKey = execKeys[i];
+
+                    // 1) If any formula node references this changed cell, add those nodes
+                    const directChildren = refToChildren[changedKey];
+                    if (directChildren) {
+                        for (const childKey of directChildren) {
+                            if (!impacted.has(childKey)) {
+                                impacted.add(childKey);
+                                queue.push(childKey);
+                            }
+                        }
+                    }
+
+                    // 2) If the changed cell itself is a formula node, include it too
+                    if (nodes[changedKey] && !impacted.has(changedKey)) {
+                        impacted.add(changedKey);
+                        queue.push(changedKey);
+                    }
+                }
+
+                // Downstream closure over formula nodes using .children (outgoing edges)
+                while (queue.length > 0) {
+                    const k = queue.pop();
+                    const nnode = nodes[k];
+                    if (!nnode) continue;
+                    const childKeys = Object.keys(nnode.children || {});
+                    for (let ci = 0; ci < childKeys.length; ci++) {
+                        const ck = childKeys[ci];
+                        if (!impacted.has(ck)) {
+                            impacted.add(ck);
+                            queue.push(ck);
+                        }
+                    }
+                }
+
+                // If nothing was impacted (fallback), include all nodes (full recompute of formula cells)
+                if (impacted.size === 0) {
+                    for (const k of Object.keys(nodes)) impacted.add(k);
+                }
+
+                // ---------- Topological sort (parents-first, NO reverse) ----------
+                const ordered = [];
+                const processed = {};
+                const stack = [];
+
+                // Seed stack with impacted nodes to get evaluation order for the subgraph only
+                for (const k of impacted) {
+                    const node = nodes[k];
+                    if (node) stack.push(node);
+                }
+
+                while (stack.length > 0) {
+                    const cur = stack.pop();
+                    if (!cur) continue;
+
+                    if (processed[cur.key]) continue;
+
+                    if (cur.color === "b") {
+                        // Post-visit: all parents (in impacted set) are processed
+                        ordered.push(cur);
+                        processed[cur.key] = 1;
+                        continue;
+                    }
+
+                    cur.color = "b";
+                    stack.push(cur);
+
+                    // Collect TRUE parents but restrict to impacted subgraph for performance/stability
+                    const parentKeys = Object.keys(cur.parents || {}).filter(pk => nodes[pk] && impacted.has(pk)).sort();
+
+                    // Push parents so they are visited before 'cur'
+                    for (let i = parentKeys.length - 1; i >= 0; i--) {
+                        const pk = parentKeys[i];
+                        if (!processed[pk]) stack.push(nodes[pk]);
+                    }
+                }
+
+                // IMPORTANT: DO NOT reverse(); we already have parents-first order.
+
+                // ---------- Evaluate in topo order ----------
+                // Optional index map (you had used it for re-append trick; not needed with correct topo, but harmless)
+                const indexMap = {};
+                for (let i = 0; i < ordered.length; i++) {
+                    indexMap[ordered[i].key] = { idx: i, count: 0 };
+                }
+
+                for (let i = 0; i < ordered.length; i++) {
+                    const T = ordered[i];
+
+                    // clear celldata cache between evaluations
+                    window.luckysheet_getcelldata_cache = null;
+
+                    const oldValue = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
+                    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+
+                    // If value unchanged, skip write
+                    if (oldValue == Rres[1]) continue;
+
+                    // Update global data & refresh queue
+                    s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
+                        v: Rres[1],
+                        f: Rres[2]
+                    };
+
+                    s.groupValuesRefreshData.push({
+                        r: T.r,
+                        c: T.c,
+                        v: Rres[1],
+                        f: Rres[2],
+                        spe: Rres[3],
+                        index: T.index
+                    });
+
+                    // (Optional) Re-exec earlier parents if required — usually unnecessary with correct topo.
+                    // Keeping your guard in case some external side-effect requires it:
+                    const parents = T.parents ? Object.keys(T.parents) : [];
+                    for (const k of parents) {
+                        const im = indexMap[k];
+                        if (!im) continue;
+                        const parentIdx = im.idx ?? -1;
+                        if (parentIdx !== -1 && parentIdx < i && im.count < 5) {
+                            ordered.push(ordered[parentIdx]);
+                            indexMap[k].idx = ordered.length - 1;
+                            indexMap[k].count = im.count + 1;
+                        }
+                    }
+                }
+
+                s.execFunctionExist = null;
+            },
