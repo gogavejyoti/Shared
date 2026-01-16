@@ -246,10 +246,10 @@
 
                 // ---------- Evaluate in topo order ----------
                 // Optional index map (you had used it for re-append trick; not needed with correct topo, but harmless)
-                //const indexMap = {};
-                //for (let i = 0; i < ordered.length; i++) {
-                //    indexMap[ordered[i].key] = { idx: i, count: 0 };
-                //}
+                const indexMap = {};
+                for (let i = 0; i < ordered.length; i++) {
+                    indexMap[ordered[i].key] = { idx: i, count: 0 };
+                }
 
                 for (let i = 0; i < ordered.length; i++) {
                     const T = ordered[i];
@@ -280,17 +280,17 @@
 
                     // (Optional) Re-exec earlier parents if required — usually unnecessary with correct topo.
                     // Keeping your guard in case some external side-effect requires it:
-                    //const parents = T.parents ? Object.keys(T.parents) : [];
-                    //for (const k of parents) {
-                    //    const im = indexMap[k];
-                    //    if (!im) continue;
-                    //    const parentIdx = im.idx ?? -1;
-                    //    if (parentIdx !== -1 && parentIdx < i && im.count < 5) {
-                    //        ordered.push(ordered[parentIdx]);
-                    //        indexMap[k].idx = ordered.length - 1;
-                    //        indexMap[k].count = im.count + 1;
-                    //    }
-                    //}
+                    const parents = T.parents ? Object.keys(T.parents) : [];
+                    for (const k of parents) {
+                        const im = indexMap[k];
+                        if (!im) continue;
+                        const parentIdx = im.idx ?? -1;
+                        if (parentIdx !== -1 && parentIdx < i && im.count < 5) {
+                            ordered.push(ordered[parentIdx]);
+                            indexMap[k].idx = ordered.length - 1;
+                            indexMap[k].count = im.count + 1;
+                        }
+                    }
                 }
 
                 s.execFunctionExist = null;
