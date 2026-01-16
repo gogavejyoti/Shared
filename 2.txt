@@ -1,300 +1,204 @@
-// Re-exec earlier parents if required
 execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    // ---------- original early return ----------
     if (o) return;
-
     const s = this;
 
-    // ---------- helpers (UNCHANGED) ----------
     if (a == null) a = h.flowdata;
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja;
-        window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr;
-        window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn;
-        window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c;
-        window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t;
-        window.luckysheet_getSpecialReference = Tc;
-    }
-
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
     if (l == null) l = h.currentSheetIndex;
 
-    // ---------- explicit value store (UNCHANGED) ----------
+    // ---------------- explicit value write (unchanged) ----------------
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // ---------- collect function group cells (UNCHANGED LOGIC) ----------
-    let allFuncCells = [];
-    let sheetIndices = null;
+    // ==================================================================
+    // 1️⃣ BUILD GLOBAL DEPENDENCY GRAPH (ONCE)
+    // ==================================================================
+    if (!s._calcGraph) {
+        const nodes = new Map();
+        const refIndex = new Map(); // sheetIndex → [{range,nodeKey}]
 
-    if (e != null && n != null) {
-        const formulaOrValue =
-            (window.luckysheet_getcelldata_cache &&
-                Object.keys(window.luckysheet_getcelldata_cache).join("+")) ||
-            null;
-        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
-        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-    } else {
-        allFuncCells = s.getAllFunctionGroup() || [];
-    }
-
-    // ---------- build sheetMap (UNCHANGED) ----------
-    const sheetsInfo = Ft() || [];
-    const sheetMap = {};
-    for (let i = 0; i < sheetsInfo.length; i++) {
-        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
-    }
-
-    // ---------- execSet (UNCHANGED) ----------
-    const execSet = {};
-    if (s.execFunctionExist == null) {
-        execSet["r" + e + "c" + n + "i" + l] = 1;
-    } else {
-        for (let i = 0; i < s.execFunctionExist.length; i++) {
-            const T = s.execFunctionExist[i];
-            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-        }
-    }
-
-    // =====================================================================
-    // 🔥 OPTIMIZATION 1: dependency graph cache (NO logic change)
-    // =====================================================================
-    if (!s._execFuncDepCache) s._execFuncDepCache = {};
-    const cacheKey = l;
-
-    let depCache = s._execFuncDepCache[cacheKey];
-    let nodes, refToChildren;
-
-    if (!depCache) {
-        nodes = {};
-        refToChildren = {};
+        const allFuncCells = s.getAllFunctionGroup() || [];
         const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
 
-        // ---------- build formula nodes (UNCHANGED logic) ----------
         for (let i = 0; i < allFuncCells.length; i++) {
             const T = allFuncCells[i];
-            const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+            const key = cellKey(T.r, T.c, T.index);
 
-            const R =
+            const formula =
                 zl(T.r, T.c, T.index) ||
                 ve.getSheetByIndex(T.index)?.celldata?.find(
                     x => x?.r === T.r && x?.c === T.c
                 )?.v?.f;
 
-            if (!R) continue;
+            if (!formula) continue;
 
-            const formulaRanges = [];
-            if (!(R.substr(0, 2) === '="' && R.substr(R.length - 1, 1) === '"')) {
-                const tokens = R.split(fmrSplit);
+            const node = {
+                key,
+                r: T.r,
+                c: T.c,
+                sheet: T.index,
+                formula,
+                parents: new Set(),
+                children: new Set(),
+                ranges: []
+            };
+
+            if (!(formula.startsWith('="') && formula.endsWith('"'))) {
+                const tokens = formula.split(fmrSplit);
                 for (let ti = 0; ti < tokens.length; ti++) {
                     const tk = tokens[ti].trim();
                     if (!tk) continue;
                     if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
 
                     const rg = s.getcellrange(tk, T.index);
-                    if (rg) formulaRanges.push(rg);
+                    if (rg) node.ranges.push(rg);
                 }
             }
 
-            nodes[nodeKey] = {
-                key: nodeKey,
-                r: T.r,
-                c: T.c,
-                index: T.index,
-                formulaArray: formulaRanges,
-                calc_funcStr: R,
-                parents: {},
-                children: {},
-                color: "w",
-                cellAddress: s.getExcelAddr(T.r, T.c)
-            };
+            nodes.set(key, node);
         }
 
-        // ---------- range → keys cache (UNCHANGED behavior) ----------
-        const rangeToKeysCache = {};
-        function keysForRange(R) {
-            const k =
-                R.row[0] + "_" + R.row[1] + "_" +
-                R.column[0] + "_" + R.column[1] + "_" +
-                R.sheetIndex;
-
-            if (rangeToKeysCache[k]) return rangeToKeysCache[k];
-
-            const maxRow =
-                (sheetMap[R.sheetIndex] &&
-                    sheetMap[R.sheetIndex].length - 1) ??
-                R.row[1];
-
-            const endRow = R.row[1] > maxRow ? maxRow : R.row[1];
-            const list = [];
-
-            for (let rr = R.row[0]; rr <= endRow; rr++) {
-                for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                    list.push("r" + rr + "c" + cc + "i" + R.sheetIndex);
+        // ---------- build parent/child + refIndex ----------
+        for (const node of nodes.values()) {
+            for (const rg of node.ranges) {
+                if (!refIndex.has(rg.sheetIndex)) {
+                    refIndex.set(rg.sheetIndex, []);
                 }
+                refIndex.get(rg.sheetIndex).push({
+                    range: rg,
+                    nodeKey: node.key
+                });
             }
-            rangeToKeysCache[k] = list;
-            return list;
         }
 
-        // ---------- dependency graph build (UNCHANGED logic) ----------
-        for (const nodeKey in nodes) {
-            const node = nodes[nodeKey];
-            const ranges = node.formulaArray || [];
-
-            for (let ri = 0; ri < ranges.length; ri++) {
-                const rect = ranges[ri];
-                const refs = keysForRange(rect);
-
-                for (let ki = 0; ki < refs.length; ki++) {
-                    const A = refs[ki];
-
-                    if (!refToChildren[A]) refToChildren[A] = [];
-                    refToChildren[A].push(node.key);
-
-                    if (nodes[A]) {
-                        node.parents[A] = 1;
-                        nodes[A].children[node.key] = 1;
+        // ---------- connect formula-to-formula edges ----------
+        for (const node of nodes.values()) {
+            for (const rg of node.ranges) {
+                const sheetNodes = nodes;
+                for (let r = rg.row[0]; r <= rg.row[1]; r++) {
+                    for (let c = rg.column[0]; c <= rg.column[1]; c++) {
+                        const depKey = cellKey(r, c, rg.sheetIndex);
+                        if (sheetNodes.has(depKey)) {
+                            node.parents.add(depKey);
+                            sheetNodes.get(depKey).children.add(node.key);
+                        }
                     }
                 }
             }
         }
 
-        depCache = s._execFuncDepCache[cacheKey] = {
-            nodes,
-            refToChildren
-        };
-    } else {
-        nodes = depCache.nodes;
-        refToChildren = depCache.refToChildren;
+        s._calcGraph = { nodes, refIndex };
     }
 
-    // =====================================================================
-    // impacted set (UNCHANGED logic)
-    // =====================================================================
+    const { nodes, refIndex } = s._calcGraph;
+
+    // ==================================================================
+    // 2️⃣ BUILD CHANGED CELL SET (multi-cell safe)
+    // ==================================================================
+    const changed = [];
+
+    if (s.execFunctionExist) {
+        for (const T of s.execFunctionExist) {
+            changed.push({ r: T.r, c: T.c, sheet: T.i });
+        }
+    } else if (e != null && n != null) {
+        changed.push({ r: e, c: n, sheet: l });
+    }
+
+    // ==================================================================
+    // 3️⃣ RESOLVE IMPACTED FORMULAS (range-aware)
+    // ==================================================================
     const impacted = new Set();
     const queue = [];
-    const execKeys = Object.keys(execSet);
 
-    for (let i = 0; i < execKeys.length; i++) {
-        const k = execKeys[i];
+    function inRange(cell, rg) {
+        return (
+            cell.sheet === rg.sheetIndex &&
+            cell.r >= rg.row[0] && cell.r <= rg.row[1] &&
+            cell.c >= rg.column[0] && cell.c <= rg.column[1]
+        );
+    }
 
-        const children = refToChildren[k];
-        if (children) {
-            for (let j = 0; j < children.length; j++) {
-                if (!impacted.has(children[j])) {
-                    impacted.add(children[j]);
-                    queue.push(children[j]);
+    for (const cell of changed) {
+        const list = refIndex.get(cell.sheet) || [];
+        for (const ref of list) {
+            if (inRange(cell, ref.range)) {
+                if (!impacted.has(ref.nodeKey)) {
+                    impacted.add(ref.nodeKey);
+                    queue.push(ref.nodeKey);
                 }
             }
         }
-
-        if (nodes[k] && !impacted.has(k)) {
-            impacted.add(k);
-            queue.push(k);
-        }
     }
 
+    // downstream closure
     while (queue.length) {
         const k = queue.pop();
-        const node = nodes[k];
+        const node = nodes.get(k);
         if (!node) continue;
 
-        for (const ck in node.children) {
-            if (!impacted.has(ck)) {
-                impacted.add(ck);
-                queue.push(ck);
+        for (const child of node.children) {
+            if (!impacted.has(child)) {
+                impacted.add(child);
+                queue.push(child);
             }
         }
     }
 
     if (impacted.size === 0) {
-        for (const k in nodes) impacted.add(k);
+        for (const k of nodes.keys()) impacted.add(k);
     }
 
-    // =====================================================================
-    // topo sort (UNCHANGED logic)
-    // =====================================================================
+    // ==================================================================
+    // 4️⃣ DETERMINISTIC TOPO SORT (Excel-style)
+    // ==================================================================
     const ordered = [];
-    const processed = {};
-    const stack = [];
+    const visited = new Set();
+    const temp = new Set();
 
-    impacted.forEach(k => nodes[k] && stack.push(nodes[k]));
+    function visit(k) {
+        if (visited.has(k)) return;
+        if (temp.has(k)) return;
 
-    while (stack.length) {
-        const cur = stack.pop();
-        if (processed[cur.key]) continue;
-
-        if (cur.color === "b") {
-            ordered.push(cur);
-            processed[cur.key] = 1;
-            continue;
+        temp.add(k);
+        const node = nodes.get(k);
+        for (const p of node.parents) {
+            if (impacted.has(p)) visit(p);
         }
-
-        cur.color = "b";
-        stack.push(cur);
-
-        const parents = Object.keys(cur.parents || {});
-        for (let i = parents.length - 1; i >= 0; i--) {
-            const pk = parents[i];
-            if (nodes[pk] && impacted.has(pk) && !processed[pk]) {
-                stack.push(nodes[pk]);
-            }
-        }
+        temp.delete(k);
+        visited.add(k);
+        ordered.push(node);
     }
 
-    // =====================================================================
-    // evaluation loop (UNCHANGED logic)
-    // =====================================================================
-    const indexMap = {};
-    for (let i = 0; i < ordered.length; i++) {
-        indexMap[ordered[i].key] = { idx: i, count: 0 };
-    }
+    Array.from(impacted).sort().forEach(visit);
 
+    // ==================================================================
+    // 5️⃣ EXECUTION PHASE (UNCHANGED SEMANTICS)
+    // ==================================================================
     window.luckysheet_getcelldata_cache = null;
 
-    for (let i = 0; i < ordered.length; i++) {
-        const T = ordered[i];
+    for (const T of ordered) {
+        const oldVal =
+            ve.getSheetByIndex(T.sheet)?.data?.[T.r]?.[T.c]?.v;
 
-        const oldValue = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
-        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+        const res = s.execfunction(T.formula, T.r, T.c, T.sheet);
+        if (oldVal === res[1]) continue;
 
-        if (oldValue == Rres[1]) continue;
-
-        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
-            v: Rres[1],
-            f: Rres[2]
+        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.sheet}`] = {
+            v: res[1],
+            f: res[2]
         };
 
         s.groupValuesRefreshData.push({
             r: T.r,
             c: T.c,
-            v: Rres[1],
-            f: Rres[2],
-            spe: Rres[3],
-            index: T.index
+            v: res[1],
+            f: res[2],
+            spe: res[3],
+            index: T.sheet
         });
-
-        // ---------- legacy re-exec parents (UNCHANGED) ----------
-        const parents = Object.keys(T.parents || {});
-        for (let j = 0; j < parents.length; j++) {
-            const p = parents[j];
-            const im = indexMap[p];
-            if (!im) continue;
-
-            if (im.idx < i && im.count < 5) {
-                ordered.push(ordered[im.idx]);
-                im.idx = ordered.length - 1;
-                im.count++;
-            }
-        }
     }
 
     s.execFunctionExist = null;
