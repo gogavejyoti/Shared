@@ -103,7 +103,6 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     // ---------- build nodes ----------
     const nodes = {};
     const refToChildren = {};
-    const aggregateRefs = {};
     const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
 
     for (let i = 0; i < allFuncCells.length; i++) {
@@ -140,33 +139,27 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         };
     }
 
-    // ---------- dependency graph ----------
+    // ---------- dependency graph (Excel-correct) ----------
     for (const key in nodes) {
         const node = nodes[key];
         const isAgg = isAggregateFormula(node.calc_funcStr);
 
         for (const rg of node.formulaArray) {
             for (const ref of keysForRange(rg)) {
-                // impact mapping (always)
+                // impact detection (ALWAYS)
                 if (!refToChildren[ref]) refToChildren[ref] = new Set();
                 refToChildren[ref].add(key);
 
-                // ordering edges only for non-aggregates
+                // ordering ONLY for non-aggregate formulas
                 if (!isAgg && nodes[ref]) {
                     node.parents[ref] = 1;
                     nodes[ref].children[key] = 1;
-                }
-
-                // remember aggregate references for recalculation
-                if (isAgg) {
-                    if (!aggregateRefs[key]) aggregateRefs[key] = new Set();
-                    aggregateRefs[key].add(ref);
                 }
             }
         }
     }
 
-    // ---------- impacted (downstream) ----------
+    // ---------- impacted (downstream only) ----------
     const impacted = new Set();
     const queue = [];
 
@@ -198,28 +191,11 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---------- ensure aggregate referenced formulas are recalculated ----------
-    let aggChanged = true;
-    while (aggChanged) {
-        aggChanged = false;
-        for (const aggKey in aggregateRefs) {
-            if (!impacted.has(aggKey)) continue;
-            for (const refKey of aggregateRefs[aggKey]) {
-                if (nodes[refKey] && !impacted.has(refKey)) {
-                    impacted.add(refKey);
-                    aggChanged = true;
-                }
-            }
-        }
-    }
-
     if (impacted.size === 0) {
         for (const k in nodes) impacted.add(k);
     }
 
-    // ============================================================
-    // Excel-faithful ordering (DFS, impacted parents only)
-    // ============================================================
+    // ---------- Excel-faithful ordering (DFS, impacted parents only) ----------
     const ordered = [];
     const visited = {};
     const visiting = {};
