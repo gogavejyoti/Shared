@@ -1,37 +1,235 @@
-// ---------- Topological sort (Excel-style: Kahn / in-degree) ----------
-const ordered = [];
-const inDegree = {};
-const queue = [];
+execFunctionGroup: function (e, n, t, l, a, o = !1) {
+    if (o) return;
 
-// Initialize in-degree ONLY within impacted subgraph
-for (const k of impacted) {
-    const node = nodes[k];
-    if (!node) continue;
+    const s = this;
 
-    let deg = 0;
-    for (const pk in node.parents) {
-        if (impacted.has(pk)) deg++;
+    // ---------- helpers ----------
+    if (a == null) a = h.flowdata;
+    if (!window.luckysheet_compareWith) {
+        window.luckysheet_compareWith = ja;
+        window.luckysheet_getarraydata = wc;
+        window.luckysheet_getcelldata = nr;
+        window.luckysheet_parseData = Ua;
+        window.luckysheet_getValue = qn;
+        window.luckysheet_indirect_check = xc;
+        window.luckysheet_indirect_check_return = _c;
+        window.luckysheet_offset_check = Cc;
+        window.luckysheet_calcADPMM = _t;
+        window.luckysheet_getSpecialReference = Tc;
     }
-    inDegree[k] = deg;
 
-    if (deg === 0) queue.push(node);
-}
+    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    if (l == null) l = h.currentSheetIndex;
 
-// Process
-while (queue.length > 0) {
-    const cur = queue.shift();
-    ordered.push(cur);
+    // ---------- explicit value ----------
+    if (t != null) {
+        const tmp = [[{ v: null }]];
+        At(0, 0, tmp, t);
+        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+    }
 
-    for (const ck in cur.children) {
-        if (!impacted.has(ck)) continue;
-        inDegree[ck]--;
-        if (inDegree[ck] === 0) {
-            queue.push(nodes[ck]);
+    // ---------- collect formula cells ----------
+    let allFuncCells = [];
+    let sheetIndices = null;
+
+    if (e != null && n != null) {
+        const formulaOrValue =
+            (window.luckysheet_getcelldata_cache &&
+                Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+    } else {
+        allFuncCells = s.getAllFunctionGroup() || [];
+    }
+
+    // ---------- sheetMap ----------
+    const sheetsInfo = Ft() || [];
+    const sheetMap = {};
+    for (let i = 0; i < sheetsInfo.length; i++) {
+        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+    }
+
+    // ---------- execSet ----------
+    const execSet = {};
+    if (s.execFunctionExist == null) {
+        execSet["r" + e + "c" + n + "i" + l] = 1;
+    } else {
+        for (let i = 0; i < s.execFunctionExist.length; i++) {
+            const T = s.execFunctionExist[i];
+            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
         }
     }
-}
 
-// Safety: cycle detection (Excel marks circular refs)
-if (ordered.length !== [...impacted].filter(k => nodes[k]).length) {
-    console.warn("Circular dependency detected in formula graph");
+    // ---------- range → keys cache ----------
+    const rangeToKeysCache = {};
+    function keysForRange(R) {
+        const cacheKey =
+            `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+        if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+
+        const maxRow =
+            (sheetMap[R.sheetIndex] && sheetMap[R.sheetIndex].length - 1) ??
+            R.row[1];
+        const aRow = Math.min(R.row[1], maxRow);
+
+        const list = [];
+        for (let rr = R.row[0]; rr <= aRow; rr++) {
+            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                list.push({
+                    key: "r" + rr + "c" + cc + "i" + R.sheetIndex,
+                    r: rr,
+                    c: cc,
+                    sheetIndex: R.sheetIndex
+                });
+            }
+        }
+        rangeToKeysCache[cacheKey] = list;
+        return list;
+    }
+
+    // ---------- build nodes ----------
+    const nodes = {};
+    const refToChildren = {};
+    const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
+
+    for (let i = 0; i < allFuncCells.length; i++) {
+        const T = allFuncCells[i];
+        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+
+        const R =
+            zl(T.r, T.c, T.index) ||
+            ve.getSheetByIndex(T.index)?.celldata?.find(
+                x => x?.r === T.r && x?.c === T.c
+            )?.v?.f;
+
+        if (!R) continue;
+
+        const formulaRanges = [];
+        if (!(R.startsWith('="') && R.endsWith('"'))) {
+            const tokens = R.split(fmrSplit).filter(Boolean);
+            for (const tk of tokens) {
+                const rg = s.getcellrange($.trim(tk), T.index);
+                if (rg) formulaRanges.push(rg);
+            }
+        }
+
+        nodes[nodeKey] = {
+            key: nodeKey,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            formulaArray: formulaRanges,
+            calc_funcStr: R,
+            parents: {},
+            children: {},
+            cellAddress: s.getExcelAddr(T.r, T.c)
+        };
+    }
+
+    // ---------- dependency graph ----------
+    for (const nodeKey in nodes) {
+        const node = nodes[nodeKey];
+        for (const rect of node.formulaArray) {
+            const refs = keysForRange(rect);
+            for (const A of refs) {
+                if (!refToChildren[A.key]) refToChildren[A.key] = new Set();
+                refToChildren[A.key].add(nodeKey);
+
+                if (nodes[A.key]) {
+                    node.parents[A.key] = 1;
+                    nodes[A.key].children[nodeKey] = 1;
+                }
+            }
+        }
+    }
+
+    // ---------- impacted set ----------
+    const impacted = new Set();
+    const queue = [];
+
+    for (const k in execSet) {
+        if (nodes[k]) {
+            impacted.add(k);
+            queue.push(k);
+        }
+        if (refToChildren[k]) {
+            for (const child of refToChildren[k]) {
+                impacted.add(child);
+                queue.push(child);
+            }
+        }
+    }
+
+    while (queue.length) {
+        const k = queue.pop();
+        if (!nodes[k]) continue;
+        for (const c in nodes[k].children) {
+            if (!impacted.has(c)) {
+                impacted.add(c);
+                queue.push(c);
+            }
+        }
+    }
+
+    if (impacted.size === 0) {
+        for (const k in nodes) impacted.add(k);
+    }
+
+    // ============================================================
+    // ✅ FIX: Excel-style topological order (Kahn / in-degree)
+    // ============================================================
+    const ordered = [];
+    const inDegree = {};
+    const ready = [];
+
+    for (const k of impacted) {
+        const node = nodes[k];
+        if (!node) continue;
+
+        let deg = 0;
+        for (const p in node.parents) {
+            if (impacted.has(p)) deg++;
+        }
+        inDegree[k] = deg;
+        if (deg === 0) ready.push(node);
+    }
+
+    while (ready.length) {
+        const cur = ready.shift();
+        ordered.push(cur);
+
+        for (const c in cur.children) {
+            if (!impacted.has(c)) continue;
+            inDegree[c]--;
+            if (inDegree[c] === 0) {
+                ready.push(nodes[c]);
+            }
+        }
+    }
+
+    // ---------- evaluate ----------
+    for (const T of ordered) {
+        window.luckysheet_getcelldata_cache = null;
+
+        const oldVal = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
+        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+
+        if (oldVal === Rres[1]) continue;
+
+        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
+            v: Rres[1],
+            f: Rres[2]
+        };
+
+        s.groupValuesRefreshData.push({
+            r: T.r,
+            c: T.c,
+            v: Rres[1],
+            f: Rres[2],
+            spe: Rres[3],
+            index: T.index
+        });
+    }
+
+    s.execFunctionExist = null;
 }
