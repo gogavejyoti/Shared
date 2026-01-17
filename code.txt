@@ -1,228 +1,53 @@
-execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    if (o) return;
-    const s = this;
 
-    // ---------- helpers ----------
-    if (a == null) a = h.flowdata;
-    if (!window.luckysheet_compareWith) {
-        window.luckysheet_compareWith = ja;
-        window.luckysheet_getarraydata = wc;
-        window.luckysheet_getcelldata = nr;
-        window.luckysheet_parseData = Ua;
-        window.luckysheet_getValue = qn;
-        window.luckysheet_indirect_check = xc;
-        window.luckysheet_indirect_check_return = _c;
-        window.luckysheet_offset_check = Cc;
-        window.luckysheet_calcADPMM = _t;
-        window.luckysheet_getSpecialReference = Tc;
-    }
+const ordered = [];
+const visited = {};
+const visiting = {};
 
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-    if (l == null) l = h.currentSheetIndex;
+function visit(k) {
+    if (visited[k] || visiting[k]) return;
+    visiting[k] = true;
 
-    // ---------- explicit value ----------
-    if (t != null) {
-        const tmp = [[{ v: null }]];
-        At(0, 0, tmp, t);
-        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
-    }
-
-    // ---------- collect ALL formula cells (Excel global graph) ----------
-    const allFuncCells = s.getAllFunctionGroup() || [];
-
-    // ---------- sheetMap ----------
-    const sheetsInfo = Ft() || [];
-    const sheetMap = {};
-    for (const sh of sheetsInfo) sheetMap[sh.index] = sh.data;
-
-    // ---------- execSet ----------
-    const execSet = {};
-    if (s.execFunctionExist == null) {
-        execSet["r" + e + "c" + n + "i" + l] = 1;
-    } else {
-        for (const T of s.execFunctionExist) {
-            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-        }
-    }
-
-    // ---------- range → keys ----------
-    const rangeToKeysCache = {};
-    function keysForRange(R) {
-        const key = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
-        if (rangeToKeysCache[key]) return rangeToKeysCache[key];
-
-        const maxRow = (sheetMap[R.sheetIndex]?.length - 1) ?? R.row[1];
-        const aRow = Math.min(R.row[1], maxRow);
-        const list = [];
-
-        for (let rr = R.row[0]; rr <= aRow; rr++) {
-            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                list.push({
-                    key: "r" + rr + "c" + cc + "i" + R.sheetIndex
-                });
-            }
-        }
-        rangeToKeysCache[key] = list;
-        return list;
-    }
-
-    // ---------- build nodes ----------
-    const nodes = {};
-    const refToChildren = {};
-    const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
-
-    for (const T of allFuncCells) {
-        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
-        const R =
-            zl(T.r, T.c, T.index) ||
-            ve.getSheetByIndex(T.index)?.celldata?.find(
-                x => x?.r === T.r && x?.c === T.c
-            )?.v?.f;
-
-        if (!R) continue;
-
-        const formulaRanges = [];
-        if (!(R.startsWith('="') && R.endsWith('"'))) {
-            const tokens = R.split(fmrSplit).filter(Boolean);
-            for (const tk of tokens) {
-                const rg = s.getcellrange($.trim(tk), T.index);
-                if (rg) formulaRanges.push(rg);
-            }
-        }
-
-        nodes[nodeKey] = {
-            key: nodeKey,
-            r: T.r,
-            c: T.c,
-            index: T.index,
-            formulaArray: formulaRanges,
-            calc_funcStr: R,
-            parents: {},
-            children: {}
-        };
-    }
-
-    // ---------- dependency graph ----------
-    for (const nodeKey in nodes) {
-        const node = nodes[nodeKey];
-        for (const rect of node.formulaArray) {
-            for (const ref of keysForRange(rect)) {
-                if (!refToChildren[ref.key]) refToChildren[ref.key] = new Set();
-                refToChildren[ref.key].add(nodeKey);
-
-                if (nodes[ref.key]) {
-                    node.parents[ref.key] = 1;
-                    nodes[ref.key].children[nodeKey] = 1;
-                }
-            }
-        }
-    }
-
-    // ---------- impacted (downstream) ----------
-    const impacted = new Set();
-    const q = [];
-
-    for (const k in execSet) {
-        if (nodes[k]) {
-            impacted.add(k);
-            q.push(k);
-        }
-        if (refToChildren[k]) {
-            for (const c of refToChildren[k]) {
-                if (!impacted.has(c)) {
-                    impacted.add(c);
-                    q.push(c);
-                }
-            }
-        }
-    }
-
-    while (q.length) {
-        const cur = q.pop();
-        const node = nodes[cur];
-        if (!node) continue;
-
-        for (const c in node.children) {
-            if (!impacted.has(c)) {
-                impacted.add(c);
-                q.push(c);
-            }
-        }
-    }
-
-    // ============================================================
-    // 🔴 CRITICAL EXCEL RULE:
-    // If a recalculated formula reads a RANGE (VLOOKUP / SUMIF / etc),
-    // ALL formula cells inside that range MUST be recalculated first.
-    // ============================================================
-    const force = Array.from(impacted);
-    while (force.length) {
-        const k = force.pop();
-        const node = nodes[k];
-        if (!node) continue;
-
+    const node = nodes[k];
+    if (node) {
         for (const p in node.parents) {
-            if (nodes[p] && !impacted.has(p)) {
-                impacted.add(p);
-                force.push(p);
+            if (impacted.has(p)) {
+                visit(p);
             }
         }
     }
 
-    // ============================================================
-    // ✅ FINAL Excel-faithful ordering
-    // (DFS, impacted parents only, no missing nodes)
-    // ============================================================
-    const ordered = [];
-    const visited = {};
-    const visiting = {};
-
-    function visit(k) {
-        if (visited[k]) return;
-        if (visiting[k]) return;
-
-        visiting[k] = true;
-        const node = nodes[k];
-        if (node) {
-            for (const p in node.parents) {
-                if (impacted.has(p)) {
-                    visit(p);
-                }
-            }
-        }
-        visiting[k] = false;
-        visited[k] = true;
-        ordered.push(node);
-    }
-
-    for (const k of impacted) {
-        if (nodes[k] && !visited[k]) {
-            visit(k);
-        }
-    }
-
-    // ---------- evaluate ----------
-    for (const T of ordered) {
-        window.luckysheet_getcelldata_cache = null;
-        const oldVal = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
-        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
-
-        if (oldVal === Rres[1]) continue;
-
-        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
-            v: Rres[1],
-            f: Rres[2]
-        };
-
-        s.groupValuesRefreshData.push({
-            r: T.r,
-            c: T.c,
-            v: Rres[1],
-            f: Rres[2],
-            spe: Rres[3],
-            index: T.index
-        });
-    }
-
-    s.execFunctionExist = null;
+    visiting[k] = false;
+    visited[k] = true;
+    ordered.push(node);
 }
+
+// 🔑 find impacted roots (Excel calculation chain roots)
+const roots = [];
+for (const k of impacted) {
+    const node = nodes[k];
+    if (!node) continue;
+
+    let hasImpactedParent = false;
+    for (const p in node.parents) {
+        if (impacted.has(p)) {
+            hasImpactedParent = true;
+            break;
+        }
+    }
+    if (!hasImpactedParent) {
+        roots.push(k);
+    }
+}
+
+// 🔑 start DFS ONLY from roots
+for (const k of roots) {
+    visit(k);
+}
+
+// safety: ensure no impacted node is missed
+for (const k of impacted) {
+    if (!visited[k]) {
+        visit(k);
+    }
+}
+🧪 Why this F
