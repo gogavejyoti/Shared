@@ -1,53 +1,74 @@
+// ============================================================
+// FINAL SAFE Excel-style ordering
+// (Topo correctness + DFS completeness fallback)
+// ============================================================
 
 const ordered = [];
-const visited = {};
-const visiting = {};
+const inDegree = {};
+const queue = [];
 
-function visit(k) {
-    if (visited[k] || visiting[k]) return;
-    visiting[k] = true;
-
-    const node = nodes[k];
-    if (node) {
-        for (const p in node.parents) {
-            if (impacted.has(p)) {
-                visit(p);
-            }
-        }
-    }
-
-    visiting[k] = false;
-    visited[k] = true;
-    ordered.push(node);
-}
-
-// 🔑 find impacted roots (Excel calculation chain roots)
-const roots = [];
+// 1. Build inDegree ONLY from impacted parents
 for (const k of impacted) {
     const node = nodes[k];
     if (!node) continue;
 
-    let hasImpactedParent = false;
+    let deg = 0;
     for (const p in node.parents) {
-        if (impacted.has(p)) {
-            hasImpactedParent = true;
-            break;
+        if (impacted.has(p)) deg++;
+    }
+    inDegree[k] = deg;
+
+    if (deg === 0) {
+        queue.push(k);
+    }
+}
+
+// 2. Kahn topo
+while (queue.length) {
+    const k = queue.shift();
+    if (!nodes[k]) continue;
+
+    ordered.push(nodes[k]);
+
+    for (const c in nodes[k].children) {
+        if (!impacted.has(c)) continue;
+
+        inDegree[c]--;
+        if (inDegree[c] === 0) {
+            queue.push(c);
         }
     }
-    if (!hasImpactedParent) {
-        roots.push(k);
-    }
 }
 
-// 🔑 start DFS ONLY from roots
-for (const k of roots) {
-    visit(k);
-}
+// 3. SAFETY NET — never drop nodes (Excel never does)
+if (ordered.length !== impacted.size) {
+    const scheduled = new Set(ordered.map(n => n.key));
 
-// safety: ensure no impacted node is missed
-for (const k of impacted) {
-    if (!visited[k]) {
-        visit(k);
+    // DFS fallback for any unscheduled impacted nodes
+    const visited = {};
+
+    function dfsFallback(k) {
+        if (visited[k]) return;
+        visited[k] = true;
+
+        const node = nodes[k];
+        if (!node) return;
+
+        for (const p in node.parents) {
+            if (impacted.has(p) && !scheduled.has(p)) {
+                dfsFallback(p);
+            }
+        }
+
+        if (!scheduled.has(k)) {
+            ordered.push(node);
+            scheduled.add(k);
+        }
+    }
+
+    for (const k of impacted) {
+        if (!scheduled.has(k)) {
+            dfsFallback(k);
+        }
     }
 }
-🧪 Why this F
