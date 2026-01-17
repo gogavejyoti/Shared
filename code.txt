@@ -1,2 +1,210 @@
-Parent =SUMIF(Forecast!$C:$C,FF$2,Forecast!$E:$E)
-	contains Child as F583 => =IFERROR(HLOOKUP(C583,'Weekly Summary'!$B$2:$FF$7,6,0)*J583,"")
+execFunctionGroup: function (e, n, t, l, a, o = !1) {
+    if (o) return;
+    const s = this;
+
+    if (a == null) a = h.flowdata;
+    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    if (l == null) l = h.currentSheetIndex;
+
+    // ---------- explicit value ----------
+    if (t != null) {
+        const tmp = [[{ v: null }]];
+        At(0, 0, tmp, t);
+        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+    }
+
+    // ---------- ALL formula cells (Excel always knows all formulas) ----------
+    const allFuncCells = s.getAllFunctionGroup() || [];
+
+    // ---------- sheetMap ----------
+    const sheetsInfo = Ft() || [];
+    const sheetMap = {};
+    for (const sh of sheetsInfo) sheetMap[sh.index] = sh.data;
+
+    // ---------- execSet ----------
+    const execSet = {};
+    if (s.execFunctionExist == null) {
+        execSet["r" + e + "c" + n + "i" + l] = 1;
+    } else {
+        for (const T of s.execFunctionExist) {
+            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+        }
+    }
+
+    // ---------- range → keys ----------
+    const rangeCache = {};
+    function keysForRange(R) {
+        const k = `${R.row[0]}:${R.row[1]}:${R.column[0]}:${R.column[1]}:${R.sheetIndex}`;
+        if (rangeCache[k]) return rangeCache[k];
+
+        const list = [];
+        const maxRow = sheetMap[R.sheetIndex]?.length - 1 ?? R.row[1];
+        const r1 = Math.min(R.row[1], maxRow);
+
+        for (let r = R.row[0]; r <= r1; r++) {
+            for (let c = R.column[0]; c <= R.column[1]; c++) {
+                list.push("r" + r + "c" + c + "i" + R.sheetIndex);
+            }
+        }
+        return (rangeCache[k] = list);
+    }
+
+    // ---------- build nodes ----------
+    const nodes = {};
+    const refToChildren = {};
+    const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
+
+    for (const T of allFuncCells) {
+        const key = "r" + T.r + "c" + T.c + "i" + T.index;
+        const f =
+            zl(T.r, T.c, T.index) ||
+            ve.getSheetByIndex(T.index)?.celldata?.find(
+                x => x?.r === T.r && x?.c === T.c
+            )?.v?.f;
+
+        if (!f) continue;
+
+        const ranges = [];
+        if (!(f.startsWith('="') && f.endsWith('"'))) {
+            for (const tok of f.split(fmrSplit).filter(Boolean)) {
+                const rg = s.getcellrange($.trim(tok), T.index);
+                if (rg) ranges.push(rg);
+            }
+        }
+
+        nodes[key] = {
+            key,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            calc_funcStr: f,
+            formulaArray: ranges,
+            parents: {},
+            children: {}
+        };
+    }
+
+    // ---------- dependency graph (Excel rules applied) ----------
+    for (const key in nodes) {
+        const node = nodes[key];
+        const isAgg = isAggregateFormula(node.calc_funcStr);
+
+        for (const rg of node.formulaArray) {
+            for (const ref of keysForRange(rg)) {
+                if (!refToChildren[ref]) refToChildren[ref] = new Set();
+                refToChildren[ref].add(key);
+
+                // IMPORTANT:
+                // aggregate functions do NOT create formula dependencies
+                if (!isAgg && nodes[ref]) {
+                    node.parents[ref] = 1;
+                    nodes[ref].children[key] = 1;
+                }
+            }
+        }
+    }
+
+    // ---------- impacted (downstream closure) ----------
+    const impacted = new Set();
+    const q = [];
+
+    for (const k in execSet) {
+        if (nodes[k]) {
+            impacted.add(k);
+            q.push(k);
+        }
+        if (refToChildren[k]) {
+            for (const c of refToChildren[k]) {
+                impacted.add(c);
+                q.push(c);
+            }
+        }
+    }
+
+    while (q.length) {
+        const k = q.pop();
+        const node = nodes[k];
+        if (!node) continue;
+
+        for (const c in node.children) {
+            if (!impacted.has(c)) {
+                impacted.add(c);
+                q.push(c);
+            }
+        }
+    }
+
+    if (impacted.size === 0) {
+        for (const k in nodes) impacted.add(k);
+    }
+
+    // ============================================================
+    // ✅ FINAL Excel ordering (DFS, impacted parents only)
+    // ============================================================
+    const ordered = [];
+    const visited = {};
+    const visiting = {};
+
+    function visit(k) {
+        if (visited[k] || visiting[k]) return;
+        visiting[k] = true;
+
+        const node = nodes[k];
+        if (node) {
+            for (const p in node.parents) {
+                if (impacted.has(p)) visit(p);
+            }
+        }
+
+        visiting[k] = false;
+        visited[k] = true;
+        ordered.push(node);
+    }
+
+    for (const k of impacted) {
+        if (nodes[k]) visit(k);
+    }
+
+    // ---------- evaluate ----------
+    for (const T of ordered) {
+        window.luckysheet_getcelldata_cache = null;
+        const oldVal = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
+        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+
+        if (oldVal === Rres[1]) continue;
+
+        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
+            v: Rres[1],
+            f: Rres[2]
+        };
+
+        s.groupValuesRefreshData.push({
+            r: T.r,
+            c: T.c,
+            v: Rres[1],
+            f: Rres[2],
+            spe: Rres[3],
+            index: T.index
+        });
+    }
+
+    s.execFunctionExist = null;
+}
+
+function isAggregateFormula(f) {
+    if (!f) return false;
+    const u = f.toUpperCase();
+    return (
+        u.startsWith("=SUM(") ||
+        u.startsWith("=SUMIF(") ||
+        u.startsWith("=SUMIFS(") ||
+        u.startsWith("=COUNT(") ||
+        u.startsWith("=COUNTIF(") ||
+        u.startsWith("=COUNTIFS(") ||
+        u.startsWith("=AVERAGE(") ||
+        u.startsWith("=AVERAGEIF(") ||
+        u.startsWith("=AVERAGEIFS(") ||
+        u.startsWith("=MIN(") ||
+        u.startsWith("=MAX(")
+    );
+}
