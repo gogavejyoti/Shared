@@ -1,282 +1,273 @@
-            execFunctionGroup: function (e, n, t, l, a, o = !1) {
-                if (o) return;
+execFunctionGroup: function (e, n, t, l, a, o = !1) {
+    if (o) return;
 
-                const s = this;
+    const s = this;
 
-                // ---------- helpers ----------
-                if (a == null) a = h.flowdata;
-                if (!window.luckysheet_compareWith) {
-                    window.luckysheet_compareWith = ja;
-                    window.luckysheet_getarraydata = wc;
-                    window.luckysheet_getcelldata = nr;
-                    window.luckysheet_parseData = Ua;
-                    window.luckysheet_getValue = qn;
-                    window.luckysheet_indirect_check = xc;
-                    window.luckysheet_indirect_check_return = _c;
-                    window.luckysheet_offset_check = Cc;
-                    window.luckysheet_calcADPMM = _t;
-                    window.luckysheet_getSpecialReference = Tc;
+    // ---------- helpers ----------
+    if (a == null) a = h.flowdata;
+    if (!window.luckysheet_compareWith) {
+        window.luckysheet_compareWith = ja;
+        window.luckysheet_getarraydata = wc;
+        window.luckysheet_getcelldata = nr;
+        window.luckysheet_parseData = Ua;
+        window.luckysheet_getValue = qn;
+        window.luckysheet_indirect_check = xc;
+        window.luckysheet_indirect_check_return = _c;
+        window.luckysheet_offset_check = Cc;
+        window.luckysheet_calcADPMM = _t;
+        window.luckysheet_getSpecialReference = Tc;
+    }
+
+    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
+    if (l == null) l = h.currentSheetIndex;
+
+    // ---------- explicit value ----------
+    if (t != null) {
+        const tmp = [[{ v: null }]];
+        At(0, 0, tmp, t);
+        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+    }
+
+    // ---------- collect function cells ----------
+    let allFuncCells = [];
+    let sheetIndices = null;
+
+    if (e != null && n != null) {
+        const formulaOrValue =
+            (window.luckysheet_getcelldata_cache &&
+                Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+    } else {
+        allFuncCells = s.getAllFunctionGroup() || [];
+    }
+
+    // ---------- sheetMap ----------
+    const sheetsInfo = Ft() || [];
+    const sheetMap = {};
+    for (let i = 0; i < sheetsInfo.length; i++) {
+        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+    }
+
+    // ---------- execSet ----------
+    const execSet = {};
+    if (s.execFunctionExist == null) {
+        execSet["r" + e + "c" + n + "i" + l] = 1;
+    } else {
+        for (let i = 0; i < s.execFunctionExist.length; i++) {
+            const T = s.execFunctionExist[i];
+            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+        }
+    }
+
+    // ---------- range → keys ----------
+    const rangeToKeysCache = {};
+    function keysForRange(R) {
+        const cacheKey =
+            `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+        if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+
+        const maxRow =
+            (sheetMap[R.sheetIndex] && sheetMap[R.sheetIndex].length - 1) ??
+            R.row[1];
+        const aRow = Math.min(R.row[1], maxRow);
+
+        const list = [];
+        for (let rr = R.row[0]; rr <= aRow; rr++) {
+            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                list.push("r" + rr + "c" + cc + "i" + R.sheetIndex);
+            }
+        }
+        rangeToKeysCache[cacheKey] = list;
+        return list;
+    }
+
+    function isAggregateFormula(f) {
+        if (!f) return false;
+        const u = f.toUpperCase();
+        return (
+            u.startsWith("=SUM(") ||
+            u.startsWith("=SUMIF(") ||
+            u.startsWith("=SUMIFS(") ||
+            u.startsWith("=COUNT(") ||
+            u.startsWith("=COUNTIF(") ||
+            u.startsWith("=COUNTIFS(") ||
+            u.startsWith("=AVERAGE(") ||
+            u.startsWith("=AVERAGEIF(") ||
+            u.startsWith("=AVERAGEIFS(") ||
+            u.startsWith("=MIN(") ||
+            u.startsWith("=MAX(")
+        );
+    }
+
+    // ---------- build nodes ----------
+    const nodes = {};
+    const refToChildren = {};
+    const aggregateRefs = {};
+    const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
+
+    for (let i = 0; i < allFuncCells.length; i++) {
+        const T = allFuncCells[i];
+        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+
+        const R =
+            zl(T.r, T.c, T.index) ||
+            ve.getSheetByIndex(T.index)?.celldata?.find(
+                x => x?.r === T.r && x?.c === T.c
+            )?.v?.f;
+
+        if (!R) continue;
+
+        const formulaRanges = [];
+        if (!(R.startsWith('="') && R.endsWith('"'))) {
+            const tokens = R.split(fmrSplit).filter(Boolean);
+            for (const tk of tokens) {
+                const rg = s.getcellrange($.trim(tk), T.index);
+                if (rg) formulaRanges.push(rg);
+            }
+        }
+
+        nodes[nodeKey] = {
+            key: nodeKey,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            formulaArray: formulaRanges,
+            calc_funcStr: R,
+            parents: {},
+            children: {},
+            cellAddress: s.getExcelAddr(T.r, T.c)
+        };
+    }
+
+    // ---------- dependency graph ----------
+    for (const key in nodes) {
+        const node = nodes[key];
+        const isAgg = isAggregateFormula(node.calc_funcStr);
+
+        for (const rg of node.formulaArray) {
+            for (const ref of keysForRange(rg)) {
+                // impact mapping (always)
+                if (!refToChildren[ref]) refToChildren[ref] = new Set();
+                refToChildren[ref].add(key);
+
+                // ordering edges only for non-aggregates
+                if (!isAgg && nodes[ref]) {
+                    node.parents[ref] = 1;
+                    nodes[ref].children[key] = 1;
                 }
 
-                if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-                if (l == null) l = h.currentSheetIndex;
-
-                // ---------- explicit value ----------
-                if (t != null) {
-                    const tmp = [[{ v: null }]];
-                    At(0, 0, tmp, t);
-                    s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
+                // remember aggregate references for recalculation
+                if (isAgg) {
+                    if (!aggregateRefs[key]) aggregateRefs[key] = new Set();
+                    aggregateRefs[key].add(ref);
                 }
+            }
+        }
+    }
 
-                // ---------- collect function cells ----------
-                let allFuncCells = [];
-                let sheetIndices = null;
+    // ---------- impacted (downstream) ----------
+    const impacted = new Set();
+    const queue = [];
 
-                if (e != null && n != null) {
-                    const formulaOrValue =
-                        (window.luckysheet_getcelldata_cache &&
-                            Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-                    sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
-                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-                } else {
-                    allFuncCells = s.getAllFunctionGroup() || [];
+    for (const k in execSet) {
+        if (nodes[k]) {
+            impacted.add(k);
+            queue.push(k);
+        }
+        if (refToChildren[k]) {
+            for (const child of refToChildren[k]) {
+                if (!impacted.has(child)) {
+                    impacted.add(child);
+                    queue.push(child);
                 }
+            }
+        }
+    }
 
-                // ---------- sheetMap ----------
-                const sheetsInfo = Ft() || [];
-                const sheetMap = {};
-                for (let i = 0; i < sheetsInfo.length; i++) {
-                    sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
+    while (queue.length) {
+        const k = queue.pop();
+        const node = nodes[k];
+        if (!node) continue;
+
+        for (const c in node.children) {
+            if (!impacted.has(c)) {
+                impacted.add(c);
+                queue.push(c);
+            }
+        }
+    }
+
+    // ---------- ensure aggregate referenced formulas are recalculated ----------
+    let aggChanged = true;
+    while (aggChanged) {
+        aggChanged = false;
+        for (const aggKey in aggregateRefs) {
+            if (!impacted.has(aggKey)) continue;
+            for (const refKey of aggregateRefs[aggKey]) {
+                if (nodes[refKey] && !impacted.has(refKey)) {
+                    impacted.add(refKey);
+                    aggChanged = true;
                 }
+            }
+        }
+    }
 
-                // ---------- execSet ----------
-                const execSet = {};
-                if (s.execFunctionExist == null) {
-                    execSet["r" + e + "c" + n + "i" + l] = 1;
-                } else {
-                    for (let i = 0; i < s.execFunctionExist.length; i++) {
-                        const T = s.execFunctionExist[i];
-                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-                    }
-                }
+    if (impacted.size === 0) {
+        for (const k in nodes) impacted.add(k);
+    }
 
-                // ---------- range → keys ----------
-                const rangeToKeysCache = {};
-                function keysForRange(R) {
-                    const cacheKey =
-                        `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
-                    if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+    // ============================================================
+    // Excel-faithful ordering (DFS, impacted parents only)
+    // ============================================================
+    const ordered = [];
+    const visited = {};
+    const visiting = {};
 
-                    const maxRow =
-                        (sheetMap[R.sheetIndex] && sheetMap[R.sheetIndex].length - 1) ??
-                        R.row[1];
-                    const aRow = Math.min(R.row[1], maxRow);
+    function visit(key) {
+        if (visited[key] || visiting[key]) return;
+        visiting[key] = true;
 
-                    const list = [];
-                    for (let rr = R.row[0]; rr <= aRow; rr++) {
-                        for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                            list.push({
-                                key: "r" + rr + "c" + cc + "i" + R.sheetIndex,
-                                r: rr,
-                                c: cc,
-                                sheetIndex: R.sheetIndex
-                            });
-                        }
-                    }
-                    rangeToKeysCache[cacheKey] = list;
-                    return list;
-                }
-                function isAggregateFormula(f) {
-                    if (!f) return false;
-                    const u = f.toUpperCase();
-                    return (
-                        u.startsWith("=SUM(") ||
-                        u.startsWith("=SUMIF(") ||
-                        u.startsWith("=SUMIFS(") ||
-                        u.startsWith("=COUNT(") ||
-                        u.startsWith("=COUNTIF(") ||
-                        u.startsWith("=COUNTIFS(") ||
-                        u.startsWith("=AVERAGE(") ||
-                        u.startsWith("=AVERAGEIF(") ||
-                        u.startsWith("=AVERAGEIFS(") ||
-                        u.startsWith("=MIN(") ||
-                        u.startsWith("=MAX(")
-                    );
-                }
-                // ---------- build nodes ----------
-                const nodes = {};
-                const refToChildren = {};
-                const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
+        const node = nodes[key];
+        if (node) {
+            for (const p in node.parents) {
+                if (impacted.has(p)) visit(p);
+            }
+        }
 
-                for (let i = 0; i < allFuncCells.length; i++) {
-                    const T = allFuncCells[i];
-                    const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+        visiting[key] = false;
+        visited[key] = true;
+        ordered.push(node);
+    }
 
-                    const R =
-                        zl(T.r, T.c, T.index) ||
-                        ve.getSheetByIndex(T.index)?.celldata?.find(
-                            x => x?.r === T.r && x?.c === T.c
-                        )?.v?.f;
+    for (const k of impacted) {
+        if (nodes[k]) visit(k);
+    }
 
-                    if (!R) continue;
+    // ---------- evaluate ----------
+    for (let i = 0; i < ordered.length; i++) {
+        const T = ordered[i];
+        window.luckysheet_getcelldata_cache = null;
 
-                    const formulaRanges = [];
-                    if (!(R.startsWith('="') && R.endsWith('"'))) {
-                        const tokens = R.split(fmrSplit).filter(Boolean);
-                        for (const tk of tokens) {
-                            const rg = s.getcellrange($.trim(tk), T.index);
-                            if (rg) formulaRanges.push(rg);
-                        }
-                    }
+        const oldVal = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
+        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
 
-                    nodes[nodeKey] = {
-                        key: nodeKey,
-                        r: T.r,
-                        c: T.c,
-                        index: T.index,
-                        formulaArray: formulaRanges,
-                        calc_funcStr: R,
-                        parents: {},
-                        children: {},
-                        cellAddress: s.getExcelAddr(T.r, T.c)
-                    };
-                }
+        if (oldVal === Rres[1]) continue;
 
+        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
+            v: Rres[1],
+            f: Rres[2]
+        };
 
-                // ---------- dependency graph (Excel rules applied) ----------
-                for (const key in nodes) {
-                    const node = nodes[key];
-                    const isAgg = isAggregateFormula(node.calc_funcStr);
+        s.groupValuesRefreshData.push({
+            r: T.r,
+            c: T.c,
+            v: Rres[1],
+            f: Rres[2],
+            spe: Rres[3],
+            index: T.index
+        });
+    }
 
-                    for (const rg of node.formulaArray) {
-                        for (const ref of keysForRange(rg)) {
-                            if (!refToChildren[ref]) refToChildren[ref] = new Set();
-                            refToChildren[ref].add(key);
-
-                            // IMPORTANT:
-                            // aggregate functions do NOT create formula dependencies
-                            if (!isAgg && nodes[ref]) {
-                                node.parents[ref] = 1;
-                                nodes[ref].children[key] = 1;
-                            }
-                        }
-                    }
-                }
-
-                // ---------- impacted (downstream only, unchanged) ----------
-                const impacted = new Set();
-                const queue = [];
-
-                for (const k in execSet) {
-                    if (nodes[k]) {
-                        impacted.add(k);
-                        queue.push(k);
-                    }
-                    if (refToChildren[k]) {
-                        for (const child of refToChildren[k]) {
-                            if (!impacted.has(child)) {
-                                impacted.add(child);
-                                queue.push(child);
-                            }
-                        }
-                    }
-                }
-
-                while (queue.length) {
-                    const k = queue.pop();
-                    const node = nodes[k];
-                    if (!node) continue;
-
-                    for (const c in node.children) {
-                        if (!impacted.has(c)) {
-                            impacted.add(c);
-                            queue.push(c);
-                        }
-                    }
-                }
-
-                if (impacted.size === 0) {
-                    for (const k in nodes) impacted.add(k);
-                }
-
-                // ============================================================
-                // ✅ FINAL Excel-faithful ordering (DFS, impacted-parents only)
-                // ============================================================
-                const ordered = [];
-                const visited = {};
-                const visiting = {};
-
-                function visit(key) {
-                    if (visited[key]) return;
-                    if (visiting[key]) return; // defensive (cycle guard)
-
-                    visiting[key] = true;
-                    const node = nodes[key];
-
-                    if (node) {
-                        // wait ONLY for parents that are also recalculated
-                        for (const p in node.parents) {
-                            if (impacted.has(p)) {
-                                visit(p);
-                            }
-                        }
-                    }
-
-                    visiting[key] = false;
-                    visited[key] = true;
-                    ordered.push(node);
-                }
-
-                // start from ALL impacted nodes (no missing nodes)
-                for (const k of impacted) {
-                    if (nodes[k] && !visited[k]) {
-                        visit(k);
-                    }
-                }
-
-                const indexMap = {};
-
-                for (let i = 0; i < ordered.length; i++) {
-                    indexMap[ordered[i].key] = { idx: i, count: 0 };
-                    const sheetName = sheetsInfo.find(s => s.index == ordered[i].index).name;
-                    console.log(`${sheetName} => ${ordered[i].cellAddress} => ${ordered[i].calc_funcStr}`);
-                }
-                // ---------- evaluate ----------
-                for (let i = 0; i < ordered.length; i++) {
-                    const T = ordered[i];
-                    window.luckysheet_getcelldata_cache = null;
-
-                    const oldVal = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
-                    const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
-
-                    if (oldVal === Rres[1]) continue;
-
-                    s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
-                        v: Rres[1],
-                        f: Rres[2]
-                    };
-
-                    s.groupValuesRefreshData.push({
-                        r: T.r,
-                        c: T.c,
-                        v: Rres[1],
-                        f: Rres[2],
-                        spe: Rres[3],
-                        index: T.index
-                    });
-                    const children = T.children ? Object.keys(T.children) : [];
-                    for (const k of children) {
-                        const im = indexMap[k];
-                        if (!im) continue;
-                        const childrenIdx = im.idx ?? -1;
-                        if (childrenIdx !== -1 && childrenIdx < i && im.count < 5) {
-                            ordered.push(ordered[childrenIdx]);
-                            indexMap[k].idx = ordered.length - 1;
-                            indexMap[k].count = im.count + 1;
-                        }
-                    }
-
-                }
-
-                s.execFunctionExist = null;
-            },
+    s.execFunctionExist = null;
+},
