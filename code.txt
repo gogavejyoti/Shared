@@ -143,13 +143,10 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ============================================================
-    // ✅ IMPACTED SET (downstream + SAFE formula-parent completion)
-    // ============================================================
+    // ---------- impacted (downstream only, unchanged) ----------
     const impacted = new Set();
     const queue = [];
 
-    // seed
     for (const k in execSet) {
         if (nodes[k]) {
             impacted.add(k);
@@ -165,7 +162,6 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // downstream closure
     while (queue.length) {
         const k = queue.pop();
         const node = nodes[k];
@@ -179,58 +175,42 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---------- SAFE parent completion (formula-only, multi-parent) ----------
-    let changed = true;
-    while (changed) {
-        changed = false;
-
-        for (const k of Array.from(impacted)) {
-            const node = nodes[k];
-            if (!node) continue;
-
-            const parents = Object.keys(node.parents);
-            if (parents.length <= 1) continue;
-
-            for (const p of parents) {
-                if (nodes[p] && !impacted.has(p)) {
-                    impacted.add(p);
-                    changed = true;
-                }
-            }
-        }
-    }
-
     if (impacted.size === 0) {
         for (const k in nodes) impacted.add(k);
     }
 
-    // ---------- Excel-style topo (Kahn) ----------
+    // ============================================================
+    // ✅ FINAL Excel-faithful ordering (DFS, impacted-parents only)
+    // ============================================================
     const ordered = [];
-    const inDegree = {};
-    const ready = [];
+    const visited = {};
+    const visiting = {};
 
-    for (const k of impacted) {
-        const node = nodes[k];
-        if (!node) continue;
+    function visit(key) {
+        if (visited[key]) return;
+        if (visiting[key]) return; // defensive (cycle guard)
 
-        let deg = 0;
-        for (const p in node.parents) {
-            if (impacted.has(p)) deg++;
+        visiting[key] = true;
+        const node = nodes[key];
+
+        if (node) {
+            // wait ONLY for parents that are also recalculated
+            for (const p in node.parents) {
+                if (impacted.has(p)) {
+                    visit(p);
+                }
+            }
         }
-        inDegree[k] = deg;
-        if (deg === 0) ready.push(node);
+
+        visiting[key] = false;
+        visited[key] = true;
+        ordered.push(node);
     }
 
-    while (ready.length) {
-        const cur = ready.shift();
-        ordered.push(cur);
-
-        for (const c in cur.children) {
-            if (!impacted.has(c)) continue;
-            inDegree[c]--;
-            if (inDegree[c] === 0) {
-                ready.push(nodes[c]);
-            }
+    // start from ALL impacted nodes (no missing nodes)
+    for (const k of impacted) {
+        if (nodes[k] && !visited[k]) {
+            visit(k);
         }
     }
 
