@@ -1,74 +1,49 @@
 // ============================================================
-// FINAL SAFE Excel-style ordering
-// (Topo correctness + DFS completeness fallback)
+// FINAL Excel-safe ordering (constraint-enforced, no drops)
 // ============================================================
 
+// 1. Start with ALL impacted nodes (no missing nodes possible)
 const ordered = [];
-const inDegree = {};
-const queue = [];
-
-// 1. Build inDegree ONLY from impacted parents
 for (const k of impacted) {
-    const node = nodes[k];
-    if (!node) continue;
-
-    let deg = 0;
-    for (const p in node.parents) {
-        if (impacted.has(p)) deg++;
-    }
-    inDegree[k] = deg;
-
-    if (deg === 0) {
-        queue.push(k);
-    }
+    if (nodes[k]) ordered.push(nodes[k]);
 }
 
-// 2. Kahn topo
-while (queue.length) {
-    const k = queue.shift();
-    if (!nodes[k]) continue;
-
-    ordered.push(nodes[k]);
-
-    for (const c in nodes[k].children) {
-        if (!impacted.has(c)) continue;
-
-        inDegree[c]--;
-        if (inDegree[c] === 0) {
-            queue.push(c);
-        }
+// Helper: build index map
+function buildIndex() {
+    const idx = {};
+    for (let i = 0; i < ordered.length; i++) {
+        idx[ordered[i].key] = i;
     }
+    return idx;
 }
 
-// 3. SAFETY NET — never drop nodes (Excel never does)
-if (ordered.length !== impacted.size) {
-    const scheduled = new Set(ordered.map(n => n.key));
+// 2. Enforce parent-before-child constraints until stable
+let changed = true;
+while (changed) {
+    changed = false;
+    const index = buildIndex();
 
-    // DFS fallback for any unscheduled impacted nodes
-    const visited = {};
-
-    function dfsFallback(k) {
-        if (visited[k]) return;
-        visited[k] = true;
-
-        const node = nodes[k];
-        if (!node) return;
+    for (const node of ordered) {
+        const childIdx = index[node.key];
 
         for (const p in node.parents) {
-            if (impacted.has(p) && !scheduled.has(p)) {
-                dfsFallback(p);
+            if (!impacted.has(p)) continue;
+
+            const parentIdx = index[p];
+            if (parentIdx == null) continue;
+
+            // ❗ violation: parent appears after child
+            if (parentIdx > childIdx) {
+                const parentNode = ordered[parentIdx];
+
+                // move parent just before child
+                ordered.splice(parentIdx, 1);
+                ordered.splice(childIdx, 0, parentNode);
+
+                changed = true;
+                break;
             }
         }
-
-        if (!scheduled.has(k)) {
-            ordered.push(node);
-            scheduled.add(k);
-        }
-    }
-
-    for (const k of impacted) {
-        if (!scheduled.has(k)) {
-            dfsFallback(k);
-        }
+        if (changed) break;
     }
 }
