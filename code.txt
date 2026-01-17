@@ -13,7 +13,26 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // ---------- ALL formula cells (Excel always knows all formulas) ----------
+    // ---------- helpers ----------
+    function isAggregateFormula(f) {
+        if (!f) return false;
+        const u = f.toUpperCase();
+        return (
+            u.startsWith("=SUM(") ||
+            u.startsWith("=SUMIF(") ||
+            u.startsWith("=SUMIFS(") ||
+            u.startsWith("=COUNT(") ||
+            u.startsWith("=COUNTIF(") ||
+            u.startsWith("=COUNTIFS(") ||
+            u.startsWith("=AVERAGE(") ||
+            u.startsWith("=AVERAGEIF(") ||
+            u.startsWith("=AVERAGEIFS(") ||
+            u.startsWith("=MIN(") ||
+            u.startsWith("=MAX(")
+        );
+    }
+
+    // ---------- ALL formula cells ----------
     const allFuncCells = s.getAllFunctionGroup() || [];
 
     // ---------- sheetMap ----------
@@ -52,6 +71,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     // ---------- build nodes ----------
     const nodes = {};
     const refToChildren = {};
+    const aggregateRefs = {};
     const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&\^><]/;
 
     for (const T of allFuncCells) {
@@ -84,27 +104,33 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         };
     }
 
-    // ---------- dependency graph (Excel rules applied) ----------
-    for (const key in nodes) {
-        const node = nodes[key];
+    // ---------- dependency graph ----------
+    for (const nodeKey in nodes) {
+        const node = nodes[nodeKey];
         const isAgg = isAggregateFormula(node.calc_funcStr);
 
         for (const rg of node.formulaArray) {
-            for (const ref of keysForRange(rg)) {
-                if (!refToChildren[ref]) refToChildren[ref] = new Set();
-                refToChildren[ref].add(key);
+            for (const refKey of keysForRange(rg)) {
+                // impact mapping (ALWAYS)
+                if (!refToChildren[refKey]) refToChildren[refKey] = new Set();
+                refToChildren[refKey].add(nodeKey);
 
-                // IMPORTANT:
-                // aggregate functions do NOT create formula dependencies
-                if (!isAgg && nodes[ref]) {
-                    node.parents[ref] = 1;
-                    nodes[ref].children[key] = 1;
+                // ordering edges ONLY for non-aggregate formulas
+                if (!isAgg && nodes[refKey]) {
+                    node.parents[refKey] = 1;
+                    nodes[refKey].children[nodeKey] = 1;
+                }
+
+                // aggregate → remember refs for impact completion
+                if (isAgg) {
+                    if (!aggregateRefs[nodeKey]) aggregateRefs[nodeKey] = new Set();
+                    aggregateRefs[nodeKey].add(refKey);
                 }
             }
         }
     }
 
-    // ---------- impacted (downstream closure) ----------
+    // ---------- impacted (downstream) ----------
     const impacted = new Set();
     const q = [];
 
@@ -115,8 +141,10 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
         if (refToChildren[k]) {
             for (const c of refToChildren[k]) {
-                impacted.add(c);
-                q.push(c);
+                if (!impacted.has(c)) {
+                    impacted.add(c);
+                    q.push(c);
+                }
             }
         }
     }
@@ -134,12 +162,28 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
+    // ---------- ensure aggregate referenced formulas are recalculated ----------
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const aggKey in aggregateRefs) {
+            if (!impacted.has(aggKey)) continue;
+
+            for (const refKey of aggregateRefs[aggKey]) {
+                if (nodes[refKey] && !impacted.has(refKey)) {
+                    impacted.add(refKey);
+                    changed = true;
+                }
+            }
+        }
+    }
+
     if (impacted.size === 0) {
         for (const k in nodes) impacted.add(k);
     }
 
     // ============================================================
-    // ✅ FINAL Excel ordering (DFS, impacted parents only)
+    // ✅ FINAL Excel-faithful ordering (DFS, impacted parents only)
     // ============================================================
     const ordered = [];
     const visited = {};
@@ -189,22 +233,4 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
     }
 
     s.execFunctionExist = null;
-}
-
-function isAggregateFormula(f) {
-    if (!f) return false;
-    const u = f.toUpperCase();
-    return (
-        u.startsWith("=SUM(") ||
-        u.startsWith("=SUMIF(") ||
-        u.startsWith("=SUMIFS(") ||
-        u.startsWith("=COUNT(") ||
-        u.startsWith("=COUNTIF(") ||
-        u.startsWith("=COUNTIFS(") ||
-        u.startsWith("=AVERAGE(") ||
-        u.startsWith("=AVERAGEIF(") ||
-        u.startsWith("=AVERAGEIFS(") ||
-        u.startsWith("=MIN(") ||
-        u.startsWith("=MAX(")
-    );
 }
