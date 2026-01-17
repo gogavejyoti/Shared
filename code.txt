@@ -28,7 +28,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // ---------- collect formula cells ----------
+    // ---------- collect function cells ----------
     let allFuncCells = [];
     let sheetIndices = null;
 
@@ -60,7 +60,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---------- range → keys cache ----------
+    // ---------- range → keys ----------
     const rangeToKeysCache = {};
     function keysForRange(R) {
         const cacheKey =
@@ -143,10 +143,13 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
     }
 
-    // ---------- impacted set ----------
+    // ============================================================
+    // ✅ IMPACTED SET (downstream + SAFE formula-parent completion)
+    // ============================================================
     const impacted = new Set();
     const queue = [];
 
+    // seed
     for (const k in execSet) {
         if (nodes[k]) {
             impacted.add(k);
@@ -154,19 +157,45 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         }
         if (refToChildren[k]) {
             for (const child of refToChildren[k]) {
-                impacted.add(child);
-                queue.push(child);
+                if (!impacted.has(child)) {
+                    impacted.add(child);
+                    queue.push(child);
+                }
             }
         }
     }
 
+    // downstream closure
     while (queue.length) {
         const k = queue.pop();
-        if (!nodes[k]) continue;
-        for (const c in nodes[k].children) {
+        const node = nodes[k];
+        if (!node) continue;
+
+        for (const c in node.children) {
             if (!impacted.has(c)) {
                 impacted.add(c);
                 queue.push(c);
+            }
+        }
+    }
+
+    // ---------- SAFE parent completion (formula-only, multi-parent) ----------
+    let changed = true;
+    while (changed) {
+        changed = false;
+
+        for (const k of Array.from(impacted)) {
+            const node = nodes[k];
+            if (!node) continue;
+
+            const parents = Object.keys(node.parents);
+            if (parents.length <= 1) continue;
+
+            for (const p of parents) {
+                if (nodes[p] && !impacted.has(p)) {
+                    impacted.add(p);
+                    changed = true;
+                }
             }
         }
     }
@@ -175,9 +204,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         for (const k in nodes) impacted.add(k);
     }
 
-    // ============================================================
-    // ✅ FIX: Excel-style topological order (Kahn / in-degree)
-    // ============================================================
+    // ---------- Excel-style topo (Kahn) ----------
     const ordered = [];
     const inDegree = {};
     const ready = [];
