@@ -96,3 +96,47 @@ INDEX: function () {
                 }
 
                 if (B(c)) {
+                    if (c === 0) {
+                        value = value[0];
+                        c = 1;
+                    } else {
+                        value = value[c - 1];
+                    }
+                } else {
+                    c = 1;
+                }
+            } else {
+                r = B(r) ? r : 1;
+                c = B(c) ? c : 1;
+                value = l[r - 1][c - 1];
+            }
+
+            const finalRow = baseRow + r - 1;
+            const finalCol = baseCol + c - 1;
+
+            return {
+                sheetName: t.sheetName,
+                startCell: bt(h.calculateSheetIndex, {
+                    row: [finalRow, finalRow],
+                    column: [finalCol, finalCol]
+                }),
+                rowl: finalRow,
+                coll: finalCol,
+                data: value
+            };
+        }
+
+        // ---------- Non-range ----------
+        if (B(c)) {
+            c = parseInt(c);
+            if (r <= 0 || c <= 0) return p.error.v;
+            return l[r - 1][c - 1];
+        }
+
+        return p.error.v;
+
+    } catch (e) {
+        const info = p.errorInfo(e);
+        return [p.error.v, info];
+    }
+}
