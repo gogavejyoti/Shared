@@ -1,72 +1,98 @@
-   INDEX: function () {
-                if (arguments.length < this.m[0] || arguments.length > this.m[1])
-                    return p.error.na;
-                for (var e = 0; e < arguments.length; e++) {
-                    var n = p.errorParamCheck(this.p, arguments[e], e);
-                    if (!n[0])
-                        return p.error.v
-                }
-                try {
-                    var t = arguments[0]
-                        , l = [];
-                    let y = !1;
-                    if (L(t) == "array") {
-                        if (L(t[0]) == "array" && !M.isDyadicArr(t))
-                            return p.error.v;
-                        l = M.getDataDyadicArr(t)
-                    } else
-                        L(t) == "object" && t.startCell != null && (l = M.getCellDataDyadicArr(t, "number"),
-                            y = !0);
-                    var a = l.length
-                        , o = l[0].length
-                        , s = M.getFirstValue(arguments[1]);
-                    if (H(s))
-                        return s;
-                    if (!B(s))
-                        return p.error.v;
-                    s = parseInt(s);
-                    var u = M.getFirstValue(arguments[2]);
-                    if (H(u))
-                        return u;
-                    if (s < 0 || B(u) && u < 0)
-                        return p.error.v;
-                    if (a == 1 && u == null && (u = s,
-                        s = 1),
-                        s > a || B(u) && u > o)
-                        return p.error.r;
-                    if (y) {
-                        var d = p.getcellrange(t.startCell)
-                            , f = d.row[0]
-                            , m = d.column[0];
-                        let v = l;
-                        s == 0 || u == 0 ? (s == 0 ? (v = l[0],
-                            s = 1) : v = l[s - 1],
-                            B(u) ? u == 0 ? (v = v[0],
-                                u = 1) : v = v[u - 1] : u = 1) : (B(s) || (s = 1),
-                                    B(u) || (u = 1),
-                                    v = l[s - 1][u - 1]);
-                        let k = f + s - 1
-                            , b = m + u - 1;
-                        return {
-                            sheetName: t.sheetName,
-                            startCell: bt(h.calculateSheetIndex, {
-                                row: [k, k],
-                                column: [b, b]
-                            }),
-                            rowl: k,
-                            coll: b,
-                            data: v
+INDEX: function () {
+    if (arguments.length < this.m[0] || arguments.length > this.m[1])
+        return p.error.na;
+
+    for (let i = 0; i < arguments.length; i++) {
+        const chk = p.errorParamCheck(this.p, arguments[i], i);
+        if (!chk[0]) return p.error.v;
+    }
+
+    try {
+        const t = arguments[0];
+        let l = [];
+        let isRangeObj = false;
+
+        // ---------- Resolve array / range ----------
+        if (L(t) === "array") {
+            if (L(t[0]) === "array" && !M.isDyadicArr(t))
+                return p.error.v;
+            l = M.getDataDyadicArr(t);
+        } else if (L(t) === "object" && t.startCell != null) {
+            l = M.getCellDataDyadicArr(t, "number");
+            isRangeObj = true;
+        }
+
+        const rowCount = l.length;
+        const colCount = l[0].length;
+
+        // ---------- Row index ----------
+        let r = M.getFirstValue(arguments[1]);
+        if (H(r)) return r;
+        if (!B(r)) return p.error.v;
+        r = parseInt(r);
+
+        // ---------- Column index ----------
+        let c = M.getFirstValue(arguments[2]);
+        if (H(c)) return c;
+
+        if (r < 0 || (B(c) && c < 0)) return p.error.v;
+
+        // Excel behavior: single row range
+        if (rowCount === 1 && c == null) {
+            c = r;
+            r = 1;
+        }
+
+        if (r > rowCount || (B(c) && c > colCount))
+            return p.error.r;
+
+        // ======================================================
+        // 🔥 FIX STARTS HERE (column-only + cross-sheet safe)
+        // ======================================================
+        if (isRangeObj) {
+            let d = p.getcellrange(t.startCell);
+            let baseRow, baseCol;
+
+            if (!d) {
+                // Column-only reference like "C" or "Sheet2!C:C"
+                const colOnly = /^[A-Z]+$/;
+                if (typeof t.startCell === "string" && colOnly.test(t.startCell)) {
+
+                    baseCol = p.getColumnIndex(t.startCell);
+
+                    // derive first used row from dyadic array itself
+                    baseRow = 0;
+                    const rows = l.length;
+
+                    while (baseRow < rows) {
+                        let empty = true;
+                        for (let x = 0; x < l[baseRow].length; x++) {
+                            if (l[baseRow][x] != null) {
+                                empty = false;
+                                break;
+                            }
                         }
-                    } else
-                        return B(u) ? (u = parseInt(u),
-                            s <= 0 || u <= 0 ? p.error.v : l[s - 1][u - 1]) : p.error.v
-                } catch (y) {
-                    var g = y;
-                    return g = p.errorInfo(g),
-                        [p.error.v, g]
+                        if (!empty) break;
+                        baseRow++;
+                    }
+
+                    if (baseRow >= rows) return p.error.r;
+                } else {
+                    return p.error.r;
                 }
-            },
- var d = p.getcellrange(t.startCell)= null 
-t.startCell='E'
-IF user =INDEX(C1:C10,MATCH(D2,B1:B10,0)) --working
-=INDEX(C:C,MATCH(D2,B:B,0))-- not working
+            } else {
+                baseRow = d.row[0];
+                baseCol = d.column[0];
+            }
+
+            // ---------- Excel semantics ----------
+            let value;
+            if (r === 0 || c === 0) {
+                if (r === 0) {
+                    value = l[0];
+                    r = 1;
+                } else {
+                    value = l[r - 1];
+                }
+
+                if (B(c)) {
