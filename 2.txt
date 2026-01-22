@@ -1,101 +1,34 @@
-INDEX: function () {
-    if (arguments.length < this.m[0] || arguments.length > this.m[1])
-        return p.error.na;
-
-    for (var e = 0; e < arguments.length; e++) {
-        var n = p.errorParamCheck(this.p, arguments[e], e);
-        if (!n[0]) return p.error.v;
-    }
-
-    try {
-        var t = arguments[0], l = [];
-        let y = false;
-
-        if (L(t) === "array") {
-            if (L(t[0]) === "array" && !M.isDyadicArr(t))
-                return p.error.v;
-            l = M.getDataDyadicArr(t);
-
-        } else if (L(t) === "object" && t.startCell != null) {
-
-            /* ================= FIX START ================= */
-            const r = p.getcellrange(t.startCell);
-
-            // Normalize column-only ranges like C:B or C:C
-            if (r.row == null || r.row.length === 0) {
-                const used = p.getSheetUsedRange(t.sheetName);
-                r.row = [used.row[0], used.row[1]];
-            }
-
-            // Normalize reversed columns C:B → B:C
-            if (r.column[0] > r.column[1]) {
-                const tmp = r.column[0];
-                r.column[0] = r.column[1];
-                r.column[1] = tmp;
-            }
-
-            t.startCell = bt(h.calculateSheetIndex, r);
-            /* ================= FIX END ================= */
-
-            l = M.getCellDataDyadicArr(t, "number");
-            y = true;
-        }
-
-        var a = l.length,
-            o = l[0]?.length || 0;
-
-        if (!a || !o) return p.error.r;
-
-        var s = M.getFirstValue(arguments[1]);
-        if (H(s)) return s;
-        if (!B(s)) return p.error.v;
-        s = parseInt(s);
-
-        var u = M.getFirstValue(arguments[2]);
-        if (H(u)) return u;
-
-        if (s < 0 || (B(u) && u < 0)) return p.error.v;
-
-        if (a === 1 && u == null) {
-            u = s;
-            s = 1;
-        }
-
-        if (s > a || (B(u) && u > o)) return p.error.r;
-
-        if (y) {
-            const d = p.getcellrange(t.startCell);
-            const f = d.row[0], m = d.column[0];
-
-            let v;
-            if (s === 0 || u === 0) {
-                v = s === 0 ? l[0] : l[s - 1];
-                if (B(u)) v = u === 0 ? v[0] : v[u - 1];
-                else u = 1;
-            } else {
-                s = B(s) ? s : 1;
-                u = B(u) ? u : 1;
-                v = l[s - 1][u - 1];
-            }
-
-            const k = f + s - 1;
-            const b = m + u - 1;
-
-            return {
-                sheetName: t.sheetName,
-                startCell: bt(h.calculateSheetIndex, {
-                    row: [k, k],
-                    column: [b, b]
-                }),
-                rowl: k,
-                coll: b,
-                data: v
-            };
-        }
-
-        return B(u) ? l[s - 1][parseInt(u) - 1] : p.error.v;
-
-    } catch (err) {
-        return [p.error.v, p.errorInfo(err)];
-    }
-}
+25627.2296875
+            EOMONTH: function () {
+                if (arguments.length < this.m[0] || arguments.length > this.m[1])
+                    return p.error.na;
+                for (var e = 0; e < arguments.length; e++) {
+                    var n = p.errorParamCheck(this.p, arguments[e], e);
+                    if (!n[0])
+                        return p.error.v
+                }
+                try {
+                    var t = M.getCellDate(arguments[0]);
+                    if (H(t))
+                        return t;
+                    var l = M.getFirstValue(arguments[1]);
+                    if (H(l))
+                        return l;
+                    if (!B(l))
+                        return p.error.v;
+                    if (l = parseInt(l),
+                        !(0,
+                            j.default)(t).isValid())
+                        return p.error.v;
+                    var a = (0,
+                        j.default)(t).add(l + 1, "months").set("date", 1).subtract(1, "days")
+                        , o = it((0,
+                            j.default)(a).format("YYYY-MM-DD H:mm:ss"))
+                        , s = o[2];
+                    return s
+                } catch (d) {
+                    var u = d;
+                    return u = p.errorInfo(u),
+                        [p.error.v, u]
+                }
+            },
