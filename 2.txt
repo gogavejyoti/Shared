@@ -1,34 +1,41 @@
-25627.2296875
-            EOMONTH: function () {
-                if (arguments.length < this.m[0] || arguments.length > this.m[1])
-                    return p.error.na;
-                for (var e = 0; e < arguments.length; e++) {
-                    var n = p.errorParamCheck(this.p, arguments[e], e);
-                    if (!n[0])
-                        return p.error.v
-                }
-                try {
-                    var t = M.getCellDate(arguments[0]);
-                    if (H(t))
-                        return t;
-                    var l = M.getFirstValue(arguments[1]);
-                    if (H(l))
-                        return l;
-                    if (!B(l))
-                        return p.error.v;
-                    if (l = parseInt(l),
-                        !(0,
-                            j.default)(t).isValid())
-                        return p.error.v;
-                    var a = (0,
-                        j.default)(t).add(l + 1, "months").set("date", 1).subtract(1, "days")
-                        , o = it((0,
-                            j.default)(a).format("YYYY-MM-DD H:mm:ss"))
-                        , s = o[2];
-                    return s
-                } catch (d) {
-                    var u = d;
-                    return u = p.errorInfo(u),
-                        [p.error.v, u]
-                }
-            },
+EOMONTH: function () {
+    if (arguments.length < this.m[0] || arguments.length > this.m[1])
+        return p.error.na;
+
+    for (var i = 0; i < arguments.length; i++) {
+        var chk = p.errorParamCheck(this.p, arguments[i], i);
+        if (!chk[0]) return p.error.v;
+    }
+
+    try {
+        var baseDate = M.getCellDate(arguments[0]);
+        if (H(baseDate)) return baseDate;
+
+        var months = M.getFirstValue(arguments[1]);
+        if (H(months)) return months;
+        if (!B(months)) return p.error.v;
+
+        months = parseInt(months, 10);
+
+        var d = new Date(baseDate);
+        if (isNaN(d)) return p.error.v;
+
+        // ---- EOMONTH logic (native, fast) ----
+        // Move to first day of target month + 1
+        d.setUTCMonth(d.getUTCMonth() + months + 1, 1);
+        // Go back 1 day → last day of desired month
+        d.setUTCDate(0);
+        // Force midnight (Excel requirement)
+        d.setUTCHours(0, 0, 0, 0);
+
+        // ---- Convert to Excel integer serial ----
+        var excelEpoch = Date.UTC(1899, 11, 30);
+        var serial = Math.floor((d.getTime() - excelEpoch) / 86400000);
+
+        return serial;
+
+    } catch (err) {
+        var info = p.errorInfo(err);
+        return [p.error.v, info];
+    }
+}
