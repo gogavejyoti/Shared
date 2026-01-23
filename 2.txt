@@ -1,12 +1,9 @@
 execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    // Preserve original early return semantics
     if (o) return;
     const s = this;
 
-    // ---------- Initialize helpers ----------
+    // --- 1. Global Setup (One-time or Fast) ---
     if (a == null) a = h.flowdata;
-    
-    // Initialize global helpers once
     if (!window.luckysheet_compareWith) {
         window.luckysheet_compareWith = ja;
         window.luckysheet_getarraydata = wc;
@@ -19,21 +16,22 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         window.luckysheet_calcADPMM = _t;
         window.luckysheet_getSpecialReference = Tc;
     }
-
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
     if (l == null) l = h.currentSheetIndex;
 
-    // ---------- Store explicit value if provided ----------
+    // Set explicit value
     if (t != null) {
-        const tmp = [[{ v: null }]];
+        // reuse single temp object to avoid allocations if called repeatedly
+        const tmp = [[{ v: null }]]; 
         At(0, 0, tmp, t);
         s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // ---------- Gather function cells ----------
+    // --- 2. Data Gathering (Optimized Access) ---
     let allFuncCells = [];
     if (e != null && n != null) {
-        const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+        const cache = window.luckysheet_getcelldata_cache;
+        const formulaOrValue = (cache && Object.keys(cache).join("+")) || null;
         const sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
         allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
     } else if (s.execFunctionExist && s.execFunctionExist.length > 0) {
@@ -43,496 +41,420 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         allFuncCells = s.getAllFunctionGroup() || [];
     }
 
-    // ---------- Build sheetMap (Pre-calculate for O(1) lookups) ----------
+    // Fast Sheet Map
     const sheetsInfo = Ft() || [];
-    const sheetMap = {}; // Maps index -> data matrix
-    for (let i = 0, len = sheetsInfo.length; i < len; i++) {
+    const sheetMap = []; // use Array for integer index access if possible, else obj
+    for (let i = 0; i < sheetsInfo.length; i++) {
         sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
     }
 
-    // ---------- Build execSet (changed/explicit targets) ----------
-    const execSet = {};
-    if (s.execFunctionExist == null) {
-        execSet["r" + e + "c" + n + "i" + l] = 1;
-    } else {
-        for (let i = 0, len = s.execFunctionExist.length; i < len; i++) {
-            const T = s.execFunctionExist[i];
-            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-        }
-    }
-
-    // ---------- Local Caches & Utilities ----------
+    // --- 3. Superfast Graph Primitives ---
     
-    // 1. Regex Cache: Avoid re-compiling RegEx for every function check
-    const _fnRegCache = new Map();
-    function getFnReg(name) {
-        let r = _fnRegCache.get(name);
-        if (!r) {
-            r = new RegExp(name + "\\s*\\(", 'i');
-            _fnRegCache.set(name, r);
+    // Unique ID for this execution run (to avoid clearing flags on nodes)
+    const RUN_ID = (s._execRunId || 0) + 1;
+    s._execRunId = RUN_ID;
+
+    // Node Registry: Map<CoordinateKey, Node>
+    // We try to use a specialized key for speed.
+    // IF rows < 65535, we can use integer bitmasking: (row << 16) | col
+    // This avoids string concat "r_c_i" completely for the vast majority of cases.
+    const _nodes = new Map(); 
+
+    function getNode(r, c, i) {
+        // High-performance key generation
+        const key = (r < 65000 && c < 65000) 
+            ? (i * 10000000000) + (r << 16) + c 
+            : "r" + r + "c" + c + "i" + i;
+        return _nodes.get(key);
+    }
+    
+    function getOrMakeNode(r, c, i, formula = null) {
+        const isInt = (r < 65000 && c < 65000);
+        const key = isInt 
+            ? (i * 10000000000) + (r << 16) + c 
+            : "r" + r + "c" + c + "i" + i;
+            
+        let node = _nodes.get(key);
+        if (!node) {
+            node = {
+                key: key,
+                r: r, c: c, i: i,
+                func: formula,
+                // Direct pointers instead of string keys
+                parents: [],  
+                children: [],
+                visited: 0,   // Checked against RUN_ID
+                color: 0,     // 0:white, 1:gray, 2:black (for DFS)
+                dirty: false
+            };
+            _nodes.set(key, node);
+        } else if (formula && !node.func) {
+            node.func = formula; // Late binding of formula
         }
-        return r;
+        return node;
     }
 
-    // 2. Optimized parseCall with Fast-Fail and Pre-compiled Regex
-    function parseCall(name, text) {
-        const re = getFnReg(name);
-        const m = text.match(re);
-        if (!m) return null; // Fast fail
-        
-        // Standard parser logic (identical behavior)
-        let i = m.index + m[0].length, depth = 1, cur = '', args = [];
-        const len = text.length;
-        while (i < len && depth > 0) {
-            const ch = text[i++];
-            if (ch === '(') { depth++; cur += ch; }
-            else if (ch === ')') {
-                depth--;
-                if (depth === 0) { 
-                    if (cur.trim()) args.push(cur.trim()); 
-                    break; 
-                }
-                cur += ch;
-            } else if (ch === ',' && depth === 1) {
-                args.push(cur.trim()); cur = '';
-            } else {
-                cur += ch;
-            }
-        }
-        return { name, args, start: m.index, end: i };
+    // Helper: Add dependency edge (Child depends on Parent)
+    function addEdge(childNode, parentR, parentC, parentI) {
+        const pNode = getOrMakeNode(parentR, parentC, parentI);
+        // Avoid duplicate edges? 
+        // For max speed, we might allow dupes and filter later, 
+        // but checking array includes is slow for large degrees.
+        // We assume the parser emits unique ranges usually.
+        pNode.children.push(childNode);
+        childNode.parents.push(pNode);
     }
 
-    // 3. Optimized Type Checks
-    function parseIntIfLiteral(x) {
-        if (x == null) return null;
-        if (typeof x === 'number') return Math.floor(x); // Optimization
-        const t = ('' + x).trim();
-        if (/^[+-]?\d+$/.test(t)) return parseInt(t, 10);
-        return null;
-    }
-
-    function isFalseyExact(x) {
-        if (x == null) return false;
-        if (typeof x === 'boolean') return !x; // Optimization
-        if (x === 0 || x === '0') return true;
-        const t = ('' + x).trim().toLowerCase();
-        return t === '0' || t === 'false';
-    }
-
-    // 4. Range Caches
+    // --- 4. Optimized Parser & Range Expander ---
     const _rgCache = new Map();
-    function rgCached(txt, sheetIndex) {
-        const key = sheetIndex + '|' + (txt || '').trim();
-        let rect = _rgCache.get(key);
-        if (!rect) {
-            rect = s.getcellrange((txt || '').trim(), sheetIndex);
-            _rgCache.set(key, rect);
-        }
-        return rect;
-    }
+    
+    function processDependencies(node) {
+        const formula = node.func;
+        if (!formula) return;
+        const idx = node.i;
 
-    const rangeToKeysCache = {}; // Object is faster than Map for simple string keys in some engines
-    function keysForRange(R, sheetMap) {
-        const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
-        if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
-
-        const sm = sheetMap[R.sheetIndex];
-        const maxRow = (sm && sm.length - 1) ?? R.row[1];
-        const aRow = R.row[1] > maxRow ? maxRow : R.row[1];
+        // --- Fast Guard Checks (IndexOF is faster than Regex) ---
+        // Only run complex logic if the function Name exists in the string
         
-        const list = [];
-        // Pre-allocate check could go here, but push is V8 optimized
-        for (let rr = R.row[0]; rr <= aRow; rr++) {
-            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
-                list.push({ key: "r" + rr + "c" + cc + "i" + R.sheetIndex, r: rr, c: cc, sheetIndex: R.sheetIndex });
+        let processed = false;
+
+        // Helper to add range
+        const addRange = (txt, isFull) => {
+            // Cache range parsing
+            const cKey = idx + '|' + txt;
+            let rect = _rgCache.get(cKey);
+            if (!rect) {
+                rect = s.getcellrange(txt, idx);
+                _rgCache.set(cKey, rect);
             }
-        }
-        rangeToKeysCache[cacheKey] = list;
-        return list;
-    }
-
-    const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&^><]/;
-
-    // ---------- Core Logic: Dependency Collection ----------
-    function collectRefKeysForNode(formulaStr, T) {
-        const depKeys = new Set();
-        const selfKey = "r" + T.r + "c" + T.c + "i" + T.index;
-        const rectSeen = new Set();
-
-        function addRect(rect, excludeSelf = false) {
             if (!rect) return;
-            // Optimization: Unique ID for rect to avoid generating keys repeatedly
-            const id = `${rect.sheetIndex}|${rect.row[0]}_${rect.row[1]}|${rect.column[0]}_${rect.column[1]}`;
-            if (rectSeen.has(id)) return;
-            rectSeen.add(id);
 
-            const refs = keysForRange(rect, sheetMap) || [];
-            for (let i = 0, len = refs.length; i < len; i++) {
-                const r = refs[i];
-                if (excludeSelf && r.key === selfKey) continue;
-                depKeys.add(r.key);
-            }
-        }
+            // Explode range to nodes
+            // *Optimization*: Don't create string keys. Use the loops to getOrMakeNode directly.
+            
+            // Bounds check
+            const sm = sheetMap[rect.sheetIndex];
+            const maxR = (sm && sm.length - 1) ?? rect.row[1];
+            const endR = rect.row[1] > maxR ? maxR : rect.row[1];
+            
+            // To prevent self-dependency
+            const selfR = node.r, selfC = node.c, selfI = node.i;
+            const targetI = rect.sheetIndex;
 
-        // --- Optimized: Lazy Evaluation ---
-        // Instead of parsing ALL function types upfront, parse strictly in order.
-        // If a high-priority function (like VLOOKUP) handles the dependency, return early.
-        
-        // HLOOKUP
-        const h = parseCall('HLOOKUP', formulaStr);
-        if (h && h.args.length >= 3) {
-            const [, table_array, row_index_num, range_lookup] = h.args;
-            const exact = isFalseyExact(range_lookup) || (range_lookup == null);
-            const rect = rgCached(table_array, T.index);
-            if (rect) {
-                const headerRect = { row: [rect.row[0], rect.row[0]], column: rect.column, sheetIndex: rect.sheetIndex };
-                addRect(headerRect);
-                const ri = parseIntIfLiteral(row_index_num);
-                if (exact && Number.isFinite(ri)) {
-                    const retRow = rect.row[0] + (ri - 1);
-                    addRect({ row: [retRow, retRow], column: rect.column, sheetIndex: rect.sheetIndex });
-                    return depKeys; // EARLY RETURN
+            // Tight loop
+            for (let r = rect.row[0]; r <= endR; r++) {
+                for (let c = rect.column[0]; c <= rect.column[1]; c++) {
+                    if (isFull && r === selfR && c === selfC && targetI === selfI) continue;
+                    addEdge(node, r, c, targetI);
                 }
             }
-        }
-
-        // VLOOKUP
-        const v = parseCall('VLOOKUP', formulaStr);
-        if (v && v.args.length >= 3) {
-            const [, table_array, col_index_num, range_lookup] = v.args;
-            const exact = isFalseyExact(range_lookup);
-            const rect = rgCached(table_array, T.index);
-            if (rect) {
-                const firstColRect = { row: rect.row, column: [rect.column[0], rect.column[0]], sheetIndex: rect.sheetIndex };
-                addRect(firstColRect);
-                const ci = parseIntIfLiteral(col_index_num);
-                if (exact && Number.isFinite(ci)) {
-                    const retCol = rect.column[0] + (ci - 1);
-                    addRect({ row: rect.row, column: [retCol, retCol], sheetIndex: rect.sheetIndex });
-                    return depKeys; // EARLY RETURN
-                }
-            }
-        }
-
-        // XLOOKUP
-        const xlk = parseCall('XLOOKUP', formulaStr);
-        if (xlk && xlk.args.length >= 3) {
-            addRect(rgCached(xlk.args[1], T.index));
-            addRect(rgCached(xlk.args[2], T.index));
-        }
-
-        // INDEX
-        const idx = parseCall('INDEX', formulaStr);
-        if (idx && idx.args.length >= 2) {
-            const [arrayRef, row_num, col_num] = idx.args;
-            const rect = rgCached(arrayRef, T.index);
-            if (rect) {
-                const ri = parseIntIfLiteral(row_num);
-                const ci = parseIntIfLiteral(col_num);
-                if (Number.isFinite(ri) && Number.isFinite(ci)) {
-                    const r0 = rect.row[0] + (ri - 1);
-                    const c0 = rect.column[0] + (ci - 1);
-                    addRect({ row: [r0, r0], column: [c0, c0], sheetIndex: rect.sheetIndex });
-                    return depKeys; // EARLY RETURN
-                } else if (Number.isFinite(ri)) {
-                    const r0 = rect.row[0] + (ri - 1);
-                    addRect({ row: [r0, r0], column: rect.column, sheetIndex: rect.sheetIndex });
-                    return depKeys; // EARLY RETURN
-                } else if (Number.isFinite(ci)) {
-                    const c0 = rect.column[0] + (ci - 1);
-                    addRect({ row: rect.row, column: [c0, c0], sheetIndex: rect.sheetIndex });
-                    return depKeys; // EARLY RETURN
-                } else {
-                    addRect(rect);
-                }
-            }
-        }
-
-        // MATCH
-        const mt = parseCall('MATCH', formulaStr);
-        if (mt && mt.args.length >= 2) {
-            addRect(rgCached(mt.args[1], T.index));
-        }
-
-        // SUMIF
-        const sif = parseCall('SUMIF', formulaStr);
-        if (sif && sif.args.length >= 2) {
-            const cr = rgCached(sif.args[0], T.index);
-            if (cr) addRect(cr);
-            const sr = rgCached(sif.args[2] || sif.args[0], T.index);
-            if (sr) addRect(sr, true);
-        }
-
-        // SUMIFS
-        const sifs = parseCall('SUMIFS', formulaStr);
-        if (sifs && sifs.args.length >= 3) {
-            const sr = rgCached(sifs.args[0], T.index);
-            if (sr) addRect(sr, true);
-            for (let i = 1; i < sifs.args.length; i += 2) {
-                const cr = rgCached(sifs.args[i], T.index);
-                if (cr) addRect(cr);
-            }
-        }
-
-        // SUMPRODUCT
-        const sp = parseCall('SUMPRODUCT', formulaStr);
-        if (sp && sp.args.length >= 1) {
-            for (let i = 0; i < sp.args.length; i++) {
-                addRect(rgCached(sp.args[i], T.index));
-            }
-        }
-
-        // OFFSET
-        const off = parseCall('OFFSET', formulaStr);
-        if (off && off.args.length >= 3) {
-            const [ref, rows, cols, height, width] = off.args;
-            const base = rgCached(ref, T.index);
-            const rws = parseIntIfLiteral(rows);
-            const cls = parseIntIfLiteral(cols);
-            if (base && Number.isFinite(rws) && Number.isFinite(cls)) {
-                const hgt = parseIntIfLiteral(height);
-                const wdt = parseIntIfLiteral(width);
-                const r0 = base.row[0] + rws;
-                const c0 = base.column[0] + cls;
-                const r1 = typeof hgt === 'number' ? r0 + hgt - 1 : r0 + (base.row[1] - base.row[0]);
-                const c1 = typeof wdt === 'number' ? c0 + wdt - 1 : c0 + (base.column[1] - base.column[0]);
-                addRect({ row: [r0, r1], column: [c0, c1], sheetIndex: base.sheetIndex });
-                return depKeys; // EARLY RETURN
-            }
-            if (base) addRect(base);
-        }
-
-        // INDIRECT
-        const ind = parseCall('INDIRECT', formulaStr);
-        if (ind && ind.args.length >= 1) {
-            const t = ('' + ind.args[0]).trim();
-            const m = t.match(/^"(.*)"$/);
-            if (m && m[1]) {
-                const rect = rgCached(m[1], T.index);
-                if (rect) addRect(rect);
-            }
-        }
-
-        // Fallback: Tokenize
-        // Note: We only reach here if no exact range logic (early return) matched.
-        // We do NOT use tokens if special parsers handled it logic completely.
-        const tokens = formulaStr.split(fmrSplit);
-        for (let ti = 0, tLen = tokens.length; ti < tLen; ti++) {
-            const tk = tokens[ti].trim();
-            if (!tk) continue;
-            if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
-            const rg = rgCached(tk, T.index);
-            if (rg) addRect(rg);
-        }
-
-        return depKeys;
-    }
-
-    // ---------- Build nodes & reverse index ----------
-    const nodes = {};
-    const refToChildren = {};
-    const volatileNodesBySheet = {};
-    
-    function addChildEdge(refKey, nodeKey) {
-        let set = refToChildren[refKey];
-        if (!set) {
-            set = new Set();
-            refToChildren[refKey] = set;
-        }
-        set.add(nodeKey);
-    }
-
-    for (let i = 0, len = allFuncCells.length; i < len; i++) {
-        const T = allFuncCells[i];
-        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
-        
-        // Optimization: Try internal cache (zl) -> fast O(1) sheetMap lookup -> slow O(N) find
-        let R = zl(T.r, T.c, T.index);
-        if (!R) {
-            const sheetData = sheetMap[T.index];
-            if (sheetData && sheetData[T.r] && sheetData[T.r][T.c] && sheetData[T.r][T.c].f) {
-                R = sheetData[T.r][T.c].f;
-            } else {
-                // Unavoidable fallback if not in render data (e.g. celldata structure)
-                R = ve.getSheetByIndex(T.index)?.celldata?.find(x => x?.r === T.r && x?.c === T.c)?.v?.f;
-            }
-        }
-        
-        if (!R) continue;
-
-        const node = {
-            key: nodeKey,
-            r: T.r, c: T.c, index: T.index,
-            calc_funcStr: R,
-            parents: {},
-            children: {},
-            refKeys: null, // Populated below
-            color: "w",
-            cellAddress: s.getExcelAddr(T.r, T.c)
         };
-        nodes[nodeKey] = node;
 
-        const refKeys = collectRefKeysForNode(R, T);
-        node.refKeys = refKeys;
-        
-        // Iterating Set is slightly slower than array, but refKeys are usually unique and small
-        for (const k of refKeys) {
-            addChildEdge(k, nodeKey);
-        }
-
-        // Volatility Check (Optimized: Check existence of string "INDIRECT" first)
-        if (R.indexOf('INDIRECT') !== -1) {
-            const indMeta = parseCall('INDIRECT', R);
-            if (indMeta && indMeta.args.length >= 1) {
-                const isStaticText = /^".*"$/.test((indMeta.args[0] || '').trim());
-                if (!isStaticText) {
-                    if (!volatileNodesBySheet[T.index]) volatileNodesBySheet[T.index] = new Set();
-                    volatileNodesBySheet[T.index].add(nodeKey);
+        // 1. LOOKUP Exact Match Fast Path
+        if (formula.indexOf('LOOKUP') !== -1) {
+             // HLOOKUP
+            if (formula.indexOf('HLOOKUP') !== -1) {
+                const h = parseCallFast('HLOOKUP', formula);
+                if (h && h.args.length >= 3) {
+                    const exact = isFalseyExact(h.args[3]); // 4th arg index 3
+                    const tableTxt = h.args[0];
+                    if (exact) {
+                        const rect = getRect(tableTxt, idx);
+                        if (rect) {
+                            // Header row
+                            addExplicitRect(node, rect.row[0], rect.row[0], rect.column[0], rect.column[1], rect.sheetIndex);
+                            // Return row
+                            const ri = parseIntFast(h.args[1]);
+                            if (ri !== null) {
+                                const tr = rect.row[0] + (ri - 1);
+                                addExplicitRect(node, tr, tr, rect.column[0], rect.column[1], rect.sheetIndex);
+                                return; // DONE
+                            }
+                        }
+                    }
+                }
+            }
+            // VLOOKUP
+            if (formula.indexOf('VLOOKUP') !== -1) {
+                const v = parseCallFast('VLOOKUP', formula);
+                if (v && v.args.length >= 3) {
+                    const exact = isFalseyExact(v.args[3]);
+                    const tableTxt = v.args[0];
+                    if (exact) {
+                        const rect = getRect(tableTxt, idx);
+                        if (rect) {
+                            // First col
+                            addExplicitRect(node, rect.row[0], rect.row[1], rect.column[0], rect.column[0], rect.sheetIndex);
+                            // Return col
+                            const ci = parseIntFast(v.args[1]);
+                            if (ci !== null) {
+                                const tc = rect.column[0] + (ci - 1);
+                                addExplicitRect(node, rect.row[0], rect.row[1], tc, tc, rect.sheetIndex);
+                                return; // DONE
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-
-    // ---------- Connect graph edges ----------
-    const nodeKeys = Object.keys(nodes);
-    for (let i = 0, len = nodeKeys.length; i < len; i++) {
-        const nodeKey = nodeKeys[i];
-        const node = nodes[nodeKey];
-        for (const refKey of node.refKeys) {
-            const pNode = nodes[refKey];
-            if (pNode) {
-                node.parents[refKey] = 1;
-                pNode.children[nodeKey] = 1;
-            }
-        }
-    }
-
-    // ---------- Build IMPACTED set ----------
-    const impacted = new Set();
-    const queue = [];
-    const execKeys = Object.keys(execSet);
-    
-    // Seed queue
-    for (let i = 0, len = execKeys.length; i < len; i++) {
-        const changedKey = execKeys[i];
         
-        // (1) Children
-        const directChildren = refToChildren[changedKey];
-        if (directChildren) {
-            for (const childKey of directChildren) {
-                if (!impacted.has(childKey)) {
-                    impacted.add(childKey);
-                    queue.push(childKey);
-                }
-            }
-        }
-        // (2) Self
-        if (nodes[changedKey] && !impacted.has(changedKey)) {
-            impacted.add(changedKey);
-            queue.push(changedKey);
-        }
-        // (3) Volatiles
-        const si = changedKey.split('i')[1];
-        const vSet = volatileNodesBySheet[si];
-        if (vSet) {
-            for (const vk of vSet) {
-                if (!impacted.has(vk)) {
-                    impacted.add(vk);
-                    queue.push(vk);
-                }
-            }
-        }
-    }
-
-    // BFS closure
-    let qIdx = 0; // Optimization: Use index pointer instead of shift() for O(1) queue operations
-    while (qIdx < queue.length) {
-        const k = queue[qIdx++];
-        const nnode = nodes[k];
-        if (!nnode || !nnode.children) continue;
-        
-        // Use Object.keys for children (sparse object map)
-        const children = Object.keys(nnode.children);
-        for (let ci = 0, clen = children.length; ci < clen; ci++) {
-            const ck = children[ci];
-            if (!impacted.has(ck)) {
-                impacted.add(ck);
-                queue.push(ck);
-            }
-        }
-    }
-
-    if (impacted.size === 0) {
-        for (let i = 0, len = nodeKeys.length; i < len; i++) {
-            impacted.add(nodeKeys[i]);
-        }
-    }
-
-    // ---------- Topological Sort (DFS) ----------
-    const ordered = [];
-    const processed = {}; 
-    const color = {}; 
-    let cycleDetected = false;
-
-    function dfsVisit(k, stack) {
-        // Removed recursion guards here as they are checked before calling
-        color[k] = 'g';
-        stack.push(k); // For cycle debugging/logic if needed
-
-        const pMap = nodes[k].parents;
-        if (pMap) {
-            // Sort to ensure deterministic execution order
-            const parents = Object.keys(pMap).sort();
-            for (let i = 0, len = parents.length; i < len; i++) {
-                const pk = parents[i];
-                if (nodes[pk] && impacted.has(pk)) {
-                    const c = color[pk];
-                    if (c === 'g') { cycleDetected = true; } // Cycle
-                    else if (c !== 'b' && !processed[pk]) {
-                        dfsVisit(pk, stack);
+        // 2. INDEX Fast Path
+        if (formula.indexOf('INDEX') !== -1) {
+            const i = parseCallFast('INDEX', formula);
+            if (i && i.args.length >= 2) {
+                const rect = getRect(i.args[0], idx);
+                if (rect) {
+                    const ri = parseIntFast(i.args[1]);
+                    const ci = parseIntFast(i.args[2]);
+                    // Exact cell
+                    if (ri !== null && ci !== null) {
+                        const r = rect.row[0] + ri - 1;
+                        const c = rect.column[0] + ci - 1;
+                        addEdge(node, r, c, rect.sheetIndex);
+                        return;
+                    }
+                    // Row slice
+                    if (ri !== null) {
+                        const r = rect.row[0] + ri - 1;
+                        addExplicitRect(node, r, r, rect.column[0], rect.column[1], rect.sheetIndex);
+                        return;
+                    }
+                    // Col slice
+                    if (ci !== null) {
+                        const c = rect.column[0] + ci - 1;
+                        addExplicitRect(node, rect.row[0], rect.row[1], c, c, rect.sheetIndex);
+                        return;
                     }
                 }
             }
         }
 
-        color[k] = 'b';
-        processed[k] = 1;
-        ordered.push(nodes[k]);
-        stack.pop();
+        // 3. Fallback: Tokenizer (Aggressive Split)
+        // Using a loop over regex matches is faster than split for sparse tokens
+        const tokenRe = /([a-zA-Z_$][a-zA-Z0-9_$]*!)?\$?[a-zA-Z]+\$?[0-9]+(:(\$?[a-zA-Z]+\$?[0-9]+))?/g;
+        let match;
+        while ((match = tokenRe.exec(formula)) !== null) {
+            const tk = match[0];
+            if (s.iscelldata(tk)) { // Lightweight check from original code
+                 addRange(tk, true);
+            }
+        }
+        
+        // INDIRECT Check
+        if (formula.indexOf('INDIRECT') !== -1) {
+            // Mark volatile on global map
+            const si = node.i;
+            if (!s._volatileNodes) s._volatileNodes = {};
+            if (!s._volatileNodes[si]) s._volatileNodes[si] = [];
+            s._volatileNodes[si].push(node);
+        }
     }
 
-    for (const k of impacted) {
-        if (nodes[k] && !processed[k]) dfsVisit(k, []);
+    // Helper for rect lookups
+    function getRect(txt, idx) {
+        const cKey = idx + '|' + txt;
+        let rect = _rgCache.get(cKey);
+        if (!rect) {
+            rect = s.getcellrange(txt, idx);
+            _rgCache.set(cKey, rect);
+        }
+        return rect;
+    }
+    
+    function addExplicitRect(node, r1, r2, c1, c2, i) {
+        const sm = sheetMap[i];
+        const maxR = (sm && sm.length - 1) ?? r2;
+        const endR = r2 > maxR ? maxR : r2;
+        for (let r = r1; r <= endR; r++) {
+            for (let c = c1; c <= c2; c++) {
+                 addEdge(node, r, c, i);
+            }
+        }
     }
 
-    if (cycleDetected) {
-        console.warn("Calculation cycle detected (DFS).");
+    function parseCallFast(name, str) {
+        // Minimal parser: find Name( ... )
+        const start = str.indexOf(name);
+        if (start === -1) return null;
+        const openP = str.indexOf('(', start);
+        if (openP === -1) return null;
+        
+        let depth = 1;
+        let lastComma = openP + 1;
+        const args = [];
+        const len = str.length;
+        
+        for (let k = openP + 1; k < len; k++) {
+            const char = str.charCodeAt(k); // Using charCodeAt is slightly faster
+            if (char === 40) { // (
+                depth++;
+            } else if (char === 41) { // )
+                depth--;
+                if (depth === 0) {
+                    args.push(str.substring(lastComma, k).trim());
+                    return { args };
+                }
+            } else if (char === 44 && depth === 1) { // ,
+                args.push(str.substring(lastComma, k).trim());
+                lastComma = k + 1;
+            }
+        }
+        return null;
     }
 
-    // ---------- Evaluate ----------
-    for (let i = 0, len = ordered.length; i < len; i++) {
-        const T = ordered[i];
-        window.luckysheet_getcelldata_cache = null;
-        
-        // Use sheetMap for fast read
-        const sm = sheetMap[T.index];
-        const oldValue = sm?.[T.r]?.[T.c]?.v;
-        
-        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
-        
-        if (oldValue == Rres[1]) continue;
+    function parseIntFast(val) {
+        if (!val) return null;
+        if (typeof val === 'number') return val;
+        // Check if string is just digits
+        if (/^\d+$/.test(val)) return parseInt(val, 10);
+        return null; 
+    }
+    
+    function isFalseyExact(val) {
+        if (val == null) return false;
+        const s = String(val).trim().toLowerCase();
+        return s === '0' || s === 'false';
+    }
 
-        s.execFunctionGlobalData[T.r + "_" + T.c + "_" + T.index] = {
-            v: Rres[1],
-            f: Rres[2]
-        };
+    // --- 5. Build Graph (The Heavy Lift) ---
+    // Create nodes for ALL gathered function cells
+    for (let i = 0; i < allFuncCells.length; i++) {
+        const T = allFuncCells[i];
+        // Try to get formula cheaply
+        let f = null;
+        const sheet = sheetMap[T.index];
+        if (sheet && sheet[T.r] && sheet[T.r][T.c]) {
+            f = sheet[T.r][T.c].f;
+        }
+        // Fallback
+        if (!f) {
+             const cell = ve.getSheetByIndex(T.index)?.celldata?.find(x => x.r === T.r && x.c === T.c);
+             if (cell && cell.v) f = cell.v.f;
+        }
+        
+        if (f) {
+            const node = getOrMakeNode(T.r, T.c, T.index, f);
+            processDependencies(node);
+        }
+    }
+
+    // --- 6. Impact Propagation (BFS with Integer Flags) ---
+    // Start with the changed cell(s)
+    const queue = [];
+    let qHead = 0;
+
+    function addToQueue(node) {
+        if (node.visited !== RUN_ID) {
+            node.visited = RUN_ID;
+            queue.push(node);
+        }
+    }
+
+    // Seed queue
+    if (s.execFunctionExist) {
+        for (let i = 0; i < s.execFunctionExist.length; i++) {
+            const T = s.execFunctionExist[i];
+            const node = getOrMakeNode(T.r, T.c, T.i);
+            addToQueue(node);
+        }
+    } else {
+        const node = getOrMakeNode(e, n, l);
+        addToQueue(node);
+    }
+
+    // Add Volatiles (INDIRECT) if they exist on the impacted sheets
+    // (Simplification: If any cell on sheet L changed, trigger volatiles on L)
+    // In a "Superfast" generic way, we might just add all known volatiles if we don't track sheet-dirty flags.
+    if (s._volatileNodes) {
+        // Just add all for safety or track by sheet. Adding all is safer for Indirect.
+        for (const k in s._volatileNodes) {
+             const vNodes = s._volatileNodes[k];
+             for (let v = 0; v < vNodes.length; v++) addToQueue(vNodes[v]);
+        }
+    }
+
+    // BFS Loop (Pointer Chasing)
+    while (qHead < queue.length) {
+        const node = queue[qHead++];
+        const children = node.children;
+        // Standard for-loop is faster than for-of
+        for (let i = 0; i < children.length; i++) {
+            addToQueue(children[i]);
+        }
+    }
+
+    // If nothing impacted, recalc everything (fallback)
+    if (queue.length === 0) {
+        // Add all function nodes
+        _nodes.forEach(node => {
+            if (node.func) queue.push(node);
+        });
+    }
+
+    // --- 7. Execution Order (DFS Topological Sort) ---
+    const sorted = [];
+    
+    // Reset colors for DFS (using run-specific logic if needed, but here simple reset is OK 
+    // since we only process the 'queue' items which are exactly the impacted set)
+    // Actually, we need to mark visited for Sort distinct from BFS visited.
+    // Let's use node.color: 0=unvisited, 1=visiting, 2=visited
+    
+    // We only need to sort the nodes that are in the `queue` (impacted set).
+    // However, the `queue` contains the input cells (no formulas). Filter them.
+    const toCalc = [];
+    for (let i = 0; i < queue.length; i++) {
+        const n = queue[i];
+        if (n.func) {
+            n.color = 0; 
+            toCalc.push(n);
+        }
+    }
+
+    function dfs(u) {
+        u.color = 1; // Gray
+        const parents = u.parents;
+        for (let i = 0; i < parents.length; i++) {
+            const p = parents[i];
+            // Only follow parents that are also in the impacted set (toCalc)
+            // AND are formulas. 
+            // *Optimization*: Check `visited === RUN_ID`.
+            if (p.visited === RUN_ID && p.func) {
+                if (p.color === 1) {
+                    console.warn("Cycle detected");
+                } else if (p.color === 0) {
+                    dfs(p);
+                }
+            }
+        }
+        u.color = 2; // Black
+        sorted.push(u);
+    }
+
+    for (let i = 0; i < toCalc.length; i++) {
+        if (toCalc[i].color === 0) dfs(toCalc[i]);
+    }
+
+    // --- 8. Final Evaluation ---
+    // sorted is now in Topological Order (Parents first).
+    
+    for (let i = 0; i < sorted.length; i++) {
+        const node = sorted[i];
+        window.luckysheet_getcelldata_cache = null; // Clear per-cell cache
+        
+        // Fast old value check
+        const sm = sheetMap[node.i];
+        const oldVal = sm?.[node.r]?.[node.c]?.v;
+
+        const res = s.execfunction(node.func, node.r, node.c, node.i);
+        
+        // Value compare
+        if (oldVal == res[1]) continue;
+
+        // Write
+        const keyStr = node.r + "_" + node.c + "_" + node.i; // Unfortunately API needs string
+        s.execFunctionGlobalData[keyStr] = { v: res[1], f: res[2] };
         s.groupValuesRefreshData.push({
-            r: T.r,
-            c: T.c,
-            v: Rres[1],
-            f: Rres[2],
-            spe: Rres[3],
-            index: T.index
+            r: node.r, c: node.c, v: res[1], f: res[2], spe: res[3], index: node.i
         });
     }
 
