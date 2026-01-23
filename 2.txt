@@ -1,621 +1,69 @@
-execFunctionGroup: function (e, n, t, l, a, o = !1) {
-    // Preserve original early return semantics
-    if (o) return;
-    const s = this;
-    
-    // ---------- Initialize helpers (optimized: single object creation) ----------
-    if (a == null) a = h.flowdata;
-    if (!window.luckysheet_compareWith) {
-        const funcs = {
-            luckysheet_compareWith: ja,
-            luckysheet_getarraydata: wc,
-            luckysheet_getcelldata: nr,
-            luckysheet_parseData: Ua,
-            luckysheet_getValue: qn,
-            luckysheet_indirect_check: xc,
-            luckysheet_indirect_check_return: _c,
-            luckysheet_offset_check: Cc,
-            luckysheet_calcADPMM: _t,
-            luckysheet_getSpecialReference: Tc
-        };
-        Object.assign(window, funcs);
-    }
-    if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-    if (l == null) l = h.currentSheetIndex;
-    
-    // ---------- Store explicit value if provided (optimized: direct assignment) ----------
-    if (t != null) {
-        const cell = { v: t };
-        s.execFunctionGlobalData[e + "_" + n + "_" + l] = cell;
-    }
-    
-    // ---------- Gather function cells (optimized: minimal branching) ----------
-    let allFuncCells = [];
-    let sheetIndices = null;
-    
-    const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-    
-    if (e != null && n != null) {
-        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
-        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-    } else if (s.execFunctionExist && s.execFunctionExist.length > 0) {
-        sheetIndices = s.getAllDependentSheetsFromSheet(s.execFunctionExist[0].i, null);
-        allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-    } else {
-        allFuncCells = s.getAllFunctionGroup() || [];
-    }
-    
-    // Early exit if no function cells
-    if (allFuncCells.length === 0) {
-        s.execFunctionExist = null;
-        return;
-    }
-    
-    // ---------- Build sheetMap (optimized: precompute length) ----------
-    const sheetsInfo = Ft() || [];
-    const sheetMap = {};
-    for (let i = 0, len = sheetsInfo.length; i < len; i++) {
-        const sheet = sheetsInfo[i];
-        sheetMap[sheet.index] = sheet.data;
-    }
-    
-    // ---------- Build execSet (optimized: direct key construction) ----------
-    const execSet = {};
-    if (s.execFunctionExist == null) {
-        execSet[`r${e}c${n}i${l}`] = 1;
-    } else {
-        for (let i = 0, len = s.execFunctionExist.length; i < len; i++) {
-            const T = s.execFunctionExist[i];
-            execSet[`r${T.r}c${T.c}i${T.i}`] = 1;
-        }
-    }
-    
-    // ---------- Pre-compiled regex patterns (optimized: compile once) ----------
-    const functionRegexCache = {};
-    function getFunctionRegex(name) {
-        if (!functionRegexCache[name]) {
-            functionRegexCache[name] = new RegExp(`${name}\\s*\\(`, 'i');
-        }
-        return functionRegexCache[name];
-    }
-    
-    // ---------- Optimized parseCall with memoization ----------
-    const parseCallCache = new Map();
-    function parseCall(name, text) {
-        const cacheKey = name + '|' + text;
-        if (parseCallCache.has(cacheKey)) {
-            return parseCallCache.get(cacheKey);
-        }
-        
-        const re = getFunctionRegex(name);
-        const m = text.match(re);
-        if (!m) {
-            parseCallCache.set(cacheKey, null);
-            return null;
-        }
-        
-        let i = m.index + m[0].length, depth = 1, cur = '', args = [];
-        const textLength = text.length;
-        
-        while (i < textLength && depth > 0) {
-            const ch = text[i++];
-            if (ch === '(') { 
-                depth++; 
-                cur += ch; 
-            } else if (ch === ')') {
-                depth--;
-                if (depth === 0) { 
-                    if (cur.trim()) args.push(cur.trim()); 
-                    break; 
+       getcellrange: function (e, n) {
+                if (e == null || e.length == 0)
+                    return;
+                let t = ""
+                    , l = ""
+                    , a = null
+                    , o = null
+                    , s = Ft();
+                if (e.indexOf("!") > -1) {
+                    if (e in this.cellTextToIndexList)
+                        return this.cellTextToIndexList[e];
+                    let u = e.split("!");
+                    t = u[0],
+                        l = u[1],
+                        t = t.replace(/\\'/g, "'").replace(/''/g, "'"),
+                        t.substr(0, 1) == "'" && t.substr(t.length - 1, 1) == "'" && (t = t.substring(1, t.length - 1));
+                    for (let d in s)
+                        if (t == s[d].name) {
+                            a = s[d].index,
+                                o = s[d].data;
+                            break
+                        }
+                } else {
+                    let u = n;
+                    if (u == null && (u = h.currentSheetIndex),
+                        e + "_" + u in this.cellTextToIndexList)
+                        return this.cellTextToIndexList[e + "_" + u];
+                    let d = K(u);
+                    t = s[d].name,
+                        a = s[d].index,
+                        o = h.flowdata,
+                        l = e
                 }
-                cur += ch;
-            } else if (ch === ',' && depth === 1) {
-                args.push(cur.trim()); 
-                cur = '';
-            } else {
-                cur += ch;
-            }
-        }
-        
-        const result = { name, args, start: m.index, end: i };
-        parseCallCache.set(cacheKey, result);
-        return result;
-    }
-    
-    // ---------- Optimized helpers ----------
-    function parseIntIfLiteral(x) {
-        if (x == null) return null;
-        const t = String(x).trim();
-        const num = parseInt(t, 10);
-        return isNaN(num) ? null : num;
-    }
-    
-    function isFalseyExact(x) {
-        if (x == null) return false;
-        const t = String(x).trim().toLowerCase();
-        return t === '0' || t === 'false';
-    }
-    
-    // ---------- Range caching (optimized: single Map) ----------
-    const rangeCache = new Map();
-    const rectIdCache = new Map();
-    
-    function rgCached(txt, sheetIndex) {
-        const key = sheetIndex + '|' + (txt || '').trim();
-        if (rangeCache.has(key)) return rangeCache.get(key);
-        const rect = s.getcellrange((txt || '').trim(), sheetIndex);
-        rangeCache.set(key, rect);
-        return rect;
-    }
-    
-    function rectId(rect) {
-        if (!rect) return '';
-        const key = `${rect.row[0]},${rect.row[1]},${rect.column[0]},${rect.column[1]},${rect.sheetIndex}`;
-        if (rectIdCache.has(key)) return rectIdCache.get(key);
-        const id = `${rect.sheetIndex}|${rect.row[0]}_${rect.row[1]}|${rect.column[0]}_${rect.column[1]}`;
-        rectIdCache.set(key, id);
-        return id;
-    }
-    
-    // ---------- Optimized keysForRange with precomputed bounds ----------
-    const rangeToKeysCache = new Map();
-    
-    function keysForRange(R, sheetMap) {
-        const cacheKey = `${R.row[0]},${R.row[1]},${R.column[0]},${R.column[1]},${R.sheetIndex}`;
-        if (rangeToKeysCache.has(cacheKey)) return rangeToKeysCache.get(cacheKey);
-        
-        const sheetData = sheetMap[R.sheetIndex];
-        const maxRow = sheetData ? sheetData.length - 1 : R.row[1];
-        const endRow = R.row[1] > maxRow ? maxRow : R.row[1];
-        
-        const list = [];
-        const startRow = R.row[0];
-        const startCol = R.column[0];
-        const endCol = R.column[1];
-        const sheetIndex = R.sheetIndex;
-        
-        for (let rr = startRow; rr <= endRow; rr++) {
-            const rowKeyBase = "r" + rr + "c";
-            for (let cc = startCol; cc <= endCol; cc++) {
-                list.push({ 
-                    key: rowKeyBase + cc + "i" + sheetIndex, 
-                    r: rr, 
-                    c: cc, 
-                    sheetIndex 
-                });
-            }
-        }
-        
-        rangeToKeysCache.set(cacheKey, list);
-        return list;
-    }
-    
-    // ---------- Optimized collectRefKeysForNode ----------
-    function collectRefKeysForNode(formulaStr, T) {
-        const selfKey = `r${T.r}c${T.c}i${T.index}`;
-        const rectSeen = new Set();
-        const depKeys = new Set();
-        
-        function addRect(rect, excludeSelf = false) {
-            if (!rect) return;
-            const id = rectId(rect);
-            if (rectSeen.has(id)) return;
-            rectSeen.add(id);
-            
-            const refs = keysForRange(rect, sheetMap);
-            if (!refs) return;
-            
-            if (excludeSelf) {
-                for (let i = 0, len = refs.length; i < len; i++) {
-                    const r = refs[i];
-                    if (r.key !== selfKey) depKeys.add(r.key);
-                }
-            } else {
-                for (let i = 0, len = refs.length; i < len; i++) {
-                    depKeys.add(refs[i].key);
-                }
-            }
-        }
-        
-        // Check all functions in a single pass with early returns
-        const functionsToCheck = [
-            'HLOOKUP', 'VLOOKUP', 'XLOOKUP', 'INDEX', 'MATCH',
-            'SUMIF', 'SUMIFS', 'AVERAGEIF', 'AVERAGEIFS',
-            'COUNTIF', 'COUNTIFS', 'MINIFS', 'MAXIFS',
-            'SUMPRODUCT', 'OFFSET', 'INDIRECT'
-        ];
-        
-        for (let i = 0, len = functionsToCheck.length; i < len; i++) {
-            const funcName = functionsToCheck[i];
-            const call = parseCall(funcName, formulaStr);
-            if (!call) continue;
-            
-            const args = call.args;
-            
-            // HLOOKUP
-            if (funcName === 'HLOOKUP' && args.length >= 3) {
-                const [, table_array, row_index_num, range_lookup] = args;
-                const exact = isFalseyExact(range_lookup) || range_lookup == null;
-                const rect = rgCached(table_array, T.index);
-                if (rect) {
-                    const headerRect = { 
-                        row: [rect.row[0], rect.row[0]], 
-                        column: rect.column, 
-                        sheetIndex: rect.sheetIndex 
-                    };
-                    addRect(headerRect);
-                    const ri = parseIntIfLiteral(row_index_num);
-                    if (exact && Number.isFinite(ri)) {
-                        const retRow = rect.row[0] + (ri - 1);
-                        const returnRect = { 
-                            row: [retRow, retRow], 
-                            column: rect.column, 
-                            sheetIndex: rect.sheetIndex 
+                if (l.indexOf(":") == -1) {
+                    let u = parseInt(l.replace(/[^0-9]/g, "")) - 1
+                        , d = cl(l.replace(/[^A-Za-z]/g, ""));
+                    if (!isNaN(u) && !isNaN(d)) {
+                        let f = {
+                            row: [u, u],
+                            column: [d, d],
+                            sheetIndex: a
                         };
-                        addRect(returnRect);
-                        return depKeys;
-                    }
-                }
-                continue;
-            }
-            
-            // VLOOKUP
-            if (funcName === 'VLOOKUP' && args.length >= 3) {
-                const [, table_array, col_index_num, range_lookup] = args;
-                const exact = isFalseyExact(range_lookup);
-                const rect = rgCached(table_array, T.index);
-                if (rect) {
-                    const firstColRect = { 
-                        row: rect.row, 
-                        column: [rect.column[0], rect.column[0]], 
-                        sheetIndex: rect.sheetIndex 
+                        return this.addToCellIndexList(e, f),
+                            f
+                    } else
+                        return null
+                } else {
+                    l = l.split(":");
+                    let u = []
+                        , d = [];
+                    if (u[0] = parseInt(l[0].replace(/[^0-9]/g, "")) - 1,
+                        u[1] = parseInt(l[1].replace(/[^0-9]/g, "")) - 1,
+                        isNaN(u[0]) && (u[0] = 0),
+                        isNaN(u[1]) && o && (u[1] = o.length - 1),
+                        u[0] > u[1] || (d[0] = cl(l[0].replace(/[^A-Za-z]/g, "")),
+                            d[1] = cl(l[1].replace(/[^A-Za-z]/g, "")),
+                            isNaN(d[0]) && (d[0] = 0),
+                            isNaN(d[1]) && o && o[0] && (d[1] = o[0].length - 1),
+                            d[0] > d[1]))
+                        return null;
+                    let f = {
+                        row: u,
+                        column: d,
+                        sheetIndex: a
                     };
-                    addRect(firstColRect);
-                    const ci = parseIntIfLiteral(col_index_num);
-                    if (exact && Number.isFinite(ci)) {
-                        const retCol = rect.column[0] + (ci - 1);
-                        const returnRect = { 
-                            row: rect.row, 
-                            column: [retCol, retCol], 
-                            sheetIndex: rect.sheetIndex 
-                        };
-                        addRect(returnRect);
-                        return depKeys;
-                    }
+                    return this.addToCellIndexList(e, f),
+                        f
                 }
-                continue;
-            }
-            
-            // XLOOKUP
-            if (funcName === 'XLOOKUP' && args.length >= 3) {
-                const [, lookup_array, return_array] = args;
-                addRect(rgCached(lookup_array, T.index));
-                addRect(rgCached(return_array, T.index));
-                continue;
-            }
-            
-            // INDEX
-            if (funcName === 'INDEX' && args.length >= 2) {
-                const [arrayRef, row_num, col_num] = args;
-                const rect = rgCached(arrayRef, T.index);
-                if (rect) {
-                    const ri = parseIntIfLiteral(row_num);
-                    const ci = parseIntIfLiteral(col_num);
-                    if (Number.isFinite(ri) && Number.isFinite(ci)) {
-                        const r0 = rect.row[0] + (ri - 1);
-                        const c0 = rect.column[0] + (ci - 1);
-                        addRect({ row: [r0, r0], column: [c0, c0], sheetIndex: rect.sheetIndex });
-                        return depKeys;
-                    } else if (Number.isFinite(ri)) {
-                        const r0 = rect.row[0] + (ri - 1);
-                        addRect({ row: [r0, r0], column: rect.column, sheetIndex: rect.sheetIndex });
-                        return depKeys;
-                    } else if (Number.isFinite(ci)) {
-                        const c0 = rect.column[0] + (ci - 1);
-                        addRect({ row: rect.row, column: [c0, c0], sheetIndex: rect.sheetIndex });
-                        return depKeys;
-                    } else {
-                        addRect(rect);
-                    }
-                }
-                continue;
-            }
-            
-            // Other functions with simpler logic
-            switch(funcName) {
-                case 'MATCH':
-                    if (args.length >= 2) {
-                        addRect(rgCached(args[1], T.index));
-                    }
-                    break;
-                case 'SUMIF':
-                    if (args.length >= 2) {
-                        const cr = rgCached(args[0], T.index);
-                        if (cr) addRect(cr);
-                        const sr = rgCached(args[2] || args[0], T.index);
-                        if (sr) addRect(sr, true);
-                    }
-                    break;
-                case 'SUMIFS':
-                    if (args.length >= 3) {
-                        const sr = rgCached(args[0], T.index);
-                        if (sr) addRect(sr, true);
-                        for (let i = 1, aLen = args.length; i < aLen; i += 2) {
-                            const cr = args[i];
-                            if (cr) addRect(rgCached(cr, T.index));
-                        }
-                    }
-                    break;
-                case 'SUMPRODUCT':
-                    for (let i = 0, aLen = args.length; i < aLen; i++) {
-                        addRect(rgCached(args[i], T.index));
-                    }
-                    break;
-                case 'OFFSET':
-                    if (args.length >= 3) {
-                        const [ref, rows, cols, height, width] = args;
-                        const base = rgCached(ref, T.index);
-                        const rws = parseIntIfLiteral(rows);
-                        const cls = parseIntIfLiteral(cols);
-                        if (base && Number.isFinite(rws) && Number.isFinite(cls)) {
-                            const r0 = base.row[0] + rws;
-                            const c0 = base.column[0] + cls;
-                            const r1 = typeof height === 'number' ? r0 + height - 1 : r0 + (base.row[1] - base.row[0]);
-                            const c1 = typeof width === 'number' ? c0 + width - 1 : c0 + (base.column[1] - base.column[0]);
-                            addRect({ row: [r0, r1], column: [c0, c1], sheetIndex: base.sheetIndex });
-                            return depKeys;
-                        }
-                        if (base) addRect(base);
-                    }
-                    break;
-                case 'INDIRECT':
-                    if (args.length >= 1) {
-                        const [ref_text] = args;
-                        const t = String(ref_text).trim();
-                        if (t.startsWith('"') && t.endsWith('"')) {
-                            addRect(rgCached(t.slice(1, -1), T.index));
-                        }
-                    }
-                    break;
-            }
-        }
-        
-        // Generic fallback with optimized tokenization
-        const tokens = formulaStr.split(/==|!=|<>|<=|>=|[,()=+\-/*%&^><]/);
-        for (let i = 0, len = tokens.length; i < len; i++) {
-            const tk = tokens[i].trim();
-            if (!tk || tk.length <= 1) continue;
-            const rg = rgCached(tk, T.index);
-            if (rg) addRect(rg);
-        }
-        
-        return depKeys;
-    }
-    
-    // ---------- Build formula nodes & reverse index (optimized: single pass) ----------
-    const nodes = {};
-    const refToChildren = {};
-    const volatileNodesBySheet = {};
-    
-    for (let i = 0, len = allFuncCells.length; i < len; i++) {
-        const T = allFuncCells[i];
-        const nodeKey = `r${T.r}c${T.c}i${T.index}`;
-        
-        // Get formula with minimal lookups
-        let formula = zl(T.r, T.c, T.index);
-        if (!formula) {
-            const sheet = ve.getSheetByIndex(T.index);
-            if (sheet && sheet.celldata) {
-                for (let j = 0, cdLen = sheet.celldata.length; j < cdLen; j++) {
-                    const cell = sheet.celldata[j];
-                    if (cell && cell.r === T.r && cell.c === T.c && cell.v && cell.v.f) {
-                        formula = cell.v.f;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (!formula) continue;
-        
-        const node = nodes[nodeKey] = {
-            key: nodeKey,
-            r: T.r,
-            c: T.c,
-            index: T.index,
-            calc_funcStr: formula,
-            parents: {},
-            children: {},
-            refKeys: new Set(),
-            color: "w",
-            cellAddress: s.getExcelAddr(T.r, T.c)
-        };
-        
-        // Collect ref keys
-        const refKeys = collectRefKeysForNode(formula, T);
-        for (const k of refKeys) {
-            node.refKeys.add(k);
-            if (!refToChildren[k]) refToChildren[k] = new Set();
-            refToChildren[k].add(nodeKey);
-        }
-        
-        // Check for volatile INDIRECT
-        const indMeta = parseCall('INDIRECT', formula);
-        if (indMeta && indMeta.args.length >= 1) {
-            const [ref_text] = indMeta.args;
-            const isStaticText = /^".*"$/.test(String(ref_text).trim());
-            if (!isStaticText) {
-                if (!volatileNodesBySheet[T.index]) volatileNodesBySheet[T.index] = new Set();
-                volatileNodesBySheet[T.index].add(nodeKey);
-            }
-        }
-    }
-    
-    // ---------- Connect graph edges (optimized: pre-extract keys) ----------
-    const nodeKeys = Object.keys(nodes);
-    for (let i = 0, len = nodeKeys.length; i < len; i++) {
-        const nodeKey = nodeKeys[i];
-        const node = nodes[nodeKey];
-        const refKeys = Array.from(node.refKeys);
-        for (let j = 0, rLen = refKeys.length; j < rLen; j++) {
-            const refKey = refKeys[j];
-            if (nodes[refKey]) {
-                node.parents[refKey] = 1;
-                nodes[refKey].children[nodeKey] = 1;
-            }
-        }
-    }
-    
-    // ---------- Build IMPACTED set (optimized: use arrays for queue) ----------
-    const impacted = new Set();
-    const queue = [];
-    const execKeys = Object.keys(execSet);
-    
-    // Helper to process a key
-    function processKey(changedKey) {
-        // Direct children
-        const directChildren = refToChildren[changedKey];
-        if (directChildren) {
-            for (const childKey of directChildren) {
-                if (!impacted.has(childKey)) {
-                    impacted.add(childKey);
-                    queue[queue.length] = childKey; // Faster than push
-                }
-            }
-        }
-        
-        // Self if formula node
-        if (nodes[changedKey] && !impacted.has(changedKey)) {
-            impacted.add(changedKey);
-            queue[queue.length] = changedKey;
-        }
-        
-        // Volatile nodes
-        const si = changedKey.split('i')[1];
-        const volatileSet = volatileNodesBySheet[si];
-        if (volatileSet) {
-            for (const vk of volatileSet) {
-                if (!impacted.has(vk)) {
-                    impacted.add(vk);
-                    queue[queue.length] = vk;
-                }
-            }
-        }
-    }
-    
-    // Process all execKeys
-    for (let i = 0, len = execKeys.length; i < len; i++) {
-        processKey(execKeys[i]);
-    }
-    
-    // Downstream closure
-    let queueIndex = 0;
-    while (queueIndex < queue.length) {
-        const k = queue[queueIndex++];
-        const node = nodes[k];
-        if (!node) continue;
-        
-        const childKeys = Object.keys(node.children);
-        for (let i = 0, len = childKeys.length; i < len; i++) {
-            const ck = childKeys[i];
-            if (!impacted.has(ck)) {
-                impacted.add(ck);
-                queue[queue.length] = ck;
-            }
-        }
-    }
-    
-    // Fallback: if nothing impacted, recompute all nodes
-    if (impacted.size === 0) {
-        for (let i = 0, len = nodeKeys.length; i < len; i++) {
-            impacted.add(nodeKeys[i]);
-        }
-    }
-    
-    // ---------- Topological sort (optimized: iterative with stack) ----------
-    const ordered = [];
-    const processed = {};
-    const color = {};
-    let cycleDetected = false;
-    
-    const dfsStack = [];
-    const callStack = [];
-    
-    for (const k of impacted) {
-        if (!nodes[k] || processed[k]) continue;
-        
-        dfsStack.push(k);
-        callStack.push(0);
-        color[k] = 'g';
-        
-        while (dfsStack.length > 0) {
-            const currentKey = dfsStack[dfsStack.length - 1];
-            const depth = callStack[callStack.length - 1];
-            const node = nodes[currentKey];
-            
-            if (depth === 0) {
-                // First visit: process parents
-                const parents = Object.keys(node.parents)
-                    .filter(pk => nodes[pk] && impacted.has(pk))
-                    .sort();
-                
-                if (callStack[callStack.length - 1] < parents.length) {
-                    const pk = parents[callStack[callStack.length - 1]];
-                    callStack[callStack.length - 1]++;
-                    
-                    if (!processed[pk]) {
-                        if (color[pk] === 'g') {
-                            cycleDetected = true;
-                        } else {
-                            dfsStack.push(pk);
-                            callStack.push(0);
-                            color[pk] = 'g';
-                        }
-                    }
-                    continue;
-                }
-            }
-            
-            // All parents processed or no parents
-            color[currentKey] = 'b';
-            processed[currentKey] = 1;
-            ordered.push(node);
-            dfsStack.pop();
-            callStack.pop();
-        }
-    }
-    
-    if (cycleDetected) {
-        console.warn("Calculation cycle detected (DFS).");
-    }
-    
-    // ---------- Evaluate (optimized: batch processing) ----------
-    const refreshData = s.groupValuesRefreshData || (s.groupValuesRefreshData = []);
-    const execData = s.execFunctionGlobalData;
-    
-    for (let i = 0, len = ordered.length; i < len; i++) {
-        const T = ordered[i];
-        window.luckysheet_getcelldata_cache = null;
-        
-        const sheetRow = sheetMap[T.index] && sheetMap[T.index][T.r];
-        const oldValue = sheetRow && sheetRow[T.c] ? sheetRow[T.c].v : undefined;
-        
-        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
-        
-        if (oldValue !== Rres[1]) {
-            const key = `${T.r}_${T.c}_${T.index}`;
-            execData[key] = { v: Rres[1], f: Rres[2] };
-            
-            refreshData[refreshData.length] = {
-                r: T.r,
-                c: T.c,
-                v: Rres[1],
-                f: Rres[2],
-                spe: Rres[3],
-                index: T.index
-            };
-        }
-    }
-    
-    s.execFunctionExist = null;
-}
+            },
