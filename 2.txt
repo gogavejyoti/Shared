@@ -3,7 +3,7 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
 
     const s = this;
 
-    // Early globals setup (unchanged)
+    // Preserve original early return semantics
     if (a == null) a = h.flowdata;
     if (!window.luckysheet_compareWith) {
         Object.assign(window, {
@@ -20,27 +20,28 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         });
     }
     if (!s.execFunctionGlobalData) s.execFunctionGlobalData = {};
-
     if (l == null) l = h.currentSheetIndex;
 
-    // ── Explicit value injection ────────────────────────────────────────
+    // ---------- Store explicit value if provided ----------
     if (t != null) {
         const tmp = [[{ v: null }]];
         At(0, 0, tmp, t);
-        s.execFunctionGlobalData[`${e}_${n}_${l}`] = tmp[0][0];
+        s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
     }
 
-    // ── Determine which sheets & functions to consider ──────────────────
+    // ---------- Gather function cells ----------
     let allFuncCells = [];
     let sheetIndices = null;
-
     if (e != null && n != null) {
-        sheetIndices = s.getAllDependentSheetsFromSheet(l, null);
+        const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+        sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
         allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-    } else if (s.execFunctionExist?.length > 0) {
+    }
+    else if (s.execFunctionExist && s.execFunctionExist.length > 0) {
         sheetIndices = s.getAllDependentSheetsFromSheet(s.execFunctionExist[0].i, null);
         allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-    } else {
+    }
+    else {
         allFuncCells = s.getAllFunctionGroup() || [];
     }
 
@@ -49,156 +50,358 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
         return;
     }
 
-    // ── Sheet data lookup map (once) ────────────────────────────────────
+    // ---------- Build sheetMap ----------
     const sheetsInfo = Ft() || [];
     const sheetMap = {};
-    for (const sh of sheetsInfo) {
-        sheetMap[sh.index] = sh.data;
+    for (let i = 0; i < sheetsInfo.length; i++) {
+        sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data;
     }
 
-    // ── Changed / explicit cells ────────────────────────────────────────
-    const changedKeys = new Set();
-    if (s.execFunctionExist?.length > 0) {
-        for (const cell of s.execFunctionExist) {
-            changedKeys.add(`r${cell.r}c${cell.c}i${cell.i}`);
+    // ---------- Build execSet (changed/explicit targets) ----------
+    const execSet = {};
+    if (s.execFunctionExist == null) {
+        execSet["r" + e + "c" + n + "i" + l] = 1;
+    } else {
+        for (let i = 0; i < s.execFunctionExist.length; i++) {
+            const T = s.execFunctionExist[i];
+            execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
         }
-    } else if (e != null && n != null) {
-        changedKeys.add(`r${e}c${n}i${l}`);
     }
 
-    // ── Single shared range cache across all formulas ───────────────────
-    const rangeCache = new Map(); // "sheet|r0_r1_c0_c1" → rect or null
-
-    function getRange(text, sheetIdx) {
-        if (!text) return null;
-        const key = `${sheetIdx}|${text.trim()}`;
-        if (rangeCache.has(key)) return rangeCache.get(key);
-
-        const rect = s.getcellrange(text.trim(), sheetIdx);
-        rangeCache.set(key, rect);
+    // ---------- Shared caches ----------
+    const _rgCache = new Map(); // global for this run
+    function rgCached(txt, sheetIndex) {
+        const key = sheetIndex + '|' + (txt || '').trim();
+        if (_rgCache.has(key)) return _rgCache.get(key);
+        const rect = s.getcellrange((txt || '').trim(), sheetIndex);
+        _rgCache.set(key, rect);
         return rect;
     }
 
-    // ── Build graph nodes + dependencies ────────────────────────────────
-    const nodesByKey   = {};           // key → node
-    const dependents   = {};           // refKey → Set<dependent node keys>
-    const volatiles    = {};           // sheetIndex → Set<node keys>
+    const rangeToKeysCache = {};
+    function keysForRange(R, sheetMap) {
+        const cacheKey = `r${R.row[0]}_${R.row[1]}_c${R.column[0]}_${R.column[1]}_i${R.sheetIndex}`;
+        if (rangeToKeysCache[cacheKey]) return rangeToKeysCache[cacheKey];
+        const maxRow = (sheetMap[R.sheetIndex] && sheetMap[R.sheetIndex].length - 1) ?? R.row[1];
+        const aRow = R.row[1] > maxRow ? maxRow : R.row[1];
+        const list = [];
+        for (let rr = R.row[0]; rr <= aRow; rr++) {
+            for (let cc = R.column[0]; cc <= R.column[1]; cc++) {
+                const k = "r" + rr + "c" + cc + "i" + R.sheetIndex;
+                list.push({ key: k, r: rr, c: cc, sheetIndex: R.sheetIndex });
+            }
+        }
+        rangeToKeysCache[cacheKey] = list;
+        return list;
+    }
 
-    for (const cell of allFuncCells) {
-        const key = `r${cell.r}c${cell.c}i${cell.index}`;
-        const formula = zl(cell.r, cell.c, cell.index) ||
-                        ve.getSheetByIndex(cell.index)?.celldata
-                            ?.find(x => x?.r === cell.r && x?.c === cell.c)
-                            ?.v?.f;
+    // ---------- Helpers: lightweight parser utilities (restored for equivalence) ----------
+    const fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&^><]/;
+    function parseCall(name, text) {
+        const re = new RegExp(`${name}\\s*\\(`, 'i');
+        const m = text.match(re);
+        if (!m) return null;
+        let i = m.index + m[0].length, depth = 1, cur = '', args = [];
+        while (i < text.length && depth > 0) {
+            const ch = text[i++];
+            if (ch === '(') { depth++; cur += ch; }
+            else if (ch === ')') {
+                depth--;
+                if (depth === 0) { if (cur.trim()) args.push(cur.trim()); break; }
+                cur += ch;
+            } else if (ch === ',' && depth === 1) {
+                args.push(cur.trim()); cur = '';
+            } else {
+                cur += ch;
+            }
+        }
+        return { name, args, start: m.index, end: i };
+    }
+    function parseIntIfLiteral(x) {
+        if (x == null) return null;
+        const t = ('' + x).trim();
+        if (/^[+-]?\d+$/.test(t)) return parseInt(t, 10);
+        return null;
+    }
+    function isFalseyExact(x) {
+        if (x == null) return false;
+        const t = ('' + x).trim().toLowerCase();
+        return t === '0' || t === 'false';
+    }
 
-        if (!formula) continue;
+    // ---------- Collect dependency keys (restored original logic, with shared cache) ----------
+    function collectRefKeysForNode(formulaStr, T) {
+        const depKeys = new Set();
+        const selfKey = "r" + T.r + "c" + T.c + "i" + T.index;
+        const rectSeen = new Set();
+        function rectId(rect) {
+            return rect ? `${rect.sheetIndex}|${rect.row[0]}_${rect.row[1]}|${rect.column[0]}_${rect.column[1]}` : '';
+        }
+        function addRect(rect, excludeSelf = false) {
+            if (!rect) return;
+            const id = rectId(rect);
+            if (rectSeen.has(id)) return;
+            rectSeen.add(id);
+            const refs = keysForRange(rect, sheetMap) || [];
+            for (const r of refs) {
+                if (excludeSelf && r.key === selfKey) continue;
+                depKeys.add(r.key);
+            }
+        }
 
-        const node = {
-            key,
-            r: cell.r,
-            c: cell.c,
-            index: cell.index,
-            formula,
-            parents:  new Set(),
-            children: new Set(),
-            color:    'w'
+        // Per-formula meta (compute once per call, shared parseCall)
+        const calls = {
+            HLOOKUP: parseCall('HLOOKUP', formulaStr),
+            VLOOKUP: parseCall('VLOOKUP', formulaStr),
+            XLOOKUP: parseCall('XLOOKUP', formulaStr),
+            INDEX: parseCall('INDEX', formulaStr),
+            MATCH: parseCall('MATCH', formulaStr),
+            SUMIF: parseCall('SUMIF', formulaStr),
+            SUMIFS: parseCall('SUMIFS', formulaStr),
+            AVERAGEIF: parseCall('AVERAGEIF', formulaStr),
+            AVERAGEIFS: parseCall('AVERAGEIFS', formulaStr),
+            COUNTIF: parseCall('COUNTIF', formulaStr),
+            COUNTIFS: parseCall('COUNTIFS', formulaStr),
+            MINIFS: parseCall('MINIFS', formulaStr),
+            MAXIFS: parseCall('MAXIFS', formulaStr),
+            SUMPRODUCT: parseCall('SUMPRODUCT', formulaStr),
+            OFFSET: parseCall('OFFSET', formulaStr),
+            INDIRECT: parseCall('INDIRECT', formulaStr),
         };
-        nodesByKey[key] = node;
 
-        // Volatility check (fast path – only INDIRECT)
-        let isVolatile = false;
-        const upper = formula.toUpperCase();
-        if (upper.includes('INDIRECT(')) {
-            const start = upper.indexOf('INDIRECT(');
-            const argStart = formula.indexOf('(', start) + 1;
-            let depth = 1, i = argStart;
-            while (i < formula.length && depth > 0) {
-                if (formula[i] === '(') depth++;
-                else if (formula[i] === ')') depth--;
-                i++;
-            }
-            const arg = formula.slice(argStart, i - 1).trim();
-            isVolatile = !arg.startsWith('"') || !arg.endsWith('"');
-        }
-        if (isVolatile) {
-            if (!volatiles[cell.index]) volatiles[cell.index] = new Set();
-            volatiles[cell.index].add(key);
-        }
-
-        // ── Dependency collection ───────────────────────────────────────
-        const deps = new Set();
-
-        // Fast common-case patterns (most spreadsheets are dominated by these)
-        if (upper.startsWith('=VLOOKUP(') || upper.startsWith('=HLOOKUP(')) {
-            const parts = upper.split(/[(,)]/).map(p => p.trim());
-            if (parts.length >= 5) {
-                const table = parts[2];
-                const idxNum = parseInt(parts[3], 10);
-                const rangeLk = parts[4] !== 'FALSE' && parts[4] !== '0';
-                const rect = getRange(table, cell.index);
-                if (rect) {
-                    if (upper[1] === 'V') {
-                        deps.add(`r${rect.row[0]}_${rect.row[1]}_c${rect.column[0]}_c${rect.column[0]}_i${rect.sheetIndex}`);
-                        if (!rangeLk && Number.isFinite(idxNum)) {
-                            const retCol = rect.column[0] + idxNum - 1;
-                            deps.add(`r${rect.row[0]}_${rect.row[1]}_c${retCol}_c${retCol}_i${rect.sheetIndex}`);
-                            node.deps = deps;
-                            continue;
-                        }
-                    } else { /* HLOOKUP */ }
+        // ---- Special-cases in priority order (unchanged) ----
+        // HLOOKUP
+        const h = calls.HLOOKUP;
+        if (h && h.args.length >= 3) {
+            const [, table_array, row_index_num, range_lookup] = h.args;
+            const exact = isFalseyExact(range_lookup) || (range_lookup == null);
+            const rect = rgCached(table_array, T.index);
+            if (rect) {
+                const headerRect = { row: [rect.row[0], rect.row[0]], column: rect.column, sheetIndex: rect.sheetIndex };
+                addRect(headerRect);
+                const ri = parseIntIfLiteral(row_index_num);
+                if (exact && Number.isFinite(ri)) {
+                    const retRow = rect.row[0] + (ri - 1);
+                    const returnRect = { row: [retRow, retRow], column: rect.column, sheetIndex: rect.sheetIndex };
+                    addRect(returnRect);
+                    return depKeys;
                 }
             }
         }
-
-        // Generic fallback — still needed, but much less frequent now
-        // Avoid split+filter+trim loop → use simpler regex match
-        const refLike = /[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?/g;
-        let m;
-        while ((m = refLike.exec(formula)) !== null) {
-            const range = getRange(m[0], cell.index);
-            if (range) {
-                const r0 = range.row[0], r1 = range.row[1];
-                const c0 = range.column[0], c1 = range.column[1];
-                const si  = range.sheetIndex;
-                for (let rr = r0; rr <= r1; rr++) {
-                    for (let cc = c0; cc <= c1; cc++) {
-                        deps.add(`r${rr}c${cc}i${si}`);
-                    }
+        // VLOOKUP
+        const v = calls.VLOOKUP;
+        if (v && v.args.length >= 3) {
+            const [, table_array, col_index_num, range_lookup] = v.args;
+            const exact = isFalseyExact(range_lookup);
+            const rect = rgCached(table_array, T.index);
+            if (rect) {
+                const firstColRect = { row: rect.row, column: [rect.column[0], rect.column[0]], sheetIndex: rect.sheetIndex };
+                addRect(firstColRect);
+                const ci = parseIntIfLiteral(col_index_num);
+                if (exact && Number.isFinite(ci)) {
+                    const retCol = rect.column[0] + (ci - 1);
+                    const returnRect = { row: rect.row, column: [retCol, retCol], sheetIndex: rect.sheetIndex };
+                    addRect(returnRect);
+                    return depKeys;
                 }
             }
         }
+        // XLOOKUP
+        const xlk = calls.XLOOKUP;
+        if (xlk && xlk.args.length >= 3) {
+            const [, lookup_array, return_array] = xlk.args;
+            addRect(rgCached(lookup_array, T.index));
+            addRect(rgCached(return_array, T.index));
+        }
+        // INDEX
+        const idx = calls.INDEX;
+        if (idx && idx.args.length >= 2) {
+            const [arrayRef, row_num, col_num] = idx.args;
+            const rect = rgCached(arrayRef, T.index);
+            if (rect) {
+                const ri = parseIntIfLiteral(row_num);
+                const ci = parseIntIfLiteral(col_num);
+                if (Number.isFinite(ri) && Number.isFinite(ci)) {
+                    const r0 = rect.row[0] + (ri - 1);
+                    const c0 = rect.column[0] + (ci - 1);
+                    addRect({ row: [r0, r0], column: [c0, c0], sheetIndex: rect.sheetIndex });
+                    return depKeys;
+                } else if (Number.isFinite(ri)) {
+                    const r0 = rect.row[0] + (ri - 1);
+                    addRect({ row: [r0, r0], column: rect.column, sheetIndex: rect.sheetIndex });
+                    return depKeys;
+                } else if (Number.isFinite(ci)) {
+                    const c0 = rect.column[0] + (ci - 1);
+                    addRect({ row: rect.row, column: [c0, c0], sheetIndex: rect.sheetIndex });
+                    return depKeys;
+                } else {
+                    addRect(rect);
+                }
+            }
+        }
+        // MATCH
+        const mt = calls.MATCH;
+        if (mt && mt.args.length >= 2) {
+            const [, lookup_array] = mt.args;
+            addRect(rgCached(lookup_array, T.index));
+        }
+        // SUMIF
+        const sif = calls.SUMIF;
+        if (sif && sif.args.length >= 2) {
+            const [crange, , srange] = sif.args;
+            const cr = rgCached(crange, T.index);
+            if (cr) addRect(cr);
+            const sr = rgCached(srange || crange, T.index);
+            if (sr) addRect(sr, /*excludeSelf*/ true);
+        }
+        // SUMIFS
+        const sifs = calls.SUMIFS;
+        if (sifs && sifs.args.length >= 3) {
+            const [sum_range, ...rest] = sifs.args;
+            const sr = rgCached(sum_range, T.index);
+            if (sr) addRect(sr, /*excludeSelf*/ true);
+            for (let i = 0; i < rest.length; i += 2) {
+                const cr = rest[i];
+                if (cr) addRect(rgCached(cr, T.index));
+            }
+        }
+        // SUMPRODUCT
+        const sp = calls.SUMPRODUCT;
+        if (sp && sp.args.length >= 1) {
+            for (const a of sp.args) {
+                const r = rgCached(a, T.index);
+                if (r) addRect(r);
+            }
+        }
+        // OFFSET
+        const off = calls.OFFSET;
+        if (off && off.args.length >= 3) {
+            const [ref, rows, cols, height, width] = off.args;
+            const base = rgCached(ref, T.index);
+            const rws = parseIntIfLiteral(rows), cls = parseIntIfLiteral(cols);
+            const hgt = parseIntIfLiteral(height), wdt = parseIntIfLiteral(width);
+            if (base && Number.isFinite(rws) && Number.isFinite(cls)) {
+                const r0 = base.row[0] + rws;
+                const c0 = base.column[0] + cls;
+                const r1 = typeof hgt === 'number' ? r0 + hgt - 1 : r0 + (base.row[1] - base.row[0]);
+                const c1 = typeof wdt === 'number' ? c0 + wdt - 1 : c0 + (base.column[1] - base.column[0]);
+                addRect({ row: [r0, r1], column: [c0, c1], sheetIndex: base.sheetIndex });
+                return depKeys;
+            }
+            if (base) addRect(base);
+        }
+        // INDIRECT
+        const ind = calls.INDIRECT;
+        if (ind && ind.args.length >= 1) {
+            const [ref_text] = ind.args;
+            const t = ('' + ref_text).trim();
+            const m = t.match(/^"(.*)"$/);
+            if (m && m[1]) {
+                const rect = rgCached(m[1], T.index);
+                if (rect) addRect(rect);
+            } else {
+                // volatile handled later
+            }
+        }
+        // Generic fallback (restored: handles sheet! refs via iscelldata)
+        const tokens = formulaStr.split(fmrSplit).filter(Boolean);
+        for (let ti = 0; ti < tokens.length; ti++) {
+            const tk = tokens[ti].trim();
+            if (!tk) continue;
+            if (tk.length <= 1 && !(s.iscelldata && s.iscelldata(tk))) continue;
+            const rg = rgCached(tk, T.index);
+            if (rg) addRect(rg);
+        }
+        return depKeys;
+    }
 
-        // Attach dependencies
-        for (const ref of deps) {
-            if (!dependents[ref]) dependents[ref] = new Set();
-            dependents[ref].add(key);
-            node.parents.add(ref);
+    // ---------- Build formula nodes & reverse index ----------
+    const nodes = {};        // key → node {key, r,c,index, formula, parents, children, refKeys, color, cellAddress}
+    const refToChildren = {}; // refKey → Set(nodeKey, ...)
+    const volatileNodesBySheet = {}; // sheetIndex → Set(nodeKey)
+
+    function addChildEdge(refKey, nodeKey) {
+        if (!refToChildren[refKey]) refToChildren[refKey] = new Set();
+        refToChildren[refKey].add(nodeKey);
+    }
+
+    for (let i = 0; i < allFuncCells.length; i++) {
+        const T = allFuncCells[i];
+        const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
+        // Prefer zl(...); fallback to ve.getSheetByIndex
+        const R =
+            zl(T.r, T.c, T.index) ||
+            ve.getSheetByIndex(T.index)?.celldata?.find(x => x?.r === T.r && x?.c === T.c)?.v?.f;
+        if (!R) continue;
+        const node = nodes[nodeKey] = {
+            key: nodeKey,
+            r: T.r,
+            c: T.c,
+            index: T.index,
+            calc_funcStr: R,
+            parents: {},
+            children: {},
+            refKeys: new Set(),
+            color: "w",
+            cellAddress: s.getExcelAddr(T.r, T.c)
+        };
+        // Collect ref keys
+        const refKeys = collectRefKeysForNode(R, T);
+        for (const k of refKeys) {
+            node.refKeys.add(k);
+            addChildEdge(k, nodeKey);
+        }
+        // Volatility marker (INDIRECT non-static)
+        const indMeta = parseCall('INDIRECT', R);
+        if (indMeta && indMeta.args.length >= 1) {
+            const [ref_text] = indMeta.args;
+            const isStaticText = /^".*"$/.test((ref_text || '').trim());
+            if (!isStaticText) {
+                if (!volatileNodesBySheet[T.index]) volatileNodesBySheet[T.index] = new Set();
+                volatileNodesBySheet[T.index].add(nodeKey);
+            }
         }
     }
 
-    // ── Compute impacted nodes (BFS from changed + volatiles) ───────────
-    const impacted = new Set();
-    const queue   = [];
+    // ---------- Connect graph edges between formula nodes ----------
+    for (const nodeKey of Object.keys(nodes)) {
+        const node = nodes[nodeKey];
+        for (const refKey of node.refKeys) {
+            if (nodes[refKey]) {
+                // node depends on refKey
+                node.parents[refKey] = 1;
+                nodes[refKey].children[nodeKey] = 1;
+            }
+        }
+    }
 
-    for (const chKey of changedKeys) {
-        // direct dependents
-        if (dependents[chKey]) {
-            for (const dep of dependents[chKey]) {
-                if (!impacted.has(dep)) {
-                    impacted.add(dep);
-                    queue.push(dep);
+    // ---------- Build IMPACTED set (downstream closure) ----------
+    const impacted = new Set();
+    const queue = [];
+    // Seed from execSet keys
+    const execKeys = Object.keys(execSet);
+    for (let i = 0; i < execKeys.length; i++) {
+        const changedKey = execKeys[i];
+        // (1) Any formula node referencing this changed cell
+        const directChildren = refToChildren[changedKey];
+        if (directChildren) {
+            for (const childKey of directChildren) {
+                if (!impacted.has(childKey)) {
+                    impacted.add(childKey);
+                    queue.push(childKey);
                 }
             }
         }
-        // self if formula
-        if (nodesByKey[chKey] && !impacted.has(chKey)) {
-            impacted.add(chKey);
-            queue.push(chKey);
+        // (2) If changedKey itself is a formula node, include it
+        if (nodes[changedKey] && !impacted.has(changedKey)) {
+            impacted.add(changedKey);
+            queue.push(changedKey);
         }
-        // volatiles on same sheet
-        const sheet = chKey.split('i')[1];
-        if (volatiles[sheet]) {
-            for (const vk of volatiles[sheet]) {
+        // (3) Volatile nodes on the same sheet
+        const siMatch = changedKey.match(/i(\d+)$/);
+        const si = siMatch ? siMatch[1] : null;
+        if (si && volatileNodesBySheet[si]) {
+            for (const vk of volatileNodesBySheet[si]) {
                 if (!impacted.has(vk)) {
                     impacted.add(vk);
                     queue.push(vk);
@@ -206,73 +409,78 @@ execFunctionGroup: function (e, n, t, l, a, o = !1) {
             }
         }
     }
-
+    // Downstream closure across formula nodes
     while (queue.length > 0) {
-        const k = queue.shift();
-        const node = nodesByKey[k];
-        if (!node) continue;
-        for (const child of node.children) {
-            if (!impacted.has(child)) {
-                impacted.add(child);
-                queue.push(child);
+        const k = queue.pop();
+        const nnode = nodes[k];
+        if (!nnode) continue;
+        const childKeys = Object.keys(nnode.children || {});
+        for (let ci = 0; ci < childKeys.length; ci++) {
+            const ck = childKeys[ci];
+            if (!impacted.has(ck)) {
+                impacted.add(ck);
+                queue.push(ck);
             }
         }
     }
-
+    // Fallback: if nothing impacted, recompute all nodes
     if (impacted.size === 0) {
-        for (const k in nodesByKey) impacted.add(k);
+        for (const k of Object.keys(nodes)) impacted.add(k);
     }
 
-    // ── Topological order (DFS) with cycle warning ──────────────────────
-    const order = [];
-    const visited = new Set();
-    const recStack = new Set();
-
-    function dfs(key) {
-        if (recStack.has(key)) {
-            console.warn("Calculation cycle detected");
-            return;
+    // ---------- Topological sort with cycle detection (unchanged) ----------
+    const ordered = [];
+    const processed = {};
+    const color = {}; // key -> 'w'|'g'|'b'
+    let cycleDetected = false;
+    function dfsVisit(k, stack) {
+        if (processed[k]) return;
+        const curColor = color[k] || 'w';
+        if (curColor === 'g') { cycleDetected = true; return; }
+        if (curColor === 'b') return;
+        color[k] = 'g';
+        stack.push(k);
+        const parents = Object.keys(nodes[k]?.parents || {})
+            .filter(pk => nodes[pk] && impacted.has(pk))
+            .sort();
+        for (let i = 0; i < parents.length; i++) {
+            const pk = parents[i];
+            if (!processed[pk]) dfsVisit(pk, stack);
         }
-        if (visited.has(key)) return;
-        recStack.add(key);
-        const node = nodesByKey[key];
-        if (node) {
-            for (const parent of node.parents) {
-                if (impacted.has(parent)) dfs(parent);
-            }
-            visited.add(key);
-            recStack.delete(key);
-            order.push(node);
-        }
+        color[k] = 'b';
+        processed[k] = 1;
+        ordered.push(nodes[k]);
+        stack.pop();
     }
-
     for (const k of impacted) {
-        if (!visited.has(k)) dfs(k);
+        if (nodes[k] && !processed[k]) dfsVisit(k, []);
+    }
+    if (cycleDetected) {
+        console.warn("Calculation cycle detected (DFS).");
     }
 
-    // ── Evaluation phase ────────────────────────────────────────────────
-    for (const node of order) {
-        window.luckysheet_getcelldata_cache = null; // preserve legacy behavior
-
-        const oldVal = sheetMap[node.index]?.[node.r]?.[node.c]?.v;
-        const res = s.execfunction(node.formula, node.r, node.c, node.index);
-
-        if (oldVal == res[1]) continue; // no change → skip write
-
-        s.execFunctionGlobalData[`${node.r}_${node.c}_${node.index}`] = {
-            v: res[1],
-            f: res[2]
+    // ---------- Evaluate ----------
+    for (let i = 0; i < ordered.length; i++) {
+        const T = ordered[i];
+        // clear celldata cache between evaluations
+        window.luckysheet_getcelldata_cache = null;
+        const oldValue = sheetMap[T.index]?.[T.r]?.[T.c]?.v;
+        const Rres = s.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+        // If value unchanged, skip write
+        if (oldValue == Rres[1]) continue;
+        // Update global data & refresh queue (unchanged behavior)
+        s.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = {
+            v: Rres[1],
+            f: Rres[2]
         };
-
         s.groupValuesRefreshData.push({
-            r: node.r,
-            c: node.c,
-            v: res[1],
-            f: res[2],
-            spe: res[3],
-            index: node.index
+            r: T.r,
+            c: T.c,
+            v: Rres[1],
+            f: Rres[2],
+            spe: Rres[3],
+            index: T.index
         });
     }
-
     s.execFunctionExist = null;
-}
+},
