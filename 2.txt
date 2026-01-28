@@ -7,161 +7,175 @@
 
         $('#analyticsModal').remove();
 
-        // 1. PREMIUM SaaS STYLES
+        // 1. ULTRA-MODERN VIBRANT STYLES
         const styles = `
         <style id="premiumAnalyticsStyles">
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-            #analyticsModal { font-family: 'Inter', sans-serif; }
+            :root {
+                --p-primary: #6366f1;
+                --p-secondary: #ec4899;
+                --p-success: #10b981;
+                --p-warning: #f59e0b;
+                --p-danger: #ef4444;
+                --p-bg: #f8fafc;
+                --p-card: #ffffff;
+                --p-text-main: #0f172a;
+                --p-text-muted: #64748b;
+            }
+
+            #analyticsModal { font-family: 'Plus+Jakarta+Sans', sans-serif; }
             #analyticsModal .modal-content { 
-                border: none; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2); 
-                background: #f8fafc; overflow: hidden;
+                border: none; border-radius: 32px; box-shadow: 0 50px 100px -20px rgba(0,0,0,0.25); 
+                background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); overflow: hidden;
             }
             #analyticsModal .modal-header { 
-                background: #ffffff; border-bottom: 1px solid #f1f5f9; padding: 1.25rem 2rem;
+                background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
+                border-bottom: 1px solid rgba(226, 232, 240, 0.8); padding: 1.5rem 2.5rem;
             }
-            #analyticsModal .modal-title { font-weight: 800; color: #0f172a; letter-spacing: -0.03em; font-size: 1.5rem; }
-            #analyticsModal .modal-body { padding: 2rem; background: #f8fafc; }
+            #analyticsModal .modal-title { font-weight: 800; color: var(--p-text-main); letter-spacing: -0.04em; font-size: 1.75rem; }
 
-            /* Premium Filter Bar */
+            /* Vibrant Glass Filter Bar */
             .filter-container {
-                background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px;
-                padding: 1.5rem; display: flex; flex-wrap: wrap; gap: 1.5rem;
-                align-items: flex-end; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+                background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 24px;
+                padding: 1.75rem; display: flex; flex-wrap: wrap; gap: 2rem;
+                align-items: flex-end; margin-bottom: 2.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
             }
-            .filter-group { display: flex; flex-direction: column; gap: 0.6rem; }
-            .filter-group label { font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
+            .filter-group { display: flex; flex-direction: column; gap: 0.75rem; }
+            .filter-group label { font-size: 0.75rem; font-weight: 800; color: var(--p-primary); text-transform: uppercase; letter-spacing: 0.1em; }
             
             .filter-control { 
-                border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.6rem 1rem;
-                font-size: 0.9rem; color: #334155; transition: all 0.2s; background: #fdfdfd;
-                font-weight: 500;
+                border: 2px solid transparent; border-radius: 14px; padding: 0.75rem 1.25rem;
+                font-size: 0.95rem; color: #1e293b; transition: all 0.3s; background: #fff;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.02); font-weight: 600;
             }
-            .filter-control:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
+            .filter-control:focus { border-color: var(--p-primary); outline: none; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15); }
 
             /* Custom Multiselect */
-            .custom-multiselect { position: relative; min-width: 240px; }
             #lobSelectBtn { 
-                width: 100%; text-align: left; background: #fff; border: 1px solid #e2e8f0; 
-                padding: 0.6rem 1rem; border-radius: 10px; font-size: 0.9rem;
-                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+                min-width: 260px; text-align: left; background: #fff; border: 2px solid transparent; 
+                padding: 0.75rem 1.25rem; border-radius: 14px; font-size: 0.95rem; font-weight: 600;
+                cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
             }
             .multiselect-options { 
-                display: none; position: absolute; top: calc(100% + 8px); left: 0; width: 100%;
-                background: white; border: 1px solid #e2e8f0; border-radius: 12px;
-                box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); z-index: 1001; max-height: 250px; overflow-y: auto;
-                padding: 0.5rem;
+                display: none; position: absolute; top: calc(100% + 10px); left: 0; width: 100%;
+                background: white; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); 
+                z-index: 1001; padding: 0.75rem; border: 1px solid #f1f5f9;
             }
             .multiselect-options label { 
-                display: flex; align-items: center; gap: 10px; padding: 0.7rem 0.8rem; 
-                border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: 0.2s;
+                display: flex; align-items: center; gap: 12px; padding: 0.8rem 1rem; 
+                border-radius: 10px; cursor: pointer; font-size: 0.9rem; transition: 0.2s; font-weight: 500;
             }
-            .multiselect-options label:hover { background: #f8fafc; color: #6366f1; }
+            .multiselect-options label:hover { background: #f1f5f9; color: var(--p-primary); }
 
-            /* Charts Grid */
-            #chartsContainer { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+            /* Vibrant Chart Cards */
+            #chartsContainer { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
             .chart-card { 
-                background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 1.75rem;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                background: #fff; border: 1px solid rgba(226, 232, 240, 0.5); border-radius: 28px; padding: 2rem;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             }
-            .chart-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05); }
-            .chart-title { font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; }
-            .chart-title::before { content: ''; width: 4px; height: 16px; background: #6366f1; border-radius: 4px; }
+            .chart-card:hover { transform: translateY(-8px); box-shadow: 0 25px 30px -10px rgba(0,0,0,0.08); }
+            .chart-title { font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 2rem; display: flex; align-items: center; gap: 12px; }
+            .chart-title span { background: linear-gradient(90deg, var(--p-primary), var(--p-secondary)); width: 6px; height: 24px; border-radius: 10px; }
 
-            /* Buttons */
-            .btn-apply {
-                background: #0f172a; color: white; border: none; padding: 0.75rem 1.5rem;
-                border-radius: 10px; font-weight: 600; font-size: 0.9rem; transition: all 0.2s;
+            /* Action Buttons */
+            .btn-sync {
+                background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border: none; 
+                padding: 0.85rem 2rem; border-radius: 14px; font-weight: 700; font-size: 0.95rem;
+                box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3); transition: all 0.3s;
             }
-            .btn-apply:hover { background: #334155; transform: scale(1.02); }
+            .btn-sync:hover { transform: scale(1.05); box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.4); }
         </style>`;
         $('head').append(styles);
 
-        // 2. MODERN HTML
         const modalHTML = `
         <div class="modal fade" id="analyticsModal" tabindex="-1">
           <div class="modal-dialog modal-fullscreen">
             <div class="modal-content">
               <div class="modal-header">
                 <div>
-                    <h5 class="modal-title">Workforce Analytics</h5>
-                    <p class="mb-0 text-muted" style="font-size: 0.85rem; font-weight: 500;">Real-time resource and performance tracking</p>
+                    <h5 class="modal-title">Intelligence Hub</h5>
+                    <p class="mb-0 text-muted" style="font-weight: 600;">Workforce Optimization & Trend Analysis</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
                 <div class="filter-container">
                   <div class="filter-group">
-                    <label>Timeline View</label>
+                    <label>Observation Window</label>
                     <div class="d-flex gap-2">
                         <select id="fromWeek" class="filter-control"></select>
-                        <span class="align-self-center text-muted">→</span>
                         <select id="toWeek" class="filter-control"></select>
                     </div>
                   </div>
                   <div class="filter-group">
-                    <label>Compare Business Units</label>
+                    <label>Line of Business</label>
                     <div class="custom-multiselect" id="lobSelectContainer">
                         <button type="button" id="lobSelectBtn">Select Units...</button>
                         <div class="multiselect-options"></div>
                     </div>
                   </div>
-                  <div class="filter-group" style="padding-bottom: 5px;">
-                    <div class="form-check form-switch" style="padding-left: 3.5em;">
-                        <input class="form-check-input" type="checkbox" id="comparisonMode" style="width: 2.5em; height: 1.25em; cursor:pointer;">
-                        <label class="form-check-label ms-2" for="comparisonMode" style="text-transform:none; color:#475569; font-weight:600;">Comparison View</label>
+                  <div class="filter-group">
+                    <div class="form-check form-switch" style="padding-left: 3.5em; padding-bottom: 10px;">
+                        <input class="form-check-input" type="checkbox" id="comparisonMode" style="width: 2.8em; height: 1.4em; cursor:pointer;">
+                        <label class="form-check-label ms-2" for="comparisonMode" style="text-transform:none; color:#1e293b; font-weight:700;">Compare LOBs</label>
                     </div>
                   </div>
                   <div class="ms-auto">
-                    <button id="applyFilter" class="btn-apply">Sync Dashboard</button>
+                    <button id="applyFilter" class="btn-sync">Generate Insights</button>
                   </div>
                 </div>
-                
                 <div id="chartsContainer"></div>
-                <div id="analyticsSummary" class="mt-4"></div>
               </div>
             </div>
           </div>
         </div>`;
         $('body').append(modalHTML);
 
-        // 3. METRIC METADATA (Solves incorrect Y-Axis Labels)
-        const metricMetadata = {
-            "Required HC": { label: "Headcount", unit: " HC", color: "#6366f1" },
-            "Available HC": { label: "Headcount", unit: " HC", color: "#10b981" },
-            "Staffing %": { label: "Percentage", unit: "%", color: "#f59e0b" },
-            "Actual Hours": { label: "Hours", unit: " hrs", color: "#6366f1" },
-            "Forecasted Hours": { label: "Hours", unit: " hrs", color: "#94a3b8" },
-            "Planned Shrinkage": { label: "Percentage", unit: "%", color: "#f43f5e" },
-            "Actual Shrinkage": { label: "Percentage", unit: "%", color: "#ec4899" },
-            "Planned Attrition": { label: "Percentage", unit: "%", color: "#8b5cf6" },
-            "Actual Attrition": { label: "Percentage", unit: "%", color: "#06b6d4" },
-            "Planned AHT": { label: "Time (Sec)", unit: "s", color: "#6366f1" },
-            "Actual AHT": { label: "Time (Sec)", unit: "s", color: "#f43f5e" }
+        // 2. LOGIC: PREVENT SAME WEEK SELECTION
+        const validateWeeks = (changedId) => {
+            const $from = $('#fromWeek');
+            const $to = $('#toWeek');
+            const weeks = [...uniqueWeeks];
+            
+            if ($from.val() === $to.val()) {
+                const index = weeks.indexOf($from.val());
+                if (changedId === 'fromWeek') {
+                    // If from is changed to match to, push to forward
+                    const nextIndex = Math.min(index + 1, weeks.length - 1);
+                    $to.val(weeks[nextIndex]);
+                } else {
+                    // If to is changed to match from, push from back
+                    const prevIndex = Math.max(index - 1, 0);
+                    $from.val(weeks[prevIndex]);
+                }
+            }
         };
 
-        const palette = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
-
-        // Core logic helpers
-        const parseWeek = (weekStr) => {
-            const [dd, mmm, yy] = weekStr.split('-');
-            return new Date(`${mmm} ${dd}, 20${yy}`);
+        const parseWeek = (w) => {
+            const [d, m, y] = w.split('-');
+            return new Date(`${m} ${d}, 20${y}`);
         };
 
         const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
         const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        uniqueWeeks.slice().reverse().forEach(week => {
-            $('#fromWeek, #toWeek').append(`<option value="${week}">${week}</option>`);
-        });
+        uniqueWeeks.forEach(w => $('#fromWeek, #toWeek').append(`<option value="${w}">${w}</option>`));
+        
+        // Initial offset: From (start), To (end)
+        $('#fromWeek').val(uniqueWeeks[0]);
+        $('#toWeek').val(uniqueWeeks[uniqueWeeks.length - 1]);
 
+        $('#fromWeek').on('change', () => validateWeeks('fromWeek'));
+        $('#toWeek').on('change', () => validateWeeks('toWeek'));
+
+        // Multiselect logic
         const $optionsDiv = $('.multiselect-options');
         uniqueLOBs.forEach(lob => $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`));
-        
-        $('#lobSelectBtn').on('click', e => { e.stopPropagation(); $optionsDiv.toggle(); });
-        $(document).on('click', () => $optionsDiv.hide());
+        $('#lobSelectBtn').on('click', e => { e.stopPropagation(); $optionsDiv.fadeToggle(200); });
+        $(document).on('click', () => $optionsDiv.fadeOut(200));
         $optionsDiv.on('click', e => e.stopPropagation());
-
         $optionsDiv.find('input').on('change', function() {
             const selected = [];
             $optionsDiv.find('input:checked').each(function() { selected.push($(this).val()); });
@@ -169,16 +183,24 @@
         });
         $optionsDiv.find('input').first().prop('checked', true).trigger('change');
 
-        // 4. CHART RENDERING ENGINE
+        // 3. VIBRANT CHART ENGINE
+        const colors = {
+            indigo: { s: '#6366f1', f: 'rgba(99, 102, 241, 0.1)' },
+            pink: { s: '#ec4899', f: 'rgba(236, 72, 153, 0.1)' },
+            emerald: { s: '#10b981', f: 'rgba(16, 185, 129, 0.1)' },
+            amber: { s: '#f59e0b', f: 'rgba(245, 158, 11, 0.1)' },
+            cyan: { s: '#06b6d4', f: 'rgba(6, 182, 212, 0.1)' }
+        };
+
         const renderCharts = (filtered, selectedLOBs, isComparison) => {
             const $container = $('#chartsContainer').empty();
             const labels = filtered.map(d => d.Week);
 
-            const createChartInstance = (title, datasets, yAxisLabel) => {
+            const addChart = (title, datasets, yLabel) => {
                 const $card = $(`
                     <div class="chart-card">
-                        <div class="chart-title">${title}</div>
-                        <div style="height: 280px;"><canvas></canvas></div>
+                        <div class="chart-title"><span></span>${title}</div>
+                        <div style="height: 300px;"><canvas></canvas></div>
                     </div>
                 `).appendTo($container);
 
@@ -187,77 +209,77 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        interaction: { intersect: false, mode: 'index' },
                         plugins: {
-                            legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 20, font: { size: 11, weight: '600' } } },
-                            tooltip: { backgroundColor: '#1e293b', padding: 12, cornerRadius: 10 }
+                            legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 12, weight: '600' }, padding: 25 } }
                         },
                         scales: {
                             y: { 
-                                title: { display: true, text: yAxisLabel, font: { weight: '700', size: 10 } },
-                                grid: { color: '#f1f5f9', drawBorder: false },
-                                ticks: { font: { size: 11 } }
+                                title: { display: true, text: yLabel, font: { weight: '800', size: 11 } },
+                                grid: { color: '#f1f5f9' },
+                                ticks: { font: { weight: '600' } }
                             },
-                            x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+                            x: { grid: { display: false }, ticks: { font: { weight: '600' } } }
                         }
                     }
                 });
             };
 
             if (isComparison) {
-                // COMPARISON MODE: One chart per metric, comparing all selected LOBs
-                const metricsToCompare = ["Required HC", "Actual Hours", "Actual Shrinkage", "Actual AHT"];
-                
-                metricsToCompare.forEach(metric => {
-                    const datasets = selectedLOBs.map((lob, i) => ({
-                        label: lob,
-                        type: metric.includes('Hours') || metric.includes('Actual') ? 'line' : 'bar',
-                        data: filtered.map(d => {
-                            let val = d[`${metric}||${lob}`] || 0;
-                            return metric.includes('Shrinkage') || metric.includes('Attrition') ? (val * 100).toFixed(2) : val;
-                        }),
-                        borderColor: palette[i % palette.length],
-                        backgroundColor: metric.includes('Hours') ? 'transparent' : palette[i % palette.length] + '88',
-                        tension: 0.4,
-                        borderWidth: 2
-                    }));
-                    
-                    const meta = metricMetadata[metric] || { label: "Value" };
-                    createChartInstance(`${metric} Comparison`, datasets, meta.label);
+                // COMPARISON MODE
+                const metrics = [
+                    { m: "Required HC", t: "Headcount Comparison", y: "Total HC" },
+                    { m: "Actual Hours", t: "Hours Worked Comparison", y: "Total Hours" },
+                    { m: "Actual Shrinkage", t: "Shrinkage % Comparison", y: "Percentage (%)" },
+                    { m: "Actual AHT", t: "AHT Comparison", y: "Seconds" }
+                ];
+
+                const colorKeys = Object.keys(colors);
+                metrics.forEach(metric => {
+                    const ds = selectedLOBs.map((lob, i) => {
+                        const c = colors[colorKeys[i % colorKeys.length]];
+                        return {
+                            label: lob,
+                            type: metric.m.includes('Actual') ? 'line' : 'bar',
+                            data: filtered.map(d => {
+                                let v = d[`${metric.m}||${lob}`] || 0;
+                                return metric.y.includes('%') ? (v * 100).toFixed(2) : v;
+                            }),
+                            borderColor: c.s,
+                            backgroundColor: metric.m.includes('Actual') ? 'transparent' : c.s + 'aa',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: metric.m.includes('Actual') ? c.f : c.s + 'aa'
+                        };
+                    });
+                    addChart(metric.t, ds, metric.y);
                 });
             } else {
-                // STANDARD MODE: Detailed view for first selected LOB
+                // SINGLE LOB DETAIL MODE
                 const lob = selectedLOBs[0];
-
-                // 1. Headcount Chart
-                createChartInstance('Headcount & Staffing', [
-                    { label: 'Required HC', type: 'bar', data: filtered.map(d => d[`Required HC||${lob}`]), backgroundColor: '#6366f1cc' },
-                    { label: 'Available HC', type: 'bar', data: filtered.map(d => d[`Available HC||${lob}`]), backgroundColor: '#10b981cc' }
+                
+                addChart('Staffing Levels', [
+                    { label: 'Required HC', type: 'bar', data: filtered.map(d => d[`Required HC||${lob}`]), backgroundColor: colors.indigo.s + 'cc', borderRadius: 8 },
+                    { label: 'Available HC', type: 'bar', data: filtered.map(d => d[`Available HC||${lob}`]), backgroundColor: colors.emerald.s + 'cc', borderRadius: 8 }
                 ], "Headcount");
 
-                // 2. Hours Chart
-                createChartInstance('Hours Analysis', [
-                    { label: 'Actual Hours', type: 'line', data: filtered.map(d => d[`Actual Hours||${lob}`]), borderColor: '#6366f1', tension: 0.4 },
-                    { label: 'Forecasted', type: 'line', data: filtered.map(d => d[`Forecasted Hours||${lob}`]), borderColor: '#94a3b8', borderDash: [5,5], tension: 0.4 }
+                addChart('Productivity Hours', [
+                    { label: 'Actual', type: 'line', data: filtered.map(d => d[`Actual Hours||${lob}`]), borderColor: colors.pink.s, fill: true, backgroundColor: colors.pink.f, tension: 0.4 },
+                    { label: 'Forecast', type: 'line', data: filtered.map(d => d[`Forecasted Hours||${lob}`]), borderColor: '#94a3b8', borderDash: [5,5], tension: 0.4 }
                 ], "Hours");
 
-                // 3. Shrinkage Chart
-                createChartInstance('Shrinkage %', [
-                    { label: 'Actual', type: 'line', data: filtered.map(d => (d[`Actual Shrinkage||${lob}`] * 100).toFixed(2)), borderColor: '#f43f5e', fill: true, backgroundColor: '#f43f5e11', tension: 0.4 },
-                    { label: 'Planned', type: 'line', data: filtered.map(d => (d[`Planned Shrinkage||${lob}`] * 100).toFixed(2)), borderColor: '#94a3b8', tension: 0.4 }
+                addChart('Operational Shrinkage', [
+                    { label: 'Shrinkage %', type: 'line', data: filtered.map(d => (d[`Actual Shrinkage||${lob}`]*100).toFixed(2)), borderColor: colors.amber.s, tension: 0.4, pointBackgroundColor: colors.amber.s }
                 ], "Percentage (%)");
 
-                // 4. AHT Chart
-                createChartInstance('Average Handle Time', [
-                    { label: 'Actual AHT', type: 'bar', data: filtered.map(d => d[`Actual AHT||${lob}`]), backgroundColor: '#8b5cf6cc' },
-                    { label: 'Planned AHT', type: 'line', data: filtered.map(d => d[`Planned AHT||${lob}`]), borderColor: '#475569', tension: 0.4 }
+                addChart('Handle Time (AHT)', [
+                    { label: 'Actual AHT', type: 'bar', data: filtered.map(d => d[`Actual AHT||${lob}`]), backgroundColor: colors.cyan.s + 'cc', borderRadius: 8 }
                 ], "Seconds");
             }
         };
 
         const applyFilters = () => {
-            const fromWeek = $('#fromWeek').val();
-            const toWeek = $('#toWeek').val();
+            const from = $('#fromWeek').val();
+            const to = $('#toWeek').val();
             const selectedLOBs = [];
             $optionsDiv.find('input:checked').each(function() { selectedLOBs.push($(this).val()); });
 
@@ -268,14 +290,14 @@
             });
 
             const structuredData = Object.values(grouped).sort((a, b) => parseWeek(a.Week) - parseWeek(b.Week));
-            const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek));
+            const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(from) && parseWeek(d.Week) <= parseWeek(to));
 
-            renderCharts(filtered, selectedLOBs.length ? selectedLOBs : [uniqueLOBs[0]], $('#comparisonMode').is(':checked'));
+            renderCharts(filtered, selectedLOBs, $('#comparisonMode').is(':checked'));
         };
 
         $('#applyFilter').on('click', applyFilters);
         $('#analyticsModal').modal('show');
-        setTimeout(applyFilters, 300);
+        setTimeout(applyFilters, 400);
 
         return this;
     };
