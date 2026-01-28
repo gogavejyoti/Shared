@@ -1,9 +1,6 @@
 (function ($) {
     $.fn.sheetConfigurator = function (options) {
 
-        /* =======================
-         * SETTINGS
-         * ======================= */
         const settings = $.extend({
             luckysheetInstances: [],
             existingConfigs: {},
@@ -14,28 +11,33 @@
 
         let tempConfigs = {};
 
-        /* =======================
-         * MODAL (INJECT ONCE)
-         * ======================= */
+        /* ================= MODAL INJECTION ================= */
         if (!$('#sheetConfigModal').length) {
+            $('head').append(`<style>
+                #sheetConfigModal * { font-family: Inter, sans-serif; }
+                #sheetConfigModal .formula-input.invalid { border-color:#e74c3c }
+                #sheetConfigModal .formula-input.valid { border-color:#27ae60 }
+                #sheetConfigModal .small-error { color:#e74c3c;font-size:.85rem }
+            </style>`);
+
             $('body').append(`
-                <div class="modal fade" id="sheetConfigModal" tabindex="-1" style="z-index:9999">
+                <div class="modal fade" id="sheetConfigModal" tabindex="-1">
                   <div class="modal-dialog modal-lg modal-dialog-centered" style="zoom:80%">
                     <div class="modal-content">
                       <div class="modal-header">
                         <h5 class="modal-title">Sheet Configuration</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <button class="btn-close" data-bs-dismiss="modal"></button>
                       </div>
                       <div class="modal-body">
-                        <form id="sheetConfigForm">
+                        <form>
                           <div class="row mb-3">
                             <div class="col-md-6">
                               <label>Sheet</label>
-                              <select class="form-select" id="configSheetSelect"></select>
+                              <select id="configSheetSelect" class="form-select"></select>
                             </div>
                             <div class="col-md-6">
                               <label>Sheet Type</label>
-                              <select class="form-select" id="configSheetType">
+                              <select id="configSheetType" class="form-select">
                                 <option value="">--Select--</option>
                                 <option value="custom">Custom</option>
                                 <option value="lob">LOB</option>
@@ -46,32 +48,32 @@
                           <div id="lobInputs" style="display:none">
                             <div class="row mb-3">
                               <div class="col-md-6">
-                                <label>Header Column</label>
-                                <input type="text" class="form-control" id="configHeaderCol"/>
+                                <label>Week Header Row</label>
+                                <input type="number" id="configWeekRow" class="form-control"/>
+                                <small id="weekDateLabel"></small>
                               </div>
                               <div class="col-md-6">
-                                <label>Week Header Row</label>
-                                <input type="number" class="form-control" id="configWeekRow"/>
-                                <small id="weekDateLabel" class="text-muted"></small>
+                                <label>Header Column</label>
+                                <input type="text" id="configHeaderCol" class="form-control"/>
                               </div>
                             </div>
                           </div>
 
                           <div id="headerMappingContainer"></div>
 
+                          <hr/>
+
                           <div id="customFieldsSection" style="display:none">
-                            <hr/>
-                            <div class="d-flex justify-content-between">
+                            <div class="d-flex justify-content-between mb-2">
                               <h6>Custom Fields</h6>
-                              <button type="button" class="btn btn-sm btn-secondary" id="addCustomFieldBtn">Add</button>
+                              <button type="button" id="addCustomFieldBtn" class="btn btn-sm btn-secondary">Add</button>
                             </div>
                             <div id="customFieldsContainer"></div>
                           </div>
-
                         </form>
                       </div>
                       <div class="modal-footer">
-                        <span id="configSaveError" class="text-danger small"></span>
+                        <span id="configSaveError" class="small-error"></span>
                         <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button class="btn btn-primary" id="saveConfigBtn">Save</button>
                       </div>
@@ -81,14 +83,12 @@
             `);
         }
 
-        /* =======================
-         * CACHE DOM
-         * ======================= */
+        /* ================= CACHE DOM ================= */
         const $sheetSelect = $('#configSheetSelect');
         const $sheetType = $('#configSheetType');
         const $lobInputs = $('#lobInputs');
-        const $headerCol = $('#configHeaderCol');
         const $weekRow = $('#configWeekRow');
+        const $headerCol = $('#configHeaderCol');
         const $mappingContainer = $('#headerMappingContainer');
         const $customSection = $('#customFieldsSection');
         const $customContainer = $('#customFieldsContainer');
@@ -103,23 +103,21 @@
             "Planned AHT", "Actual AHT"
         ];
 
-        /* =======================
-         * HELPERS
-         * ======================= */
-        function colToIndex(col) {
-            if (!col) return null;
-            col = String(col).trim().toUpperCase();
-            if (/^\d+$/.test(col)) return parseInt(col) - 1;
+        /* ================= HELPERS ================= */
+        function colToIndex(c) {
+            if (!c) return null;
+            c = String(c).trim().toUpperCase();
+            if (/^\d+$/.test(c)) return parseInt(c) - 1;
             let n = 0;
-            for (let c of col) n = n * 26 + (c.charCodeAt(0) - 64);
+            for (let i = 0; i < c.length; i++) n = n * 26 + (c.charCodeAt(i) - 64);
             return n - 1;
         }
 
-        function buildHeaderList(sheetData, col) {
+        function buildHeaderList(data, col) {
             const idx = colToIndex(col);
             if (idx === null) return [];
             const set = new Set();
-            sheetData.forEach(r => {
+            data.forEach(r => {
                 const v = r?.[idx]?.m ?? r?.[idx]?.v;
                 if (v) set.add(String(v).trim());
             });
@@ -127,18 +125,18 @@
             return [...set];
         }
 
-        function buildHeaderMapping(sheetData, col, existing = {}) {
-            const headers = buildHeaderList(sheetData, col);
+        function buildHeaderMappingAndList(data, col, existing) {
+            const headers = buildHeaderList(data, col);
             $mappingContainer.empty();
 
             if (!headers.length) {
                 $mappingContainer.html(`<div class="text-muted small">Enter header column</div>`);
-                return;
+                return headers;
             }
 
             STANDARD_HEADERS.forEach(std => {
                 const opts = headers.map(h =>
-                    `<option ${existing[std] === h ? 'selected' : ''}>${h}</option>`
+                    `<option value="${h}" ${existing?.[std] === h ? 'selected' : ''}>${h}</option>`
                 ).join('');
                 $mappingContainer.append(`
                     <div class="row mb-2">
@@ -151,15 +149,18 @@
                     </div>
                 `);
             });
+
+            return headers;
         }
 
+        /* ================= CONFIG ================= */
         function getFormConfig(sheet) {
             const type = $sheetType.val();
             const cfg = {
                 sheetName: sheet,
                 type,
-                headerCol: $headerCol.val(),
                 weekRow: $weekRow.val(),
+                headerCol: $headerCol.val(),
                 headerMappings: {}
             };
 
@@ -170,8 +171,8 @@
             if (type === 'lob') {
                 cfg.customFields = [];
                 $customContainer.find('.custom-field-row').each(function () {
-                    const name = $(this).find('.cf-name').val();
-                    const formula = $(this).find('.cf-formula').val();
+                    const name = $(this).find('.custom-field-name').val();
+                    const formula = $(this).find('.formula-input').val();
                     if (name) cfg.customFields.push({ name, formula });
                 });
             }
@@ -181,26 +182,28 @@
 
         function bindConfig(cfg) {
             $sheetType.val(cfg?.type || '');
-            $headerCol.val(cfg?.headerCol || '');
             $weekRow.val(cfg?.weekRow || '');
+            $headerCol.val(cfg?.headerCol || '');
             $mappingContainer.empty();
             $customContainer.empty();
 
             if (cfg?.type === 'lob') {
                 $lobInputs.show();
                 $customSection.show();
-                buildHeaderMapping(settings.getSheetDataFn(cfg.sheetName), cfg.headerCol, cfg.headerMappings);
+                buildHeaderMappingAndList(
+                    settings.getSheetDataFn(cfg.sheetName),
+                    cfg.headerCol,
+                    cfg.headerMappings
+                );
             } else {
                 $lobInputs.hide();
                 $customSection.hide();
             }
         }
 
-        /* =======================
-         * INIT SHEETS
-         * ======================= */
+        /* ================= INIT ================= */
         settings.luckysheetInstances.forEach(s =>
-            $sheetSelect.append(`<option>${s}</option>`)
+            $sheetSelect.append(`<option value="${s}">${s}</option>`)
         );
 
         if (settings.activeSheet) {
@@ -209,9 +212,7 @@
             $sheetSelect.data('last', settings.activeSheet);
         }
 
-        /* =======================
-         * EVENTS
-         * ======================= */
+        /* ================= EVENTS ================= */
         $sheetSelect.on('change', function () {
             const prev = $(this).data('last');
             if (prev) tempConfigs[prev] = getFormConfig(prev);
@@ -225,10 +226,15 @@
             if (this.value === 'lob') {
                 $lobInputs.show();
                 $customSection.show();
-                buildHeaderMapping(
-                    settings.getSheetDataFn($sheetSelect.val()),
-                    $headerCol.val()
-                );
+
+                const col = $headerCol.val();
+                if (col) {
+                    buildHeaderMappingAndList(
+                        settings.getSheetDataFn($sheetSelect.val()),
+                        col,
+                        {}
+                    );
+                }
             } else {
                 $lobInputs.hide();
                 $mappingContainer.empty();
@@ -239,38 +245,25 @@
 
         $headerCol.on('blur', function () {
             if ($sheetType.val() === 'lob') {
-                buildHeaderMapping(
+                buildHeaderMappingAndList(
                     settings.getSheetDataFn($sheetSelect.val()),
-                    $(this).val()
+                    $(this).val(),
+                    {}
                 );
             }
-        });
-
-        $('#addCustomFieldBtn').on('click', function () {
-            $customContainer.append(`
-                <div class="custom-field-row row mb-2">
-                  <div class="col-md-4"><input class="form-control cf-name" placeholder="Name"/></div>
-                  <div class="col-md-7"><input class="form-control cf-formula" placeholder="[Header] * 1"/></div>
-                  <div class="col-md-1"><button class="btn btn-danger btn-sm">X</button></div>
-                </div>
-            `);
-        });
-
-        $customContainer.on('click', '.btn-danger', function () {
-            $(this).closest('.custom-field-row').remove();
         });
 
         $saveBtn.on('click', function () {
             $saveError.text('');
             $("#configSheetSelect option").each(function () {
-                const sheet = this.value;
-                const cfg = sheet === $sheetSelect.val()
-                    ? getFormConfig(sheet)
-                    : (tempConfigs[sheet] || settings.existingConfigs[sheet]);
+                const name = this.value;
+                const cfg = name === $sheetSelect.val()
+                    ? getFormConfig(name)
+                    : (tempConfigs[name] || settings.existingConfigs[name]);
 
                 if (cfg?.type !== 'lob') delete cfg.customFields;
-                settings.existingConfigs[sheet] = cfg;
-                settings.saveCallback(cfg, sheet);
+                settings.existingConfigs[name] = cfg;
+                settings.saveCallback(cfg, name);
             });
         });
 
