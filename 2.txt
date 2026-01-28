@@ -1,313 +1,384 @@
 (function ($) {
-    $.fn.sheetConfigurator = function (options) {
+    $.fn.weekAnalyticsPopup = function (options) {
         const settings = $.extend({
-            luckysheetInstances: [],
-            existingConfigs: {},
-            activeSheet: null,
-            saveCallback: function (config, sheetName) { },
-            getSheetDataFn: function (sheetName) { return []; }
+            data: [],
+            weekStartDay: 'sunday'
         }, options);
 
-        let tempConfigs = {};
+        $('#analyticsModal').remove();
 
-        /* ================= MODAL INJECTION ================= */
+        // Styles
+        const styles = `
+        <style>
+            #chartsContainer { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; justify-items:center; }
+            #chartsContainer canvas { width:100% !important; max-width:100%; height:220px !important; }
+            .custom-multiselect { position: relative; display: inline-block; width: 200px; }
+            .custom-multiselect button { width: 100%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            .custom-multiselect .multiselect-options { 
+                display: none; max-height:200px; overflow-y:auto; position:absolute; z-index:1000; background:white; border:1px solid #ced4da; border-radius:4px; padding:5px 0; width: 100%;
+                box-shadow:0 2px 5px rgba(0,0,0,0.15);
+            }
+            .custom-multiselect .multiselect-options label { display:block; padding:5px 10px; cursor:pointer; }
+            .custom-multiselect .multiselect-options label:hover { background-color:#f1f1f1; }
+            #analyticsModal .modal-header { background-color: #D7C4F0; }
+            .table-summary { max-height:250px; overflow-y:auto; display:block; }
+            .table-summary table { margin-bottom:0; }
+            #applyFilter, #exportCsv { transition:0.2s; }
+            #applyFilter:hover, #exportCsv:hover { opacity:0.85; }
+        </style>`;
+        $('head').append(styles);
 
-        if (!$('#sheetConfigModal').length) {
-            $('head').append(`
-                <style id="sheetConfigModalStyles">
-                    #sheetConfigModal * { font-family: 'Inter', sans-serif; }
-                    #sheetConfigModal .modal-content {
-                        border-radius: 12px;
-                        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-                        border: none;
-                    }
-                    #sheetConfigModal .modal-header {
-                        background-color: #D7C4F0;
-                        border-bottom: none;
-                        padding: 1rem 1.5rem;
-                    }
-                    #sheetConfigModal .modal-body {
-                        padding: 1.5rem;
-                        background-color: #f9f9f9;
-                    }
-                    #sheetConfigModal .custom-field-row {
-                        border: 1px dashed #e6e6e6;
-                        padding: .5rem;
-                        border-radius: 8px;
-                        margin-bottom: .5rem;
-                        background: #fff;
-                    }
-                    #sheetConfigModal .formula-input.invalid { border-color: #e74c3c; }
-                    #sheetConfigModal .formula-input.valid { border-color: #27ae60; }
-                    #sheetConfigModal .small-error { color: #e74c3c; font-size: .85rem; }
-                </style>
-            `);
-
-            $('body').append(`
-                <div class="modal fade" id="sheetConfigModal" tabindex="-1" style="z-index:9999">
-                    <div class="modal-dialog modal-lg modal-dialog-centered" style="zoom:80%">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Sheet Configuration</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <form id="sheetConfigForm" class="container-fluid">
-
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label>Sheet</label>
-                                            <select id="configSheetSelect" class="form-select"></select>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label>Sheet Type</label>
-                                            <select id="configSheetType" class="form-select">
-                                                <option value="">--Select--</option>
-                                                <option value="custom">Custom</option>
-                                                <option value="lob">LOB</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div id="lobInputs" style="display:none">
-                                        <div class="row mb-3">
-                                            <div class="col-md-6">
-                                                <label>Billing Type</label>
-                                                <select id="configLobType" class="form-select">
-                                                    <option value="FTE">FTE</option>
-                                                    <option value="Transaction">Transaction</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <label>Location</label>
-                                                <select id="configLocation" class="form-select">
-                                                    <option value="India">India</option>
-                                                    <option value="USA">USA</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <div class="row mb-3">
-                                            <div class="col-md-6">
-                                                <label>Site</label>
-                                                <input id="configSite" class="form-control">
-                                            </div>
-                                            <div class="col-md-6">
-                                                <label>ProjectId</label>
-                                                <input id="configProjectId" class="form-control">
-                                            </div>
-                                        </div>
-
-                                        <div class="row mb-3">
-                                            <div class="col-md-6">
-                                                <label>Week Header Row</label>
-                                                <input id="configWeekRow" type="number" class="form-control">
-                                                <small id="weekDateLabel"></small>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <label>Header Column</label>
-                                                <input id="configHeaderCol" class="form-control">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div id="headerMappingContainer"></div>
-
-                                    <hr>
-
-                                    <div id="customFieldsSection" class="mt-3">
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <h6>Custom Fields</h6>
-                                            <button type="button" id="addCustomFieldBtn" class="btn btn-sm btn-secondary">
-                                                Add Custom Field
-                                            </button>
-                                        </div>
-                                        <div id="customFieldsContainer"></div>
-                                    </div>
-
-                                </form>
-                            </div>
-
-                            <div class="modal-footer">
-                                <span id="configSaveError" class="small-error" style="display:none"></span>
-                                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                <button class="btn btn-primary" id="saveConfigBtn">Save</button>
-                            </div>
-                        </div>
+        // Modal HTML
+        const modalHTML = `
+        <div class="modal fade" id="analyticsModal" tabindex="-1" style="z-index:9999;zoom:85%">
+          <div class="modal-dialog modal-dialog-scrollable" style="width: 100%;margin: 0;height: 100%;max-width: none;">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Workforce Analytics Dashboard</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body" style="background: #E6E6FA;font-family: 'Inter', sans-serif;">
+                <div class="filters mb-3 p-3 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
+                  <label>From Week: 
+                    <select id="fromWeek" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label>To Week: 
+                    <select id="toWeek" class="form-select d-inline-block w-auto"></select>
+                  </label>
+                  <label>LOB: 
+                    <div class="custom-multiselect" id="lobSelectContainer">
+                        <button type="button" class="btn btn-light dropdown-toggle" id="lobSelectBtn" style="
+    border: 1px solid;
+    border-radius: 5px;
+">Select LOBs</button>
+                        <div class="multiselect-options"></div>
                     </div>
+                  </label>
+                  <label class="ms-2"><input type="checkbox" id="comparisonMode"> Comparison Mode</label>
+                  <button id="applyFilter" class="btn btn-sm" style="    border-radius: 6px;
+    font-size: 0.875rem;
+    background: #9b59b6;
+    border-color: #9b59b6;
+    color: #fff;">Apply Filter</button>
                 </div>
-            `);
-        }
+                <div id="chartsContainer" class="mt-3"></div>
+                <div id="analyticsSummary" class="mt-4 table-summary"></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+        $('body').append(modalHTML);
 
-        /* ================= DOM REFS ================= */
+        const $chartsContainer = $('#chartsContainer');
+        const $analyticsSummary = $('#analyticsSummary');
 
-        const $sheetSelect = $('#configSheetSelect');
-        const $sheetType = $('#configSheetType');
-        const $lobInputs = $('#lobInputs');
-        const $mappingContainer = $('#headerMappingContainer');
-        const $customFieldsSection = $('#customFieldsSection'); // 🔒
-        const $customFieldsContainer = $('#customFieldsContainer');
-        const $addCustomFieldBtn = $('#addCustomFieldBtn');
-        const $saveBtn = $('#saveConfigBtn');
-        const $configSaveError = $('#configSaveError');
-        const $weekLabel = $('#weekDateLabel');
+        // Week parsing & formatting
+        const parseWeek = (weekStr) => {
+            const [dd, mmm, yy] = weekStr.split('-');
+            return new Date(`${mmm} ${dd}, 20${yy}`);
+        };
+        const formatWeek = (date) => {
+            const dd = String(date.getDate()).padStart(2, '0');
+            const mmm = date.toLocaleString('default', { month: 'short' });
+            const yy = String(date.getFullYear()).slice(-2);
+            return `${dd}-${mmm}-${yy}`;
+        };
+        const getCurrentWeek = (uniqueWeeks) => {
+            const now = new Date();
+            const currentMonth = now.getMonth(); // 0 = Jan
+            const currentYear = now.getFullYear();
 
-        /* ================= HELPERS (UNCHANGED) ================= */
+            // Convert "dd-MMM-yy" to Date object
+            function parseDate(str) {
+                return new Date(str.replace(/(\d{2})-(\w{3})-(\d{2})/, (match, dd, mmm, yy) => {
+                    const months = {
+                        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+                        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+                    };
+                    const year = parseInt(yy, 10) + 2000;
+                    return `${year}-${months[mmm] + 1}-${dd}`;
+                }));
+            }
 
-        function extractTokens(formula) {
-            const re = /\[([^\]]+)\]/g;
-            const tokens = [];
-            let m;
-            while ((m = re.exec(formula)) !== null) tokens.push(m[1]);
-            return tokens;
-        }
-
-        function buildHeaderList(sheetData, col) {
-            if (!col) return [];
-            const idx = /^[A-Z]+$/i.test(col)
-                ? col.toUpperCase().split('').reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1
-                : parseInt(col, 10) - 1;
-
-            const headers = [];
-            (sheetData || []).forEach(r => {
-                const cell = r && r[idx];
-                if (!cell) return;
-                const v = cell.m ?? cell.v;
-                if (v) headers.push(String(v).trim());
+            const weeksInCurrentMonth = uniqueWeeks.filter(weekStr => {
+                const date = parseDate(weekStr);
+                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
             });
-            return [...new Set(headers)];
-        }
 
-        function validateFormula(formula, validHeaders) {
-            if (!formula) return { valid: true };
-            for (const t of extractTokens(formula)) {
-                if (!validHeaders.includes(t)) {
-                    return { valid: false, error: `Unknown reference [${t}]` };
-                }
-            }
-            return { valid: true };
-        }
-
-        /* ================= CUSTOM FIELD UI ================= */
-
-        function createCustomFieldRow(cf = {}, headers = []) {
-            return $(`
-                <div class="custom-field-row">
-                    <input class="form-control custom-field-name mb-1" placeholder="Name" value="${cf.name || ''}">
-                    <input class="form-control formula-input mb-1" placeholder="[Header] * 2" value="${cf.formula || ''}">
-                </div>
-            `);
-        }
-
-        /* ================= BIND CONFIG ================= */
-
-        function bindConfig(config) {
-            $lobInputs.hide();
-            $customFieldsSection.hide(); // 🔒
-            $mappingContainer.empty();
-            $customFieldsContainer.empty();
-
-            if (!config) return;
-
-            $sheetType.val(config.type);
-
-            if (config.type === 'lob') {
-                $lobInputs.show();
-                $customFieldsSection.show(); // 🔒
-            }
-
-            $('#configLobType').val(config.lobType);
-            $('#configLocation').val(config.location);
-            $('#configSite').val(config.site);
-            $('#configProjectId').val(config.projectId);
-            $('#configWeekRow').val(config.weekRow);
-            $('#configHeaderCol').val(config.headerCol);
-
-            if (config.type === 'lob' && Array.isArray(config.customFields)) {
-                config.customFields.forEach(cf => {
-                    $customFieldsContainer.append(createCustomFieldRow(cf));
+            if (weeksInCurrentMonth.length > 0) {
+                return weeksInCurrentMonth[0]; // First week of current month
+            } else {
+                const lastWeek = [...uniqueWeeks].reverse().find(weekStr => {
+                    const date = parseDate(weekStr);
+                    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
                 });
+                return lastWeek || uniqueWeeks[0]; // Last week or fallback
             }
         }
+        // Data transform
+        const structuredData = (() => {
+            const grouped = {};
+            settings.data.forEach(item => {
+                if (!grouped[item.week]) grouped[item.week] = { Week: item.week };
+                grouped[item.week][`${item.header}||${item.sheetName}`] = item.value;
+            });
+            return Object.values(grouped).sort((a, b) => parseWeek(a.Week) - parseWeek(b.Week));
+        })();
 
-        /* ================= GET FORM CONFIG ================= */
+        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
+        const uniqueHeaders = [...new Set(settings.data.map(d => d.header))].sort();
+        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
 
-        function getFormConfig(sheetName) {
-            const isLob = $sheetType.val() === 'lob';
+        // Populate weeks
+        uniqueWeeks.slice().reverse().forEach(week => {
+            $('#fromWeek').append(`<option value="${week}">${week}</option>`);
+            $('#toWeek').append(`<option value="${week}">${week}</option>`);
+        });
+        const currentWeek = getCurrentWeek(uniqueWeeks);
+        const currentIndex = uniqueWeeks.indexOf(currentWeek);
+        const fallbackIndex = currentIndex >= 0 ? currentIndex : uniqueWeeks.length - 1;
+        const fromIndex = Math.max(0, fallbackIndex - 6);
+        const toIndex = Math.min(uniqueWeeks.length - 1, fallbackIndex + 6);
+        $('#fromWeek').val(uniqueWeeks[fromIndex]);
+        $('#toWeek').val(uniqueWeeks[toIndex]);
 
-            const cfg = {
-                sheetName,
-                type: $sheetType.val(),
-                lobType: isLob ? $('#configLobType').val() : undefined,
-                location: isLob ? $('#configLocation').val() : undefined,
-                site: isLob ? $('#configSite').val() : undefined,
-                projectId: isLob ? $('#configProjectId').val() : undefined,
-                weekRow: isLob ? $('#configWeekRow').val() : undefined,
-                headerCol: isLob ? $('#configHeaderCol').val() : undefined,
-                customFields: isLob ? [] : undefined // 🔒
+        // Custom multi-select
+        const $lobContainer = $('#lobSelectContainer');
+        const $lobBtn = $('#lobSelectBtn');
+        const $optionsDiv = $lobContainer.find('.multiselect-options');
+        uniqueLOBs.forEach(lob => $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`));
+
+        //$lobBtn.on('click', e => { e.stopPropagation(); $optionsDiv.toggle(); });
+        //$(document).on('click', () => $optionsDiv.hide());
+
+
+        // Toggle dropdown on button click
+        $lobBtn.on('click', e => {
+            e.stopPropagation();
+            $optionsDiv.toggle();
+        });
+
+        // Prevent dropdown from closing when clicking inside
+        $optionsDiv.on('click', e => {
+            e.stopPropagation();
+        });
+
+        // Close dropdown when clicking outside
+        $(document).on('click', () => {
+            $optionsDiv.hide();
+        });
+
+
+
+        const getSelectedLOBs = () => {
+            const selected = [];
+            $optionsDiv.find('input:checked').each(function () { selected.push($(this).val()); });
+            return selected.length ? selected : [uniqueLOBs[0]];
+        };
+
+        $optionsDiv.find('input').on('change', function () {
+            const selected = getSelectedLOBs();
+            $lobBtn.text(selected.join(', '));
+        });
+        $optionsDiv.find('input').first().prop('checked', true).trigger('change');
+
+        // Colors
+        const metricColors = {
+            "Required HC": "#007bff", "Available HC": "#28a745",
+            "Actual Hours": "#17a2b8", "Forecasted Hours": "#ffc107",
+            "Planned Shrinkage": "#6f42c1", "Actual Shrinkage": "#fd7e14",
+            "Planned Attrition": "#e83e8c", "Actual Attrition": "#20c997",
+            "Planned AHT": "#6610f2", "Actual AHT": "#fd3955"
+        };
+
+        const lobColors = {};
+        const colorPalette = ['#007bff', '#28a745', '#fd7e14', '#6610f2', '#20c997', '#e83e8c', '#17a2b8', '#ffc107', '#6f42c1', '#fd3955'];
+        uniqueLOBs.forEach((lob, i) => lobColors[lob] = colorPalette[i % colorPalette.length]);
+
+        // Filter data
+        const filterData = () => {
+            const fromWeek = $('#fromWeek').val();
+            const toWeek = $('#toWeek').val();
+            const selectedLOBs = getSelectedLOBs();
+            const isComparison = $('#comparisonMode').is(':checked');
+            const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(fromWeek) && parseWeek(d.Week) <= parseWeek(toWeek));
+            return { filtered, selectedLOBs, isComparison };
+        };
+
+
+
+
+        // Render charts
+        const renderCharts = (filtered, selectedLOBs, isComparison) => {
+            $chartsContainer.empty();
+            const labels = filtered.map(d => d.Week);
+
+
+
+            const generateLOBColors = (lobList) => {
+                const lobColors = {};
+                const hueStep = Math.floor(360 / lobList.length);
+                lobList.forEach((lob, index) => {
+                    const hue = index * hueStep;
+                    lobColors[lob] = `hsl(${hue}, 70%, 60%)`; // Bright and distinct
+                });
+                return lobColors;
             };
 
-            if (isLob) {
-                $customFieldsContainer.find('.custom-field-row').each(function () {
-                    const name = $(this).find('.custom-field-name').val();
-                    if (!name) return;
-                    cfg.customFields.push({
-                        name,
-                        formula: $(this).find('.formula-input').val()
+
+            const createChart = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
+                $chartsContainer.append(`
+                    <div class="card mb-6 shadow-sm border rounded bg-light" style="width:100%;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">${title}</h6>
+                            <canvas></canvas>
+                        </div>
+                    </div>`);
+
+                const datasets = [];
+
+                metrics.forEach(metric => {
+                    lobList.forEach(lob => {
+                        const isStaffing = metric === 'Staffing %';
+                        datasets.push({
+                            label: isStaffing ? 'Staffing %' : `${lob} - ${metric}`,
+                            type: isStaffing || type === 'line' ? 'line' : 'bar',
+                            data: filtered.map(d => {
+                                if (isStaffing) return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
+                                if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
+                                    return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
+                                return d[`${metric}||${lob}`] || 0;
+                            }),
+                            backgroundColor: !isStaffing ? (metricColors[metric] || '#6c757d') + 'AA' : undefined,
+                            borderColor: isStaffing ? '#fd7e14' : (metricColors[metric] || '#6c757d'),
+                            borderWidth: 2,
+                            fill: false,
+                            yAxisID: isStaffing ? 'y1' : 'y',
+                            order: isStaffing ? 1 : 0
+                        });
                     });
                 });
-            }
 
-            return cfg;
-        }
-
-        /* ================= EVENTS ================= */
-
-        $sheetType.on('change', function () {
-            if (this.value === 'lob') {
-                $lobInputs.show();
-                $customFieldsSection.show(); // 🔒
-            } else {
-                $lobInputs.hide();
-                $customFieldsSection.hide(); // 🔒
-                $customFieldsContainer.empty();
-            }
-        });
-
-        $addCustomFieldBtn.on('click', function () {
-            if ($sheetType.val() !== 'lob') return; // 🔒
-            $customFieldsContainer.append(createCustomFieldRow());
-        });
-
-        $saveBtn.on('click', function () {
-            $configSaveError.hide().text('');
-
-            $sheetSelect.find('option').each(function () {
-                const sheetName = this.value;
-                const cfg = getFormConfig(sheetName);
-
-                if (cfg.type === 'lob' && Array.isArray(cfg.customFields)) {
-                    const headers = cfg.customFields.map(c => c.name);
-                    for (const cf of cfg.customFields) {
-                        const v = validateFormula(cf.formula, headers);
-                        if (!v.valid) {
-                            $configSaveError.text(v.error).show();
-                            return;
+                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function (context) {
+                                        let val = context.raw;
+                                        if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
+                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
+                                        }
+                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { stacked: false },
+                            y: { stacked: false, beginAtZero: false, title: { display: true, text: 'Headcount' } },
+                            y1: { position: 'right', beginAtZero: false, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
                         }
                     }
-                }
+                });
+            };
 
-                settings.saveCallback(cfg, sheetName);
-            });
+            const createChartByLOB = (type, title, metrics, lobList, showPercent = false, includeStaffing = false) => {
+                const lobColors = generateLOBColors(lobList);
+
+
+                $chartsContainer.append(`
+                    <div class="card mb-6 shadow-sm border rounded bg-light" style="width:100%;">
+                        <div class="card-body text-center">
+                            <h6 class="card-title fw-bold">${title}</h6>
+                            <canvas></canvas>
+                        </div>
+                    </div>`);
+
+                const datasets = [];
+
+                metrics.forEach(metric => {
+                    lobList.forEach(lob => {
+                        const isStaffing = metric === 'Staffing %';
+
+                        datasets.push({
+                            label: isStaffing ? 'Staffing %' : `${lob} - ${metric}`,
+                            type: isStaffing || type === 'line' ? 'line' : 'bar',
+                            data: filtered.map(d => {
+                                if (isStaffing) return ((d['Available HC||' + lob] || 0) / (d['Required HC||' + lob] || 1) * 100).toFixed(2);
+                                if (showPercent && (metric.toLowerCase().includes('shrinkage') || metric.toLowerCase().includes('attrition')))
+                                    return ((d[`${metric}||${lob}`] || 0) * 100).toFixed(2);
+                                return d[`${metric}||${lob}`] || 0;
+                            }),
+                            backgroundColor: !isStaffing ? lobColors[lob] + 'AA' : undefined,
+                            borderColor: isStaffing ? '#fd7e14' : lobColors[lob],
+                            borderWidth: 2,
+                            fill: false,
+                            yAxisID: isStaffing ? 'y1' : 'y',
+                            order: isStaffing ? 1 : 0
+                        });
+
+                    });
+                });
+
+                new Chart($chartsContainer.find('canvas').last()[0].getContext('2d'), {
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function (context) {
+                                        let val = context.raw;
+                                        if (context.dataset.label.includes('Staffing %') || context.dataset.label.toLowerCase().includes('shrinkage') || context.dataset.label.toLowerCase().includes('attrition')) {
+                                            return context.dataset.label + ': ' + Number(val).toFixed(2) + '%';
+                                        }
+                                        return context.dataset.label + ': ' + Number(val).toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { stacked: false },
+                            y: { stacked: false, beginAtZero: false, title: { display: true, text: 'Headcount' } },
+                            y1: { position: 'right', beginAtZero: false, title: { display: includeStaffing, text: 'Staffing %' }, grid: { drawOnChartArea: false } }
+                        }
+                    }
+                });
+            };
+
+            if (isComparison) {
+                uniqueHeaders.forEach((header, index) => createChartByLOB(index%2 ==0 ?'bar':'line', `${header} Comparison`, [header], selectedLOBs, true));
+            } else {
+                createChart('bar', 'Required vs Available HC + Staffing %', ['Required HC', 'Available HC', 'Staffing %'], selectedLOBs, false, true);
+                createChart('line', 'Actual vs Locked Hours', ['Actual Hours', 'Forecasted Hours'], selectedLOBs, false);
+                createChart('line', 'Planned vs Actual Shrinkage % (Out Of Office)', ['Planned Shrinkage', 'Actual Shrinkage'], selectedLOBs, true);
+                createChart('line', 'Planned vs Actual Attrition %', ['Planned Attrition', 'Actual Attrition'], selectedLOBs, true);
+            }
+        };
+
+        const applyFilters = () => {
+            const { filtered, selectedLOBs, isComparison } = filterData();
+            renderCharts(filtered, selectedLOBs, isComparison);
+        };
+
+        $('#applyFilter').off('click').on('click', applyFilters);
+        $('#analyticsModal').on('hidden.bs.modal', function () {
+            $('#analyticsModal').remove();
+            $('#weekAnalyticsPopupStyles').remove();
         });
-
-        settings.luckysheetInstances.forEach(s =>
-            $sheetSelect.append(`<option value="${s}">${s}</option>`));
-
-        if (settings.activeSheet) {
-            $sheetSelect.val(settings.activeSheet);
-            bindConfig(settings.existingConfigs[settings.activeSheet]);
-        }
+        applyFilters();
+        $('#analyticsModal').modal('show');
 
         return this;
     };
