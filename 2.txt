@@ -1,5 +1,7 @@
     function loadWorkbook() {
-
+   if (window.luckysheet && typeof luckysheet.destroy === "function") {
+        luckysheet.destroy();  // or luckysheet.exit() depending on your version
+    }
         $.ajax({
             url: '/ResourcePlanner/GetWorkbook?id=' + planId + '&vertical=' + verticalName,
             method: 'GET',
@@ -59,3 +61,4 @@
         });
 
     }
+
