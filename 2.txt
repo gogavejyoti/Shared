@@ -1,304 +1,61 @@
-(function ($) {
-    $.fn.weekAnalyticsPopup = function (options) {
-        const settings = $.extend({
-            data: [],
-            weekStartDay: 'sunday'
-        }, options);
+    function loadWorkbook() {
 
-        $('#analyticsModal').remove();
-
-        // 1. ULTRA-MODERN VIBRANT STYLES
-        const styles = `
-        <style id="premiumAnalyticsStyles">
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-
-            :root {
-                --p-primary: #6366f1;
-                --p-secondary: #ec4899;
-                --p-success: #10b981;
-                --p-warning: #f59e0b;
-                --p-danger: #ef4444;
-                --p-bg: #f8fafc;
-                --p-card: #ffffff;
-                --p-text-main: #0f172a;
-                --p-text-muted: #64748b;
-            }
-
-            #analyticsModal { font-family: 'Plus+Jakarta+Sans', sans-serif; }
-            #analyticsModal .modal-content { 
-                border: none; border-radius: 32px; box-shadow: 0 50px 100px -20px rgba(0,0,0,0.25); 
-                background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); overflow: hidden;
-            }
-            #analyticsModal .modal-header { 
-                background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
-                border-bottom: 1px solid rgba(226, 232, 240, 0.8); padding: 1.5rem 2.5rem;
-            }
-            #analyticsModal .modal-title { font-weight: 800; color: var(--p-text-main); letter-spacing: -0.04em; font-size: 1.75rem; }
-
-            /* Vibrant Glass Filter Bar */
-            .filter-container {
-                background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
-                border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 24px;
-                padding: 1.75rem; display: flex; flex-wrap: wrap; gap: 2rem;
-                align-items: flex-end; margin-bottom: 2.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
-            }
-            .filter-group { display: flex; flex-direction: column; gap: 0.75rem; }
-            .filter-group label { font-size: 0.75rem; font-weight: 800; color: var(--p-primary); text-transform: uppercase; letter-spacing: 0.1em; }
-            
-            .filter-control { 
-                border: 2px solid transparent; border-radius: 14px; padding: 0.75rem 1.25rem;
-                font-size: 0.95rem; color: #1e293b; transition: all 0.3s; background: #fff;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.02); font-weight: 600;
-            }
-            .filter-control:focus { border-color: var(--p-primary); outline: none; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15); }
-
-            /* Custom Multiselect */
-            #lobSelectBtn { 
-                min-width: 260px; text-align: left; background: #fff; border: 2px solid transparent; 
-                padding: 0.75rem 1.25rem; border-radius: 14px; font-size: 0.95rem; font-weight: 600;
-                cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-            }
-            .multiselect-options { 
-                display: none; position: absolute; top: calc(100% + 10px); left: 0; width: 100%;
-                background: white; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); 
-                z-index: 1001; padding: 0.75rem; border: 1px solid #f1f5f9;
-            }
-            .multiselect-options label { 
-                display: flex; align-items: center; gap: 12px; padding: 0.8rem 1rem; 
-                border-radius: 10px; cursor: pointer; font-size: 0.9rem; transition: 0.2s; font-weight: 500;
-            }
-            .multiselect-options label:hover { background: #f1f5f9; color: var(--p-primary); }
-
-            /* Vibrant Chart Cards */
-            #chartsContainer { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
-            .chart-card { 
-                background: #fff; border: 1px solid rgba(226, 232, 240, 0.5); border-radius: 28px; padding: 2rem;
-                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            }
-            .chart-card:hover { transform: translateY(-8px); box-shadow: 0 25px 30px -10px rgba(0,0,0,0.08); }
-            .chart-title { font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 2rem; display: flex; align-items: center; gap: 12px; }
-            .chart-title span { background: linear-gradient(90deg, var(--p-primary), var(--p-secondary)); width: 6px; height: 24px; border-radius: 10px; }
-
-            /* Action Buttons */
-            .btn-sync {
-                background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border: none; 
-                padding: 0.85rem 2rem; border-radius: 14px; font-weight: 700; font-size: 0.95rem;
-                box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3); transition: all 0.3s;
-            }
-            .btn-sync:hover { transform: scale(1.05); box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.4); }
-        </style>`;
-        $('head').append(styles);
-
-        const modalHTML = `
-        <div class="modal fade" id="analyticsModal" tabindex="-1">
-          <div class="modal-dialog modal-fullscreen">
-            <div class="modal-content">
-              <div class="modal-header">
-                <div>
-                    <h5 class="modal-title">Intelligence Hub</h5>
-                    <p class="mb-0 text-muted" style="font-weight: 600;">Workforce Optimization & Trend Analysis</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body">
-                <div class="filter-container">
-                  <div class="filter-group">
-                    <label>Observation Window</label>
-                    <div class="d-flex gap-2">
-                        <select id="fromWeek" class="filter-control"></select>
-                        <select id="toWeek" class="filter-control"></select>
-                    </div>
-                  </div>
-                  <div class="filter-group">
-                    <label>Line of Business</label>
-                    <div class="custom-multiselect" id="lobSelectContainer">
-                        <button type="button" id="lobSelectBtn">Select Units...</button>
-                        <div class="multiselect-options"></div>
-                    </div>
-                  </div>
-                  <div class="filter-group">
-                    <div class="form-check form-switch" style="padding-left: 3.5em; padding-bottom: 10px;">
-                        <input class="form-check-input" type="checkbox" id="comparisonMode" style="width: 2.8em; height: 1.4em; cursor:pointer;">
-                        <label class="form-check-label ms-2" for="comparisonMode" style="text-transform:none; color:#1e293b; font-weight:700;">Compare LOBs</label>
-                    </div>
-                  </div>
-                  <div class="ms-auto">
-                    <button id="applyFilter" class="btn-sync">Generate Insights</button>
-                  </div>
-                </div>
-                <div id="chartsContainer"></div>
-              </div>
-            </div>
-          </div>
-        </div>`;
-        $('body').append(modalHTML);
-
-        // 2. LOGIC: PREVENT SAME WEEK SELECTION
-        const validateWeeks = (changedId) => {
-            const $from = $('#fromWeek');
-            const $to = $('#toWeek');
-            const weeks = [...uniqueWeeks];
-            
-            if ($from.val() === $to.val()) {
-                const index = weeks.indexOf($from.val());
-                if (changedId === 'fromWeek') {
-                    // If from is changed to match to, push to forward
-                    const nextIndex = Math.min(index + 1, weeks.length - 1);
-                    $to.val(weeks[nextIndex]);
-                } else {
-                    // If to is changed to match from, push from back
-                    const prevIndex = Math.max(index - 1, 0);
-                    $from.val(weeks[prevIndex]);
-                }
-            }
-        };
-
-        const parseWeek = (w) => {
-            const [d, m, y] = w.split('-');
-            return new Date(`${m} ${d}, 20${y}`);
-        };
-
-        const uniqueLOBs = [...new Set(settings.data.map(d => d.sheetName))].sort();
-        const uniqueWeeks = [...new Set(settings.data.map(d => d.week))].sort((a, b) => parseWeek(a) - parseWeek(b));
-
-        uniqueWeeks.forEach(w => $('#fromWeek, #toWeek').append(`<option value="${w}">${w}</option>`));
-        
-        // Initial offset: From (start), To (end)
-        $('#fromWeek').val(uniqueWeeks[0]);
-        $('#toWeek').val(uniqueWeeks[uniqueWeeks.length - 1]);
-
-        $('#fromWeek').on('change', () => validateWeeks('fromWeek'));
-        $('#toWeek').on('change', () => validateWeeks('toWeek'));
-
-        // Multiselect logic
-        const $optionsDiv = $('.multiselect-options');
-        uniqueLOBs.forEach(lob => $optionsDiv.append(`<label><input type="checkbox" value="${lob}"> ${lob}</label>`));
-        $('#lobSelectBtn').on('click', e => { e.stopPropagation(); $optionsDiv.fadeToggle(200); });
-        $(document).on('click', () => $optionsDiv.fadeOut(200));
-        $optionsDiv.on('click', e => e.stopPropagation());
-        $optionsDiv.find('input').on('change', function() {
-            const selected = [];
-            $optionsDiv.find('input:checked').each(function() { selected.push($(this).val()); });
-            $('#lobSelectBtn').text(selected.length ? selected.join(', ') : 'Select Units...');
-        });
-        $optionsDiv.find('input').first().prop('checked', true).trigger('change');
-
-        // 3. VIBRANT CHART ENGINE
-        const colors = {
-            indigo: { s: '#6366f1', f: 'rgba(99, 102, 241, 0.1)' },
-            pink: { s: '#ec4899', f: 'rgba(236, 72, 153, 0.1)' },
-            emerald: { s: '#10b981', f: 'rgba(16, 185, 129, 0.1)' },
-            amber: { s: '#f59e0b', f: 'rgba(245, 158, 11, 0.1)' },
-            cyan: { s: '#06b6d4', f: 'rgba(6, 182, 212, 0.1)' }
-        };
-
-        const renderCharts = (filtered, selectedLOBs, isComparison) => {
-            const $container = $('#chartsContainer').empty();
-            const labels = filtered.map(d => d.Week);
-
-            const addChart = (title, datasets, yLabel) => {
-                const $card = $(`
-                    <div class="chart-card">
-                        <div class="chart-title"><span></span>${title}</div>
-                        <div style="height: 300px;"><canvas></canvas></div>
-                    </div>
-                `).appendTo($container);
-
-                new Chart($card.find('canvas')[0], {
-                    data: { labels, datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 12, weight: '600' }, padding: 25 } }
+        $.ajax({
+            url: '/ResourcePlanner/GetWorkbook?id=' + planId + '&vertical=' + verticalName,
+            method: 'GET',
+            success: function (data) {
+                $('#loader-overlay').css('display', 'none');
+                if (data && data.sheets && data.sheets.length > 0) {
+                    decompressData(data.sheets);
+                    initDocumentLock($("#planId").val(), $('#hdnUserName').val(), $('#isUserWriteAccess').val() === "True");
+                    currentSheets = data.sheets.map(s => ({
+                        name: s.name,
+                        type: s.type,
+                        rpPlanSheetId: s.rpPlanSheetId
+                    }));
+                    // Set workbook and launch Luckysheet
+                    luckysheet.create({
+                        container: 'luckysheet',
+                        exportFileName: $('.lob-name').text(),
+                        lang: 'en',
+                        locale: 'en-US',
+                        plugins: [{ name: 'chart' }],
+                        data: data.sheets.map(s => {
+                            let parsed = JSON.parse(s.jsonData);
+                            const out = {
+                                ...parsed,
+                                name: s.name
+                            };
+                            parsed = null;
+                            s.jsonData = undefined;
+                            return out;
+                        }),
+                        onWorkbookLoaded: function () {
+                            logMissingCalcChain();
                         },
-                        scales: {
-                            y: { 
-                                title: { display: true, text: yLabel, font: { weight: '800', size: 11 } },
-                                grid: { color: '#f1f5f9' },
-                                ticks: { font: { weight: '600' } }
+                        hook: {
+                            workbookCreateAfter: function () {
                             },
-                            x: { grid: { display: false }, ticks: { font: { weight: '600' } } }
+                            cellUpdated: function (r, c, oldValue, newValue) {
+                                if (oldValue != newValue && !isSheetChanged)
+                                    isSheetChanged = true;
+                            },
                         }
-                    }
-                });
-            };
 
-            if (isComparison) {
-                // COMPARISON MODE
-                const metrics = [
-                    { m: "Required HC", t: "Headcount Comparison", y: "Total HC" },
-                    { m: "Actual Hours", t: "Hours Worked Comparison", y: "Total Hours" },
-                    { m: "Actual Shrinkage", t: "Shrinkage % Comparison", y: "Percentage (%)" },
-                    { m: "Actual AHT", t: "AHT Comparison", y: "Seconds" }
-                ];
-
-                const colorKeys = Object.keys(colors);
-                metrics.forEach(metric => {
-                    const ds = selectedLOBs.map((lob, i) => {
-                        const c = colors[colorKeys[i % colorKeys.length]];
-                        return {
-                            label: lob,
-                            type: metric.m.includes('Actual') ? 'line' : 'bar',
-                            data: filtered.map(d => {
-                                let v = d[`${metric.m}||${lob}`] || 0;
-                                return metric.y.includes('%') ? (v * 100).toFixed(2) : v;
-                            }),
-                            borderColor: c.s,
-                            backgroundColor: metric.m.includes('Actual') ? 'transparent' : c.s + 'aa',
-                            tension: 0.4,
-                            fill: true,
-                            backgroundColor: metric.m.includes('Actual') ? c.f : c.s + 'aa'
-                        };
                     });
-                    addChart(metric.t, ds, metric.y);
-                });
-            } else {
-                // SINGLE LOB DETAIL MODE
-                const lob = selectedLOBs[0];
-                
-                addChart('Staffing Levels', [
-                    { label: 'Required HC', type: 'bar', data: filtered.map(d => d[`Required HC||${lob}`]), backgroundColor: colors.indigo.s + 'cc', borderRadius: 8 },
-                    { label: 'Available HC', type: 'bar', data: filtered.map(d => d[`Available HC||${lob}`]), backgroundColor: colors.emerald.s + 'cc', borderRadius: 8 }
-                ], "Headcount");
 
-                addChart('Productivity Hours', [
-                    { label: 'Actual', type: 'line', data: filtered.map(d => d[`Actual Hours||${lob}`]), borderColor: colors.pink.s, fill: true, backgroundColor: colors.pink.f, tension: 0.4 },
-                    { label: 'Forecast', type: 'line', data: filtered.map(d => d[`Forecasted Hours||${lob}`]), borderColor: '#94a3b8', borderDash: [5,5], tension: 0.4 }
-                ], "Hours");
 
-                addChart('Operational Shrinkage', [
-                    { label: 'Shrinkage %', type: 'line', data: filtered.map(d => (d[`Actual Shrinkage||${lob}`]*100).toFixed(2)), borderColor: colors.amber.s, tension: 0.4, pointBackgroundColor: colors.amber.s }
-                ], "Percentage (%)");
 
-                addChart('Handle Time (AHT)', [
-                    { label: 'Actual AHT', type: 'bar', data: filtered.map(d => d[`Actual AHT||${lob}`]), backgroundColor: colors.cyan.s + 'cc', borderRadius: 8 }
-                ], "Seconds");
+                    $('#saveContainer').show();
+                } else {
+                    alert("No sheets found for this plan.");
+                }
+            },
+            error: function (err) {
+                $('#loader-overlay').css('display', 'none');
+                console.error("Error loading plan", err);
+                alert("Failed to load plan data.");
             }
-        };
+        });
 
-        const applyFilters = () => {
-            const from = $('#fromWeek').val();
-            const to = $('#toWeek').val();
-            const selectedLOBs = [];
-            $optionsDiv.find('input:checked').each(function() { selectedLOBs.push($(this).val()); });
-
-            const grouped = {};
-            settings.data.forEach(item => {
-                if (!grouped[item.week]) grouped[item.week] = { Week: item.week };
-                grouped[item.week][`${item.header}||${item.sheetName}`] = item.value;
-            });
-
-            const structuredData = Object.values(grouped).sort((a, b) => parseWeek(a.Week) - parseWeek(b.Week));
-            const filtered = structuredData.filter(d => parseWeek(d.Week) >= parseWeek(from) && parseWeek(d.Week) <= parseWeek(to));
-
-            renderCharts(filtered, selectedLOBs, $('#comparisonMode').is(':checked'));
-        };
-
-        $('#applyFilter').on('click', applyFilters);
-        $('#analyticsModal').modal('show');
-        setTimeout(applyFilters, 400);
-
-        return this;
-    };
-})(jQuery);
+    }
