@@ -1,22 +1,24 @@
-function renderGroupButton(rowHeader, groupIndex, group) {
+l.fillText(m + 1, k / h.zoomRatio, b / h.zoomRatio)
 
-    let btn = document.createElement("span")
+/* ROW GROUP BUTTON */
+let sheet = h.luckysheetfile[h.currentSheetIndex]
 
-    btn.className = "row-group-toggle"
+if (sheet && sheet.rowGroups) {
 
-    btn.innerText = group.collapsed ? "+" : "-"
+    sheet.rowGroups.forEach((group, index) => {
 
-    btn.style.marginLeft = "4px"
-    btn.style.cursor = "pointer"
+        if (group.start === m) {
 
-    btn.onclick = function (e) {
+            l.fillStyle = "#444"
 
-        e.stopPropagation()
+            l.fillText(
+                group.collapsed ? "+" : "-",
+                (h.rowHeaderWidth - 12) / h.zoomRatio,
+                b / h.zoomRatio
+            )
 
-        toggleRowGroup(groupIndex)
+        }
 
-    }
-
-    rowHeader.appendChild(btn)
+    })
 
 }
