@@ -1,64 +1,26 @@
-    function loadWorkbook() {
-   if (window.luckysheet && typeof luckysheet.destroy === "function") {
-        luckysheet.destroy();  // or luckysheet.exit() depending on your version
-    }
-        $.ajax({
-            url: '/ResourcePlanner/GetWorkbook?id=' + planId + '&vertical=' + verticalName,
-            method: 'GET',
-            success: function (data) {
-                $('#loader-overlay').css('display', 'none');
-                if (data && data.sheets && data.sheets.length > 0) {
-                    decompressData(data.sheets);
-                    initDocumentLock($("#planId").val(), $('#hdnUserName').val(), $('#isUserWriteAccess').val() === "True");
-                    currentSheets = data.sheets.map(s => ({
-                        name: s.name,
-                        type: s.type,
-                        rpPlanSheetId: s.rpPlanSheetId
-                    }));
-                    // Set workbook and launch Luckysheet
-                    luckysheet.create({
-                        container: 'luckysheet',
-                        exportFileName: $('.lob-name').text(),
-                        lang: 'en',
-                        locale: 'en-US',
-                        plugins: [{ name: 'chart' }],
-                        data: data.sheets.map(s => {
-                            let parsed = JSON.parse(s.jsonData);
-                            const out = {
-                                ...parsed,
-                                name: s.name
-                            };
-                            parsed = null;
-                            s.jsonData = undefined;
-                            return out;
-                        }),
-                        onWorkbookLoaded: function () {
-                            logMissingCalcChain();
-                        },
-                        hook: {
-                            workbookCreateAfter: function () {
-                            },
-                            cellUpdated: function (r, c, oldValue, newValue) {
-                                if (oldValue != newValue && !isSheetChanged)
-                                    isSheetChanged = true;
-                            },
-                        }
+function toggleRowGroup(groupIndex) {
 
-                    });
+    let sheet = F1.luckysheetfile[F1.currentSheetIndex]
 
+    if (!sheet.rowGroups) return
 
+    let group = sheet.rowGroups[groupIndex]
 
-                    $('#saveContainer').show();
-                } else {
-                    alert("No sheets found for this plan.");
-                }
-            },
-            error: function (err) {
-                $('#loader-overlay').css('display', 'none');
-                console.error("Error loading plan", err);
-                alert("Failed to load plan data.");
-            }
-        });
+    if (!group) return
+
+    // toggle state
+    group.collapsed = !group.collapsed
+
+    for (let r = group.start + 1; r <= group.end; r++) {
+
+        if (group.collapsed)
+            hideRow(r)
+        else
+            showRow(r)
 
     }
 
+    // refresh grid
+    luckysheet.refresh()
+
+}
