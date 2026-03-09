@@ -1,26 +1,22 @@
-function toggleRowGroup(groupIndex) {
+function renderGroupButton(rowHeader, groupIndex, group) {
 
-    let sheet = F1.luckysheetfile[F1.currentSheetIndex]
+    let btn = document.createElement("span")
 
-    if (!sheet.rowGroups) return
+    btn.className = "row-group-toggle"
 
-    let group = sheet.rowGroups[groupIndex]
+    btn.innerText = group.collapsed ? "+" : "-"
 
-    if (!group) return
+    btn.style.marginLeft = "4px"
+    btn.style.cursor = "pointer"
 
-    // toggle state
-    group.collapsed = !group.collapsed
+    btn.onclick = function (e) {
 
-    for (let r = group.start + 1; r <= group.end; r++) {
+        e.stopPropagation()
 
-        if (group.collapsed)
-            hideRow(r)
-        else
-            showRow(r)
+        toggleRowGroup(groupIndex)
 
     }
 
-    // refresh grid
-    luckysheet.refresh()
+    rowHeader.appendChild(btn)
 
 }
