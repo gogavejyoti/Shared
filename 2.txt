@@ -654,3 +654,169 @@
                     tt()),
                     h.clearjfundo = !0
             }
+
+
+
+function Ye(e, n, t, l = !0, a = !0, bulkupdate = false, oldData = undefined) {
+    e == null && (e = h.flowdata);
+    n == null && (n = h.luckysheet_select_save);
+    n = JSON.parse(JSON.stringify(n));
+    clearTimeout(Rr);
+    t == null && (t = {});
+
+    let o = t.cfg,
+        s = t.calc,
+        u = t.RowlChange,
+        d = t.cdformat,
+        f = t.dataVerification,
+        m = t.dynamicArray,
+        g = t.hyperlink,
+        y = h.luckysheetfile[K(h.currentSheetIndex)];
+
+    if (h.clearjfundo && !bulkupdate) {
+        h.jfundo.length = 0;
+
+        // Fixed clone: one method, no self-referencing fallback
+        const clone = (v) => {
+            if (v == null) return v;
+            try {
+                return structuredClone(v);
+            } catch (err) {
+                return JSON.parse(JSON.stringify(v)); // actual fallback
+            }
+        };
+
+        // Shallow-clone array items (only use for arrays of flat objects)
+        const cloneItems = (arr) =>
+            Array.isArray(arr)
+                ? arr.map(x => (x && typeof x === 'object') ? { ...x } : x)
+                : [];
+
+        // ── Snapshot only what's needed for undo ──────────────────────────
+        // Avoid cloning the entire flowdata grid twice.
+        // Clone only the cells touched by the current selection.
+        const cloneRangeCells = (data, ranges) => {
+            if (!data || !ranges) return null;
+            // Store sparse: { "row,col": cellSnapshot }
+            const snap = {};
+            for (const sel of ranges) {
+                const r0 = sel.row[0], r1 = sel.row[1];
+                const c0 = sel.column[0], c1 = sel.column[1];
+                for (let r = r0; r <= r1; r++) {
+                    for (let c = c0; c <= c1; c++) {
+                        if (data[r] && data[r][c] != null) {
+                            snap[`${r},${c}`] = clone(data[r][c]);
+                        }
+                    }
+                }
+            }
+            return snap;
+        };
+
+        const curConfig  = o  == null ? clone(h.config)                              : clone(o);
+        const curCdformat = d == null ? cloneItems(y.luckysheet_conditionformat_save) : cloneItems(d);
+        const curDV      = f  == null ? clone(y.dataVerification || {})              : clone(f);
+        const curDA      = m  == null ? cloneItems(y.dynamicArray)                   : cloneItems(m);
+
+        // Use sparse cell snapshots instead of full-grid deep clones
+        const prevCellSnap = cloneRangeCells(h.flowdata, n);
+        const nextCellSnap = cloneRangeCells(e, n);
+
+        const entry = {
+            type: "datachange",
+
+            // Sparse snapshots replace full-grid clones
+            _sparseUndo: prevCellSnap,  // cells before this change
+            _sparseCurr: nextCellSnap,  // cells after this change
+
+            // Keep full data refs only if e !== h.flowdata (different object)
+            // For undo/redo machinery that reads n.data / n.curdata:
+            data:    h.flowdata,   // live ref — read immediately in redo, don't hold long
+            curdata: e,
+
+            sheetIndex: h.currentSheetIndex,
+
+            config:    clone(h.config),
+            curConfig,
+
+            calc:    cloneItems(y.calcChain    || []),
+            curCalc: clone(s),
+
+            cdformat:    cloneItems(y.luckysheet_conditionformat_save || []),
+            curCdformat,
+
+            RowlChange: clone(u),
+
+            dataVerification:    clone(y.dataVerification || {}),
+            curDataVerification: curDV,
+
+            dynamicArray:    cloneItems(y.dynamicArray || []),
+            curDynamicArray: curDA,
+
+            ...(g != null ? { hyperlink: clone(y.hyperlink) } : {}),
+            curHyperlink: clone(g),
+
+            range:     clone(n),
+            dataRange: (y.luckysheet_select_save || []).slice()
+        };
+
+        h.jfredo.push(entry);
+
+        // ── Cap the stack and aggressively free memory ────────────────────
+        const UNDO_LIMIT = 5;
+        while (h.jfredo.length > UNDO_LIMIT) {
+            const removed = h.jfredo.shift();
+            // Null out every key so GC can collect immediately
+            // Use a local variable name to avoid shadowing outer `k`
+            for (const prop of Object.keys(removed)) {
+                removed[prop] = null;
+            }
+        }
+    }
+
+    // Rest of function unchanged ...
+    h.flowdata = e;
+    we.webWorkerFlowDataCache(h.flowdata);
+    y.data = h.flowdata;
+
+    o != null && (
+        h.config = o,
+        y.config = h.config,
+        ne.saveParam("all", h.currentSheetIndex, o, { k: "config" }),
+        u != null && Ct(h.flowdata.length, h.flowdata[0].length)
+    );
+    s != null && (y.calcChain = s, ne.saveParam("all", h.currentSheetIndex, s, { k: "calcChain" }));
+    d != null && d.length !== 0 && (
+        y.luckysheet_conditionformat_save = d,
+        ne.saveParam("all", h.currentSheetIndex, d, { k: "luckysheet_conditionformat_save" })
+    );
+    f != null && Object.keys(f).length !== 0 && (
+        Xe.dataVerification = f,
+        y.dataVerification = f,
+        ne.saveParam("all", h.currentSheetIndex, f, { k: "dataVerification" })
+    );
+    m != null && (y.dynamicArray = m, ne.saveParam("all", h.currentSheetIndex, m, { k: "dynamicArray" }));
+    g != null && (y.hyperlink = g, Cl.hyperlink = g, ne.saveParam("all", h.currentSheetIndex, g, { k: "hyperlink" }));
+
+    for (let v = 0; v < n.length; v++) {
+        let rr = n[v].row[0], cc = n[v].column[0];
+        if (h.flowdata[rr][cc] != null && h.flowdata[rr][cc].spl != null) {
+            window.luckysheetCurrentRow     = rr;
+            window.luckysheetCurrentColumn  = cc;
+            window.luckysheetCurrentFunction = h.flowdata[rr][cc].f;
+            let w = $.trim(p.functionParserExe(h.flowdata[rr][cc].f));
+            let x = new Function("return " + w)();
+            h.flowdata[rr][cc].spl = x;
+        }
+        ne.allowUpdate && ne.historyParam(h.flowdata, h.currentSheetIndex, n[v]);
+        typeof h.chartparam.jfrefreshchartall == "function" &&
+            h.chartparam.jfrefreshchartall(
+                h.flowdata, n[v].row[0], n[v].row[1], n[v].column[0], n[v].column[1]
+            );
+    }
+
+    l && gc(n, h.currentSheetIndex, e, oldData);
+    a && (Rr = setTimeout(function () { He(); }, 1));
+    tt();
+    window.luckysheet_getcelldata_cache = null;
+}
