@@ -820,3 +820,195 @@ function Ye(e, n, t, l = !0, a = !0, bulkupdate = false, oldData = undefined) {
     tt();
     window.luckysheet_getcelldata_cache = null;
 }
+
+
+function Ye(e, n, t, l = !0, a = !0, bulkupdate = false, oldData = undefined) {
+        e == null && (e = h.flowdata),
+            n == null && (n = h.luckysheet_select_save),
+            n = JSON.parse(JSON.stringify(n)),
+            clearTimeout(Rr),
+            t == null && (t = {});
+        let o = t.cfg
+            , s = t.calc
+            , u = t.RowlChange
+            , d = t.cdformat
+            , f = t.dataVerification
+            , m = t.dynamicArray
+            , g = t.hyperlink
+            , y = h.luckysheetfile[K(h.currentSheetIndex)];
+        if (h.clearjfundo && !bulkupdate) {
+            h.jfundo.length = 0;
+
+            // Fixed clone: structuredClone with actual JSON fallback (no self-reference)
+            const clone = (v) => {
+                if (v == null) return v;
+                try {
+                    return structuredClone(v);
+                } catch (err) {
+                    return JSON.parse(JSON.stringify(v));
+                }
+																				  
+            };
+
+            // Shallow per-item clone for flat arrays-of-objects
+            const cloneItems = (arr) =>
+                Array.isArray(arr) ? arr.map(x => (x && typeof x === 'object') ? { ...x } : x) : [];
+
+            // Sparse cell snapshot: only clone cells within the selected ranges,
+            // not the entire flowdata grid. Saves O(rows*cols) memory per undo entry.
+            const cloneRangeCells = (data, ranges) => {
+                if (!data || !ranges) return null;
+                const snap = {};
+                for (const sel of ranges) {
+                    const r0 = sel.row[0], r1 = sel.row[1];
+                    const c0 = sel.column[0], c1 = sel.column[1];
+                    for (let r = r0; r <= r1; r++) {
+                        for (let c = c0; c <= c1; c++) {
+                            if (data[r] && data[r][c] != null) {
+                                snap[r + "," + c] = clone(data[r][c]);
+                            }
+                        }
+                    }
+                }
+                return snap;
+            };
+
+            // Reconstruct a full flowdata grid from a sparse snapshot applied on top of a base grid
+            // Used by undo/redo to restore only changed cells back into the live grid
+            const applySparsePatch = (baseData, snap) => {
+                if (!snap) return baseData;
+                // Work on a shallow row-level copy so we don't mutate the live grid
+                const result = baseData.slice();
+                for (const key of Object.keys(snap)) {
+                    const [r, c] = key.split(",").map(Number);
+                    if (!result[r]) continue;
+                    if (result[r] === baseData[r]) {
+                        // copy-on-write: only clone the row when we first touch it
+                        result[r] = baseData[r].slice();
+                    }
+                    result[r][c] = snap[key];
+                }
+                return result;
+            };
+
+            const curConfig   = o == null ? clone(h.config)                               : clone(o);
+            const curCdformat = d == null ? cloneItems(y.luckysheet_conditionformat_save)  : cloneItems(d);
+            const curDV       = f == null ? clone(y.dataVerification || {})               : clone(f);
+            const curDA       = m == null ? cloneItems(y.dynamicArray)                    : cloneItems(m);
+
+            // Sparse snapshots of only the touched cells — replaces full-grid deep clones
+            const prevCellSnap = cloneRangeCells(h.flowdata, n); // state BEFORE this change
+            const nextCellSnap = cloneRangeCells(e, n);           // state AFTER this change
+
+            h.jfredo.push({
+                type: "datachange",
+
+                // Sparse patches instead of full grid clones
+                _sparseUndo: prevCellSnap,
+                _sparseCurr: nextCellSnap,
+
+                // Keep live refs for redo/undo machinery that reads n.data / n.curdata.
+                // These are used immediately and not held long-term once the stack is capped.
+                data:    h.flowdata,
+                curdata: e,
+
+                sheetIndex: h.currentSheetIndex,
+										
+							 
+
+                config:    clone(h.config),
+                curConfig: curConfig,
+																									
+
+                calc:    cloneItems(y.calcChain || []),
+                curCalc: clone(s),
+
+																			  
+																			
+
+                cdformat:    cloneItems(y.luckysheet_conditionformat_save || []),
+                curCdformat: curCdformat,
+
+                RowlChange: clone(u),
+
+													 
+                dataVerification:    clone(y.dataVerification || {}),
+                curDataVerification: curDV,
+
+															   
+															 
+
+                dynamicArray:    cloneItems(y.dynamicArray || []),
+                curDynamicArray: curDA,
+
+                // Only include hyperlink snapshot if present
+                ...(g != null ? { hyperlink: clone(y.hyperlink) } : {}),
+                curHyperlink: clone(g),
+
+                range:     clone(n),
+                dataRange: (y.luckysheet_select_save || []).slice()
+            });
+
+            // Cap the undo stack and aggressively null evicted entries for GC
+            const UNDO_LIMIT = 5;
+            while (h.jfredo.length > UNDO_LIMIT) {
+                const removed = h.jfredo.shift();
+                // Use a local name (prop) to avoid shadowing the outer variable k
+                for (const prop of Object.keys(removed)) {
+                    removed[prop] = null;
+                }
+            }
+        }
+
+        h.flowdata = e,
+            we.webWorkerFlowDataCache(h.flowdata),
+            y.data = h.flowdata,
+            o != null && (h.config = o,
+                y.config = h.config,
+                ne.saveParam("all", h.currentSheetIndex, o, {
+                    k: "config"
+                }),
+                u != null && Ct(h.flowdata.length, h.flowdata[0].length)),
+            s != null && (y.calcChain = s,
+                ne.saveParam("all", h.currentSheetIndex, s, {
+                    k: "calcChain"
+                })),
+            d != null && d.length !== 0 && (y.luckysheet_conditionformat_save = d,
+                ne.saveParam("all", h.currentSheetIndex, d, {
+                    k: "luckysheet_conditionformat_save"
+                })),
+            f != null && Object.keys(f).length !== 0 && (Xe.dataVerification = f,
+                y.dataVerification = f,
+                ne.saveParam("all", h.currentSheetIndex, f, {
+                    k: "dataVerification"
+                })),
+            m != null && (y.dynamicArray = m,
+                ne.saveParam("all", h.currentSheetIndex, m, {
+                    k: "dynamicArray"
+                })),
+            g != null && (y.hyperlink = g,
+                Cl.hyperlink = g,
+                ne.saveParam("all", h.currentSheetIndex, g, {
+                    k: "hyperlink"
+                }));
+        for (let v = 0; v < n.length; v++) {
+            let rr = n[v].row[0]
+                , cc = n[v].column[0];
+            if (h.flowdata[rr][cc] != null && h.flowdata[rr][cc].spl != null) {
+                window.luckysheetCurrentRow = rr,
+                    window.luckysheetCurrentColumn = cc,
+                    window.luckysheetCurrentFunction = h.flowdata[rr][cc].f;
+                let w = $.trim(p.functionParserExe(h.flowdata[rr][cc].f))
+                    , x = new Function("return " + w)();
+                h.flowdata[rr][cc].spl = x
+            }
+            ne.allowUpdate && ne.historyParam(h.flowdata, h.currentSheetIndex, n[v]),
+                typeof h.chartparam.jfrefreshchartall == "function" && h.chartparam.jfrefreshchartall(h.flowdata, n[v].row[0], n[v].row[1], n[v].column[0], n[v].column[1])
+        }
+        l && gc(n, h.currentSheetIndex, e, oldData),
+            a && (Rr = setTimeout(function () {
+                He()
+            }, 1)),
+            tt(),
+            window.luckysheet_getcelldata_cache = null
+    }
