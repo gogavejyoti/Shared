@@ -1,661 +1,166 @@
-      redo: function (e) {
-                if (h.jfredo.length == 0)
-                    return;
-                let n = h.jfredo.pop();
-                if (h.jfundo.push(n),
-                    h.clearjfundo = !1,
-                    ve.hasSheet(n.sheetIndex) && h.currentSheetIndex != n.sheetIndex && ve.changeSheetExec(n.sheetIndex),
-                    n.type == "datachange") {
-                    Mo(n);
-                    let l = {
-                        cfg: n.config,
-                        RowlChange: n.RowlChange,
-                        cdformat: n.cdformat,
-                        dataVerification: n.dataVerification,
-                        dynamicArray: n.dynamicArray,
-                        hyperlink: n.hyperlink
-                    };
-                    Ye(n.data, n.dataRange, l)
-                } else if (n.type == "pasteCut") {
-                    let l = {
-                        sheetIndex: n.source.sheetIndex,
-                        data: n.source.curData,
-                        curData: n.source.data,
-                        config: n.source.curConfig,
-                        curConfig: n.source.config,
-                        cdformat: n.source.curCdformat,
-                        curCdformat: n.source.cdformat,
-                        dataVerification: n.source.curDataVerification,
-                        curDataVerification: n.source.dataVerification,
-                        range: n.source.range
-                    }
-                        , a = {
-                            sheetIndex: n.target.sheetIndex,
-                            data: n.target.curData,
-                            curData: n.target.data,
-                            config: n.target.curConfig,
-                            curConfig: n.target.config,
-                            cdformat: n.target.curCdformat,
-                            curCdformat: n.target.cdformat,
-                            dataVerification: n.target.curDataVerification,
-                            curDataVerification: n.target.dataVerification,
-                            range: n.target.range
-                        };
-                    Va(l, a, n.RowlChange)
-                } else if (n.type == "rangechange")
-                    Mo(n),
-                        Aa(n.data, n.range, n.cdformat);
-                else if (n.type == "resize") {
-                    h.config = n.config,
-                        h.luckysheetfile[K(n.sheetIndex)].config = h.config,
-                        n.ctrlType == "resizeR" ? ne.saveParam("cg", n.sheetIndex, n.config.rowlen, {
-                            k: "rowlen"
-                        }) : n.ctrlType == "resizeC" && ne.saveParam("cg", n.sheetIndex, n.config.columnlen, {
-                            k: "columnlen"
-                        });
-                    let l = $.extend(!0, {}, n.images);
-                    h.luckysheetfile[K(n.sheetIndex)].images = l,
-                        ne.saveParam("all", n.sheetIndex, l, {
-                            k: "images"
-                        }),
-                        Re.images = l,
-                        Re.allImagesShow(),
-                        Ct(h.flowdata.length, h.flowdata[0].length)
-                } else if (n.type == "cellRowChange")
-                    Yl(n.data[0].length, n.data.length, n.data, n.config, n.range, n.ctrlType, n.ctrlValue, n.cdformat);
-                else if (n.type == "extend")
-                    Yl(n.data[0].length, n.data.length, n.data, n.config, n.range, "dele", n.ctrlValue);
-                else if (n.type == "dele") {
-                    let l = $.extend(!0, {}, n.ctrlValue);
-                    l.restore = !0,
-                        Yl(n.data[0].length, n.data.length, n.data, n.config, n.range, "extend", l)
-                } else if (n.type == "addRC") {
-                    let l = $.extend(!0, {}, n.ctrlValue);
-                    l.direction == "rightbottom" && (l.index = l.index + 1),
-                        Bn(n.data, n.config, "delRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink)
-                    if (typeof _shiftCrossSheetReference === "function") {
-                        if (l.rc == "r") {
-                            _shiftCrossSheetReference({
-                                type: "deleteRow",
-                                sheetIndex: h.currentSheetIndex,
-                                rowIndex: l.index,
-                                rowCount: l.len || 1
-                            });
-                        }
-                        if (l.rc == "c") {
-                            _shiftCrossSheetReference({
-                                type: "deleteCol",
-                                sheetIndex: h.currentSheetIndex,
-                                colIndex: l.index,
-                                colCount: l.len || 1
-                            });
-                        }
+function Ye(e, n, t, l = true, a = true, bulkupdate = false, oldData = undefined) {
+    e = e || h.flowdata;
+    n = n || h.luckysheet_select_save;
+    n = JSON.parse(JSON.stringify(n));
 
-                    }
-                } else if (n.type == "delRC") {
-                    let l = $.extend(!0, {}, n.ctrlValue);
-                    l.restore = !0,
-                        l.direction = "lefttop",
-                        Bn(n.data, n.config, "addRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink)
-                    if (typeof _shiftCrossSheetReference === "function") {
-                        if (l.rc == "r") {
-                            _shiftCrossSheetReference({
-                                type: "insertRow",
-                                sheetIndex: h.currentSheetIndex,
-                                rowIndex: l.index,
-                                rowCount: l.len || 1
-                            });
-                        }
-                        if (l.rc == "c") {
-                            _shiftCrossSheetReference({
-                                type: "insertCol",
-                                sheetIndex: h.currentSheetIndex,
-                                colIndex: l.index,
-                                colCount: l.len || 1
-                            });
-                        }
+    clearTimeout(Rr);
+    t = t || {};
 
-                    }
+    let o = t.cfg,
+        s = t.calc,
+        u = t.RowlChange,
+        d = t.cdformat,
+        f = t.dataVerification,
+        m = t.dynamicArray,
+        g = t.hyperlink;
 
-                } else if (n.type == "deleteCell")
-                    $i(n.data, n.config, n.ctrl, n.calc, n.filterObj, n.cf, n.dataVerification, n.hyperlink);
-                else if (n.type == "showHidRows")
-                    h.config = n.config,
-                        h.luckysheetfile[K(n.sheetIndex)].config = n.config,
-                        ne.saveParam("cg", n.sheetIndex, n.config.rowhidden, {
-                            k: "rowhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length);
-                else if (n.type == "showHidCols")
-                    h.config = n.config,
-                        h.luckysheetfile[K(n.sheetIndex)].config = n.config,
-                        ne.saveParam("cg", n.sheetIndex, n.config.colhidden, {
-                            k: "colhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length);
-                else if (n.type == "datachangeAll")
-                    p.execFunctionGroup(),
-                        Yl(n.data[0].length, n.data.length, n.data, null, n.range, "datachangeAll", n.ctrlValue);
-                else if (n.type == "datachangeAll_filter_clear")
-                    Dl(n.filter_save),
-                        $("#luckysheet-filter-options-sheet" + h.currentSheetIndex + " .luckysheet-filter-options").each(function (l) {
-                            let a = $(this)
-                                , o = n.optiongroups[l];
-                            zn(a, o.optionstate, o.rowhidden, o.caljs, !1, o.st_r, o.ed_r, o.cindex, o.st_c, o.ed_c)
-                        }),
-                        ne.saveParam("fsr", h.currentSheetIndex, {
-                            filter: n.optiongroups,
-                            filter_select: n.filter_save
-                        }),
-                        h.config = n.config,
-                        h.luckysheetfile[K(h.currentSheetIndex)].config = h.config,
-                        h.config.rowhidden == null && (h.config.rowhidden = {}),
-                        ne.saveParam("cg", h.currentSheetIndex, h.config.rowhidden, {
-                            k: "rowhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length),
-                        $("#luckysheet-filter-menu, #luckysheet-filter-submenu").hide();
-                else if (n.type == "datachangeAll_filter") {
-                    let l = $("#luckysheet-filter-options-sheet" + h.currentSheetIndex + " .luckysheet-filter-options").eq(n.optionsindex)
-                        , a = l.data("str")
-                        , o = l.data("edr")
-                        , s = l.data("cindex")
-                        , u = l.data("stc")
-                        , d = l.data("edc");
-                    zn(l, Ln.hasKey(n.rowhidenPre), n.rowhidenPre, n.caljs, !0, a, o, s, u, d),
-                        h.config = n.config,
-                        h.luckysheetfile[K(h.currentSheetIndex)].config = h.config,
-                        h.config.rowhidden == null && (h.config.rowhidden = {}),
-                        ne.saveParam("cg", h.currentSheetIndex, h.config.rowhidden, {
-                            k: "rowhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length),
-                        $("#luckysheet-filter-menu, #luckysheet-filter-submenu").hide()
-                } else if (n.type == "filtershow")
-                    $("#luckysheet-filter-selected-sheet" + n.sheetIndex + ", #luckysheet-filter-options-sheet" + n.sheetIndex).remove(),
-                        ne.allowUpdate && ne.saveParam("all", n.sheetIndex, null, {
-                            k: "filter_select"
-                        });
-                else if (n.type == "pivotTable_change")
-                    h.luckysheetfile[K(n.sheetIndex)].pivotTable = n.pivotTable,
-                        Be.getCellData(n.sheetIndex),
-                        Be.initialPivotManage(!0),
-                        Be.refreshPivotTable();
-                else if (n.type == "addSheet")
-                    ve.deleteSheet(n.index),
-                        ve.changeSheetExec(n.currentSheetIndex),
-                        $("#luckysheet-input-box").removeAttr("style"),
-                        $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
-                else if (n.type == "copySheet")
-                    ve.deleteSheet(n.index),
-                        ve.changeSheetExec(n.copyindex);
-                else if (n.type == "deleteSheet") {
-                    let l = !1;
-                    for (let a = 0; a < h.luckysheetfile.length; a++)
-                        h.luckysheetfile[a].name == n.name && (l = !0);
-                    l || (ve.createSheetbydata(n, "isrenew"),
-                        $("#luckysheet-input-box").removeAttr("style"),
-                        $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide())
-                } else if (n.type == "sheetName")
-                    h.luckysheetfile[K(n.sheetIndex)].name = n.oldtxt,
-                        $("#luckysheet-sheets-item" + n.sheetIndex).find(".luckysheet-sheets-item-name").html(n.oldtxt),
-                        ne.saveParam("all", n.sheetIndex, n.oldtxt, {
-                            k: "name"
-                        });
-                else if (n.type == "sheetColor") {
-                    h.luckysheetfile[K(n.sheetIndex)].color = n.oldcolor;
-                    let l = $("#luckysheet-sheets-item" + n.sheetIndex);
-                    l.find(".luckysheet-sheets-item-color").remove(),
-                        n.oldcolor != null && l.append('<div class="luckysheet-sheets-item-color" style=" position: absolute; width: 100%; height: 3px; bottom: 0px; left: 0px; background-color: ' + n.oldcolor + ';"></div>'),
-                        ne.saveParam("all", n.sheetIndex, n.oldcolor, {
-                            k: "color"
-                        })
-                } else if (n.type == "mergeChange") {
-                    let l = {
-                        cfg: n.config,
-                        calc: n.calc,
-                        hyperlink: n.hyperlink
-                    };
-                    Ye(n.data, n.range, l)
-                } else if (n.type == "updateDataVerification")
-                    Xe.ref(n.currentDataVerification, n.historyDataVerification, n.sheetIndex);
-                else if (n.type == "updateDataVerificationOfCheckbox")
-                    Xe.refOfCheckbox(n.currentDataVerification, n.historyDataVerification, n.sheetIndex, n.data, n.range);
-                else if (n.type == "updateHyperlink")
-                    Cl.ref(n.currentHyperlink, n.historyHyperlink, n.sheetIndex, n.data, n.range);
-                else if (n.type == "updateCF") {
-                    let l = n.data.historyRules;
-                    for (let a = 0; a < l.length; a++) {
-                        let o = l[a].sheetIndex;
-                        h.luckysheetfile[K(o)].luckysheet_conditionformat_save = l[a].luckysheet_conditionformat_save,
-                            ne.allowUpdate && ne.saveParam("all", o, l[a].luckysheet_conditionformat_save, {
-                                k: "luckysheet_conditionformat_save"
-                            })
-                    }
-                    $e.ref()
-                } else if (n.type == "updateAF") {
-                    let l = n.data.historyRules
-                        , a = K(n.sheetIndex);
-                    h.luckysheetfile[a].luckysheet_alternateformat_save = $.extend(!0, [], l),
-                        setTimeout(function () {
-                            He()
-                        }, 1)
-                } else if (n.type == "borderChange")
-                    n.config.borderInfo == null ? ne.saveParam("cg", n.sheetIndex, [], {
-                        k: "borderInfo"
-                    }) : ne.saveParam("cg", n.sheetIndex, n.config.borderInfo, {
-                        k: "borderInfo"
-                    }),
-                        h.config = n.config,
-                        h.luckysheetfile[K(n.sheetIndex)].config = h.config,
-                        setTimeout(function () {
-                            He()
-                        }, 1);
-                else if (n.type == "postil") {
-                    Ve.ref(n.data, n.rc);
-                    for (let l = 0; l < n.rc.length; l++) {
-                        let a = n.rc[l].split("_")[0]
-                            , o = n.rc[l].split("_")[1];
-                        n.data[a][o] != null && n.data[a][o].ps != null ? Ve.buildPs(a, o, n.data[a][o].ps) : Ve.buildPs(a, o, null)
-                    }
-                } else
-                    n.type == "imageCtrl" ? (Re.images = $.extend(!0, {}, n.images),
-                        Re.allImagesShow(),
-                        Re.ref()) : n.type == "zoomChange" && (h.zoomRatio = n.zoomRatio,
-                            ne.saveParam("all", n.currentSheetIndex, n.zoomRatio, {
-                                k: "zoomRatio"
-                            }),
-                            ar(),
-                            Wa());
-                tl(e),
-                    n.range && (h.luckysheet_select_save = n.range,
-                        tt()),
-                    h.clearjfundo = !0;
-                let t = cu(je({}, n), {
-                    data: n.curdata,
-                    curdata: n.data
-                });
-                Je.createHookFunction("updated", t)
-            },
-            undo: function () {
-                if (h.jfundo.length == 0)
-                    return;
-                let e = h.jfundo.pop();
-                if (h.jfredo.push(e),
-                    h.clearjfundo = !1,
-                    ve.hasSheet(e.sheetIndex) && h.currentSheetIndex != e.sheetIndex && ve.changeSheetExec(e.sheetIndex),
-                    e.type == "datachange") {
-                    p.execFunctionGroup();
-                    let n = {
-                        cfg: e.curConfig,
-                        RowlChange: e.RowlChange,
-                        cdformat: e.curCdformat,
-                        dataVerification: e.curDataVerification,
-                        dynamicArray: e.curDynamicArray,
-                        hyperlink: e.curHyperlink
-                    };
-                    Mo(e, "undo"),
-                        Ye(e.curdata, e.range, n)
-                } else if (e.type == "pasteCut")
-                    Va(e.source, e.target, e.RowlChange);
-                else if (e.type == "rangechange")
-                    Mo(e, "undo"),
-                        Aa(e.curdata, e.range, e.curCdformat);
-                else if (e.type == "resize") {
-                    h.config = e.curconfig,
-                        h.luckysheetfile[K(e.sheetIndex)].config = h.config,
-                        e.ctrlType == "resizeR" ? ne.saveParam("cg", e.sheetIndex, e.curconfig.rowlen, {
-                            k: "rowlen"
-                        }) : e.ctrlType == "resizeC" && ne.saveParam("cg", e.sheetIndex, e.curconfig.columnlen, {
-                            k: "columnlen"
-                        });
-                    let n = $.extend(!0, {}, e.curImages);
-                    h.luckysheetfile[K(e.sheetIndex)].images = n,
-                        ne.saveParam("all", e.sheetIndex, n, {
-                            k: "images"
-                        }),
-                        Re.images = n,
-                        Re.allImagesShow(),
-                        Ct(h.flowdata.length, h.flowdata[0].length)
-                } else if (e.type == "cellRowChange")
-                    Yl(e.curdata[0].length, e.curdata.length, e.curdata, e.curconfig, e.currange, e.ctrlType, e.ctrlValue, e.curCdformat);
-                else if (e.type == "extend")
-                    Yl(e.curdata[0].length, e.curdata.length, e.curdata, e.curconfig, e.currange, e.ctrlType, e.ctrlValue);
-                else if (e.type == "dele") {
-                    let n = $.extend(!0, {}, e.ctrlValue);
-                    n.restore = !0,
-                        Yl(e.curdata[0].length, e.curdata.length, e.curdata, e.curconfig, e.currange, e.ctrlType, e.ctrlValue)
-                } else if (e.type == "addRC") {
-                    Bn(e.curData, e.curConfig, "addRC", e.ctrlValue, e.curCalc, e.curFilterObj, e.curCf, e.curAf, e.curFreezen, e.curDataVerification, e.curHyperlink);
-                    if (typeof _shiftCrossSheetReference === "function") {
-                        if (e.ctrlValue.rc == "r") {
-                            _shiftCrossSheetReference({
-                                type: "insertRow", // undo adding rows = delete
-                                sheetIndex: h.currentSheetIndex,
-                                rowIndex: e.ctrlValue.index,
-                                rowCount: e.ctrlValue.len || 1
-                            });
-                        }
-                        else if (e.ctrlValue.rc == "c") {
-                            _shiftCrossSheetReference({
-                                type: "insertCol", // undo adding columns = delete
-                                sheetIndex: h.currentSheetIndex,
-                                colIndex: e.ctrlValue.index,
-                                colCount: e.ctrlValue.len || 1
-                            });
-                        }
-                    }
+    let y = h.luckysheetfile[K(h.currentSheetIndex)];
+
+    // 🔥 OPTIMIZED UNDO STORAGE
+    if (h.clearjfundo && !bulkupdate) {
+        h.jfundo.length = 0;
+
+        // Only capture changed cells instead of full sheet
+        const changedData = [];
+
+        for (let i = 0; i < n.length; i++) {
+            let r1 = n[i].row[0];
+            let r2 = n[i].row[1];
+            let c1 = n[i].column[0];
+            let c2 = n[i].column[1];
+
+            for (let r = r1; r <= r2; r++) {
+                for (let c = c1; c <= c2; c++) {
+                    changedData.push({
+                        r,
+                        c,
+                        old: h.flowdata[r]?.[c],
+                        new: e[r]?.[c]
+                    });
                 }
-                else if (e.type == "delRC") {
-                    Bn(e.curData, e.curConfig, "delRC", e.ctrlValue, e.curCalc, e.curFilterObj, e.curCf, e.curAf, e.curFreezen, e.curDataVerification, e.curHyperlink);
-                    if (typeof _shiftCrossSheetReference === "function") {
-                        if (e.ctrlValue.rc == "r") {
-                            _shiftCrossSheetReference({
-                                type: "deleteRow",
-                                sheetIndex: h.currentSheetIndex,
-                                rowIndex: e.ctrlValue.index,
-                                rowCount: e.ctrlValue.len || 1
-                            });
-                        }
-                        else if (e.ctrlValue.rc == "c") {
-                            _shiftCrossSheetReference({
-                                type: "deleteCol",
-                                sheetIndex: h.currentSheetIndex,
-                                colIndex: e.ctrlValue.index,
-                                colCount: e.ctrlValue.len || 1
-                            });
-                        }
-
-                    }
-                }
-                else if (e.type == "deleteCell")
-                    $i(e.curData, e.curConfig, e.ctrl, e.curCalc, e.curFilterObj, e.curCf, e.curDataVerification, e.curHyperlink);
-                else if (e.type == "showHidRows")
-                    h.config = e.curconfig,
-                        h.luckysheetfile[K(e.sheetIndex)].config = e.curconfig,
-                        ne.saveParam("cg", e.sheetIndex, e.curconfig.rowhidden, {
-                            k: "rowhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length);
-                else if (e.type == "showHidCols")
-                    h.config = e.curconfig,
-                        h.luckysheetfile[K(e.sheetIndex)].config = e.curconfig,
-                        ne.saveParam("cg", e.sheetIndex, e.curconfig.colhidden, {
-                            k: "colhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length);
-                else if (e.type == "datachangeAll")
-                    p.execFunctionGroup(),
-                        Yl(e.curdata[0].length, e.curdata.length, e.curdata, null, e.currange, "datachangeAll", e.ctrlValue);
-                else if (e.type == "datachangeAll_filter_clear")
-                    ne.saveParam("fsc", h.currentSheetIndex, null),
-                        h.config = e.curconfig,
-                        h.luckysheetfile[K(h.currentSheetIndex)].config = h.config,
-                        ne.saveParam("cg", h.currentSheetIndex, {}, {
-                            k: "rowhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length),
-                        $("#luckysheet-filter-menu .luckysheet-filter-selected-input").hide().find("input").val(),
-                        $("#luckysheet-filter-selected span").data("type", "0").data("type", null).text("\u65E0"),
-                        $("#luckysheet-filter-selected-sheet" + h.currentSheetIndex + ", #luckysheet-filter-options-sheet" + h.currentSheetIndex).remove(),
-                        $("#luckysheet-filter-menu, #luckysheet-filter-submenu").hide();
-                else if (e.type == "datachangeAll_filter") {
-                    let n = $("#luckysheet-filter-options-sheet" + h.currentSheetIndex + " .luckysheet-filter-options").eq(e.optionsindex)
-                        , t = n.data("str")
-                        , l = n.data("edr")
-                        , a = n.data("cindex")
-                        , o = n.data("stc")
-                        , s = n.data("edc");
-                    zn(n, Ln.hasKey(e.rowhidden), e.rowhidden, e.caljs, !0, t, l, a, o, s),
-                        h.config = e.curconfig,
-                        h.luckysheetfile[K(h.currentSheetIndex)].config = h.config,
-                        ne.saveParam("cg", h.currentSheetIndex, h.config.rowhidden, {
-                            k: "rowhidden"
-                        }),
-                        Ct(h.flowdata.length, h.flowdata[0].length),
-                        $("#luckysheet-filter-menu, #luckysheet-filter-submenu").hide()
-                } else if (e.type == "filtershow")
-                    h.luckysheet_select_save = [e.filter_save],
-                        h.filterchage = !1,
-                        Si(),
-                        h.filterchage = !0,
-                        ne.saveParam("all", e.sheetIndex, e.filter_save, {
-                            k: "filter_select"
-                        });
-                else if (e.type == "pivotTable_change")
-                    h.luckysheetfile[K(e.sheetIndex)].pivotTable = e.pivotTablecur,
-                        Be.getCellData(e.sheetIndex),
-                        Be.initialPivotManage(!0),
-                        Be.refreshPivotTable();
-                else if (e.type == "addSheet")
-                    ve.createSheetbydata(e.sheetconfig),
-                        $("#luckysheet-input-box").removeAttr("style"),
-                        $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
-                else if (e.type == "copySheet")
-                    ve.copySheet(e.copyindex);
-                else if (e.type == "deleteSheet")
-                    ve.deleteSheet(e.index),
-                        e.order == 0 ? ve.changeSheetExec(h.luckysheetfile[0].index) : ve.changeSheetExec(h.luckysheetfile[e.order - 1].index),
-                        $("#luckysheet-input-box").removeAttr("style"),
-                        $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
-                else if (e.type == "sheetName")
-                    h.luckysheetfile[K(e.sheetIndex)].name = e.txt,
-                        $("#luckysheet-sheets-item" + e.sheetIndex).find(".luckysheet-sheets-item-name").html(e.txt),
-                        ne.saveParam("all", e.sheetIndex, e.txt, {
-                            k: "name"
-                        });
-                else if (e.type == "sheetColor") {
-                    h.luckysheetfile[K(e.sheetIndex)].color = e.color;
-                    let n = $("#luckysheet-sheets-item" + e.sheetIndex);
-                    n.find(".luckysheet-sheets-item-color").remove(),
-                        e.color != null && n.append('<div class="luckysheet-sheets-item-color" style=" position: absolute; width: 100%; height: 3px; bottom: 0px; left: 0px; background-color: ' + e.color + ';"></div>'),
-                        ne.saveParam("all", e.sheetIndex, e.color, {
-                            k: "color"
-                        })
-                } else if (e.type == "mergeChange") {
-                    let n = {
-                        cfg: e.curConfig,
-                        calc: e.curCalc,
-                        hyperlink: e.curHyperlink
-                    };
-                    Ye(e.curData, e.range, n)
-                } else if (e.type == "updateDataVerification")
-                    Xe.ref(e.historyDataVerification, e.currentDataVerification, e.sheetIndex);
-                else if (e.type == "updateDataVerificationOfCheckbox")
-                    Xe.refOfCheckbox(e.historyDataVerification, e.currentDataVerification, e.sheetIndex, e.curData, e.range);
-                else if (e.type == "updateHyperlink")
-                    Cl.ref(e.historyHyperlink, e.currentHyperlink, e.sheetIndex, e.curData, e.range);
-                else if (e.type == "updateCF") {
-                    let n = e.data.currentRules;
-                    for (let t = 0; t < n.length; t++) {
-                        let l = n[t].sheetIndex;
-                        h.luckysheetfile[K(l)].luckysheet_conditionformat_save = n[t].luckysheet_conditionformat_save,
-                            ne.allowUpdate && ne.saveParam("all", l, n[t].luckysheet_conditionformat_save, {
-                                k: "luckysheet_conditionformat_save"
-                            })
-                    }
-                    $e.ref()
-                } else if (e.type == "updateAF") {
-                    let n = e.data.currentRules
-                        , t = K(e.sheetIndex);
-                    h.luckysheetfile[t].luckysheet_alternateformat_save = $.extend(!0, [], n),
-                        setTimeout(function () {
-                            He()
-                        }, 1)
-                } else if (e.type == "borderChange")
-                    ne.saveParam("cg", e.sheetIndex, e.curconfig.borderInfo, {
-                        k: "borderInfo"
-                    }),
-                        h.config = e.curconfig,
-                        h.luckysheetfile[K(e.sheetIndex)].config = h.config,
-                        setTimeout(function () {
-                            He()
-                        }, 1);
-                else if (e.type == "postil") {
-                    Ve.ref(e.curdata, e.rc);
-                    for (let n = 0; n < e.rc.length; n++) {
-                        let t = e.rc[n].split("_")[0]
-                            , l = e.rc[n].split("_")[1];
-                        e.curdata[t][l] != null && e.curdata[t][l].ps != null ? Ve.buildPs(t, l, e.curdata[t][l].ps) : Ve.buildPs(t, l, null)
-                    }
-                } else
-                    e.type == "imageCtrl" ? (Re.images = $.extend(!0, {}, e.curImages),
-                        Re.allImagesShow(),
-                        Re.ref()) : e.type == "zoomChange" && (h.zoomRatio = e.curZoomRatio,
-                            ne.saveParam("all", e.currentSheetIndex, e.curZoomRatio, {
-                                k: "zoomRatio"
-                            }),
-                            ar(),
-                            Wa());
-                e.range && (h.luckysheet_select_save = e.range,
-                    tt()),
-                    h.clearjfundo = !0
-            }
-
-
-
-
-    function Ye(e, n, t, l = !0, a = !0, bulkupdate = false, oldData = undefined) {
-        e == null && (e = h.flowdata),
-            n == null && (n = h.luckysheet_select_save),
-            n = JSON.parse(JSON.stringify(n)),
-            clearTimeout(Rr),
-            t == null && (t = {});
-        let o = t.cfg
-            , s = t.calc
-            , u = t.RowlChange
-            , d = t.cdformat
-            , f = t.dataVerification
-            , m = t.dynamicArray
-            , g = t.hyperlink
-            , y = h.luckysheetfile[K(h.currentSheetIndex)];
-        if (h.clearjfundo && !bulkupdate) {
-            h.jfundo.length = 0;
-
-            // Fast clone helpers
-            const clone = (v) => {
-                if (typeof structuredClone === 'function') {
-                    try { return structuredClone(v); } catch { }
-                }
-                return JSON.parse(JSON.stringify(v));
-            };
-            const cloneItems = (arr) =>
-                Array.isArray(arr) ? arr.map(x => (x && typeof x === 'object') ? { ...x } : x) : [];
-
-            let v;
-            o == null ? v = clone(h.config) : v = clone(o);
-
-            let k;
-            d == null ? k = cloneItems(y.luckysheet_conditionformat_save) : k = cloneItems(d);
-
-            let b;
-            f == null ? b = clone(y.dataVerification || {}) : b = clone(f);
-
-            let w;
-            m == null ? w = cloneItems(y.dynamicArray) : w = cloneItems(m);
-
-            h.jfredo.push({
-                type: "datachange",
-
-                // MUST clone for correct undo
-                data: clone(h.flowdata),
-                curdata: clone(e),
-
-                sheetIndex: h.currentSheetIndex,
-
-                // Configs
-                config: clone(h.config),
-                curConfig: v,
-
-                // Arrays-of-objects: fast & safe (per-item shallow clone)
-                calc: cloneItems(y.calcChain || []),
-                // calc: clone(y.calcChain || []), // use this if you KNOW items mutate deeply later
-
-                curCalc: clone(s),
-
-                cdformat: cloneItems(y.luckysheet_conditionformat_save || []),
-                // cdformat: clone(y.luckysheet_conditionformat_save || []),
-
-                curCdformat: k,
-
-                RowlChange: clone(u),
-
-                // Clone as OBJECT (fixed: {} not [])
-                dataVerification: clone(y.dataVerification || {}),
-                curDataVerification: b,
-
-                dynamicArray: cloneItems(y.dynamicArray || []),
-                // dynamicArray: clone(y.dynamicArray || []),
-
-                curDynamicArray: w,
-
-                // Include only if present
-                ...(g ? { hyperlink: clone(y.hyperlink) } : {}),
-                curHyperlink: clone(g),
-
-                range: clone(n),
-                dataRange: (y.luckysheet_select_save || []).slice()
-            });
-
-            // Optional: cap the stack
-            const UNDO_LIMIT = 5;
-            if (h.jfredo.length > UNDO_LIMIT) {
-                const removed = h.jfredo.shift();
-                Object.keys(removed).forEach(k => removed[k] = null);
             }
         }
 
-        h.flowdata = e,
-            we.webWorkerFlowDataCache(h.flowdata),
-            y.data = h.flowdata,
-            o != null && (h.config = o,
-                y.config = h.config,
-                ne.saveParam("all", h.currentSheetIndex, o, {
-                    k: "config"
-                }),
-                u != null && Ct(h.flowdata.length, h.flowdata[0].length)),
-            s != null && (y.calcChain = s,
-                ne.saveParam("all", h.currentSheetIndex, s, {
-                    k: "calcChain"
-                })),
-            d != null && d.length !== 0 && (y.luckysheet_conditionformat_save = d,
-                ne.saveParam("all", h.currentSheetIndex, d, {
-                    k: "luckysheet_conditionformat_save"
-                })),
-            f != null && Object.keys(f).length !== 0 && (Xe.dataVerification = f,
-                y.dataVerification = f,
-                ne.saveParam("all", h.currentSheetIndex, f, {
-                    k: "dataVerification"
-                })),
-            m != null && (y.dynamicArray = m,
-                ne.saveParam("all", h.currentSheetIndex, m, {
-                    k: "dynamicArray"
-                })),
-            g != null && (y.hyperlink = g,
-                Cl.hyperlink = g,
-                ne.saveParam("all", h.currentSheetIndex, g, {
-                    k: "hyperlink"
-                }));
-        for (let v = 0; v < n.length; v++) {
-            let k = n[v].row[0]
-                , b = n[v].column[0];
-            if (h.flowdata[k][b] != null && h.flowdata[k][b].spl != null) {
-                window.luckysheetCurrentRow = k,
-                    window.luckysheetCurrentColumn = b,
-                    window.luckysheetCurrentFunction = h.flowdata[k][b].f;
-                let w = $.trim(p.functionParserExe(h.flowdata[k][b].f))
-                    , x = new Function("return " + w)();
-                h.flowdata[k][b].spl = x
-            }
-            ne.allowUpdate && ne.historyParam(h.flowdata, h.currentSheetIndex, n[v]),
-                typeof h.chartparam.jfrefreshchartall == "function" && h.chartparam.jfrefreshchartall(h.flowdata, n[v].row[0], n[v].row[1], n[v].column[0], n[v].column[1])
+        h.jfredo.push({
+            type: "datachange",
+            sheetIndex: h.currentSheetIndex,
+
+            // store only diff
+            diff: changedData,
+
+            config: o || h.config,
+            curConfig: o || h.config,
+
+            calc: s || y.calcChain,
+            curCalc: s,
+
+            cdformat: d || y.luckysheet_conditionformat_save,
+            curCdformat: d,
+
+            dataVerification: f || y.dataVerification,
+            curDataVerification: f,
+
+            dynamicArray: m || y.dynamicArray,
+            curDynamicArray: m,
+
+            hyperlink: g || y.hyperlink,
+            curHyperlink: g,
+
+            range: n
+        });
+
+        // Limit undo stack
+        const UNDO_LIMIT = 3; // reduced further
+        if (h.jfredo.length > UNDO_LIMIT) {
+            h.jfredo.shift();
         }
-        l && gc(n, h.currentSheetIndex, e, oldData),
-            a && (Rr = setTimeout(function () {
-                He()
-            }, 1)),
-            tt(),
-            window.luckysheet_getcelldata_cache = null
     }
 
-Getting out of memory exception. Will try to resolve step by step please analysis given method and provide revised implementaion of Ye method dont change method defination
+    // ✅ APPLY DATA (NO CLONE)
+    h.flowdata = e;
+    y.data = h.flowdata;
+
+    // Config updates (only if changed)
+    if (o) {
+        h.config = o;
+        y.config = o;
+        ne.saveParam("all", h.currentSheetIndex, o, { k: "config" });
+
+        if (u) {
+            Ct(h.flowdata.length, h.flowdata[0].length);
+        }
+    }
+
+    if (s) {
+        y.calcChain = s;
+        ne.saveParam("all", h.currentSheetIndex, s, { k: "calcChain" });
+    }
+
+    if (d && d.length) {
+        y.luckysheet_conditionformat_save = d;
+        ne.saveParam("all", h.currentSheetIndex, d, { k: "luckysheet_conditionformat_save" });
+    }
+
+    if (f && Object.keys(f).length) {
+        Xe.dataVerification = f;
+        y.dataVerification = f;
+        ne.saveParam("all", h.currentSheetIndex, f, { k: "dataVerification" });
+    }
+
+    if (m) {
+        y.dynamicArray = m;
+        ne.saveParam("all", h.currentSheetIndex, m, { k: "dynamicArray" });
+    }
+
+    if (g) {
+        y.hyperlink = g;
+        Cl.hyperlink = g;
+        ne.saveParam("all", h.currentSheetIndex, g, { k: "hyperlink" });
+    }
+
+    // 🔁 Recalculate only affected cells
+    for (let i = 0; i < n.length; i++) {
+        let r = n[i].row[0];
+        let c = n[i].column[0];
+
+        let cell = h.flowdata[r]?.[c];
+
+        if (cell && cell.spl && cell.f) {
+            try {
+                window.luckysheetCurrentRow = r;
+                window.luckysheetCurrentColumn = c;
+                window.luckysheetCurrentFunction = cell.f;
+
+                let parsed = $.trim(p.functionParserExe(cell.f));
+                cell.spl = new Function("return " + parsed)();
+            } catch (err) {
+                console.error("Formula error:", err);
+            }
+        }
+
+        if (ne.allowUpdate) {
+            ne.historyParam(h.flowdata, h.currentSheetIndex, n[i]);
+        }
+
+        if (typeof h.chartparam.jfrefreshchartall === "function") {
+            h.chartparam.jfrefreshchartall(
+                h.flowdata,
+                n[i].row[0],
+                n[i].row[1],
+                n[i].column[0],
+                n[i].column[1]
+            );
+        }
+    }
+
+    if (l) {
+        gc(n, h.currentSheetIndex, e, oldData);
+    }
+
+    if (a) {
+        Rr = setTimeout(() => He(), 1);
+    }
+
+    tt();
+    window.luckysheet_getcelldata_cache = null;
+}
