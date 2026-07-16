@@ -1,15 +1,15 @@
-# Digital Resource Planning (Digital RP)
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
+    <script src="~/lib/toastr/toastr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.js"></script>
+    <script src="~/lib/luckysheet/js/plugin.js"></script>
+    <script src="@Url.Content($"~/lib/luckysheet/js/luckysheet.umd.{ViewBag.LuckysheetVersion}.js")" asp-append-version="true"></script>
 
-| **Capability**                            | **Description**                                                                                                                                                                             |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **In-House Digital Planning Platform**    | Enterprise-grade, fully in-house solution with an intuitive spreadsheet-like interface, enabling users to create and manage customized resource plans without relying on Excel.             |
-| **Centralized Resource Planning**         | Create, maintain, and manage workforce plans directly within the portal, ensuring better governance, collaboration, and data consistency.                                                   |
-| **Auto Recovery & Data Protection**       | Automatically recovers unsaved changes during unexpected interruptions, minimizing the risk of data loss.                                                                                   |
-| **Version Management**                    | Create multiple planning versions, clone existing plans, compare scenarios, control version visibility, and access any version instantly.                                                   |
-| **Template-Based Plan Creation**          | Quickly onboard new Lines of Business (LOBs) using standardized FTE and Transaction templates with built-in business formulas and calculations.                                             |
-| **Executive Staffing Dashboard**          | Real-time visibility into key workforce metrics, including FTE Required, FTE Available, Staffing Gap, Delta, and overall staffing health.                                                   |
-| **Interactive Analytics & Visualization** | Graphical dashboards provide insights into planned vs. actual Volumes, Shrinkage, Attrition, and other workforce metrics, with cross-LOB comparison capabilities.                           |
-| **Scenario Comparison**                   | Compare multiple resource planning versions side-by-side to evaluate business scenarios and support strategic decision-making.                                                              |
-| **Assumption Simulator**                  | Simulate changes to key planning drivers such as Attrition, Shrinkage, and Average Handle Time (AHT) to instantly assess workforce requirements.                                            |
-| **Machine Learning Forecasting**          | Uses time-series forecasting and historical trends to predict future workforce assumptions and improve planning accuracy.                                                                   |
-| **AI Recommendations & Risk Alerts**      | Continuously analyzes planning data, identifies gaps between planned and actual performance, highlights potential risks, and recommends mitigation actions to improve operational outcomes. |
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
+    <link href="~/lib/toastr/toastr.css" rel="stylesheet" />
+    <link href="~/lib/luckysheet/css/pluginscss.css" rel="stylesheet" />
+    <link href="~/lib/luckysheet/css/plugins.css" rel="stylesheet" />
+    <link href="~/lib/luckysheet/css/luckysheet.css" rel="stylesheet"  asp-append-version="true"/>
+    <link href="~/lib/luckysheet/css/iconfont.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script src="~/lib/luckysheet/js/jquery-3.7.1.min.js"></script>
