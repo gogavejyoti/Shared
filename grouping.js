@@ -322,7 +322,6 @@ var GroupManager = (function () {
       width: panelWidth + "px",
       height: cellMainRect.height + "px",
       zIndex: 200,
-      pointerEvents: "auto",
       overflow: "hidden",
     });
 
@@ -434,7 +433,6 @@ var GroupManager = (function () {
       width: cellMainRect.width + "px",
       height: panelHeight + "px",
       zIndex: 200,
-      pointerEvents: "auto",
       overflow: "hidden",
     });
 
