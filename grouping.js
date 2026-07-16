@@ -552,9 +552,28 @@ var GroupManager = (function () {
     _panelCol = $panel;
   }
 
+  var _configSynced = false;
+
   /* ---------- refresh ---------- */
   function refresh() {
-    _applyConfig();
+    if (!_configSynced) {
+      var sheet = _getSheet();
+      if (sheet) {
+        var rowGroups = _getGroups(sheet, "row");
+        var colGroups = _getGroups(sheet, "column");
+        var hasCollapsed = false;
+        for (var i = 0; i < rowGroups.length; i++) {
+          if (rowGroups[i].collapsed) { hasCollapsed = true; break; }
+        }
+        if (!hasCollapsed) {
+          for (var i = 0; i < colGroups.length; i++) {
+            if (colGroups[i].collapsed) { hasCollapsed = true; break; }
+          }
+        }
+        if (hasCollapsed) _applyConfig();
+      }
+      _configSynced = true;
+    }
     _renderPanel("row");
     _renderPanel("column");
   }
