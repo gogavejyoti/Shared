@@ -160,13 +160,17 @@ var GroupManager = (function () {
   }
 
   /* ---------- collapse / expand ---------- */
-  function toggleGroup(type, index) {
+  function toggleGroup(type, start, end) {
     var sheet = _getSheet();
     if (!sheet) return;
     var groups = _getGroups(sheet, type);
-    if (index < 0 || index >= groups.length) return;
 
-    groups[index].collapsed = !groups[index].collapsed;
+    for (var i = 0; i < groups.length; i++) {
+      if (groups[i].start === start && groups[i].end === end) {
+        groups[i].collapsed = !groups[i].collapsed;
+        break;
+      }
+    }
     _setGroups(sheet, type, groups);
     _applyConfig();
     _renderPanel(type);
@@ -374,17 +378,23 @@ var GroupManager = (function () {
       transition: "transform 80ms linear",
     });
 
+    var maxLv = _maxLevel(sorted);
+    var levelOffset = maxLv > 0 ? Math.floor((panelWidth - 4) / (maxLv + 1)) : 0;
+    if (levelOffset < 6) levelOffset = 0;
+
     for (var i = 0; i < sorted.length; i++) {
       var g = sorted[i];
       var topPos = g.start > 0 ? (vis[g.start - 1] || 0) : 0;
       var bottomPos = vis[g.end] || (vis[vis.length - 1] || 800);
       var bracketH = Math.max(bottomPos - topPos, 20);
+      var lv = levelOffset > 0 ? (g.level - 1) : 0;
+      var bracketLeft = lv * levelOffset;
 
       var $bracket = $('<div class="group-bracket"></div>').css({
         position: "absolute",
-        left: "0",
+        left: bracketLeft + "px",
         top: topPos + "px",
-        width: "100%",
+        width: (panelWidth - bracketLeft) + "px",
         height: bracketH + "px",
       });
 
@@ -408,7 +418,7 @@ var GroupManager = (function () {
           "</button>"
       ).css({
         position: "absolute",
-        left: "1px",
+        left: (bracketLeft + 1) + "px",
         bottom: "-7px",
         width: "14px",
         height: "14px",
@@ -425,12 +435,12 @@ var GroupManager = (function () {
         zIndex: 1,
       });
 
-      (function (idx) {
+      (function (gs, ge) {
         $btn.on("click", function (e) {
           e.stopPropagation();
-          toggleGroup("row", idx);
+          toggleGroup("row", gs, ge);
         });
-      })(i);
+      })(g.start, g.end);
 
       $bracket.append($line).append($btn);
       $inner.append($bracket);
@@ -465,6 +475,10 @@ var GroupManager = (function () {
 
     var totalWidth = vis[vis.length - 1] || 1200;
     var panelHeight = 22;
+    var maxLv = _maxLevel(sorted);
+    var levelOffset = maxLv > 0 ? Math.floor((panelHeight - 4) / (maxLv + 1)) : 0;
+    if (levelOffset < 6) levelOffset = 0;
+
     var panelTop = cellMainRect.top - containerRect.top - panelHeight;
 
     var $panel = $('<div class="group-panel group-panel-col"></div>').css({
@@ -490,12 +504,14 @@ var GroupManager = (function () {
       var leftPos = g.start > 0 ? (vis[g.start - 1] || 0) : 0;
       var rightPos = vis[g.end] || (vis[vis.length - 1] || 1200);
       var bracketW = Math.max(rightPos - leftPos, 20);
+      var lv = levelOffset > 0 ? (g.level - 1) : 0;
+      var bracketTop = lv * levelOffset;
 
       var $bracket = $('<div class="group-bracket group-bracket-col"></div>').css({
         position: "absolute",
-        top: "0",
+        top: bracketTop + "px",
         left: leftPos + "px",
-        height: "100%",
+        height: (panelHeight - bracketTop) + "px",
         width: bracketW + "px",
       });
 
@@ -519,7 +535,7 @@ var GroupManager = (function () {
           "</button>"
       ).css({
         position: "absolute",
-        top: "1px",
+        top: (bracketTop + 1) + "px",
         right: "-7px",
         width: "14px",
         height: "14px",
@@ -536,12 +552,12 @@ var GroupManager = (function () {
         zIndex: 1,
       });
 
-      (function (idx) {
+      (function (gs, ge) {
         $btn.on("click", function (e) {
           e.stopPropagation();
-          toggleGroup("column", idx);
+          toggleGroup("column", gs, ge);
         });
-      })(i);
+      })(g.start, g.end);
 
       $bracket.append($line).append($btn);
       $inner.append($bracket);
@@ -556,9 +572,9 @@ var GroupManager = (function () {
 
   /* ---------- refresh ---------- */
   function refresh() {
-    if (!_configSynced) {
-      var sheet = _getSheet();
-      if (sheet) {
+    var sheet = _getSheet();
+    if (sheet) {
+      if (!_configSynced) {
         var rowGroups = _getGroups(sheet, "row");
         var colGroups = _getGroups(sheet, "column");
         var hasCollapsed = false;
@@ -571,8 +587,8 @@ var GroupManager = (function () {
           }
         }
         if (hasCollapsed) _applyConfig();
+        _configSynced = true;
       }
-      _configSynced = true;
     }
     _renderPanel("row");
     _renderPanel("column");
