@@ -764,6 +764,19 @@ var GroupManager = (function () {
       refresh();
     }, 1000);
 
+    /* Hook into luckysheetrefreshgrid so freeze/unfreeze re-renders panels */
+    var _origRefreshGrid = luckysheet.luckysheetrefreshgrid;
+    if (typeof _origRefreshGrid === "function") {
+      luckysheet.luckysheetrefreshgrid = function () {
+        var result = _origRefreshGrid.apply(this, arguments);
+        setTimeout(function () {
+          _attachScroll();
+          refresh();
+        }, 50);
+        return result;
+      };
+    }
+
     /* Sheet switching */
     $(document).on("click", ".luckysheet-sheets-item", function () {
       setTimeout(refresh, 200);
