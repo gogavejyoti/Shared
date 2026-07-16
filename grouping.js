@@ -418,8 +418,8 @@ var GroupManager = (function () {
           "</button>"
       ).css({
         position: "absolute",
-        left: (bracketLeft + 1) + "px",
-        bottom: "-7px",
+        left: "0px",
+        bottom: "-2px",
         width: "14px",
         height: "14px",
         borderRadius: "3px",
@@ -476,7 +476,7 @@ var GroupManager = (function () {
     var totalWidth = vis[vis.length - 1] || 1200;
     var panelHeight = 22;
     var maxLv = _maxLevel(sorted);
-    var levelOffset = maxLv > 0 ? Math.floor((panelHeight - 4) / (maxLv + 1)) : 0;
+    var levelOffset = maxLv > 1 ? Math.floor((panelHeight - 8) / maxLv) : 0;
     if (levelOffset < 6) levelOffset = 0;
 
     var panelTop = cellMainRect.top - containerRect.top - panelHeight;
@@ -535,7 +535,7 @@ var GroupManager = (function () {
           "</button>"
       ).css({
         position: "absolute",
-        top: (bracketTop + 1) + "px",
+        top: "-2px",
         right: "-7px",
         width: "14px",
         height: "14px",
