@@ -554,6 +554,7 @@ var GroupManager = (function () {
 
   /* ---------- refresh ---------- */
   function refresh() {
+    _applyConfig();
     _renderPanel("row");
     _renderPanel("column");
   }
