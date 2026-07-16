@@ -283,6 +283,47 @@ var GroupManager = (function () {
     _renderPanel(type);
   }
 
+  function removeGroupsForSelection(type) {
+    var sheet = _getSheet();
+    if (!sheet) return;
+
+    var sel;
+    try {
+      sel = luckysheet.getluckysheet_select_save();
+    } catch (e) {
+      return;
+    }
+    if (!sel || !sel.length) return;
+
+    var range = sel[0];
+    var selStart, selEnd;
+    if (type === "row") {
+      selStart = range.row[0];
+      selEnd = range.row[1];
+    } else {
+      selStart = range.column[0];
+      selEnd = range.column[1];
+    }
+    if (selStart == null || selEnd == null) return;
+
+    var groups = _getGroups(sheet, type);
+    var remaining = [];
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i];
+      var overlaps = g.start <= selEnd && g.end >= selStart;
+      if (overlaps && g.collapsed) {
+        _clearHiddenRange(type, g.start, g.end);
+      }
+      if (!overlaps) {
+        remaining.push(g);
+      }
+    }
+
+    _setGroups(sheet, type, remaining);
+    _applyConfig();
+    _renderPanel(type);
+  }
+
   /* ---------- render indicator panels ---------- */
   function _renderPanel(type) {
     if (type === "row") _renderRowPanel();
@@ -577,12 +618,12 @@ var GroupManager = (function () {
       .on("mousedown.groupItems", "#ungroup-rows-item", function (e) {
         e.stopPropagation();
         _hideMenu();
-        setTimeout(function () { removeAllGroups("row"); }, 10);
+        setTimeout(function () { removeGroupsForSelection("row"); }, 10);
       })
       .on("mousedown.groupItems", "#ungroup-cols-item", function (e) {
         e.stopPropagation();
         _hideMenu();
-        setTimeout(function () { removeAllGroups("column"); }, 10);
+        setTimeout(function () { removeGroupsForSelection("column"); }, 10);
       })
       .on("mousedown.groupItems", "#collapse-all-item", function (e) {
         e.stopPropagation();
@@ -653,7 +694,7 @@ var GroupManager = (function () {
 
     $(document).on("click", "#ungroup-toolbar-btn", function () {
       var type = $("#group-type-select").val() || "row";
-      removeAllGroups(type);
+      removeGroupsForSelection(type);
     });
 
     _toolbarInjected = true;
@@ -727,6 +768,7 @@ var GroupManager = (function () {
     createGroup: createGroup,
     removeGroup: removeGroup,
     removeAllGroups: removeAllGroups,
+    removeGroupsForSelection: removeGroupsForSelection,
     collapseAll: collapseAll,
     expandAll: expandAll,
     refresh: refresh,
