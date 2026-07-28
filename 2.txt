@@ -1,92 +1,45 @@
-DP14=(DP10*DP80)/((1-DP102)*DP87*DP90*DP93*60)
-
-.group-panel {
-  pointer-events: none;
-  user-select: none;
-}
-
-.group-panel-row {
-  background: linear-gradient(90deg, #F8FAFC 0%, transparent 100%);
-  border-right: 1px solid #E2E8F0;
-}
-
-.group-panel-col {
-  background: linear-gradient(180deg, #F8FAFC 0%, transparent 100%);
-  border-bottom: 1px solid #E2E8F0;
-}
-
-.group-bracket {
-  cursor: default;
-  z-index: 10;
-  pointer-events: none;
-}
-
-.group-bracket-line {
-  pointer-events: auto;
-}
-
-.group-btn {
-  pointer-events: auto;
-}
-
-.group-bracket:hover .group-bracket-line {
-  background: #6366F1 !important;
-}
-
-.group-bracket:hover .group-btn {
-  border-color: #6366F1;
-  color: #6366F1;
-  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.25);
-}
-
-.group-btn {
-  transition: all 120ms ease;
-}
-
-.group-btn:hover {
-  background: #EEF2FF !important;
-  border-color: #6366F1 !important;
-  color: #4F46E5 !important;
-  transform: scale(1.1);
-}
-
-.group-btn:active {
-  transform: scale(0.95);
-}
-
-/* Context menu group items */
-#luckysheet-rightclick-menu #group-rows-item,
-#luckysheet-rightclick-menu #group-cols-item,
-#luckysheet-rightclick-menu #ungroup-rows-item,
-#luckysheet-rightclick-menu #ungroup-cols-item,
-#luckysheet-rightclick-menu #collapse-all-item,
-#luckysheet-rightclick-menu #expand-all-item {
-  display: block;
-}
-
-/* Dark mode adjustments for group indicators */
-.dark-mode .group-panel-row {
-  background: linear-gradient(90deg, #1E293B 0%, transparent 100%);
-  border-right-color: #334155;
-}
-
-.dark-mode .group-panel-col {
-  background: linear-gradient(180deg, #1E293B 0%, transparent 100%);
-  border-bottom-color: #334155;
-}
-
-.dark-mode .group-bracket-line {
-  background: #475569 !important;
-}
-
-.dark-mode .group-btn {
-  background: #1E293B !important;
-  border-color: #475569 !important;
-  color: #94A3B8 !important;
-}
-
-.dark-mode .group-btn:hover {
-  background: #312E81 !important;
-  border-color: #818CF8 !important;
-  color: #C7D2FE !important;
-}
+#
+Practice Area
+Source System
+Data Required
+Description (What Exactly We're Asking For)
+Why We Need It
+Analytical Output It Enables
+Pre-Visit Essentiality
+Priority
+4
+Scheduling Operations
+Five9
+Call metadata (mix, arrival, repeat)
+Call detail records for last 90 - 180 days: call type (skill/queue), disposition, ANI-based repeat-contact flag, arrival timestamp, handle time, transfer count. Aggregate acceptable if raw not feasible.
+This is the foundational dataset — drives call-mix analysis, deflection sizing, WFM validation, and repeat-contact root cause. Without it, most other analyses cannot start.
+Call-mix Pareto by call type; hourly/daily arrival curves; repeat-contact rate by call type; deflection opportunity sizing.
+Essential Pre-Visit
+High
+5
+Scheduling Operations
+Five9 / Salesforce
+High-repeat-contact case log
+Anonymized log of patients who contacted 5+ times on a single appointment/booking in the last 90 days: contact timestamps, dispositions, agent notes if available, final resolution status.
+Scheduling was named the #1 pain point on July 1 — "a patient calling 15 times and still not scheduled" was cited as a live example. We need actual cases, not just aggregates, to diagnose root cause.
+Root-cause pattern extraction (insurance? code issue? no availability?); case studies for the site visit deep dive.
+Essential Pre-Visit
+High
+17
+Workforce Management (WFM)
+WFM Platform
+Forecast accuracy vs. actual
+Forecast vs. actual call volume and staffing for last 6 months at day and 30-min interval level. Include forecast-generation methodology (top-down? bottom-up? ML?).
+Explicitly requested as a near-term action item: "conduct a WFM forecasting review — benchmark current forecasting accuracy and staffing utilization." This is one of the highest-leverage analyses we can do pre-visit.
+MAPE by day/interval; over-staffing hours / under-staffing hours per week; potential FTE savings.
+Essential Pre-Visit
+High
+18
+Workforce Management (WFM)
+WFM Platform
+Schedules, occupancy, shrinkage
+Actual schedules, occupancy %, shrinkage, and adherence for last 3 months. Interval-level preferred; aggregate acceptable.
+Baseline current staffing efficiency; identify occupancy improvement opportunity.
+Occupancy by team/site; shrinkage decomposition; utilization improvement sizing.
+Essential Pre-Visit
+High
