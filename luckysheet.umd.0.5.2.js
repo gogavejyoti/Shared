@@ -5383,6 +5383,7 @@ If the value is FALSE, return the accrued interest from the first interest accru
                 moreFunction: "More functions",
                 conditionalFormat: "Conditional format",
                 postil: "Comment",
+                breakFormula: "Remove Formula",
                 pivotTable: "Pivot Table",
                 chart: "Chart",
                 screenshot: "Screenshot",
@@ -12094,6 +12095,7 @@ field \u53EF\u4EE5\u662F\u4E0E database \u7B2C\u4E00\u884C\u4E2D\u67D0\u4E2A\u52
                 moreFunction: "\u66F4\u591A\u51FD\u6570",
                 conditionalFormat: "\u6761\u4EF6\u683C\u5F0F",
                 postil: "\u6279\u6CE8",
+                breakFormula: "Remove Formula",
                 pivotTable: "\u6570\u636E\u900F\u89C6\u8868",
                 chart: "\u56FE\u8868",
                 screenshot: "\u622A\u56FE",
@@ -17904,6 +17906,7 @@ If the value is FALSE, return the accrued interest from the first interest accru
                 moreFunction: "M\xE1s funciones",
                 conditionalFormat: "Formato condicional",
                 postil: "Comentario",
+                breakFormula: "Remove Formula",
                 pivotTable: "Tabla Din\xE1mica",
                 chart: "Gr\xE1fica",
                 screenshot: "Captura de pantalla",
@@ -24515,6 +24518,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 moreFunction: "\u66F4\u591A\u51FD\u6578",
                 conditionalFormat: "\u689D\u4EF6\u683C\u5F0F",
                 postil: "\u6279\u8A3B",
+                breakFormula: "Remove Formula",
                 pivotTable: "\u6578\u64DA\u900F\u8996\u9336",
                 chart: "\u5716\u8868",
                 screenshot: "\u622A\u5716",
@@ -26220,6 +26224,18 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 </div>
             </div>
         </div>`,
+                breakFormula: `<div class="luckysheet-toolbar-button luckysheet-inline-block" data-tips="${e.breakFormula}"
+        id="luckysheet-icon-breakformula" role="button" style="user-select: none;">
+            <div class="luckysheet-toolbar-button-outer-box luckysheet-inline-block"
+            style="user-select: none;">
+                <div class="luckysheet-toolbar-button-inner-box luckysheet-inline-block"
+                style="user-select: none;">
+                    <div class="luckysheet-icon luckysheet-inline-block " style="user-select: none;">
+                        <i class="fa fa-magic" style="font-size:13px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>`,
                 postil: `<div class="luckysheet-toolbar-select luckysheet-toolbar-menu-button luckysheet-inline-block" data-tips="${e.postil}"
         id="luckysheet-icon-postil" role="button" style="user-select: none;">
             <div class="luckysheet-toolbar-menu-button-outer-box luckysheet-inline-block"
@@ -26235,7 +26251,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 </div>
             </div>
         </div>`,
-                pivotTable: `<div class="luckysheet-toolbar-button-split-left luckysheet-toolbar-button luckysheet-inline-block"
+        pivotTable: `<div class="luckysheet-toolbar-button-split-left luckysheet-toolbar-button luckysheet-inline-block"
         data-tips="${e.pivotTable}" id="luckysheet-pivot-btn-title" role="button" style="user-select: none;display:none;">
             <div class="luckysheet-toolbar-button-outer-box luckysheet-inline-block"
             style="user-select: none;">
@@ -26514,7 +26530,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
         vt();
         Sl();
         ht();
-        Mr = ["undo", "redo", "paintFormat", "|", "currencyFormat", "percentageFormat", "excelExport", "numberIncrease", "numberDecrease", "moreFormats", "|", "font", "|", "fontSize", "|", "bold", "italic", "strikethrough", "underline", "textColor", "|", "fillColor", "border", "mergeCell", "|", "horizontalAlignMode", "verticalAlignMode", "textWrapMode", "textRotateMode", "|", "image", "link", "chart", "postil", "pivotTable", "|", "function", "frozenMode", "sortAndFilter", "conditionalFormat", "dataVerification", "splitColumn", "screenshot", "findAndReplace", "protection", "print", "exportXlsx"],
+        Mr = ["undo", "redo", "paintFormat", "|", "currencyFormat", "percentageFormat", "excelExport", "numberIncrease", "numberDecrease", "moreFormats", "|", "font", "|", "fontSize", "|", "bold", "italic", "strikethrough", "underline", "textColor", "|", "fillColor", "border", "mergeCell", "|", "horizontalAlignMode", "verticalAlignMode", "textWrapMode", "textRotateMode", "|", "image", "link", "chart", "breakFormula", "postil", "pivotTable", "|", "function", "frozenMode", "sortAndFilter", "conditionalFormat", "dataVerification", "splitColumn", "screenshot", "findAndReplace", "protection", "print", "exportXlsx"],
             ns = {
                 undo: "#luckysheet-icon-undo",
                 redo: "#luckysheet-icon-redo",
@@ -26543,6 +26559,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 link: "#luckysheet-insertLink-btn-title",
                 chart: "#luckysheet-chart-btn-title",
                 postil: "#luckysheet-icon-postil",
+                breakFormula: "#luckysheet-icon-breakformula",
                 pivotTable: ["#luckysheet-pivot-btn-title"],
                 function: ["#luckysheet-icon-function", "#luckysheet-icon-function-menu"],
                 frozenMode: ["#luckysheet-freezen-btn-horizontal", "#luckysheet-icon-freezen-menu"],
@@ -35850,7 +35867,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                     l && $("#luckysheet-scrollbar-y").scrollTop(S)),
             clearTimeout(h.countfuncTimeout),
             wl(),
-            ne.saveParam("mv", h.currentSheetIndex, h.luckysheet_select_save)
+            ne.saveParam("mv", h.currentSheetIndex, h.luckysheet_select_save),
+	    W.scrollFreezen()
     }
     function aa(e, n, t) {
         t || (t = !0);
@@ -35976,7 +35994,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20,
                     t && $("#luckysheet-scrollbar-y").scrollTop(y)),
             clearTimeout(h.countfuncTimeout),
-            wl()
+            wl(),
+	    W.scrollFreezen()
     }
     function Pn(e, n, t, l) {
         l == null && (l = !0),
@@ -36135,7 +36154,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 l && $("#luckysheet-scrollbar-y").scrollTop(v)) : o - f - 20 < 0 && (v = o - 20,
                     l && $("#luckysheet-scrollbar-y").scrollTop(v)),
             clearTimeout(h.countfuncTimeout),
-            wl()
+            wl(),
+	    W.scrollFreezen()
     }
     function an(e, n, t) {
         t || (t = !0);
@@ -36301,7 +36321,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20,
                     t && $("#luckysheet-scrollbar-y").scrollTop(y)),
             clearTimeout(h.countfuncTimeout),
-            wl()
+            wl(),
+	    W.scrollFreezen()
     }
     function Ol(e, n, t) {
         let l = !1;
@@ -78995,6 +79016,68 @@ parseDateToSerial: function (input) {
                                     }
                                 }
                                 autoFitColumns(ws);
+
+				// ✅ FINAL FIX FOR YOUR BORDER FORMAT
+                                if (sheet.config?.borderInfo) {
+
+                                    sheet.config.borderInfo.forEach(item => {
+
+                                        const v = item.value;
+                                        if (!v) return;
+
+                                        const r = v.row_index;
+                                        const c = v.col_index;
+
+                                        // Skip invalid
+                                        if (r == null || c == null) return;
+
+                                        const cell = ws.getCell(r + 1, c + 1);
+
+                                        let border = {};
+
+                                        // ✅ Map Luckysheet style → ExcelJS
+                                        function getStyle(obj) {
+                                            if (!obj || !obj.color) return undefined;
+
+                                            const styleMap = {
+                                                1: 'thin',
+                                                2: 'hair',
+                                                3: 'dotted',
+                                                4: 'dashDot',
+                                                5: 'dashDotDot',
+                                                6: 'dashed',
+                                                7: 'mediumDashed',
+                                                8: 'mediumDashDot',
+                                                9: 'mediumDashDotDot',
+                                                10: 'slantDashDot',
+                                                11: 'medium',
+                                                12: 'thick'
+                                            };
+
+                                            return {
+                                                style: styleMap[obj.style] || 'thin',
+                                                color: { argb: hexToARGB(obj.color) }
+                                            };
+                                        }
+
+                                        // ✅ Apply all sides
+                                        const top = getStyle(v.t);
+                                        const bottom = getStyle(v.b);
+                                        const left = getStyle(v.l);
+                                        const right = getStyle(v.r);
+
+                                        if (top) border.top = top;
+                                        if (bottom) border.bottom = bottom;
+                                        if (left) border.left = left;
+                                        if (right) border.right = right;
+
+                                        // ✅ Apply ONLY if exists
+                                        if (Object.keys(border).length > 0) {
+                                            cell.border = border;
+                                        }
+
+                                    });
+                                }
                                 // 🔹 Conditional Formatting (FINAL PRODUCTION FIX)
                                 if (sheet.luckysheet_conditionformat_save) {
 
@@ -80402,7 +80485,7 @@ parseDateToSerial: function (input) {
                                             , w = ot(h.visibledatarow, b)
                                             , x = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
                                             , C = x.row_focus == null ? x.row[0] : x.row_focus;
-                                        w = Math.max(w - 1, C - 1, 0);
+                                        w = Math.max(w - 1, C, 0);
                                         let S, _;
                                         W.freezenRealFirstRowColumn ? (S = h.visibledatarow[w] - 2 + h.columnHeaderHeight,
                                             _ = [h.visibledatarow[w], w + 1, 0, W.cutVolumn(h.visibledatarow, w + 1), S]) : (S = h.visibledatarow[w] - 2 - b + h.columnHeaderHeight,
@@ -80426,7 +80509,7 @@ parseDateToSerial: function (input) {
                                             , w = ot(h.visibledatacolumn, b)
                                             , x = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
                                             , C = x.column_focus == null ? x.column[0] : x.column_focus;
-                                        w = Math.max(w - 1, C - 1, 0);
+                                        w = Math.max(w - 1, C, 0);
                                         let S, _;
                                         W.freezenRealFirstRowColumn ? (S = h.visibledatacolumn[w] - 2 + h.rowHeaderWidth,
                                             _ = [h.visibledatacolumn[w], w + 1, 0, W.cutVolumn(h.visibledatacolumn, w + 1), S]) : (S = h.visibledatacolumn[w] - 2 - b + h.rowHeaderWidth,
@@ -80451,7 +80534,7 @@ parseDateToSerial: function (input) {
                                             , x = ot(h.visibledatarow, w)
                                             , C = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
                                             , S = C.row_focus == null ? C.row[0] : C.row_focus;
-                                        x = Math.max(x - 1, S - 1, 0);
+                                        x = Math.max(x - 1, S, 0);
                                         let _, T;
                                         W.freezenRealFirstRowColumn ? (_ = h.visibledatarow[x] - 2 + h.columnHeaderHeight,
                                             T = [h.visibledatarow[x], x + 1, 0, W.cutVolumn(h.visibledatarow, x + 1), _],
@@ -80462,7 +80545,7 @@ parseDateToSerial: function (input) {
                                         let A = $("#luckysheet-cell-main").scrollLeft()
                                             , R = ot(h.visibledatacolumn, A)
                                             , I = C.column_focus == null ? C.column[0] : C.column_focus;
-                                        R = Math.max(R - 1, I - 1, 0);
+                                        R = Math.max(R - 1, I, 0);
                                         let F, N;
                                         W.freezenRealFirstRowColumn ? (F = h.visibledatacolumn[R] - 2 + h.rowHeaderWidth,
                                             N = [h.visibledatacolumn[R], R + 1, 0, W.cutVolumn(h.visibledatacolumn, R + 1), F]) : (F = h.visibledatacolumn[R] - 2 - A + h.rowHeaderWidth,
@@ -80756,6 +80839,16 @@ parseDateToSerial: function (input) {
                             , o = Za("bl", 1) ? 0 : 1;
                         e.updateFormat(l, "bl", o)
                     }),
+                    $("#luckysheet-icon-breakformula")
+                        .mousedown(function (t) {
+                            _r(t);
+                            t.stopPropagation();
+                        })
+                        .click(function () {
+                            let flowData = we.deepCopyFlowData(h.flowdata);
+
+                            e.breakFormula(flowData);
+                        }),
                     $("#luckysheet-icon-italic").mousedown(function (t) {
                         _r(t),
                             t.stopPropagation()
@@ -81505,6 +81598,57 @@ parseDateToSerial: function (input) {
                     RowlChange: !0
                 }),
                     Ye(e, h.luckysheet_select_save, u, !1)
+            },
+            breakFormula: function (flow) {
+
+                let removeSet = new Set();
+
+                for (let d = 0; d < h.luckysheet_select_save.length; d++) {
+
+                    let r1 = h.luckysheet_select_save[d].row[0];
+                    let r2 = h.luckysheet_select_save[d].row[1];
+                    let c1 = h.luckysheet_select_save[d].column[0];
+                    let c2 = h.luckysheet_select_save[d].column[1];
+
+                    for (let r = r1; r <= r2; r++) {
+                        for (let c = c1; c <= c2; c++) {
+
+                            let cell = flow[r][c];
+
+                            if (
+                                cell &&
+                                typeof cell === "object" &&
+                                cell.f
+                            ) {
+
+                                removeSet.add(r + ":" + c);
+
+                                const { f, spl, ...clean } = cell;
+
+                                flow[r][c] = {
+                                    ...clean
+                                };
+                            }
+                        }
+                    }
+                }
+
+                // remove calcchain
+               let currentSheet = h.luckysheetfile.find(x => x.index == h.currentSheetIndex);
+
+                if (
+                    currentSheet &&
+                    Array.isArray(currentSheet.calcChain)
+                ) {
+                    currentSheet.calcChain =
+                        currentSheet.calcChain.filter(
+                            item =>
+                                !removeSet.has(
+                                    item.r + ":" + item.c
+                                )
+                        );
+                }
+                Ye(flow, h.luckysheet_select_save, {}, false);
             },
             updateFormat_mc: function (e, n) {
                 var s;
