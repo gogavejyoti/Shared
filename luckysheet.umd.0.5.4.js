@@ -90,7 +90,10 @@ var luckysheet = (() => {
             defaultColWidth: 73,
             defaultRowHeight: 19,
             defaultTextColor: "#000",
-            defaultCellColor: "#fff"
+            defaultCellColor: "#fff",
+            enableDependencyIndexOptimization: !0,
+            validateDependencyIndex: !1,
+            dependencyIndexMaxRefKeys: 5e6
         },
             me = M1
     }
@@ -5383,6 +5386,7 @@ If the value is FALSE, return the accrued interest from the first interest accru
                 moreFunction: "More functions",
                 conditionalFormat: "Conditional format",
                 postil: "Comment",
+                breakFormula: "Remove Formula",
                 pivotTable: "Pivot Table",
                 chart: "Chart",
                 screenshot: "Screenshot",
@@ -12094,6 +12098,7 @@ field \u53EF\u4EE5\u662F\u4E0E database \u7B2C\u4E00\u884C\u4E2D\u67D0\u4E2A\u52
                 moreFunction: "\u66F4\u591A\u51FD\u6570",
                 conditionalFormat: "\u6761\u4EF6\u683C\u5F0F",
                 postil: "\u6279\u6CE8",
+                breakFormula: "Remove Formula",
                 pivotTable: "\u6570\u636E\u900F\u89C6\u8868",
                 chart: "\u56FE\u8868",
                 screenshot: "\u622A\u56FE",
@@ -17904,6 +17909,7 @@ If the value is FALSE, return the accrued interest from the first interest accru
                 moreFunction: "M\xE1s funciones",
                 conditionalFormat: "Formato condicional",
                 postil: "Comentario",
+                breakFormula: "Remove Formula",
                 pivotTable: "Tabla Din\xE1mica",
                 chart: "Gr\xE1fica",
                 screenshot: "Captura de pantalla",
@@ -24515,6 +24521,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 moreFunction: "\u66F4\u591A\u51FD\u6578",
                 conditionalFormat: "\u689D\u4EF6\u683C\u5F0F",
                 postil: "\u6279\u8A3B",
+                breakFormula: "Remove Formula",
                 pivotTable: "\u6578\u64DA\u900F\u8996\u9336",
                 chart: "\u5716\u8868",
                 screenshot: "\u622A\u5716",
@@ -26220,6 +26227,18 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 </div>
             </div>
         </div>`,
+                breakFormula: `<div class="luckysheet-toolbar-button luckysheet-inline-block" data-tips="${e.breakFormula}"
+        id="luckysheet-icon-breakformula" role="button" style="user-select: none;">
+            <div class="luckysheet-toolbar-button-outer-box luckysheet-inline-block"
+            style="user-select: none;">
+                <div class="luckysheet-toolbar-button-inner-box luckysheet-inline-block"
+                style="user-select: none;">
+                    <div class="luckysheet-icon luckysheet-inline-block " style="user-select: none;">
+                        <i class="fa fa-magic" style="font-size:13px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>`,
                 postil: `<div class="luckysheet-toolbar-select luckysheet-toolbar-menu-button luckysheet-inline-block" data-tips="${e.postil}"
         id="luckysheet-icon-postil" role="button" style="user-select: none;">
             <div class="luckysheet-toolbar-menu-button-outer-box luckysheet-inline-block"
@@ -26235,7 +26254,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 </div>
             </div>
         </div>`,
-                pivotTable: `<div class="luckysheet-toolbar-button-split-left luckysheet-toolbar-button luckysheet-inline-block"
+        pivotTable: `<div class="luckysheet-toolbar-button-split-left luckysheet-toolbar-button luckysheet-inline-block"
         data-tips="${e.pivotTable}" id="luckysheet-pivot-btn-title" role="button" style="user-select: none;display:none;">
             <div class="luckysheet-toolbar-button-outer-box luckysheet-inline-block"
             style="user-select: none;">
@@ -26514,7 +26533,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
         vt();
         Sl();
         ht();
-        Mr = ["undo", "redo", "paintFormat", "|", "currencyFormat", "percentageFormat", "excelExport", "numberIncrease", "numberDecrease", "moreFormats", "|", "font", "|", "fontSize", "|", "bold", "italic", "strikethrough", "underline", "textColor", "|", "fillColor", "border", "mergeCell", "|", "horizontalAlignMode", "verticalAlignMode", "textWrapMode", "textRotateMode", "|", "image", "link", "chart", "postil", "pivotTable", "|", "function", "frozenMode", "sortAndFilter", "conditionalFormat", "dataVerification", "splitColumn", "screenshot", "findAndReplace", "protection", "print", "exportXlsx"],
+        Mr = ["undo", "redo", "paintFormat", "|", "currencyFormat", "percentageFormat", "excelExport", "numberIncrease", "numberDecrease", "moreFormats", "|", "font", "|", "fontSize", "|", "bold", "italic", "strikethrough", "underline", "textColor", "|", "fillColor", "border", "mergeCell", "|", "horizontalAlignMode", "verticalAlignMode", "textWrapMode", "textRotateMode", "|", "image", "link", "chart", "breakFormula", "postil", "pivotTable", "|", "function", "frozenMode", "sortAndFilter", "conditionalFormat", "dataVerification", "splitColumn", "screenshot", "findAndReplace", "protection", "print", "exportXlsx"],
             ns = {
                 undo: "#luckysheet-icon-undo",
                 redo: "#luckysheet-icon-redo",
@@ -26543,6 +26562,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 link: "#luckysheet-insertLink-btn-title",
                 chart: "#luckysheet-chart-btn-title",
                 postil: "#luckysheet-icon-postil",
+                breakFormula: "#luckysheet-icon-breakformula",
                 pivotTable: ["#luckysheet-pivot-btn-title"],
                 function: ["#luckysheet-icon-function", "#luckysheet-icon-function-menu"],
                 frozenMode: ["#luckysheet-freezen-btn-horizontal", "#luckysheet-icon-freezen-menu"],
@@ -35409,11 +35429,11 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 a.v = o;
         else if (a.f != null && B(o) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(o))
             if (a.v = parseFloat(o),
-                a.ct == null && (a.ct = {
+                (a.ct == null) && (a.ct = {
                     fa: "General",
                     t: "n"
                 }),
-  	       (a.ct?.fa === '#' && Number.isFinite(a.v)) && a.v!=0 && (a.ct.fa = '0'),
+                (a.ct?.fa === '#' && Number.isFinite(a.v)) && a.v!=0 && (a.ct.fa = '0'),
                 a.v == Infinity || a.v == -Infinity)
                 a.m = a.v.toString();
             else if (a.v.toString().indexOf("e") > -1) {
@@ -35439,7 +35459,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             let u = mt(a.ct.fa, o);
             u === o ? (u = it(o),
                 a.m = u[0].toString(),
-                a.ct = u[1],
+                //a.ct = u[1],
                 a.v = u[2]) : (a.m = u.toString(),
                     a.v = o)
         } else if (B(o) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(o))
@@ -35850,7 +35870,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                     l && $("#luckysheet-scrollbar-y").scrollTop(S)),
             clearTimeout(h.countfuncTimeout),
             wl(),
-            ne.saveParam("mv", h.currentSheetIndex, h.luckysheet_select_save)
+            ne.saveParam("mv", h.currentSheetIndex, h.luckysheet_select_save),
+	    W.scrollFreezen()
     }
     function aa(e, n, t) {
         t || (t = !0);
@@ -35976,7 +35997,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20,
                     t && $("#luckysheet-scrollbar-y").scrollTop(y)),
             clearTimeout(h.countfuncTimeout),
-            wl()
+            wl(),
+	    W.scrollFreezen()
     }
     function Pn(e, n, t, l) {
         l == null && (l = !0),
@@ -36135,7 +36157,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 l && $("#luckysheet-scrollbar-y").scrollTop(v)) : o - f - 20 < 0 && (v = o - 20,
                     l && $("#luckysheet-scrollbar-y").scrollTop(v)),
             clearTimeout(h.countfuncTimeout),
-            wl()
+            wl(),
+	    W.scrollFreezen()
     }
     function an(e, n, t) {
         t || (t = !0);
@@ -36301,7 +36324,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20,
                     t && $("#luckysheet-scrollbar-y").scrollTop(y)),
             clearTimeout(h.countfuncTimeout),
-            wl()
+            wl(),
+	    W.scrollFreezen()
     }
     function Ol(e, n, t) {
         let l = !1;
@@ -40294,6 +40318,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             return;
         if (e == "column" && !It(a, "insertColumns"))
             return;
+        p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("rowcol-insert");
         let o = K(a)
             , s = h.luckysheetfile[o]
             , u = $.extend(!0, [], s.data);
@@ -40742,7 +40767,15 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             s.luckysheet_conditionformat_save = w,
             s.luckysheet_alternateformat_save = C,
             s.dataVerification = T,
-            s.hyperlink = R);
+            s.hyperlink = R,
+            typeof _shiftCrossSheetReference === "function" && _shiftCrossSheetReference({
+                type: e == "row" ? "insertRow" : "insertCol",
+                sheetIndex: s.index,
+                rowIndex: e == "row" ? (l == "lefttop" ? n : n + 1) : undefined,
+                colIndex: e == "column" ? (l == "lefttop" ? n : n + 1) : undefined,
+                rowCount: e == "row" ? t : undefined,
+                colCount: e == "column" ? t : undefined
+            }));
         let D = null;
         if (e == "row" ? l == "lefttop" ? D = [{
             row: [n, n + t - 1],
@@ -40799,6 +40832,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             return;
         if (e == "column" && !It(l, "deleteColumns"))
             return;
+        p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("rowcol-delete");
         let a = K(l)
             , o = h.luckysheetfile[a]
             , s = $.extend(!0, [], o.data);
@@ -41191,7 +41225,15 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             o.luckysheet_conditionformat_save = w,
             o.luckysheet_alternateformat_save = C,
             o.dataVerification = T,
-            o.hyperlink = R)
+            o.hyperlink = R,
+            typeof _shiftCrossSheetReference === "function" && _shiftCrossSheetReference({
+                type: e == "row" ? "deleteRow" : "deleteCol",
+                sheetIndex: o.index,
+                rowIndex: e == "row" ? n : undefined,
+                colIndex: e == "column" ? n : undefined,
+                rowCount: e == "row" ? t - n + 1 : undefined,
+                colCount: e == "column" ? t - n + 1 : undefined
+            }))
     }
     function oa(e, n, t, l, a, o) {
         if (o = o || h.currentSheetIndex,
@@ -44053,6 +44095,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                                                     if (D.spl != null && O[3]?.data) D.spl = O[3].data;
                                                     formatValue(D);
                                                     n[N][R] = D;
+                                                    if (p._dependencyMarkDirty && p._dependencyIndexEnabled && p._dependencyIndexEnabled()) p._dependencyMarkDirty(N, R, h.currentSheetIndex);
                                                 });
                                         });
 
@@ -44246,6 +44289,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                                     if (D.spl != null && O[3]?.data) D.spl = O[3].data;
                                     formatValue(D);
                                     n[N][R] = D;
+                                    if (p._dependencyMarkDirty && p._dependencyIndexEnabled && p._dependencyIndexEnabled()) p._dependencyMarkDirty(N, R, h.currentSheetIndex);
 
                                 } else {
                                     p.delFunctionGroup(N, R);
@@ -52113,162 +52157,240 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             p.execFunctionGroup(null, null, null, null, t, false, oldData),
             p.execFunctionGlobalData = null
     }
-    function Ye(e, n, t, l = !0, a = !0, bulkupdate = false, oldData = undefined, prevData = undefined) {
-        e == null && (e = h.flowdata),
-            n == null && (n = h.luckysheet_select_save),
-            n = JSON.parse(JSON.stringify(n)),
-            clearTimeout(Rr),
-            t == null && (t = {});
-        let o = t.cfg
-            , s = t.calc
-            , u = t.RowlChange
-            , d = t.cdformat
-            , f = t.dataVerification
-            , m = t.dynamicArray
-            , g = t.hyperlink
-            , y = h.luckysheetfile[K(h.currentSheetIndex)];
-        if (h.clearjfundo && !bulkupdate) {
-            h.jfundo.length = 0;
 
-            // Fast clone helpers
-            const clone = (v) => {
-                if (typeof structuredClone === 'function') {
-                    try { return structuredClone(v); } catch { }
+    function Ye(
+        e,
+        n,
+        t,
+        l = !0,
+        a = !0,
+        bulkupdate = false,
+        oldData = undefined,
+ 	prevData = undefined
+    ) {
+        /* -------------------------------------------------------------
+         * PARAM NORMALIZATION (matches original Ye behavior)
+         * ------------------------------------------------------------- */
+        e == null && (e = h.flowdata);
+        n == null && (n = h.luckysheet_select_save || []);
+        t == null && (t = {});
+
+        if (Array.isArray(e)) h.flowdata = e; // sync global flowdata to the authoritative data array (only full-array calls; undo/redo pass sparse range objects)
+
+        n = JSON.parse(JSON.stringify(n)); // defensive deep copy
+        clearTimeout(Rr);
+
+        const {
+            cfg,
+            calc,
+            RowlChange,
+            cdformat,
+            dataVerification,
+            dynamicArray,
+            hyperlink
+        } = t;
+
+        const sheet = h.luckysheetfile[K(h.currentSheetIndex)];
+        /* -------------------------------------------------------------
+         * HELPERS (range-based clone/apply)
+         * ------------------------------------------------------------- */
+        const cloneCell = (v) => {
+            if (v == null || typeof v !== "object") return v;
+            if (typeof structuredClone === "function") return structuredClone(v);
+            return JSON.parse(JSON.stringify(v));
+        };
+
+        function extractRangeData(flowdata, ranges) {
+            const out = {};
+            ranges.forEach(r => {
+                for (let i = r.row[0]; i <= r.row[1]; i++) {
+                    for (let j = r.column[0]; j <= r.column[1]; j++) {
+                        if (!out[i]) out[i] = {};
+                        out[i][j] = cloneCell(flowdata[i]?.[j] ?? null);
+                    }
                 }
-                return JSON.parse(JSON.stringify(v));
-            };
-            const cloneItems = (arr) =>
-                Array.isArray(arr) ? arr.map(x => (x && typeof x === 'object') ? { ...x } : x) : [];
+            });
+            return out;
+        }
 
-            let v;
-            o == null ? v = clone(h.config) : v = clone(o);
+        function applyRangeData(flowdata, data, ranges) {
+            ranges.forEach(r => {
+                for (let i = r.row[0]; i <= r.row[1]; i++) {
+                    for (let j = r.column[0]; j <= r.column[1]; j++) {
+                        if (!flowdata[i]) flowdata[i] = [];
+                        flowdata[i][j] = cloneCell(data?.[i]?.[j] ?? null);
+                    }
+                }
+            });
+        }
 
-            let k;
-            d == null ? k = cloneItems(y.luckysheet_conditionformat_save) : k = cloneItems(d);
-
-            let b;
-            f == null ? b = clone(y.dataVerification || {}) : b = clone(f);
-
-            let w;
-            m == null ? w = cloneItems(y.dynamicArray) : w = cloneItems(m);
-
- 	    let undoData = null;
-            if (n.length === 1) {
-                const lastCurData = h.jfredo?.length
-                    ? h.jfredo[h.jfredo.length - 1]?.curdata
-                    : null;
-                const source = lastCurData ?? prevData;
-                if (source) {
-                    undoData = clone(source);
+        /* -------------------------------------------------------------
+         * UNDO / REDO (delta-based, original Ye compatible)
+         * ------------------------------------------------------------- */
+        if (h.clearjfundo && !bulkupdate && n.length) {
+            h.jfundo.length = 0;
+            let undoRangeData = extractRangeData(prevData ? prevData: h.flowdata, n);
+            if (
+                undoRangeData &&
+                h.jfredo.length > 0 &&
+                n.length === 1
+            ) {
+                const last = h.jfredo[h.jfredo.length - 1];
+                const r = n[0];
+                const row = r.row[0];
+                const col = r.column[0];
+                const fromOld = undoRangeData?.[row]?.[col];
+                const fromRedo = last?.curdata?.[row]?.[col];
+                if (!fromOld?.f && fromRedo?.f) {
+                    undoRangeData[row][col].f = fromRedo.f;
+                    if (fromRedo.v != null && undoRangeData[row][col].v == null) {
+                        undoRangeData[row][col].v = fromRedo.v;
+                    }
                 }
             }
-
+            const redoRangeData = extractRangeData(e, n);
             h.jfredo.push({
                 type: "datachange",
-
-                // MUST clone for correct undo
-                data: !undoData ? clone(h.flowdata) : undoData,
-                curdata: clone(e),
                 sheetIndex: h.currentSheetIndex,
-                // Configs
-                config: clone(h.config),
-                curConfig: v,
+                range: n,
+                dataRange: n,
+                data: undoRangeData,
+                curdata: redoRangeData,
+                ...(cfg ? {
+                    config: JSON.parse(JSON.stringify(h.config)),
+                    curConfig: JSON.parse(JSON.stringify(cfg))
+                } : {}),
 
-                // Arrays-of-objects: fast & safe (per-item shallow clone)
-                calc: cloneItems(y.calcChain || []),
-                // calc: clone(y.calcChain || []), // use this if you KNOW items mutate deeply later
+                ...(calc ? {
+                    calc: sheet.calcChain?.slice() || [],
+                    curCalc: calc
+                } : {}),
 
-                curCalc: clone(s),
-
-                cdformat: cloneItems(y.luckysheet_conditionformat_save || []),
-                // cdformat: clone(y.luckysheet_conditionformat_save || []),
-
-                curCdformat: k,
-
-                RowlChange: clone(u),
-
-                // Clone as OBJECT (fixed: {} not [])
-                dataVerification: clone(y.dataVerification || {}),
-                curDataVerification: b,
-
-                dynamicArray: cloneItems(y.dynamicArray || []),
-                // dynamicArray: clone(y.dynamicArray || []),
-
-                curDynamicArray: w,
-
-                // Include only if present
-                ...(g ? { hyperlink: clone(y.hyperlink) } : {}),
-                curHyperlink: clone(g),
-
-                range: clone(n),
-                dataRange: (y.luckysheet_select_save || []).slice()
+                ...(cdformat ? {
+                    cdformat: sheet.luckysheet_conditionformat_save?.slice() || [],
+                    curCdformat: cdformat
+                } : {}),
+                ...(dataVerification ? {
+                    dataVerification: JSON.parse(JSON.stringify(sheet.dataVerification || {})),
+                    curDataVerification: JSON.parse(JSON.stringify(dataVerification))
+                } : {}),
+                ...(dynamicArray ? {
+                    dynamicArray: sheet.dynamicArray?.slice() || [],
+                    curDynamicArray: dynamicArray
+                } : {}),
+                ...(hyperlink ? {
+                    hyperlink: JSON.parse(JSON.stringify(sheet.hyperlink)),
+                    curHyperlink: JSON.parse(JSON.stringify(hyperlink))
+                } : {})
             });
-
-            // Optional: cap the stack
-            const UNDO_LIMIT = 5;
+            const UNDO_LIMIT = 1200;
             if (h.jfredo.length > UNDO_LIMIT) {
                 const removed = h.jfredo.shift();
-                Object.keys(removed).forEach(k => removed[k] = null);
+                for (const k in removed) removed[k] = null;
             }
         }
 
-        h.flowdata = e,
-            we.webWorkerFlowDataCache(h.flowdata),
-            y.data = h.flowdata,
-            o != null && (h.config = o,
-                y.config = h.config,
-                ne.saveParam("all", h.currentSheetIndex, o, {
-                    k: "config"
-                }),
-                u != null && Ct(h.flowdata.length, h.flowdata[0].length)),
-            s != null && (y.calcChain = s,
-                ne.saveParam("all", h.currentSheetIndex, s, {
-                    k: "calcChain"
-                })),
-            d != null && d.length !== 0 && (y.luckysheet_conditionformat_save = d,
-                ne.saveParam("all", h.currentSheetIndex, d, {
-                    k: "luckysheet_conditionformat_save"
-                })),
-            f != null && Object.keys(f).length !== 0 && (Xe.dataVerification = f,
-                y.dataVerification = f,
-                ne.saveParam("all", h.currentSheetIndex, f, {
-                    k: "dataVerification"
-                })),
-            m != null && (y.dynamicArray = m,
-                ne.saveParam("all", h.currentSheetIndex, m, {
-                    k: "dynamicArray"
-                })),
-            g != null && (y.hyperlink = g,
-                Cl.hyperlink = g,
-                ne.saveParam("all", h.currentSheetIndex, g, {
-                    k: "hyperlink"
-                }));
-        for (let v = 0; v < n.length; v++) {
-            let k = n[v].row[0]
-                , b = n[v].column[0];
-            if (h.flowdata[k][b] != null && h.flowdata[k][b].spl != null) {
-                window.luckysheetCurrentRow = k,
-                    window.luckysheetCurrentColumn = b,
-                    window.luckysheetCurrentFunction = h.flowdata[k][b].f;
-                let w = $.trim(p.functionParserExe(h.flowdata[k][b].f))
-                    , x = new Function("return " + w)();
-                h.flowdata[k][b].spl = x
-            }
-            ne.allowUpdate && ne.historyParam(h.flowdata, h.currentSheetIndex, n[v]),
-                typeof h.chartparam.jfrefreshchartall == "function" && h.chartparam.jfrefreshchartall(h.flowdata, n[v].row[0], n[v].row[1], n[v].column[0], n[v].column[1])
+        /* -------------------------------------------------------------
+         * APPLY DATA (partial update, Ye-compatible)
+         * ------------------------------------------------------------- */
+        const prevAllowUpdate = ne.allowUpdate;
+        ne.allowUpdate = false;
+
+        if (Array.isArray(h.flowdata)) h.flowdata = h.flowdata.slice(); // preserve outer reference (full-array calls only)
+        sheet.data = h.flowdata;
+
+        applyRangeData(
+            h.flowdata,
+            extractRangeData(e, n),
+            n
+        );
+        we.webWorkerFlowDataCache(h.flowdata);
+
+        /* -------------------------------------------------------------
+         * APPLY META STATE (same semantics as Ye)
+         * ------------------------------------------------------------- */
+        if (cfg != null) {
+            h.config = cfg;
+            sheet.config = cfg;
+            ne.saveParam("all", h.currentSheetIndex, cfg, { k: "config" });
+            RowlChange && Ct(h.flowdata.length, h.flowdata[0].length);
         }
-        l && gc(n, h.currentSheetIndex, e, oldData),
-            a && (Rr = setTimeout(function () {
-                He()
-            }, 1)),
-            tt(),
-            window.luckysheet_getcelldata_cache = null
+
+        if (calc != null) {
+            sheet.calcChain = calc;
+            ne.saveParam("all", h.currentSheetIndex, calc, { k: "calcChain" });
+        }
+
+        if (cdformat != null) {
+            sheet.luckysheet_conditionformat_save = cdformat;
+            ne.saveParam("all", h.currentSheetIndex, cdformat, {
+                k: "luckysheet_conditionformat_save"
+            });
+        }
+
+        if (dataVerification != null) {
+            Xe.dataVerification = dataVerification;
+            sheet.dataVerification = dataVerification;
+            ne.saveParam("all", h.currentSheetIndex, dataVerification, {
+                k: "dataVerification"
+            });
+        }
+
+        if (dynamicArray != null) {
+            sheet.dynamicArray = dynamicArray;
+            ne.saveParam("all", h.currentSheetIndex, dynamicArray, {
+                k: "dynamicArray"
+            });
+        }
+
+        if (hyperlink != null) {
+            sheet.hyperlink = hyperlink;
+            Cl.hyperlink = hyperlink;
+            ne.saveParam("all", h.currentSheetIndex, hyperlink, {
+                k: "hyperlink"
+            });
+        }
+
+        /* -------------------------------------------------------------
+         * FORMULAS + RENDER (unchanged from Ye)
+         * ------------------------------------------------------------- */
+        n.forEach(r => {
+            for (let i = r.row[0]; i <= r.row[1]; i++) {
+                for (let j = r.column[0]; j <= r.column[1]; j++) {
+                    const cell = h.flowdata[i]?.[j];
+                    if (cell?.spl != null) {
+                        window.luckysheetCurrentRow = i;
+                        window.luckysheetCurrentColumn = j;
+                        window.luckysheetCurrentFunction = cell.f;
+                        const fn = $.trim(p.functionParserExe(cell.f));
+                        cell.spl = new Function("return " + fn)();
+                    }
+                }
+            }
+
+            ne.allowUpdate &&
+                ne.historyParam(h.flowdata, h.currentSheetIndex, r);
+
+            typeof h.chartparam.jfrefreshchartall === "function" && h.chartparam.jfrefreshchartall(
+                h.flowdata,
+                r.row[0], r.row[1],
+                r.column[0], r.column[1]
+            );
+        });
+
+        l && gc(n, h.currentSheetIndex, h.flowdata, oldData);
+        a && (Rr = setTimeout(() => He(), 1));
+
+        tt();
+        window.luckysheet_getcelldata_cache = null;
+        ne.allowUpdate = prevAllowUpdate;
     }
 
 
     function Yl(e, n, t, l, a, o, s, u, d = !0) {
         let f = {}
             , m = !1;
+        p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("rowcol-resize-shift");
         if (clearTimeout(Rr),
             o == "cellRowChange") {
             f.type = "cellRowChange",
@@ -52392,6 +52514,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
     }
     function Bn(e, n, t, l, a, o, s, u, d, f, m) {
         let g = h.luckysheetfile[K(h.currentSheetIndex)];
+        p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("rowcol-insert-delete");
         Vn();
         let y = [];
         for (let x in n.merge) {
@@ -52508,14 +52631,29 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 c: S
             })
         }
+        if (!window.luckysheet_compareWith) {
+            window.luckysheet_compareWith = ja;
+            window.luckysheet_getarraydata = wc;
+            window.luckysheet_getcelldata = nr;
+            window.luckysheet_parseData = Ua;
+            window.luckysheet_getValue = qn;
+            window.luckysheet_indirect_check = xc;
+            window.luckysheet_indirect_check_return = _c;
+            window.luckysheet_offset_check = Cc;
+            window.luckysheet_calcADPMM = _t;
+            window.luckysheet_getSpecialReference = Tc;
+        }
         if (a.length > 0)
             for (let x = 0; x < a.length; x++) {
                 let C = a[x]
                     , S = C.r
                     , _ = C.c
                     , T = C.index
-                    , A = zl(S, _, T, e)
-                    , R = p.execfunction(A, S, _, T, null, !0);
+                    , A = zl(S, _, T, e);
+                window.luckysheet_getcelldata_cache = null;
+                window.__VLOOKUP_CACHE = {};
+                window.__XLOOKUP_CACHE = {};
+                let R = p.execfunction(A, S, _, T, null, !0);
                 C.func = R,
                     e[S][_].f == A && At(S, _, e, R[1])
             }
@@ -52566,6 +52704,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
     }
     function $i(e, n, t, l, a, o, s, u) {
         let d = h.luckysheetfile[K(h.currentSheetIndex)];
+        p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("delete-cell");
         clearTimeout(Rr),
             Vn();
         let f = [];
@@ -56765,11 +56904,11 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                         , w = v.column[0]
                         , x = v.column[1];
                     for (let C = k; C <= b; C++)
-                        if (1==1 || !(h.config.rowhidden != null && h.config.rowhidden[C] != null)) {
+                        if (1==1 || !(h.config.rowhidden != null && h.config.rowhidden[C] != null) ) {
                             t.includes(C) || t.push(C),
                                 h.config.rowlen != null && C in h.config.rowlen && (o = !0);
                             for (let S = w; S <= x; S++) {
-                                if ( 1 == 0 && h.config.colhidden != null && h.config.colhidden[S] != null)
+                                if (1 == 0 && h.config.colhidden != null && h.config.colhidden[S] != null)
                                     continue;
                                 l.includes(S) || l.push(S);
                                 let _ = h.flowdata[C][S];
@@ -56804,7 +56943,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                         for (let k = 0; k < l.length; k++) {
                             let b = l[k];
                             if (v == t[0] && (h.config == null || h.config.columnlen == null || h.config.columnlen[b.toString()] == null ? g += '<col width="72px"></col>' : g += '<col width="' + h.config.columnlen[b.toString()] + 'px"></col>'),
-                                 1 == 0 && h.config.colhidden != null && h.config.colhidden[b] != null)
+                                1 == 0 && h.config.colhidden != null && h.config.colhidden[b] != null)
                                 continue;
                             let w = '<td ${span} style="${style}">';
                             if (m[v] != null && m[v][b] != null) {
@@ -57383,6 +57522,9 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                 if (!(addR > 0 || addC > 0)) tt();
             },
 
+
+
+
             pasteHandlerOfCutPaste: async function (e) {
                 if (!gr(h.luckysheet_select_save, h.currentSheetIndex)) return;
 
@@ -57802,7 +57944,6 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             },
             pasteHandlerOfCopyPaste: async function (e) {
                 if (!gr(h.luckysheet_select_save, h.currentSheetIndex)) return;
-
                 let t = Q().paste,
                     l = $.extend(!0, {}, h.config);
                 l.merge == null && (l.merge = {});
@@ -58721,7 +58862,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                             t.push(a)
                         }
                     else {
-                       let l = []
+                        let l = []
                             , a = e.data.v ?? (typeof e.data === "number" || !isNaN(Number(e.data)) ? e.data : undefined);
                         fe(a) && (n == "number" ? a = 0 : n == "text" && (a = "")),
                             l.push(n == "number" && a == "" ? '0' : a ),
@@ -58831,6 +58972,8 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                     else if (L(e) == "object" && e.startCell != null)
                         if (e.data == null)
                             n == "number" ? l = 0 : n == "text" && (l = "");
+			else if (typeof e.data !== "object")
+                            l = n === "number" ? Number(e.data) : (n === "text" ? String(e.data) : e.data);
                         else {
                             let a = window.luckysheetCurrentRow
                                 , o = window.luckysheetCurrentColumn;
@@ -61662,6 +61805,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             },
             copySheet: function (e, n) {
                 if (de() || h.allowEdit === false) return;
+                p && p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("copy-sheet");
 
                 let t = this,
                     l = h.luckysheetfile.length,
@@ -61749,6 +61893,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                     e == null))
             },
             createSheetbydata: function (e, n, t = !0) {
+                p && p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("create-sheet");
                 let l = this
                     , a = "";
                 if (e.color != null && (a = '<div class="luckysheet-sheets-item-color" style=" position: absolute; width: 100%; height: 3px; bottom: 0px; left: 0px; background-color: ' + e.color + ';"></div>'),
@@ -61783,6 +61928,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
             },
             deleteSheet: function (e) {
                 let n = this;
+                p && p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("delete-sheet");
                 if (h.allowEdit === !1)
                     return;
                 let t = n.getSheetIndex(e)
@@ -61945,6 +62091,7 @@ field\u53EF\u4EE5\u662F\u8207database\u7B2C\u4E00\u884C\u4E2D\u67D0\u500B\u5217\
                                         t.CacheNotLoadControll = [],
                                         t.restoreCache(),
                                         p.execFunctionGroupForceChanged(me.forceCalculation),
+                                        (me.enableDependencyIndexOptimization !== false) && p._dependencyGet && p._dependencyGet(),
                                         t.restoreSheetAll(h.currentSheetIndex),
                                         $("#luckysheet_info_detail_save").html(m.detailSave),
                                         l.isPivotTable ? h.luckysheetcurrentisPivotTable = !0 : (h.luckysheetcurrentisPivotTable = !1,
@@ -63217,25 +63364,10 @@ parseDateToSerial: function (input) {
                     const c1 = cl(parts[1]);
                     const data = Ft().find(s => s.index === sheetIndex)?.data;
                     if (data) {
-                        let top = 0, bottom = 0;
-
-                        // find last used row (simple scan from bottom)
-                        for (let r = data.length - 1; r >= 0; r--) {
-                            const row = data[r];
-                            if (!row) continue;
-
-                            let found = false;
-                            for (let c = c0; c <= c1; c++) {
-                                const cell = row[c];
-                                if (cell && cell.v != null && cell.v !== "") {
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (found) { bottom = r; break; }
-                        }
+                        // Whole-column refs (J:J) must depend on the FULL column height,
+                        // otherwise edits below the last used row never trigger recalc.
                         rect = {
-                            row: [0, bottom],
+                            row: [0, data.length - 1],
                             column: [c0, c1],
                             sheetIndex
                         };
@@ -63301,7 +63433,7 @@ parseDateToSerial: function (input) {
                 }
                 return null
             },
-      	searchFunctionPosition: function (e, n, t, l, a) {
+            searchFunctionPosition: function (e, n, t, l, a) {
                 let o = $(window).height(),
                     s = $(window).width(),
                     u = e.outerWidth(),
@@ -63336,7 +63468,7 @@ parseDateToSerial: function (input) {
                     left: f + "px",
                     "z-index": 1000 // Ensure it's not hidden behind other UI
                 }).show();
-            },           
+            },
             searchFunctionCell: null,
             searchFunction: function (e) {
                 let n = this
@@ -63787,7 +63919,7 @@ parseDateToSerial: function (input) {
                         return
                     }
                 }
- 		const oldData = JSON.parse(JSON.stringify(h.flowdata));
+                const oldData = JSON.parse(JSON.stringify(h.flowdata));
                 const cell = h.flowdata?.[e]?.[n];
                 if (cell) {
                     const isFormula = typeof s === "string" && s.startsWith("=");
@@ -63883,7 +64015,7 @@ parseDateToSerial: function (input) {
                                 for (let T in t)
                                     d[T] = t[T]
                         } else
- 			    t = d?.ct?.t === 'd' && d?.v != null ? d.v : t,
+                            t = d?.ct?.t === 'd' && d?.v != null ? d.v : t,
                             a.delFunctionGroup(e, n),
                                 a.execFunctionGroup(e, n, t),
                                 v = !1,
@@ -63966,7 +64098,7 @@ parseDateToSerial: function (input) {
                     Ye(k, [{
                         row: [e, e],
                         column: [n, n]
-                    }], S, v,!0, false,undefined, oldData),
+                    }], S, v, !0, false, undefined, oldData),
                         a.execFunctionGlobalData = null;
                 else
                     return {
@@ -65328,6 +65460,7 @@ parseDateToSerial: function (input) {
 
                 return s;
             },
+
             insertUpdateDynamicArray: function (e) {
                 let n = e.r
                     , t = e.c
@@ -65347,6 +65480,14 @@ parseDateToSerial: function (input) {
             },
             addFunctionGroup: function (e, n, t, l) {
                 l == null && (l = h.currentSheetIndex);
+                if (this._dependencyMarkDirty && this._dependencyIndexEnabled()) {
+                    try {
+                        const idx = this._dependencyEnsureState();
+                        if (idx.initialized && idx.valid) {
+                            this._dependencyMarkDirty(e, n, l);
+                        }
+                    } catch (err) { }
+                }
                 let a = Ft()
                     , o = a[K(l)];
                 o.calcChain == null && (o.calcChain = []);
@@ -65646,6 +65787,17 @@ parseDateToSerial: function (input) {
             },
             insertUpdateFunctionGroup: function (e, n, t) {
                 t == null && (t = h.currentSheetIndex);
+                if (this._dependencyMarkDirty && this._dependencyIndexEnabled()) {
+                    try {
+                        const idx = this._dependencyEnsureState();
+                        const key = "r" + e + "c" + n + "i" + t;
+                        const oldMeta = idx.dependencies[key];
+                        const cur = zl(e, n, t);
+                        if (idx.initialized && idx.valid && (!oldMeta || (cur && cur !== oldMeta.formula))) {
+                            this._dependencyMarkDirty(e, n, t);
+                        }
+                    } catch (err) { }
+                }
                 let l = Ft()
                     , a = l[K(t)]
                     , o = a.calcChain;
@@ -66170,7 +66322,8 @@ parseDateToSerial: function (input) {
                     // HLOOKUP
                     const h = calls.HLOOKUP;
                     if (h && h.args.length >= 3) {
-                        const [, table_array, row_index_num, range_lookup] = h.args;
+                        const [lookup, table_array, row_index_num, range_lookup] = h.args;
+                        addRect(rgCached(lookup, T.index));
                         const exact = isFalseyExact(range_lookup) || (range_lookup == null);
                         const rect = rgCached(table_array, T.index);
                         if (rect) {
@@ -66189,7 +66342,8 @@ parseDateToSerial: function (input) {
                     // VLOOKUP
                     const v = calls.VLOOKUP;
                     if (v && v.args.length >= 3) {
-                        const [, table_array, col_index_num, range_lookup] = v.args;
+                        const [lookup, table_array, col_index_num, range_lookup] = v.args;
+                        addRect(rgCached(lookup, T.index));
                         const exact = isFalseyExact(range_lookup);
                         const rect = rgCached(table_array, T.index);
                         if (rect) {
@@ -66208,7 +66362,8 @@ parseDateToSerial: function (input) {
                     // XLOOKUP
                     const xlk = calls.XLOOKUP;
                     if (xlk && xlk.args.length >= 3) {
-                        const [, lookup_array, return_array] = xlk.args;
+                        const [lookup_value, lookup_array, return_array] = xlk.args;
+                        addRect(rgCached(lookup_value, T.index));
                         addRect(rgCached(lookup_array, T.index));
                         addRect(rgCached(return_array, T.index));
                     }
@@ -66243,7 +66398,8 @@ parseDateToSerial: function (input) {
                     // MATCH
                     const mt = calls.MATCH;
                     if (mt && mt.args.length >= 2) {
-                        const [, lookup_array] = mt.args;
+                        const [lookup_value, lookup_array] = mt.args;
+                        addRect(rgCached(lookup_value, T.index));
                         addRect(rgCached(lookup_array, T.index));
                     }
 
@@ -66504,7 +66660,7 @@ parseDateToSerial: function (input) {
                 // Preserve original early return semantics
                 if (o) return;
 
-		 if (h.cycleErrorElement)
+ 		if (h.cycleErrorElement)
                  $(`#${h.cycleErrorElement}`).css('display', 'none');
 
                 const s = this;
@@ -66533,7 +66689,33 @@ parseDateToSerial: function (input) {
                     s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
                 }
 
-                // ---------- Gather function cells ----------
+                // ---------- Build execSet (changed/explicit targets) ----------
+                const execSet = {};
+                if (s.execFunctionExist == null) {
+                    execSet["r" + e + "c" + n + "i" + l] = 1;
+                } else {
+                    for (let i = 0; i < s.execFunctionExist.length; i++) {
+                        const T = s.execFunctionExist[i];
+                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
+                    }
+                }
+
+                // ---------- Optimized dependency-index path (with fallback) ----------
+                var _efgT0 = performance.now();
+                // Ensure the dependency index is built before the first user edit.
+                // _depIndexPrimed is set once after the index is confirmed built;
+                // this avoids redundant _dependencyGet() calls during creation.
+                if (!s._depIndexPrimed && e != null && n != null && !s.execFunctionExist && l === h.currentSheetIndex && s._dependencyIndexEnabled && s._dependencyIndexEnabled() && s._dependencyGet) {
+                    s._depIndexPrimed = true;
+                    s._dependencyGet();
+                }
+                if (s._dependencyTryExecute(execSet, { recomputeAllOnEmpty: false, validate: me.validateDependencyIndex === true })) {
+                    var _efgMs = performance.now() - _efgT0;
+                    if (window.__perfDiag) window.__perfDiag.push({ fn: "execFunctionGroup", path: "index", ms: _efgMs, row: e, col: n, sheet: l });
+                    return;
+                }
+
+                // ---------- Gather function cells (fallback) ----------
                 let allFuncCells = [];
                 let sheetIndices = null;
                 if (e != null && n != null) {
@@ -66552,20 +66734,10 @@ parseDateToSerial: function (input) {
                 let sheetsInfo = Ft() || [];
                 const sheetMap = {};
                 for (let i = 0; i < sheetsInfo.length; i++) {
-                    sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data.length - 1;
+                    const _d = sheetsInfo[i] && sheetsInfo[i].data;
+                    sheetMap[sheetsInfo[i].index] = _d ? _d.length - 1 : 0;
                 }
                 sheetsInfo = null;
-
-                // ---------- Build execSet (changed/explicit targets) ----------
-                const execSet = {};
-                if (s.execFunctionExist == null) {
-                    execSet["r" + e + "c" + n + "i" + l] = 1;
-                } else {
-                    for (let i = 0; i < s.execFunctionExist.length; i++) {
-                        const T = s.execFunctionExist[i];
-                        execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
-                    }
-                }
 
                 // ---------- Local caches ----------
                 // Per-run memo for getcellrange (safe; no cross-run state)
@@ -66742,7 +66914,8 @@ parseDateToSerial: function (input) {
                     for (const hCall of calls.HLOOKUP) {
                         if (!hCall.args || hCall.args.length < 3) continue;
 
-                        const [, table, rowNum, range_lookup] = hCall.args;
+                        const [lookup, table, rowNum, range_lookup] = hCall.args;
+                        addRect(rgCached(lookup, T.index));
                         const exact = isFalseyExact(range_lookup) || range_lookup == null;
                         const rect = rgCached(table, T.index);
 
@@ -66764,8 +66937,9 @@ parseDateToSerial: function (input) {
                     for (const vCall of calls.VLOOKUP) {
                         if (!vCall.args || vCall.args.length < 3) continue;
 
-                        const [, table, colNum, range_lookup] = vCall.args;
-                        const exact = isFalseyExact(range_lookup);
+                        const [lookup, table, colNum, range_lookup] = vCall.args;
+                        addRect(rgCached(lookup, T.index));
+                        const exact = isFalseyExact(range_lookup) || range_lookup == null;
                         const rect = rgCached(table, T.index);
 
                         if (rect) {
@@ -66785,7 +66959,8 @@ parseDateToSerial: function (input) {
                     // ---- XLOOKUP ----
                     for (const xlk of calls.XLOOKUP) {
                         if (!xlk.args || xlk.args.length < 3) continue;
-                        const [, lookup, ret] = xlk.args;
+                        const [lookup_value, lookup, ret] = xlk.args;
+                        addRect(rgCached(lookup_value, T.index));
                         addRect(rgCached(lookup, T.index));
                         addRect(rgCached(ret, T.index));
                         maskSpan(xlk);
@@ -66817,6 +66992,7 @@ parseDateToSerial: function (input) {
                     // ---- MATCH ----
                     for (const mt of calls.MATCH) {
                         if (!mt.args || mt.args.length < 2) continue;
+                        addRect(rgCached(mt.args[0], T.index));
                         addRect(rgCached(mt.args[1], T.index));
                         maskSpan(mt);
                     }
@@ -66988,7 +67164,8 @@ parseDateToSerial: function (input) {
 
                     // (3) Volatile nodes on the same sheet (INDIRECT etc.)
                     // Extract sheetIndex from changedKey: r{r}c{c}i{sheetIndex}
-                    const si = changedKey.split('i')[1];
+                    //const si = changedKey.split('i')[1];
+		      const si =  changedKey.substring(changedKey.indexOf('i') + 1);
                     if (volatileNodesBySheet[si]) {
                         for (const vk of volatileNodesBySheet[si]) {
                             if (!impacted.has(vk)) {
@@ -67015,9 +67192,14 @@ parseDateToSerial: function (input) {
                 }
 
                 // Fallback: if nothing impacted, recompute all nodes
-                if (impacted.size === 0) {
-                    for (const k of Object.keys(nodes)) impacted.add(k);
-                }
+                //if (impacted.size === 0) {
+                  //  for (const k of Object.keys(nodes)) impacted.add(k);
+                //}
+
+		 if (impacted.size === 0) {
+     		  console.log("No impacted formulas found. Skipping full recalculation.");
+		  return;
+ 		}
 
                 // ---------- Topological sort with cycle detection (keep your DFS order) ----------
                 const ordered = [];
@@ -67055,8 +67237,8 @@ parseDateToSerial: function (input) {
 
                 if (cycleDetected) {
                     console.warn("Calculation cycle detected (DFS).");
-		if (h.cycleErrorElement)
-                    $(`#${h.cycleErrorElement}`).css('display', 'block');
+		    if (h.cycleErrorElement)
+                        $(`#${h.cycleErrorElement}`).css('display', 'block');
                     // Continue (legacy behavior)
                 }
 
@@ -67084,6 +67266,8 @@ parseDateToSerial: function (input) {
                 window.__VLOOKUP_CACHE = {};
                 window.__XLOOKUP_CACHE = {};
                 s.execFunctionExist = null;
+                var _efgMs2 = performance.now() - _efgT0;
+                if (window.__perfDiag) window.__perfDiag.push({ fn: "execFunctionGroup", path: "fallback", ms: _efgMs2, row: e, col: n, sheet: l });
             },
 
             execFunctionGroupChanged: function (e, n, t, l, a, o = false, oldData = undefined) {
@@ -67116,22 +67300,7 @@ parseDateToSerial: function (input) {
                     s.execFunctionGlobalData[e + "_" + n + "_" + l] = tmp[0][0];
                 }
 
-                // ---------- Gather function cells ----------
-                let allFuncCells = [];
-                let sheetIndices = null;
-                if (e != null && n != null) {
-                    const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
-                    sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
-                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-                } else if (s.execFunctionExist && s.execFunctionExist.length > 0) {
-                    sheetIndices = s.getAllDependentSheetsFromSheet(s.execFunctionExist[0].i, null);
-                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
-                }
-                else {
-                    allFuncCells = s.getAllFunctionGroup() || [];
-                }
-
-                // ---------- Build sheetMap ----------
+                // ---------- Build sheetMap & execSet (volatile scan) ----------
                 window.__VLOOKUP_CACHE = {};
                 window.__XLOOKUP_CACHE = {};
                 let sheetsInfo = Ft() || [];
@@ -67140,7 +67309,7 @@ parseDateToSerial: function (input) {
                 for (let i = 0; i < sheetsInfo.length; i++) {
                     const sheet = sheetsInfo[i];
                     const sheetIndex = sheet.index;
-                    sheetMap[sheetsInfo[i].index] = sheetsInfo[i].data.length - 1;
+                    sheetMap[sheetsInfo[i].index] = (sheetsInfo[i].data ? sheetsInfo[i].data.length - 1 : 0);
                     const celldata = sheet.celldata ?? [];
                     for (let j = 0; j < celldata.length; j++) {
                         const cell = celldata[j];
@@ -67155,13 +67324,10 @@ parseDateToSerial: function (input) {
                 if (Object.keys(execSet).length === 0) {
                     sheetsInfo = null;
                     sheetMap = null;
-                    allFuncCells = null;
                     return;
                 }
 
-
                 // ---------- Build execSet (changed/explicit targets) ----------
-
                 if (s.execFunctionExist == null) {
                     execSet["r" + e + "c" + n + "i" + l] = 1;
                 } else {
@@ -67169,6 +67335,26 @@ parseDateToSerial: function (input) {
                         const T = s.execFunctionExist[i];
                         execSet["r" + T.r + "c" + T.c + "i" + T.i] = 1;
                     }
+                }
+
+                // ---------- Optimized dependency-index path (with fallback) ----------
+                if (s._dependencyTryExecute(execSet, { recomputeAllOnEmpty: true, validate: me.validateDependencyIndex === true })) {
+                    return;
+                }
+
+                // ---------- Gather function cells (fallback) ----------
+                let allFuncCells = [];
+                let sheetIndices = null;
+                if (e != null && n != null) {
+                    const formulaOrValue = (window.luckysheet_getcelldata_cache && Object.keys(window.luckysheet_getcelldata_cache).join("+")) || null;
+                    sheetIndices = s.getAllDependentSheetsFromSheet(l, formulaOrValue);
+                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+                } else if (s.execFunctionExist && s.execFunctionExist.length > 0) {
+                    sheetIndices = s.getAllDependentSheetsFromSheet(s.execFunctionExist[0].i, null);
+                    allFuncCells = s.getAllDependentFunctionGroup(sheetIndices) || [];
+                }
+                else {
+                    allFuncCells = s.getAllFunctionGroup() || [];
                 }
 
                 // ---------- Local caches ----------
@@ -67357,7 +67543,8 @@ parseDateToSerial: function (input) {
                     for (const hCall of calls.HLOOKUP) {
                         if (!hCall.args || hCall.args.length < 3) continue;
 
-                        const [, table, rowNum, range_lookup] = hCall.args;
+                        const [lookup, table, rowNum, range_lookup] = hCall.args;
+                        addRect(rgCached(lookup, T.index));
                         const exact = isFalseyExact(range_lookup) || range_lookup == null;
                         const rect = rgCached(table, T.index);
 
@@ -67379,8 +67566,9 @@ parseDateToSerial: function (input) {
                     for (const vCall of calls.VLOOKUP) {
                         if (!vCall.args || vCall.args.length < 3) continue;
 
-                        const [, table, colNum, range_lookup] = vCall.args;
-                        const exact = isFalseyExact(range_lookup);
+                        const [lookup, table, colNum, range_lookup] = vCall.args;
+                        addRect(rgCached(lookup, T.index));
+                        const exact = isFalseyExact(range_lookup) || range_lookup == null;
                         const rect = rgCached(table, T.index);
 
                         if (rect) {
@@ -67400,7 +67588,8 @@ parseDateToSerial: function (input) {
                     // ---- XLOOKUP ----
                     for (const xlk of calls.XLOOKUP) {
                         if (!xlk.args || xlk.args.length < 3) continue;
-                        const [, lookup, ret] = xlk.args;
+                        const [lookup_value, lookup, ret] = xlk.args;
+                        addRect(rgCached(lookup_value, T.index));
                         addRect(rgCached(lookup, T.index));
                         addRect(rgCached(ret, T.index));
                         maskSpan(xlk);
@@ -67432,6 +67621,7 @@ parseDateToSerial: function (input) {
                     // ---- MATCH ----
                     for (const mt of calls.MATCH) {
                         if (!mt.args || mt.args.length < 2) continue;
+                        addRect(rgCached(mt.args[0], T.index));
                         addRect(rgCached(mt.args[1], T.index));
                         maskSpan(mt);
                     }
@@ -67754,11 +67944,19 @@ parseDateToSerial: function (input) {
                         })
                     }
                     we.webWorkerFlowDataCache(h.flowdata),
-                        e.groupValuesRefreshData = []
+                        e.groupValuesRefreshData = [];
                 }
             },
             delFunctionGroup: function (e, n, t) {
                 t == null && (t = h.currentSheetIndex);
+                if (this._dependencyMarkDirty && this._dependencyIndexEnabled()) {
+                    try {
+                        const idx = this._dependencyEnsureState();
+                        if (idx.initialized && idx.valid && idx.dependencies["r" + e + "c" + n + "i" + t]) {
+                            this._dependencyMarkDirty(e, n, t);
+                        }
+                    } catch (err) { }
+                }
                 let l = Ft()
                     , a = l[K(t)]
                     , o = a.calcChain;
@@ -67766,6 +67964,10 @@ parseDateToSerial: function (input) {
                     for (let u = 0; u < o.length; u++) {
                         let d = o[u];
                         if (d.r == e && d.c == n && d.index == t) {
+			let cell = a.celldata?.find(x => x.r == e && x.c == n);
+                            if (cell && cell.v) {
+                                delete cell.v;   // or: cell.v = null;
+                            }
                             o.splice(u, 1),
                                 ne.saveParam("fc", t, null, {
                                     op: "del",
@@ -67779,6 +67981,10 @@ parseDateToSerial: function (input) {
                     for (let u = 0; u < s.length; u++) {
                         let d = s[u];
                         if (d.r == e && d.c == n && (d.index == null || d.index == t)) {
+			  let cell = a.celldata?.find(x => x.r == e && x.c == n);
+                            if (cell && cell.v) {
+                                delete cell.v;   // or: cell.v = null;
+                            }
                             s.splice(u, 1),
                                 ne.saveParam("ac", t, null, {
                                     op: "del",
@@ -67858,7 +68064,8 @@ parseDateToSerial: function (input) {
                 // -------------------------
                 // Parse formula to JS (with cache)
                 // -------------------------
-                let f = $.trim(s.functionParserExe(e));
+                let ef = e.replace(/\$/g, "");
+                let f = $.trim(s.functionParserExe(ef));
                 // Normalize function HTML index for UI (unchanged)
                 if (f.substr(0, 20) === "luckysheet_function." ||
                     f.substr(0, 22) === "luckysheet_compareWith") {
@@ -68066,7 +68273,990 @@ parseDateToSerial: function (input) {
                 $("#luckysheet-formula-refresh").hide()
             }
         },
-            p = Mp
+            p = Mp,
+            // =====================================================================
+            // Dependency Index Optimization (custom)
+            // Lazy-built persistent reverse dependency index for execFunctionGroup.
+            // Enabled by default; roll back via config:
+            //   luckysheet.config.enableDependencyIndexOptimization = false
+            // =====================================================================
+            p._formulaDependencyIndex = null,
+            p._fmrSplit = /==|!=|<>|<=|>=|[,()=+\-/*%&^><]/,
+            p._DEP_CALL_NAMES = ['HLOOKUP', 'VLOOKUP', 'XLOOKUP', 'INDEX', 'MATCH', 'SUMIF', 'SUMIFS', 'AVERAGEIF', 'AVERAGEIFS', 'COUNTIF', 'COUNTIFS', 'MINIFS', 'MAXIFS', 'SUMPRODUCT', 'OFFSET', 'INDIRECT'],
+            p._DEP_ANY_CALL_RE = /(HLOOKUP|VLOOKUP|XLOOKUP|INDEX|MATCH|SUMIF|SUMIFS|AVERAGEIF|AVERAGEIFS|COUNTIF|COUNTIFS|MINIFS|MAXIFS|SUMPRODUCT|OFFSET|INDIRECT)\s*\(/gi,
+            p._EMPTY_CALLS = (function () {
+                const o = {};
+                for (let _i = 0; _i < p._DEP_CALL_NAMES.length; _i++) o[p._DEP_CALL_NAMES[_i]] = [];
+                return o;
+            })(),
+            p._QUOTED_CELL_PATTERN = /"'\"\s*&\s*(\$?[A-Z]+\$?\d+)\s*&\s*\"'/g,
+            p._excelRefToRowCol = function (ref) {
+                ref = ref.replace(/\$/g, '');
+                const [, colLetters, rowStr] = ref.match(/([A-Z]+)(\d+)/);
+                let col = 0;
+                for (const ch of colLetters) col = col * 26 + (ch.charCodeAt(0) - 64);
+                return { row: parseInt(rowStr, 10) - 1, col: col - 1 };
+            },
+            p._replaceQuotedCellWithValue = function (text, index) {
+                if (text.indexOf('&') < 0 || text.indexOf('"') < 0 || text.indexOf("'") < 0) return text;
+                return text.replace(p._QUOTED_CELL_PATTERN, (match, cellRef) => {
+                    const { row, col } = p._excelRefToRowCol(cellRef);
+                    const value = luckysheet.getluckysheetfile().find(x => x.index == index).celldata.find(x => x.r == row && x.c == col)?.v?.v;
+                    return `"'${value}'`;
+                });
+            },
+            p._parseCall = function (name, text) {
+                const re = new RegExp(`${name}\\s*\\(`, 'i');
+                const m = text.match(re);
+                if (!m) return null;
+                let i = m.index + m[0].length, depth = 1, cur = '', args = [];
+                while (i < text.length && depth > 0) {
+                    const ch = text[i++];
+                    if (ch === '(') { depth++; cur += ch; }
+                    else if (ch === ')') {
+                        depth--;
+                        if (depth === 0) { if (cur.trim()) args.push(cur.trim()); break; }
+                        cur += ch;
+                    } else if (ch === ',' && depth === 1) {
+                        args.push(cur.trim()); cur = '';
+                    } else {
+                        cur += ch;
+                    }
+                }
+                return { name, args, start: m.index, end: i };
+            },
+            p._parseAllCalls = function (name, text) {
+                const res = [];
+                let offset = 0;
+                while (offset < text.length) {
+                    const slice = text.slice(offset);
+                    const call = p._parseCall(name, slice);
+                    if (!call) break;
+                    call.start += offset;
+                    call.end += offset;
+                    res.push(call);
+                    offset = call.end;
+                }
+                return res;
+            },
+            // Single-pass extraction of all tracked function calls. Semantics
+            // match the per-name _parseAllCalls scans used previously: calls are
+            // found in text order, a call nested inside an already-found call of
+            // the SAME name is subsumed (skipped), while a call nested inside a
+            // different name IS found. volatileIndirect mirrors _isVolatileIndirect.
+            // When no tracked call is present, returns { calls: null } and allocates
+            // nothing so the common (plain-arithmetic) case stays allocation-free.
+            p._depParseCalls = function (formulaStr) {
+                const re = p._DEP_ANY_CALL_RE;
+                re.lastIndex = 0;
+                let calls = null;
+                let coveredUntil = null;
+                let volatileIndirect = false;
+                let m;
+                while ((m = re.exec(formulaStr)) !== null) {
+                    if (!calls) {
+                        calls = {};
+                        for (let _i = 0; _i < p._DEP_CALL_NAMES.length; _i++) calls[p._DEP_CALL_NAMES[_i]] = [];
+                        coveredUntil = {};
+                    }
+                    const name = m[1].toUpperCase();
+                    const start = m.index;
+                    const argStart = re.lastIndex;
+                    let i = argStart, depth = 1, cur = '', args = [];
+                    while (i < formulaStr.length && depth > 0) {
+                        const ch = formulaStr[i++];
+                        if (ch === '(') { depth++; cur += ch; }
+                        else if (ch === ')') {
+                            depth--;
+                            if (depth === 0) { if (cur.trim()) args.push(cur.trim()); break; }
+                            cur += ch;
+                        } else if (ch === ',' && depth === 1) {
+                            args.push(cur.trim()); cur = '';
+                        } else {
+                            cur += ch;
+                        }
+                    }
+                    const end = i;
+                    if (start < (coveredUntil[name] || 0)) {
+                        re.lastIndex = argStart;
+                        continue;
+                    }
+                    coveredUntil[name] = end;
+                    if (!calls[name]) calls[name] = [];
+                    calls[name].push({ name: name, args: args, start: start, end: end });
+                    re.lastIndex = argStart;
+                }
+                if (calls && calls.INDIRECT) {
+                    const inds = calls.INDIRECT;
+                    for (let k = 0; k < inds.length; k++) {
+                        const indMeta = inds[k];
+                        if (!indMeta.args || indMeta.args.length < 1) continue;
+                        const ref_text = indMeta.args[0];
+                        if (!/^".*"$/.test((ref_text || '').trim())) { volatileIndirect = true; break; }
+                    }
+                }
+                return { calls: calls, volatileIndirect: volatileIndirect };
+            },
+            p._parseIntIfLiteral = function (x) {
+                if (x == null) return null;
+                const t = ('' + x).trim();
+                if (/^[+-]?\d+$/.test(t)) return parseInt(t, 10);
+                return null;
+            },
+            p._isFalseyExact = function (x) {
+                if (x == null) return false;
+                const t = ('' + x).trim().toLowerCase();
+                return t === '0' || t === 'false';
+            },
+            // Range-based mirror of the inline collectRefKeysForNode inside
+            // execFunctionGroup. rgCached/rangeForRect are injected so the
+            // index build uses exactly the same parsing + clamping rules.
+            p._collectRefRangesForNode = function (formulaStr, T, rgCached, rangeForRect) {
+                const depRanges = new Set();
+                const selfKey = "r" + T.r + "c" + T.c + "i" + T.index;
+                const rectSeen = new Set();
+                function rectId(rect) {
+                    return rect
+                        ? `${rect.sheetIndex}|${rect.row[0]}_${rect.row[1]}|${rect.column[0]}_${rect.column[1]}`
+                        : '';
+                }
+                function splitRectExcludingSelf(rect) {
+                    if (!rect) return [];
+                    if (!(rect.sheetIndex === T.index && rect.row[0] <= T.r && T.r <= rect.row[1] && rect.column[0] <= T.c && T.c <= rect.column[1])) {
+                        return [rect];
+                    }
+                    const parts = [];
+                    const r0 = rect.row[0], r1 = rect.row[1], c0 = rect.column[0], c1 = rect.column[1];
+                    if (r0 < T.r) parts.push({ row: [r0, T.r - 1], column: rect.column, sheetIndex: rect.sheetIndex });
+                    if (T.r < r1) parts.push({ row: [T.r + 1, r1], column: rect.column, sheetIndex: rect.sheetIndex });
+                    if (c0 < T.c) parts.push({ row: [T.r, T.r], column: [c0, T.c - 1], sheetIndex: rect.sheetIndex });
+                    if (T.c < c1) parts.push({ row: [T.r, T.r], column: [T.c + 1, c1], sheetIndex: rect.sheetIndex });
+                    return parts;
+                }
+                function addRect(rect, excludeSelf = false) {
+                    if (!rect) return;
+                    const id = rectId(rect);
+                    if (rectSeen.has(id)) return;
+                    rectSeen.add(id);
+                    const rects = excludeSelf ? splitRectExcludingSelf(rect) : [rect];
+                    for (const sub of rects) {
+                        const rg = rangeForRect(sub);
+                        if (!rg) continue;
+                        depRanges.add(rg);
+                    }
+                }
+                let masked = formulaStr;
+                function maskSpan(meta) {
+                    if (!meta || meta.start == null || meta.end == null) return;
+                    const len = Math.max(0, meta.end - meta.start);
+                    if (len > 0) {
+                        masked = masked.slice(0, meta.start) + " ".repeat(len) + masked.slice(meta.end);
+                    }
+                }
+                const calls = p._depParseCalls(formulaStr).calls || p._EMPTY_CALLS;
+                for (const hCall of calls.HLOOKUP) {
+                    if (!hCall.args || hCall.args.length < 3) continue;
+                    const [lookup, table, rowNum, range_lookup] = hCall.args;
+                    addRect(rgCached(lookup, T.index));
+                    const exact = p._isFalseyExact(range_lookup) || range_lookup == null;
+                    const rect = rgCached(table, T.index);
+                    if (rect) {
+                        addRect({ row: [rect.row[0], rect.row[0]], column: rect.column, sheetIndex: rect.sheetIndex });
+                        const ri = p._parseIntIfLiteral(rowNum);
+                        if (exact && Number.isFinite(ri)) {
+                            const rr = rect.row[0] + ri - 1;
+                            addRect({ row: [rr, rr], column: rect.column, sheetIndex: rect.sheetIndex });
+                        } else {
+                            addRect(rect);
+                        }
+                    }
+                    maskSpan(hCall);
+                }
+                for (const vCall of calls.VLOOKUP) {
+                    if (!vCall.args || vCall.args.length < 3) continue;
+                    const [lookup, table, colNum, range_lookup] = vCall.args;
+                    addRect(rgCached(lookup, T.index));
+                    const exact = p._isFalseyExact(range_lookup) || range_lookup == null;
+                    const rect = rgCached(table, T.index);
+                    if (rect) {
+                        addRect({ row: rect.row, column: [rect.column[0], rect.column[0]], sheetIndex: rect.sheetIndex });
+                        const ci = p._parseIntIfLiteral(colNum);
+                        if (exact && Number.isFinite(ci)) {
+                            const cc = rect.column[0] + ci - 1;
+                            addRect({ row: rect.row, column: [cc, cc], sheetIndex: rect.sheetIndex });
+                        } else {
+                            addRect(rect);
+                        }
+                    }
+                    maskSpan(vCall);
+                }
+                for (const xlk of calls.XLOOKUP) {
+                    if (!xlk.args || xlk.args.length < 3) continue;
+                    const [lookup_value, lookup, ret] = xlk.args;
+                    addRect(rgCached(lookup_value, T.index));
+                    addRect(rgCached(lookup, T.index));
+                    addRect(rgCached(ret, T.index));
+                    maskSpan(xlk);
+                }
+                for (const idx of calls.INDEX) {
+                    if (!idx.args || idx.args.length < 1) continue;
+                    const [array, rn, cn] = idx.args;
+                    const rect = rgCached(array, T.index);
+                    if (!rect) continue;
+                    const r = p._parseIntIfLiteral(rn);
+                    const c = p._parseIntIfLiteral(cn);
+                    if (Number.isFinite(r) && Number.isFinite(c)) {
+                        addRect({
+                            row: [rect.row[0] + r - 1, rect.row[0] + r - 1],
+                            column: [rect.column[0] + c - 1, rect.column[0] + c - 1],
+                            sheetIndex: rect.sheetIndex
+                        });
+                    } else {
+                        addRect(rect);
+                    }
+                    maskSpan(idx);
+                }
+                for (const mt of calls.MATCH) {
+                    if (!mt.args || mt.args.length < 2) continue;
+                    addRect(rgCached(mt.args[0], T.index));
+                    addRect(rgCached(mt.args[1], T.index));
+                    maskSpan(mt);
+                }
+                for (const sif of calls.SUMIF) {
+                    const [cr, , sr] = sif.args || [];
+                    addRect(rgCached(cr, T.index));
+                    addRect(rgCached(sr || cr, T.index), true);
+                }
+                for (const sifs of calls.SUMIFS) {
+                    const [sum, ...rest] = sifs.args || [];
+                    addRect(rgCached(sum, T.index), true);
+                    for (let i = 0; i < rest.length; i += 2)
+                        addRect(rgCached(rest[i], T.index));
+                }
+                for (const sp of calls.SUMPRODUCT) {
+                    for (const a of sp.args || [])
+                        addRect(rgCached(a, T.index));
+                    maskSpan(sp);
+                }
+                for (const off of calls.OFFSET) {
+                    if (!off.args || off.args.length < 3) continue;
+                    const [ref, r, c, h, w] = off.args;
+                    const base = rgCached(ref, T.index);
+                    if (!base) continue;
+                    const rr = p._parseIntIfLiteral(r);
+                    const cc = p._parseIntIfLiteral(c);
+                    const hh = p._parseIntIfLiteral(h);
+                    const ww = p._parseIntIfLiteral(w);
+                    if (Number.isFinite(rr) && Number.isFinite(cc)) {
+                        addRect({
+                            row: [base.row[0] + rr, base.row[0] + rr + (hh || base.row[1] - base.row[0])],
+                            column: [base.column[0] + cc, base.column[0] + cc + (ww || base.column[1] - base.column[0])],
+                            sheetIndex: base.sheetIndex
+                        });
+                    } else {
+                        addRect(base);
+                    }
+                    maskSpan(off);
+                }
+                for (const ind of calls.INDIRECT) {
+                    if (!ind.args || ind.args.length < 1) continue;
+                    const t = ('' + ind.args[0]).trim();
+                    const m = t.match(/^"(.*)"$/);
+                    if (m && m[1]) {
+                        addRect(rgCached(m[1], T.index));
+                        maskSpan(ind);
+                    }
+                }
+                const tokens = masked.split(p._fmrSplit).filter(Boolean);
+                for (const tk of tokens) {
+                    const t = tk.trim();
+                    if (!t) continue;
+                    const rg = rgCached(t, T.index);
+                    if (rg) addRect(rg);
+                }
+                return depRanges;
+            },
+            p._isVolatileIndirect = function (R) {
+                return p._depParseCalls(R).volatileIndirect;
+            },
+            p._dependencyEnsureState = function () {
+                if (!this._formulaDependencyIndex) {
+                    this._formulaDependencyIndex = {
+                        initialized: false,
+                        valid: false,
+                        version: 0,
+                        signature: null,
+                        dependencies: {},
+                        dependentsBySheet: {},
+                        dependentsRowIndex: {},
+                        volatileNodesBySheet: {},
+                        dirtyCells: new Set(),
+                        formulaCount: 0,
+                        refKeyCount: 0,
+                        disabled: false,
+                        disabledReason: null,
+                        invalidReason: null,
+                        stats: { builds: 0, reconciles: 0, invalidations: 0, hits: 0, fallbacks: 0 }
+                    };
+                }
+                return this._formulaDependencyIndex;
+            },
+            p._dependencyIndexEnabled = function () {
+                if (!(me && me.enableDependencyIndexOptimization !== false)) return false;
+                const idx = this._formulaDependencyIndex;
+                if (idx && idx.disabled) return false;
+                return true;
+            },
+            p._dependencyDisable = function (reason) {
+                const idx = this._dependencyEnsureState();
+                idx.valid = false;
+                idx.initialized = false;
+                idx.disabled = true;
+                idx.disabledReason = reason || 'disabled';
+                idx.dependencies = {};
+                idx.dependentsBySheet = {};
+                idx.dependentsRowIndex = {};
+                idx.volatileNodesBySheet = {};
+                idx.dirtyCells.clear();
+                idx.refKeyCount = 0;
+                idx.stats.invalidations++;
+            },
+            p._dependencyCalcSignature = function () {
+                const sheets = Ft() || [];
+                let sig = sheets.length + '|';
+                for (let i = 0; i < sheets.length; i++) {
+                    const sh = sheets[i];
+                    sig += (sh.index || '') + ':' + (sh.data ? sh.data.length : 0) + ';';
+                }
+                return sig;
+            },
+            p._dependencyInvalidate = function (reason) {
+                const idx = this._dependencyEnsureState();
+                idx.valid = false;
+                idx.invalidReason = reason || 'invalidate';
+                idx.stats.invalidations++;
+                idx.dirtyCells.clear();
+                idx.dependencies = {};
+                idx.dependentsBySheet = {};
+                idx.dependentsRowIndex = {};
+                idx.volatileNodesBySheet = {};
+                idx.refKeyCount = 0;
+            },
+            p._dependencyMarkDirty = function (r, c, index) {
+                if (r == null || c == null) return;
+                const idx = this._dependencyEnsureState();
+                if (idx.disabled) return;
+                if (idx.valid === false && idx.initialized) return;
+                idx.dirtyCells.add("r" + r + "c" + c + "i" + (index == null ? h.currentSheetIndex : index));
+            },
+            p._depRangeId = function (rg) {
+                return rg.si + '|' + rg.r0 + '_' + rg.r1 + '|' + rg.c0 + '_' + rg.c1;
+            },
+            p._depRangeContains = function (rg, r, c, si) {
+                return String(rg.si) === String(si) && r >= rg.r0 && r <= rg.r1 && c >= rg.c0 && c <= rg.c1;
+            },
+            p._depDependentsOfCell = function (idx, r, c, si, out) {
+                const _si = String(si);
+                const _dbg = (me && me.debugDependencyIndex === true) ? p._depEvalProfile : null;
+                const _t0s = (_dbg && typeof performance !== 'undefined') ? performance.now() : 0;
+                // Fast path: use the row-indexed lookup for O(K) lookup.
+                const ri = idx.dependentsRowIndex && idx.dependentsRowIndex[_si];
+                if (ri && ri[r]) {
+                    const entries = ri[r];
+                    for (let ei = 0; ei < entries.length; ei++) {
+                        const entry = entries[ei];
+                        if (c >= entry.c0 && c <= entry.c1) {
+                            const nks = entry.nodeKeys;
+                            if (nks.forEach) nks.forEach(function (nk) { out.add(nk); });
+                            else for (const nk of nks) out.add(nk);
+                        }
+                    }
+                } else if (!ri) {
+                    // Fallback: linear scan if row index not built
+                    const sheet = idx.dependentsBySheet[_si];
+                    if (sheet) {
+                        for (const id in sheet) {
+                            const entry = sheet[id];
+                            if (r >= entry.r0 && r <= entry.r1 && c >= entry.c0 && c <= entry.c1) {
+                                for (const nk of entry.nodeKeys) out.add(nk);
+                            }
+                        }
+                    }
+                }
+                if (_dbg && typeof performance !== 'undefined') {
+                    _dbg.depScanMs += (performance.now() - _t0s);
+                    _dbg.depScanCalls++;
+                }
+            },
+            p._dependencyEnsureSheetGrid = function (ref, sheetIndex) {
+                try {
+                    let targetIndex = sheetIndex;
+                    const txt = (ref || '').trim();
+                    if (txt.indexOf('!') > -1) {
+                        let name = txt.split('!')[0].replace(/\\'/g, "'").replace(/''/g, "'");
+                        if (name.substr(0, 1) === "'" && name.substr(name.length - 1, 1) === "'") name = name.substring(1, name.length - 1);
+                        const sh = (Ft() || []).find(s => s.name === name);
+                        if (!sh) return;
+                        targetIndex = sh.index;
+                    }
+                    const target = (Ft() || []).find(s => String(s.index) === String(targetIndex));
+                    if (!target) return;
+                    if (target.data && target.data.length) return;
+                    const savedAF = me.autoFormatw, savedAcc = me.accuracy;
+                    const built = (typeof ve.buildGridData === "function") ? ve.buildGridData(target) : this.buildGridData(target);
+                    me.autoFormatw = savedAF, me.accuracy = savedAcc;
+                    target.data = built;
+                    if (target.load == null || target.load === "0") target.load = "1";
+                } catch (e) { }
+            },
+            p._dependencyCaches = function () {
+                const sheets = Ft() || [];
+                const sheetMap = {};
+                for (let i = 0; i < sheets.length; i++) {
+                    const sh = sheets[i];
+                    sheetMap[sh.index] = (sh.data && sh.data.length) ? sh.data.length - 1 : (sh.row != null ? sh.row - 1 : 0);
+                }
+                const _rgCache = new Map();
+                const rgCached = (txt, sheetIndex) => {
+                    const key = sheetIndex + '|' + (txt || '').trim();
+                    if (_rgCache.has(key)) return _rgCache.get(key);
+                    this._dependencyEnsureSheetGrid((txt || '').trim(), sheetIndex);
+                    const rect = this.getcellusedrange((txt || '').trim(), sheetIndex);
+                    if (rect && rect.sheetIndex != null) {
+                        const sh = (Ft() || []).find(s => String(s.index) === String(rect.sheetIndex));
+                        if (sh && sh.data && sh.data.length) sheetMap[sh.index] = sh.data.length - 1;
+                    }
+                    _rgCache.set(key, rect);
+                    return rect;
+                };
+                const rangeForRect = (R) => {
+                    if (!R || R.sheetIndex == null || R.row == null || R.column == null) return null;
+                    const maxRow = sheetMap[R.sheetIndex] ?? R.row[1];
+                    const aRow = R.row[1] > maxRow ? maxRow : R.row[1];
+                    if (aRow < R.row[0]) return null;
+                    const rg = { si: R.sheetIndex, r0: R.row[0], r1: aRow, c0: R.column[0], c1: R.column[1] };
+                    rg.id = p._depRangeId(rg);
+                    return rg;
+                };
+                return { rgCached: rgCached, rangeForRect: rangeForRect };
+            },
+            p._dependencyFormulaFor = function (r, c, index) {
+                const liveCell = O2(r, c, index);
+                if (liveCell != null) return liveCell.f || null;
+                return ve.getSheetByIndex(index)?.celldata?.find(x => x?.r === r && x?.c === c)?.v?.f || null;
+            },
+            p._dependencyBuild = function () {
+                try {
+                    const _bpOn = !!((me && me.debugDependencyIndex === true) && typeof performance !== 'undefined');
+                    const _bp0 = _bpOn ? performance.now() : 0;
+                    const idx = this._dependencyEnsureState();
+                    const deps = {};
+                    const dependentsBySheet = {};
+                    const vol = {};
+                    const sheets = Ft() || [];
+                    for (let _si = 0; _si < sheets.length; _si++) {
+                        const _sh = sheets[_si];
+                        if (_sh && (!_sh.data || !_sh.data.length)) {
+                            this._dependencyEnsureSheetGrid(_sh.name + '!A1', _sh.index);
+                        }
+                    }
+                    const _bpGrid = _bpOn ? performance.now() : 0;
+                    const caches = this._dependencyCaches();
+                    const maxRefKeys = (me && Number.isFinite(me.dependencyIndexMaxRefKeys)) ? me.dependencyIndexMaxRefKeys : 20000000;
+                    let count = 0;
+                    let refKeyTotal = 0;
+                    let _bpFormula = 0, _bpReplace = 0, _bpCollect = 0, _bpVolatile = 0, _bpNodes = 0;
+                    for (let i = 0; i < sheets.length; i++) {
+                        const sheet = sheets[i];
+                        const chain = Array.isArray(sheet.calcChain) ? sheet.calcChain : [];
+                        const dac = Array.isArray(sheet.dynamicArray_compute) ? sheet.dynamicArray_compute : [];
+                        const entries = chain.concat(dac);
+                        for (let j = 0; j < entries.length; j++) {
+                            let entry = entries[j];
+                            if (typeof entry === 'string') {
+                                try { entry = JSON.parse(entry); } catch (e) { continue; }
+                            }
+                            if (!entry || entry.r == null || entry.c == null || entry.index == null) continue;
+                            const r = entry.r, c = entry.c, index = entry.index;
+                            const key = "r" + r + "c" + c + "i" + index;
+                            if (deps[key]) continue;
+                            const _t0f = _bpOn ? performance.now() : 0;
+                            const R = this._dependencyFormulaFor(r, c, index);
+                            if (!R) continue;
+                            _bpFormula += _bpOn ? (performance.now() - _t0f) : 0;
+                            const _t0r = _bpOn ? performance.now() : 0;
+                            const replaced = this._replaceQuotedCellWithValue(R, index);
+                            _bpReplace += _bpOn ? (performance.now() - _t0r) : 0;
+                            const _t0c = _bpOn ? performance.now() : 0;
+                            const refRanges = this._collectRefRangesForNode(replaced, { r: r, c: c, index: index }, caches.rgCached, caches.rangeForRect);
+                            _bpCollect += _bpOn ? (performance.now() - _t0c) : 0;
+                            const _t0v = _bpOn ? performance.now() : 0;
+                            const volatile = this._isVolatileIndirect(replaced);
+                            _bpVolatile += _bpOn ? (performance.now() - _t0v) : 0;
+                            const _t0n = _bpOn ? performance.now() : 0;
+                            deps[key] = { r: r, c: c, index: index, formula: R, refRanges: refRanges, volatile: volatile };
+                            for (const rg of refRanges) {
+                                const si = String(rg.si);
+                                if (!dependentsBySheet[si]) dependentsBySheet[si] = {};
+                                if (!dependentsBySheet[si][rg.id]) dependentsBySheet[si][rg.id] = { r0: rg.r0, r1: rg.r1, c0: rg.c0, c1: rg.c1, si: rg.si, nodeKeys: new Set() };
+                                dependentsBySheet[si][rg.id].nodeKeys.add(key);
+                            }
+                            if (volatile) {
+                                if (!vol[index]) vol[index] = new Set();
+                                vol[index].add(key);
+                            }
+                            _bpNodes += _bpOn ? (performance.now() - _t0n) : 0;
+                            count++;
+                            refKeyTotal += refRanges.size;
+                            if (refKeyTotal > maxRefKeys) {
+                                this._dependencyDisable('refkey-budget-exceeded');
+                                return false;
+                            }
+                        }
+                    }
+                    idx.dependencies = deps;
+                    idx.dependentsBySheet = dependentsBySheet;
+                    idx.volatileNodesBySheet = vol;
+                    // Build a row-indexed lookup for fast dependent resolution.
+                    // rowIndex[si][row] = array of { c0, c1, nodeKeys } entries
+                    // that cover that row. This converts _depDependentsOfCell from
+                    // O(N) linear scan to O(K) where K is entries on that row.
+                    const rowIndex = {};
+                    for (const si in dependentsBySheet) {
+                        const sheetEntries = dependentsBySheet[si];
+                        const ri = {};
+                        for (const id in sheetEntries) {
+                            const e = sheetEntries[id];
+                            for (let r = e.r0; r <= e.r1; r++) {
+                                if (!ri[r]) ri[r] = [];
+                                ri[r].push(e);
+                            }
+                        }
+                        rowIndex[si] = ri;
+                    }
+                    idx.dependentsRowIndex = rowIndex;
+                    idx.dirtyCells.clear();
+                    idx.formulaCount = count;
+                    idx.refKeyCount = refKeyTotal;
+                    idx.valid = true;
+                    idx.initialized = true;
+                    idx.invalidReason = null;
+                    idx.version++;
+                    idx.signature = this._dependencyCalcSignature();
+                    idx.stats.builds++;
+                    idx.profile = {
+                        total: Math.round(_bpOn ? (performance.now() - _bp0) : 0),
+                        ensureGrids: Math.round(_bpGrid - _bp0),
+                        formulaLookup: Math.round(_bpFormula),
+                        replaceQuoted: Math.round(_bpReplace),
+                        collectRefs: Math.round(_bpCollect),
+                        volatileCheck: Math.round(_bpVolatile),
+                        nodeBookkeeping: Math.round(_bpNodes),
+                        cells: count
+                    };
+                    if (me && me.debugDependencyIndex) {
+                        window.__dependencyIndexDebug = {
+                            disabled: idx.disabled,
+                            disabledReason: idx.disabledReason,
+                            refKeyCount: idx.refKeyCount,
+                            stats: idx.stats,
+                            profile: idx.profile,
+                            evalProfile: p._depEvalProfile
+                        };
+                    }
+                    return true;
+                } catch (err) {
+                    if (window.console && console.warn) console.warn('[DependencyIndex] build failed:', err);
+                    return false;
+                }
+            },
+            p._dependencyReconcileCell = function (r, c, index, caches) {
+                try {
+                    const idx = this._dependencyEnsureState();
+                    if (!idx.valid) return false;
+                    const key = "r" + r + "c" + c + "i" + index;
+                    const oldMeta = idx.dependencies[key];
+                    const R = this._dependencyFormulaFor(r, c, index);
+                    const detachRanges = (meta) => {
+                        if (!meta || !meta.refRanges) return;
+                        for (const rg of meta.refRanges) {
+                            const si = String(rg.si);
+                            const entry = idx.dependentsBySheet[si] && idx.dependentsBySheet[si][rg.id];
+                            if (entry) {
+                                entry.nodeKeys.delete(key);
+                                if (entry.nodeKeys.size === 0) delete idx.dependentsBySheet[si][rg.id];
+                            }
+                        }
+                    };
+                    if (!R) {
+                        if (oldMeta) {
+                            detachRanges(oldMeta);
+                            if (oldMeta.volatile && idx.volatileNodesBySheet[index]) {
+                                idx.volatileNodesBySheet[index].delete(key);
+                                if (idx.volatileNodesBySheet[index].size === 0) delete idx.volatileNodesBySheet[index];
+                            }
+                            delete idx.dependencies[key];
+                            idx.refKeyCount = Math.max(0, idx.refKeyCount - oldMeta.refRanges.size);
+                            idx.stats.reconciles++;
+                        }
+                        return true;
+                    }
+                    if (oldMeta && oldMeta.formula === R) return true;
+                    if (!caches) caches = this._dependencyCaches();
+                    const replaced = this._replaceQuotedCellWithValue(R, index);
+                    const refRanges = this._collectRefRangesForNode(replaced, { r: r, c: c, index: index }, caches.rgCached, caches.rangeForRect);
+                    const volatile = this._isVolatileIndirect(replaced);
+                    const delta = refRanges.size - (oldMeta ? oldMeta.refRanges.size : 0);
+                    const maxRefKeys = (me && Number.isFinite(me.dependencyIndexMaxRefKeys)) ? me.dependencyIndexMaxRefKeys : 20000000;
+                    if (idx.refKeyCount + delta > maxRefKeys) {
+                        this._dependencyDisable('refkey-budget-exceeded');
+                        return false;
+                    }
+                    if (oldMeta) detachRanges(oldMeta);
+                    if (oldMeta && oldMeta.volatile && idx.volatileNodesBySheet[index]) {
+                        idx.volatileNodesBySheet[index].delete(key);
+                        if (idx.volatileNodesBySheet[index].size === 0) delete idx.volatileNodesBySheet[index];
+                    }
+                    const meta = { r: r, c: c, index: index, formula: R, refRanges: refRanges, volatile: volatile };
+                    idx.dependencies[key] = meta;
+                    for (const rg of refRanges) {
+                        const si = String(rg.si);
+                        if (!idx.dependentsBySheet[si]) idx.dependentsBySheet[si] = {};
+                        if (!idx.dependentsBySheet[si][rg.id]) idx.dependentsBySheet[si][rg.id] = { r0: rg.r0, r1: rg.r1, c0: rg.c0, c1: rg.c1, si: rg.si, nodeKeys: new Set() };
+                        idx.dependentsBySheet[si][rg.id].nodeKeys.add(key);
+                    }
+                    if (volatile) {
+                        if (!idx.volatileNodesBySheet[index]) idx.volatileNodesBySheet[index] = new Set();
+                        idx.volatileNodesBySheet[index].add(key);
+                    }
+                    idx.refKeyCount += delta;
+                    idx.stats.reconciles++;
+                    return true;
+                } catch (err) {
+                    if (window.console && console.warn) console.warn('[DependencyIndex] reconcile failed for r' + r + 'c' + c + 'i' + index + ':', err);
+                    return false;
+                }
+            },
+            p._dependencyReconcileAllDirty = function (caches) {
+                const idx = this._dependencyEnsureState();
+                if (!idx.valid) return;
+                const keys = Array.from(idx.dirtyCells);
+                idx.dirtyCells.clear();
+                for (let i = 0; i < keys.length; i++) {
+                    const m = /^r(\d+)c(\d+)i(.+)$/.exec(keys[i]);
+                    if (!m) continue;
+                    this._dependencyReconcileCell(parseInt(m[1], 10), parseInt(m[2], 10), m[3], caches);
+                }
+            },
+            p._dependencyGet = function () {
+                if (!this._dependencyIndexEnabled()) return null;
+                const idx = this._dependencyEnsureState();
+                const sig = this._dependencyCalcSignature();
+                if (idx.initialized && idx.signature !== sig) this._dependencyInvalidate('signature-change');
+                if (!idx.valid) {
+                    const ok = this._dependencyBuild();
+                    if (!ok) return null;
+                }
+                return idx;
+            },
+            // Reference impact set: full rebuild from calcChain using the shared
+            // extractor (used only when validateDependencyIndex is enabled).
+            p._dependencyReferenceImpacted = function (execSet, opts) {
+                try {
+                    const sheets = Ft() || [];
+                    const caches = this._dependencyCaches();
+                    const nodes = {};
+                    const refToChildren = {};
+                    for (let i = 0; i < sheets.length; i++) {
+                        const sheet = sheets[i];
+                        const chain = Array.isArray(sheet.calcChain) ? sheet.calcChain : [];
+                        for (let j = 0; j < chain.length; j++) {
+                            let entry = chain[j];
+                            if (typeof entry === 'string') {
+                                try { entry = JSON.parse(entry); } catch (e) { continue; }
+                            }
+                            if (!entry || entry.r == null || entry.c == null || entry.index == null) continue;
+                            const nodeKey = "r" + entry.r + "c" + entry.c + "i" + entry.index;
+                            if (nodes[nodeKey]) continue;
+                            const R = this._dependencyFormulaFor(entry.r, entry.c, entry.index);
+                            if (!R) continue;
+                            const replaced = this._replaceQuotedCellWithValue(R, entry.index);
+                            const refRanges = this._collectRefRangesForNode(replaced, { r: entry.r, c: entry.c, index: entry.index }, caches.rgCached, caches.rangeForRect);
+                            const refKeys = new Set();
+                            for (const rg of refRanges) {
+                                for (let rr = rg.r0; rr <= rg.r1; rr++) {
+                                    for (let cc = rg.c0; cc <= rg.c1; cc++) {
+                                        refKeys.add("r" + rr + "c" + cc + "i" + rg.si);
+                                    }
+                                }
+                            }
+                            const node = nodes[nodeKey] = { key: nodeKey, refKeys: refKeys, parents: {}, children: {} };
+                            for (const k of refKeys) {
+                                if (!refToChildren[k]) refToChildren[k] = new Set();
+                                refToChildren[k].add(nodeKey);
+                            }
+                        }
+                    }
+                    for (const nodeKey of Object.keys(nodes)) {
+                        const node = nodes[nodeKey];
+                        for (const refKey of node.refKeys) {
+                            if (nodes[refKey]) {
+                                node.parents[refKey] = 1;
+                                nodes[refKey].children[nodeKey] = 1;
+                            }
+                        }
+                    }
+                    const impacted = new Set();
+                    const queue = [];
+                    const execKeys = Object.keys(execSet);
+                    for (let i = 0; i < execKeys.length; i++) {
+                        const changedKey = execKeys[i];
+                        if (!changedKey || changedKey.indexOf('i') < 0) continue;
+                        const directChildren = refToChildren[changedKey];
+                        if (directChildren) for (const childKey of directChildren) {
+                            if (!impacted.has(childKey)) { impacted.add(childKey); queue.push(childKey); }
+                        }
+                        if (nodes[changedKey] && !impacted.has(changedKey)) { impacted.add(changedKey); queue.push(changedKey); }
+                    }
+                    while (queue.length > 0) {
+                        const k = queue.pop();
+                        const nnode = nodes[k];
+                        if (!nnode) continue;
+                        const childKeys = Object.keys(nnode.children || {});
+                        for (let ci = 0; ci < childKeys.length; ci++) {
+                            const ck = childKeys[ci];
+                            if (!impacted.has(ck)) { impacted.add(ck); queue.push(ck); }
+                        }
+                    }
+                    return impacted;
+                } catch (err) {
+                    return null;
+                }
+            },
+            p._dependencyTryBuildGraph = function (execSet, opts) {
+                opts = opts || {};
+                try {
+                    const idx = this._dependencyGet();
+                    if (!idx) return null;
+                    const execKeys = Object.keys(execSet);
+                    let caches = null;
+                    for (let i = 0; i < execKeys.length; i++) {
+                        const m = /^r(\d+)c(\d+)i(.+)$/.exec(execKeys[i] || '');
+                        if (!m) continue;
+                        if (!caches) caches = this._dependencyCaches();
+                        this._dependencyReconcileCell(parseInt(m[1], 10), parseInt(m[2], 10), m[3], caches);
+                    }
+                    this._dependencyReconcileAllDirty(caches);
+                    if (!idx.valid) return null;
+
+                    const nodes = {};
+                    const refToChildren = {};
+                    const volatileNodesBySheet = {};
+                    const impacted = new Set();
+                    const queue = [];
+                    const addImpacted = (k) => {
+                        if (!impacted.has(k)) { impacted.add(k); queue.push(k); }
+                    };
+
+                    const seeds = new Set();
+                    for (let i = 0; i < execKeys.length; i++) {
+                        const changedKey = execKeys[i];
+                        if (!changedKey || changedKey.indexOf('i') < 0) continue;
+                        const cm = /^r(\d+)c(\d+)i(.+)$/.exec(changedKey);
+                        if (cm) this._depDependentsOfCell(idx, parseInt(cm[1], 10), parseInt(cm[2], 10), cm[3], seeds);
+                        if (idx.dependencies[changedKey]) seeds.add(changedKey);
+                        const si = changedKey.substring(changedKey.indexOf('i') + 1);
+                        const volSet = idx.volatileNodesBySheet[si];
+                        if (volSet) for (const vk of volSet) seeds.add(vk);
+                    }
+                    for (const sk of seeds) addImpacted(sk);
+                    while (queue.length > 0) {
+                        const k = queue.pop();
+                        const km = /^r(\d+)c(\d+)i(.+)$/.exec(k);
+                        if (!km) continue;
+                        const next = new Set();
+                        this._depDependentsOfCell(idx, parseInt(km[1], 10), parseInt(km[2], 10), km[3], next);
+                        for (const nk of next) addImpacted(nk);
+                    }
+
+                    if (impacted.size === 0) {
+                        if (opts.recomputeAllOnEmpty) return null;
+                        return { nodes: nodes, refToChildren: refToChildren, volatileNodesBySheet: volatileNodesBySheet, impacted: impacted };
+                    }
+
+                    for (const k of impacted) {
+                        let meta = idx.dependencies[k];
+                        if (!meta) continue;
+                        let R = this._dependencyFormulaFor(meta.r, meta.c, meta.index);
+                        if (!R) continue;
+                        if (R !== meta.formula) {
+                            this._dependencyReconcileCell(meta.r, meta.c, meta.index);
+                            meta = idx.dependencies[k];
+                            if (!meta) continue;
+                        }
+                        const replaced = this._replaceQuotedCellWithValue(R, meta.index);
+                        const node = nodes[k] = {
+                            key: k,
+                            r: meta.r,
+                            c: meta.c,
+                            index: meta.index,
+                            calc_funcStr: replaced,
+                            parents: {},
+                            children: {},
+                            refRanges: meta.refRanges,
+                            color: 'w',
+                            cellAddress: this.getExcelAddr(meta.r, meta.c)
+                        };
+                        if (meta.volatile) {
+                            if (!volatileNodesBySheet[meta.index]) volatileNodesBySheet[meta.index] = new Set();
+                            volatileNodesBySheet[meta.index].add(k);
+                        }
+                    }
+
+                    const sheetCells = {};
+                    for (const nk of Object.keys(nodes)) {
+                        const nd = nodes[nk];
+                        const skey = String(nd.index);
+                        if (!sheetCells[skey]) sheetCells[skey] = [];
+                        sheetCells[skey].push({ r: nd.r, c: nd.c, k: nk });
+                    }
+                    for (const skey of Object.keys(sheetCells)) {
+                        sheetCells[skey].sort((a, b) => (a.r - b.r) || (a.c - b.c));
+                    }
+                    const collectContained = (rg, out) => {
+                        const skey = String(rg.si);
+                        const arr = sheetCells[skey];
+                        if (!arr) return;
+                        let lo = 0, hi = arr.length;
+                        while (lo < hi) {
+                            const mid = (lo + hi) >> 1;
+                            if (arr[mid].r < rg.r0) lo = mid + 1; else hi = mid;
+                        }
+                        for (let i = lo; i < arr.length; i++) {
+                            const p = arr[i];
+                            if (p.r > rg.r1) break;
+                            if (p.c >= rg.c0 && p.c <= rg.c1) out.push(p.k);
+                        }
+                    };
+                    for (const nodeKey of Object.keys(nodes)) {
+                        const node = nodes[nodeKey];
+                        for (const rg of node.refRanges) {
+                            const hits = [];
+                            collectContained(rg, hits);
+                            for (const hk of hits) {
+                                node.parents[hk] = 1;
+                                nodes[hk].children[nodeKey] = 1;
+                            }
+                        }
+                    }
+
+                    if (opts.validate && me.validateDependencyIndex === true) {
+                        const reference = this._dependencyReferenceImpacted(execSet, opts);
+                        if (reference) {
+                            let mismatch = false;
+                            if (reference.size !== impacted.size) {
+                                mismatch = true;
+                                console.warn('[DependencyIndex] validation mismatch (size): reference=' + reference.size + ' optimized=' + impacted.size);
+                            } else {
+                                for (const rk of reference) {
+                                    if (!impacted.has(rk)) { mismatch = true; console.warn('[DependencyIndex] validation mismatch (missing): ' + rk); break; }
+                                }
+                            }
+                            if (mismatch) {
+                                this._dependencyInvalidate('validation-mismatch');
+                                return null;
+                            }
+                        }
+                    }
+                    return { nodes: nodes, refToChildren: refToChildren, volatileNodesBySheet: volatileNodesBySheet, impacted: impacted };
+                } catch (err) {
+                    if (window.console && console.warn) console.warn('[DependencyIndex] graph build failed, falling back:', err);
+                    return null;
+                }
+            },
+            p._dependencyTryExecute = function (execSet, opts) {
+                opts = opts || {};
+                if ((me && me.debugDependencyIndex === true) && !p._depEvalProfile) p._depEvalProfile = { calls: 0, ms: 0, buildMs: 0, depScanMs: 0, depScanCalls: 0, depScanEntries: 0, reconciles: 0 };
+                if (p._depEvalProfile) p._depEvalProfile.calls++;
+                const _t0e = (p._depEvalProfile && typeof performance !== 'undefined') ? performance.now() : 0;
+                // During the initial load the index is not built yet (it is built
+                // via _dependencyGet() right after the forced recalculation pass).
+                // Falling back to the base full-scan path there avoids paying the
+                // dependent-graph BFS on top of the mandatory first recalculation.
+                const _idxPre = this._formulaDependencyIndex;
+                if (!_idxPre || !_idxPre.initialized) {
+                    if (p._depEvalProfile && typeof performance !== 'undefined') p._depEvalProfile.ms += (performance.now() - _t0e);
+                    return false;
+                }
+                const dataStart = this.groupValuesRefreshData ? this.groupValuesRefreshData.length : 0;
+                var _depT0 = performance.now();
+                try {
+                    const graph = this._dependencyTryBuildGraph(execSet, opts);
+                    var _graphMs = performance.now() - _depT0;
+                    if (!graph) { if (window.__perfDiag) window.__perfDiag.push({ fn: "_depTryExec", phase: "graphBuild", ms: _graphMs, result: "null" }); return false; }
+                    const nodes = graph.nodes;
+                    const impacted = graph.impacted;
+                    if (impacted.size === 0) { if (window.__perfDiag) window.__perfDiag.push({ fn: "_depTryExec", phase: "graphBuild", ms: _graphMs, impacted: 0 }); return true; }
+
+                    const ordered = [];
+                    const processed = {};
+                    const color = {};
+                    let cycleDetected = false;
+                    const dfsVisit = (k, stack) => {
+                        if (processed[k]) return;
+                        const curColor = color[k] || 'w';
+                        if (curColor === 'g') { cycleDetected = true; return; }
+                        if (curColor === 'b') return;
+                        color[k] = 'g';
+                        stack.push(k);
+                        const parents = Object.keys(nodes[k]?.parents || {})
+                            .filter(pk => nodes[pk] && impacted.has(pk))
+                            .sort();
+                        for (let i = 0; i < parents.length; i++) {
+                            const pk = parents[i];
+                            if (!processed[pk]) dfsVisit(pk, stack);
+                        }
+                        color[k] = 'b';
+                        processed[k] = 1;
+                        ordered.push(nodes[k]);
+                        stack.pop();
+                    };
+                    for (const k of impacted) {
+                        if (nodes[k] && !processed[k]) dfsVisit(k, []);
+                    }
+                    var _dfsMs = performance.now() - _depT0 - _graphMs;
+                    if (cycleDetected) {
+                        console.warn("Calculation cycle detected (DFS).");
+                        if (h.cycleErrorElement) $(`#${h.cycleErrorElement}`).css('display', 'block');
+                    }
+
+                    window.__VLOOKUP_CACHE = {};
+                    window.__XLOOKUP_CACHE = {};
+                    var _evalT0 = performance.now();
+                    for (let i = 0; i < ordered.length; i++) {
+                        const T = ordered[i];
+                        window.luckysheet_getcelldata_cache = null;
+                        const Rres = this.execfunction(T.calc_funcStr, T.r, T.c, T.index);
+                        this.execFunctionGlobalData[`${T.r}_${T.c}_${T.index}`] = { v: Rres[1], f: Rres[2] };
+                        this.groupValuesRefreshData.push({ r: T.r, c: T.c, v: Rres[1], f: Rres[2], spe: Rres[3], index: T.index });
+                    }
+                    var _evalMs = performance.now() - _evalT0;
+                    window.__VLOOKUP_CACHE = {};
+                    window.__XLOOKUP_CACHE = {};
+                    this.execFunctionExist = null;
+                    if (this._formulaDependencyIndex) this._formulaDependencyIndex.stats.hits++;
+                    if (window.__perfDiag) window.__perfDiag.push({ fn: "_depTryExec", phase: "done", graphMs: _graphMs, dfsMs: _dfsMs, evalMs: _evalMs, totalMs: performance.now() - _depT0, impacted: impacted.size, ordered: ordered.length });
+                    if (p._depEvalProfile && typeof performance !== 'undefined') p._depEvalProfile.ms += (performance.now() - _t0e);
+                    return true;
+                } catch (err) {
+                    if (this.groupValuesRefreshData && this.groupValuesRefreshData.length > dataStart) {
+                        this.groupValuesRefreshData.length = dataStart;
+                    }
+                    if (window.console && console.warn) console.warn('[DependencyIndex] execute failed, falling back:', err);
+                    if (p._depEvalProfile && typeof performance !== 'undefined') p._depEvalProfile.ms += (performance.now() - _t0e);
+                    return false;
+                }
+            }
     }
     );
     function Mo(e, n = "redo") {
@@ -68391,7 +69581,6 @@ parseDateToSerial: function (input) {
                     h.clearjfundo = !1,
                     ve.hasSheet(e.sheetIndex) && h.currentSheetIndex != e.sheetIndex && ve.changeSheetExec(e.sheetIndex),
                     e.type == "datachange") {
-                    p.execFunctionGroup();
                     let n = {
                         cfg: e.curConfig,
                         RowlChange: e.RowlChange,
@@ -71129,6 +72318,9 @@ parseDateToSerial: function (input) {
         setCellValue: () => Ka,
         updateCellValue: () => Ucv,
         refreshAll: () => rfa,
+        pasteSpecialValuesSameColumn: (rowStartIndex, startColumnIndex, endColumnIndex, sheetName) => Psv,
+        deleteBulkColumns: (startColumnIndex, endColumnIndex, sheetName) => Dcv,
+        extendLastColumnUsingNativeLogic:(sheetName, extendCount = 5) => Ecv,
         clearUsedMemory: () => cum,
         validateCellValue: () => Vcv,
         findCirculareReference: () => Fcr,
@@ -71277,6 +72469,7 @@ parseDateToSerial: function (input) {
         let oldCell = JSON.parse(JSON.stringify(cell));  // clone ONLY this cell (light)
 
         let isFormula = false;
+        let isPlainValue = false;
         let dynamicArrayPayload = null;
         let textValue = value;
         let needsRecalc = true;
@@ -71339,6 +72532,18 @@ parseDateToSerial: function (input) {
 
             // ✔ Input object may contain .f (formula)
             if (textValue.f && textValue.f.startsWith("=")) {
+                if (!window.luckysheet_compareWith) {
+                    window.luckysheet_compareWith = ja;
+                    window.luckysheet_getarraydata = wc;
+                    window.luckysheet_getcelldata = nr;
+                    window.luckysheet_parseData = Ua;
+                    window.luckysheet_getValue = qn;
+                    window.luckysheet_indirect_check = xc;
+                    window.luckysheet_indirect_check_return = _c;
+                    window.luckysheet_offset_check = Cc;
+                    window.luckysheet_calcADPMM = _t;
+                    window.luckysheet_getSpecialReference = Tc;
+                }
                 const evalResult = a.execfunction(textValue.f, row, col, undefined, true);
 
                 isFormula = true;
@@ -71359,8 +72564,9 @@ parseDateToSerial: function (input) {
 
         } else {
             // ✔ Plain value (not formula)
+            isPlainValue = true;
+
             a.delFunctionGroup(row, col);
-            a.execFunctionGroup(row, col, textValue);
 
             cell = {
                 ...cell,
@@ -71387,8 +72593,11 @@ parseDateToSerial: function (input) {
         // -----------------------------------------------------------
         flowdata[row][col] = cell;
 
-        a.cancelNormalSelected();
+        if (isPlainValue) {
+            a.execFunctionGroup(row, col, textValue);
+        }
 
+        a.cancelNormalSelected();
         // -----------------------------------------------------------
         // 5. ROW HEIGHT CALC (cheap)
         // -----------------------------------------------------------
@@ -71451,6 +72660,227 @@ parseDateToSerial: function (input) {
     function rfa() {
         p.execFunctionGroupForce(false);
     }
+
+
+       async function Psv(
+        rowStartIndex,
+        startColumnIndex,
+        endColumnIndex,
+        sheetName
+    ) {
+
+
+        const file = h.luckysheetfile.find(x => x.name === sheetName);
+        if (!file) return;
+
+        let flow = we.deepCopyFlowData(file.data);
+
+        const totalRows = flow.length;
+        const totalCols = flow[0].length;
+
+        // -------------------------------
+        // ✅ Validation
+        // -------------------------------
+        rowStartIndex =
+            Number.isInteger(rowStartIndex) && rowStartIndex >= 0 && rowStartIndex < totalRows
+                ? rowStartIndex
+                : 0;
+
+        startColumnIndex =
+            Number.isInteger(startColumnIndex) && startColumnIndex >= 0 && startColumnIndex < totalCols
+                ? startColumnIndex
+                : 0;
+
+        endColumnIndex =
+            Number.isInteger(endColumnIndex) &&
+                endColumnIndex >= startColumnIndex &&
+                endColumnIndex < totalCols
+                ? endColumnIndex
+                : totalCols - 1;
+
+        // -------------------------------
+        // ✅ Build celldata quick map
+        // -------------------------------
+        const cellDataMap = new Map();
+        if (Array.isArray(file.celldata)) {
+            for (const cd of file.celldata) {
+                cellDataMap.set(cd.r + ":" + cd.c, cd);
+            }
+        }
+
+        // -------------------------------
+        // ✅ Track calcChain removals
+        // -------------------------------
+        const removeSet = new Set();
+
+        // -------------------------------
+        // ✅ Core logic (FAST)
+        // -------------------------------
+        for (let c = startColumnIndex; c <= endColumnIndex; c++) {
+
+            // Build source values for THIS column
+            const sourceValues = [];
+
+            for (let r = rowStartIndex; r < totalRows; r++) {
+                const cell = flow[r][c];
+
+                if (cell && typeof cell === "object") {
+
+                    if (
+                        typeof cell?.v === 'number' &&
+                        cell.v > 0 && cell.v < 80000 &&
+                        /(y|M|d|h|m|s|AM\/PM)/.test(cell?.ct?.fa)
+                    ) {
+                        cell.ct ??= {};
+                        cell.ct.t = 'd';
+                    }
+
+
+                    const { f, spl, mc, ...clean } = cell;
+                    sourceValues.push(clean);
+                } else {
+                    sourceValues.push(cell ?? null);
+                }
+            }
+
+            // Paste back into SAME column
+            for (let i = 0; i < sourceValues.length; i++) {
+                const r = rowStartIndex + i;
+                const key = r + ":" + c;
+
+                // Remove formula from celldata
+                const cd = cellDataMap.get(key);
+                if (cd?.v?.f) {
+                    delete cd.v.f;
+                    delete cd.v.spl;
+                }
+
+                // Mark calcChain entry
+                if (flow[r][c]?.f) {
+                    removeSet.add(key);
+                }
+
+                // Assign value-only cell
+                flow[r][c] = sourceValues[i]
+                    ? { ...sourceValues[i] }
+                    : null;
+            }
+        }
+
+        // -------------------------------
+        // ✅ Remove calcChain entries ONCE
+        // -------------------------------
+        if (Array.isArray(file.calcChain) && removeSet.size) {
+            file.calcChain = file.calcChain.filter(
+                item => !removeSet.has(item.r + ":" + item.c)
+            );
+        }
+
+        // -------------------------------
+        // ✅ Apply changes once
+        // -------------------------------
+        const selectionRange = [{
+            row: [rowStartIndex, totalRows - 1],
+            column: [startColumnIndex, endColumnIndex]
+        }];
+
+        h.flowdata = flow;
+        file.data = flow;
+        //Ye(flow, selectionRange, { cfg: file.config }, true, true, true, file.data);
+        //tt();
+        flow = null;
+    }
+    function Dcv(
+        startCol,
+        endCol,
+        sheetName
+    ) {
+        const file = h.luckysheetfile.find(x => x.name === sheetName);
+        if (!file) return;
+
+        // Switch to target sheet
+        h.currentSheetIndex = file.index;
+
+        // Indicate column header delete
+        h.luckysheetRightHeadClickIs = "column";
+
+        // Build selection exactly how Luckysheet expects
+        h.luckysheet_select_save = [{
+            row: [0, file.data.length - 1],
+            column: [startCol, endCol]
+        }];
+
+        // ✅ Trigger the SAME delete logic used by UI
+        $("#luckysheet-del-selected").trigger("click");
+    }   
+    function Ecv(sheetName, extendCount = 5, lastUsedColumn=0) {
+        function getLastUsedColumn(file) {
+            const rows = file.data.length;
+            const cols = file.data[0].length;
+
+            for (let c = cols - 1; c >= 0; c--) {
+                for (let r = 0; r < rows; r++) {
+                    const cell = file.data[r][c];
+                    if (cell != null && cell !== "") {
+                        return c;
+                    }
+                }
+            }
+            return -1; // no data in sheet
+        }
+        
+
+       
+
+
+
+        const file = h.luckysheetfile.find(x => x.name === sheetName);
+        if (!file) return;
+
+        h.currentSheetIndex = file.index;
+
+        const rowCount = file.data.length;
+        const sourceCol = lastUsedColumn == 0 ? getLastUsedColumn(file) : lastUsedColumn;
+        if (sourceCol === -1) return;
+
+        // --------------------------------------------------
+        // ✅ Ensure clipboardData exists (Luckysheet requires this)
+        // --------------------------------------------------
+        if (!window.clipboardData) {
+            window.clipboardData = {
+                _data: {},
+                setData(type, value) {
+                    this._data[type] = value;
+                },
+                getData(type) {
+                    return this._data[type];
+                }
+            };
+        }
+
+        // --------------------------------------------------
+        // 1️⃣ COPY: select last column
+        // --------------------------------------------------
+        h.luckysheetRightHeadClickIs = "column";
+        h.luckysheet_select_save = [{
+            row: [0, rowCount - 1],
+            column: [sourceCol, sourceCol]
+        }];
+
+        // ✅ Copy using internal handler
+        xt.copy(h.luckysheet_select_save);
+
+        // --------------------------------------------------
+        // 2️⃣ PASTE: extend to next `extendCount` columns
+        // --------------------------------------------------
+        h.luckysheet_select_save = [{
+            row: [0, rowCount - 1],
+            column: [sourceCol + 1, sourceCol + extendCount]
+        }];
+
+        // ✅ Paste using internal handler
+        xt.pasteHandlerOfCopyPaste(h.luckysheet_copy_save);
+    }    
 
     function cum() {
         // Ensure stacks exist as arrays (don’t leave them null)
@@ -71819,6 +73249,14 @@ parseDateToSerial: function (input) {
         let f;
         isNaN(o) || h.luckysheetfile[o] && (f = h.luckysheetfile[o].index),
             Sr(e, n, a, "lefttop", f),
+            (f == null || f == h.currentSheetIndex) && typeof _shiftCrossSheetReference === "function" && _shiftCrossSheetReference({
+                type: e === "row" ? "insertRow" : "insertCol",
+                sheetIndex: h.currentSheetIndex,
+                rowIndex: e === "row" ? n : void 0,
+                colIndex: e === "column" ? n : void 0,
+                rowCount: e === "row" ? a : void 0,
+                colCount: e === "column" ? a : void 0
+            }),
             s && typeof s == "function" && s()
     }
     function Bc(e, n = 0, t = {}) {
@@ -71839,6 +73277,14 @@ parseDateToSerial: function (input) {
         let f;
         o && h.luckysheetfile[o] && (f = h.luckysheetfile[o].index),
             Sr(e, n, a, "rightbottom", f),
+            (f == null || f == h.currentSheetIndex) && typeof _shiftCrossSheetReference === "function" && _shiftCrossSheetReference({
+                type: e === "row" ? "insertRow" : "insertCol",
+                sheetIndex: h.currentSheetIndex,
+                rowIndex: e === "row" ? n + 1 : void 0,
+                colIndex: e === "column" ? n + 1 : void 0,
+                rowCount: e === "row" ? a : void 0,
+                colCount: e === "column" ? a : void 0
+            }),
             s && typeof s == "function" && s()
     }
     function Kp(e = 0, n = {}) {
@@ -71859,6 +73305,14 @@ parseDateToSerial: function (input) {
         let a = K(h.currentSheetIndex), { order: o = a, success: s } = je({}, l), u;
         o && h.luckysheetfile[o] && (u = h.luckysheetfile[o].index),
             On(e, n, t, u),
+            (u == null || u == h.currentSheetIndex) && typeof _shiftCrossSheetReference === "function" && _shiftCrossSheetReference({
+                type: e === "row" ? "deleteRow" : "deleteCol",
+                sheetIndex: h.currentSheetIndex,
+                rowIndex: e === "row" ? n : void 0,
+                colIndex: e === "column" ? n : void 0,
+                rowCount: e === "row" ? t - n + 1 : void 0,
+                colCount: e === "column" ? t - n + 1 : void 0
+            }),
             s && typeof s == "function" && s()
     }
     function eg(e, n, t = {}) {
@@ -78380,7 +79834,8 @@ parseDateToSerial: function (input) {
                             alert("Export failed. See console for details.");
                         }
                     }),
-                    $("#luckysheet-icon-excel").click(async function () {
+
+ $("#luckysheet-icon-excel").click(async function () {
                         try {
                             // --- Helpers ---
                             function hexToARGB(color) {
@@ -78458,6 +79913,8 @@ parseDateToSerial: function (input) {
                             }
 
                             function autoFitColumns(ws) {
+				 if (!ws.columns)
+                                	return;
                                 ws.columns.forEach(column => {
                                     let maxLength = 10;
 
@@ -78678,6 +80135,68 @@ parseDateToSerial: function (input) {
                                     }
                                 }
                                 autoFitColumns(ws);
+
+				// ✅ FINAL FIX FOR YOUR BORDER FORMAT
+                                if (sheet.config?.borderInfo) {
+
+                                    sheet.config.borderInfo.forEach(item => {
+
+                                        const v = item.value;
+                                        if (!v) return;
+
+                                        const r = v.row_index;
+                                        const c = v.col_index;
+
+                                        // Skip invalid
+                                        if (r == null || c == null) return;
+
+                                        const cell = ws.getCell(r + 1, c + 1);
+
+                                        let border = {};
+
+                                        // ✅ Map Luckysheet style → ExcelJS
+                                        function getStyle(obj) {
+                                            if (!obj || !obj.color) return undefined;
+
+                                            const styleMap = {
+                                                1: 'thin',
+                                                2: 'hair',
+                                                3: 'dotted',
+                                                4: 'dashDot',
+                                                5: 'dashDotDot',
+                                                6: 'dashed',
+                                                7: 'mediumDashed',
+                                                8: 'mediumDashDot',
+                                                9: 'mediumDashDotDot',
+                                                10: 'slantDashDot',
+                                                11: 'medium',
+                                                12: 'thick'
+                                            };
+
+                                            return {
+                                                style: styleMap[obj.style] || 'thin',
+                                                color: { argb: hexToARGB(obj.color) }
+                                            };
+                                        }
+
+                                        // ✅ Apply all sides
+                                        const top = getStyle(v.t);
+                                        const bottom = getStyle(v.b);
+                                        const left = getStyle(v.l);
+                                        const right = getStyle(v.r);
+
+                                        if (top) border.top = top;
+                                        if (bottom) border.bottom = bottom;
+                                        if (left) border.left = left;
+                                        if (right) border.right = right;
+
+                                        // ✅ Apply ONLY if exists
+                                        if (Object.keys(border).length > 0) {
+                                            cell.border = border;
+                                        }
+
+                                    });
+                                }
                                 // 🔹 Conditional Formatting (FINAL PRODUCTION FIX)
                                 if (sheet.luckysheet_conditionformat_save) {
 
@@ -78844,7 +80363,8 @@ parseDateToSerial: function (input) {
                         }
                     }),
 
-                        $("#luckysheet-icon-fmt-decimal-decrease").click(function () {
+                   
+                    $("#luckysheet-icon-fmt-decimal-decrease").click(function () {
                         let t = we.deepCopyFlowData(h.flowdata)
                             , l = h.luckysheet_select_save[0].row_focus
                             , a = h.luckysheet_select_save[0].column_focus
@@ -80084,7 +81604,7 @@ parseDateToSerial: function (input) {
                                             , w = ot(h.visibledatarow, b)
                                             , x = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
                                             , C = x.row_focus == null ? x.row[0] : x.row_focus;
-                                        w = Math.max(w - 1, C - 1, 0);
+                                        w = Math.max(w - 1, C, 0);
                                         let S, _;
                                         W.freezenRealFirstRowColumn ? (S = h.visibledatarow[w] - 2 + h.columnHeaderHeight,
                                             _ = [h.visibledatarow[w], w + 1, 0, W.cutVolumn(h.visibledatarow, w + 1), S]) : (S = h.visibledatarow[w] - 2 - b + h.columnHeaderHeight,
@@ -80108,7 +81628,7 @@ parseDateToSerial: function (input) {
                                             , w = ot(h.visibledatacolumn, b)
                                             , x = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
                                             , C = x.column_focus == null ? x.column[0] : x.column_focus;
-                                        w = Math.max(w - 1, C - 1, 0);
+                                        w = Math.max(w - 1, C, 0);
                                         let S, _;
                                         W.freezenRealFirstRowColumn ? (S = h.visibledatacolumn[w] - 2 + h.rowHeaderWidth,
                                             _ = [h.visibledatacolumn[w], w + 1, 0, W.cutVolumn(h.visibledatacolumn, w + 1), S]) : (S = h.visibledatacolumn[w] - 2 - b + h.rowHeaderWidth,
@@ -80133,7 +81653,7 @@ parseDateToSerial: function (input) {
                                             , x = ot(h.visibledatarow, w)
                                             , C = h.luckysheet_select_save[h.luckysheet_select_save.length - 1]
                                             , S = C.row_focus == null ? C.row[0] : C.row_focus;
-                                        x = Math.max(x - 1, S - 1, 0);
+                                        x = Math.max(x - 1, S, 0);
                                         let _, T;
                                         W.freezenRealFirstRowColumn ? (_ = h.visibledatarow[x] - 2 + h.columnHeaderHeight,
                                             T = [h.visibledatarow[x], x + 1, 0, W.cutVolumn(h.visibledatarow, x + 1), _],
@@ -80144,7 +81664,7 @@ parseDateToSerial: function (input) {
                                         let A = $("#luckysheet-cell-main").scrollLeft()
                                             , R = ot(h.visibledatacolumn, A)
                                             , I = C.column_focus == null ? C.column[0] : C.column_focus;
-                                        R = Math.max(R - 1, I - 1, 0);
+                                        R = Math.max(R - 1, I, 0);
                                         let F, N;
                                         W.freezenRealFirstRowColumn ? (F = h.visibledatacolumn[R] - 2 + h.rowHeaderWidth,
                                             N = [h.visibledatacolumn[R], R + 1, 0, W.cutVolumn(h.visibledatacolumn, R + 1), F]) : (F = h.visibledatacolumn[R] - 2 - A + h.rowHeaderWidth,
@@ -80438,6 +81958,16 @@ parseDateToSerial: function (input) {
                             , o = Za("bl", 1) ? 0 : 1;
                         e.updateFormat(l, "bl", o)
                     }),
+                    $("#luckysheet-icon-breakformula")
+                        .mousedown(function (t) {
+                            _r(t);
+                            t.stopPropagation();
+                        })
+                        .click(function () {
+                            let flowData = we.deepCopyFlowData(h.flowdata);
+
+                            e.breakFormula(flowData);
+                        }),
                     $("#luckysheet-icon-italic").mousedown(function (t) {
                         _r(t),
                             t.stopPropagation()
@@ -81187,6 +82717,57 @@ parseDateToSerial: function (input) {
                     RowlChange: !0
                 }),
                     Ye(e, h.luckysheet_select_save, u, !1)
+            },
+            breakFormula: function (flow) {
+
+                let removeSet = new Set();
+
+                for (let d = 0; d < h.luckysheet_select_save.length; d++) {
+
+                    let r1 = h.luckysheet_select_save[d].row[0];
+                    let r2 = h.luckysheet_select_save[d].row[1];
+                    let c1 = h.luckysheet_select_save[d].column[0];
+                    let c2 = h.luckysheet_select_save[d].column[1];
+
+                    for (let r = r1; r <= r2; r++) {
+                        for (let c = c1; c <= c2; c++) {
+
+                            let cell = flow[r][c];
+
+                            if (
+                                cell &&
+                                typeof cell === "object" &&
+                                cell.f
+                            ) {
+
+                                removeSet.add(r + ":" + c);
+
+                                const { f, spl, ...clean } = cell;
+
+                                flow[r][c] = {
+                                    ...clean
+                                };
+                            }
+                        }
+                    }
+                }
+
+                // remove calcchain
+               let currentSheet = h.luckysheetfile.find(x => x.index == h.currentSheetIndex);
+
+                if (
+                    currentSheet &&
+                    Array.isArray(currentSheet.calcChain)
+                ) {
+                    currentSheet.calcChain =
+                        currentSheet.calcChain.filter(
+                            item =>
+                                !removeSet.has(
+                                    item.r + ":" + item.c
+                                )
+                        );
+                }
+                Ye(flow, h.luckysheet_select_save, {}, false);
             },
             updateFormat_mc: function (e, n) {
                 var s;
@@ -82209,10 +83790,23 @@ parseDateToSerial: function (input) {
         const allSheets = Ft() || [];
         let sheetChanged = false;
         const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!\s*([A-Za-z0-9\$\:\.]+)/g;
+        // Cells on OTHER sheets that directly reference the changed sheet. Their
+        // source values can change even when the reference text did not shift,
+        // so they must be recalculated after the structural operation.
+        const crossRefCells = new Set();
 
         for (let s = 0; s < allSheets.length; s++) {
             const sheet = allSheets[s];
-            const data = sheet.data;
+            let data = sheet.data;
+            if (!data && sheet.celldata && sheet.celldata.length > 0) {
+                try {
+                    const savedAF = me.autoFormatw, savedAcc = me.accuracy;
+                    data = ve.buildGridData(sheet);
+                    me.autoFormatw = savedAF, me.accuracy = savedAcc;
+                    sheet.data = data;
+                    if (sheet.load == null || sheet.load === "0") sheet.load = "1";
+                } catch (e) { }
+            }
             if (!data) continue;
 
             for (let r = 0; r < data.length; r++) {
@@ -82229,6 +83823,12 @@ parseDateToSerial: function (input) {
                         const sheetName = quotedSheet || unquotedSheet;
                         const refSheet = allSheets.find(sh => sh.name === sheetName);
                         if (!refSheet) return match; // unknown sheet -> leave as is
+
+                        // Track cross-sheet dependents of the changed sheet so their
+                        // values are refreshed even when the reference text is unchanged.
+                        if (String(refSheet.index) === String(sheetIndex) && String(sheet.index) !== String(sheetIndex)) {
+                            crossRefCells.add(r + "_" + c + "_" + sheet.index);
+                        }
 
                         // Parse the refPart to determine type
                         // Types: "cell", "range", "rowRange", "colRange"
@@ -82556,7 +84156,28 @@ parseDateToSerial: function (input) {
         //    if (typeof jf !== "undefined" && jf.refresh) jf.refresh();
         //    else if (typeof luckysheetrefreshgrid === "function") luckysheetrefreshgrid();
         //}
-        ul.jfrefreshgrid();
+        // Refresh + recalc. bulkupdate=true suppresses the delta-based datachange
+        // undo snapshot here: structural ops already recorded a proper addRC/delRC
+        // undo entry, and a spurious datachange entry on top would mask it.
+        // Refresh grid so cross-sheet cell values update. Use bulkupdate=true
+        // to avoid creating a duplicate undo entry.
+        ul.jfrefreshgrid(null, null, null, true, true, true);
+        if (p) p.execFunctionExist = null;
+        p && p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("cross-sheet-reference-shift");
+
+        // Recalculate cross-sheet dependents of the changed sheet. Structural
+        // ops can change source values (e.g. a SUM range shrinking) without
+        // changing the reference text, so plain ref-rewrite + refresh misses them.
+        if (crossRefCells.size > 0 && p && typeof p.execFunctionGroup === "function") {
+            const _cellList = Array.from(crossRefCells);
+            for (let i = 0; i < _cellList.length; i++) {
+                const _parts = _cellList[i].split("_");
+                try {
+                    p.execFunctionGroup(parseInt(_parts[0], 10), parseInt(_parts[1], 10), null, _parts.slice(2).join("_"));
+                } catch (e) { }
+            }
+            if (p.groupValuesRefresh && typeof p.groupValuesRefresh === "function") p.groupValuesRefresh();
+        }
         // --- Helpers ---
         function _columnLetterToIndex(col) {
             let index = 0;
@@ -82673,6 +84294,7 @@ parseDateToSerial: function (input) {
                 luckysheetrefreshgrid();
             }
         }
+        p && p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("sheet-rename");
     }
 
     function fixCrossSheetReferencesAfterRename_(oldName, newName) {
@@ -83675,7 +85297,7 @@ parseDateToSerial: function (input) {
             $("#luckysheet-rich-text-editor").mouseup(function (g) {
                 be.inputMenuButtonFocus(g.target)
             }),
- 	    document.querySelector('.luckysheet-scrollbar-x').addEventListener('scroll', function () {
+	    document.querySelector('.luckysheet-scrollbar-x').addEventListener('scroll', function () {
                 const cols = h.visibledatacolumn;
                 if (!cols || cols.length === 0) return 0;
                 const lastColRight = cols[cols.length - 1];
@@ -98175,13 +99797,14 @@ parseDateToSerial: function (input) {
                 if (arguments.length < 2) return p.error.na;
 
                 try {
-                    let serial = p.parseDateToSerial(M.getCellDate(arguments[0]));
-                    let offset = parseInt(M.getFirstValue(arguments[1]));
+                     let serial = p.parseDateToSerial(M.getCellDate(arguments[0]));
+                     let offset = parseInt(M.getFirstValue(arguments[1]));
 
                     if (isNaN(offset)) return p.error.v;
     		    if (serial === null) return p.error.v;
 
- 		    // ✅ Now from here everything works on serial safely
+                    // ✅ Now from here everything works on serial safely
+
                     const base = Date.UTC(1899, 11, 30) + serial * 86400000;
                     const d = new Date(base);
 
@@ -98208,7 +99831,6 @@ parseDateToSerial: function (input) {
                     return p.error.v;
                 }
             },
-
 
             EOMONTH_: function () {
                 if (arguments.length < this.m[0] || arguments.length > this.m[1])
@@ -98521,7 +100143,7 @@ parseDateToSerial: function (input) {
                         [p.error.v, l]
                 }
             },
-          WEEKNUM: function () {
+   WEEKNUM: function () {
                 if (arguments.length < 1 || arguments.length > 2)
                     return p.error.na;
 
@@ -98578,7 +100200,8 @@ parseDateToSerial: function (input) {
                     return p.error.v;
                 }
             },            
-            WEEKDAY: function () {
+
+            WEEKDAY_old: function () {
                 if (arguments.length < this.m[0] || arguments.length > this.m[1])
                     return p.error.na;
                 for (var e = 0; e < arguments.length; e++) {
@@ -98614,6 +100237,57 @@ parseDateToSerial: function (input) {
                         [p.error.v, s]
                 }
             },
+
+WEEKDAY: function () {
+    if (arguments.length < this.m[0] || arguments.length > this.m[1])
+        return p.error.na;
+
+    try {
+        // ✅ Step 1: Normalize input
+        let serial = p.parseDateToSerial(M.getCellDate(arguments[0]));
+        if (serial === null) return p.error.v;
+
+        const EXCEL_EPOCH = Date.UTC(1899, 11, 30);
+        const msPerDay = 86400000;
+
+        // ✅ Step 2: Convert to UTC date
+        const base = EXCEL_EPOCH + serial * msPerDay;
+        const d = new Date(base);
+
+        // ✅ Step 3: Get return type
+        let type = 1;
+        if (arguments.length === 2) {
+            type = parseInt(M.getFirstValue(arguments[1]));
+            if (isNaN(type)) return p.error.v;
+        }
+
+        // ✅ Step 4: Get UTC day (0=Sun ... 6=Sat)
+        const day = d.getUTCDay();
+
+        // ✅ Step 5: Excel mappings
+        const map = {
+            1: [1, 2, 3, 4, 5, 6, 7],      // Sunday=1
+            2: [7, 1, 2, 3, 4, 5, 6],      // Monday=1
+            3: [6, 0, 1, 2, 3, 4, 5],      // Monday=0
+            11: [7, 1, 2, 3, 4, 5, 6],
+            12: [6, 7, 1, 2, 3, 4, 5],
+            13: [5, 6, 7, 1, 2, 3, 4],
+            14: [4, 5, 6, 7, 1, 2, 3],
+            15: [3, 4, 5, 6, 7, 1, 2],
+            16: [2, 3, 4, 5, 6, 7, 1],
+            17: [1, 2, 3, 4, 5, 6, 7]
+        };
+
+        if (!(type in map)) return p.error.nm;
+
+        return map[type][day];
+
+    } catch (err) {
+        return p.error.v;
+    }
+},
+
+
 DAY: function () {
     if (arguments.length < this.m[0] || arguments.length > this.m[1])
         return p.error.na;
@@ -98621,7 +100295,6 @@ DAY: function () {
     try {
       let serial = p.parseDateToSerial(M.getCellDate(arguments[0]));
       if (serial === null) return p.error.v;
-
         // ✅ Convert serial → UTC date
         const base = Date.UTC(1899, 11, 30) + serial * 86400000;
         const d = new Date(base);
@@ -107317,7 +108990,7 @@ DAY: function () {
                         [p.error.v, e]
                 }
             },
-            ERLANGC: function () {
+ERLANGC: function () {
 
                 if (arguments.length < 2) return p.error.na;
 
@@ -113994,7 +115667,7 @@ DAY: function () {
                 repeat: "n",
                 type: "string"
             }]
-            }, {
+        }, {
                 n: "ERLANGC",
                 t: 0,
                 m: [2, 2],
@@ -114024,9 +115697,7 @@ DAY: function () {
                 ]
             },
 
-        
-        
-        ]
+]
     }
     );
     var Qm, e1 = Ie(() => {
@@ -114191,6 +115862,7 @@ DAY: function () {
         ul = Zc(Wc, ul);
         ul.create = function (e) {
             Je.destroy(),
+                p._formulaDependencyIndex = null,
                 h.toJsonOptions = {};
             for (let d in e)
                 d !== "data" && (h.toJsonOptions[d] = e[d]);
@@ -114201,7 +115873,7 @@ DAY: function () {
                 , o = n.container;
             h.container = o,
                 h.exportFileName = n.exportFileName,
-		h.cycleErrorElement = n.cycleErrorElement,
+ 		h.cycleErrorElement = n.cycleErrorElement,
                 h.luckysheetfile = n.data,
                 h.defaultcolumnNum = n.column,
                 h.defaultrowNum = n.row,
@@ -114257,6 +115929,10 @@ DAY: function () {
                 me.fireMousedown = n.fireMousedown,
                 me.forceCalculation = n.forceCalculation,
                 me.plugins = n.plugins,
+                me.enableDependencyIndexOptimization = n.enableDependencyIndexOptimization !== false,
+                me.validateDependencyIndex = n.validateDependencyIndex === true,
+                me.debugDependencyIndex = n.debugDependencyIndex === true,
+                me.dependencyIndexMaxRefKeys = n.dependencyIndexMaxRefKeys,
                 me.rowHeaderWidth = n.rowHeaderWidth,
                 me.columnHeaderHeight = n.columnHeaderHeight,
                 me.defaultColWidth = n.defaultColWidth,
