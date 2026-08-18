@@ -66121,7 +66121,7 @@ parseDateToSerial: function (input) {
             },
             execFunctionGlobalData: {},
             execFunctionGroupForce: function (e) {
-                e ? this.execFunctionGroup(void 0, void 0, void 0, void 0, void 0, !0) : this.execFunctionGroup()
+                e ? this.execFunctionGroup(void 0, void 0, void 0, void 0, void 0, !0) : this.execFunctionGroup(e=undefined, n=undefined, t=undefined, l=undefined, a=undefined, o = false, oldData = undefined,forceRefresh=!e)
             },
             execFunctionGroupForceChanged: function (e) {
                 this.execFunctionGroupChanged();
@@ -66656,7 +66656,7 @@ parseDateToSerial: function (input) {
 
             },
 
-            execFunctionGroup: function (e, n, t, l, a, o = false, oldData = undefined) {
+            execFunctionGroup: function (e, n, t, l, a, o = false, oldData = undefined,forceRefresh=false) {
                 // Preserve original early return semantics
                 if (o) return;
 
@@ -66705,11 +66705,11 @@ parseDateToSerial: function (input) {
                 // Ensure the dependency index is built before the first user edit.
                 // _depIndexPrimed is set once after the index is confirmed built;
                 // this avoids redundant _dependencyGet() calls during creation.
-                if (!s._depIndexPrimed && e != null && n != null && !s.execFunctionExist && l === h.currentSheetIndex && s._dependencyIndexEnabled && s._dependencyIndexEnabled() && s._dependencyGet) {
+                if (!s._depIndexPrimed && e != null && n != null && !forceRefresh && !s.execFunctionExist && l === h.currentSheetIndex && s._dependencyIndexEnabled && s._dependencyIndexEnabled() && s._dependencyGet) {
                     s._depIndexPrimed = true;
                     s._dependencyGet();
                 }
-                if (s._dependencyTryExecute(execSet, { recomputeAllOnEmpty: false, validate: me.validateDependencyIndex === true })) {
+                if (e != null && n != null && !forceRefresh && s._dependencyTryExecute(execSet, { recomputeAllOnEmpty: false, validate: me.validateDependencyIndex === true })) {
                     var _efgMs = performance.now() - _efgT0;
                     if (window.__perfDiag) window.__perfDiag.push({ fn: "execFunctionGroup", path: "index", ms: _efgMs, row: e, col: n, sheet: l });
                     return;
@@ -67196,10 +67196,13 @@ parseDateToSerial: function (input) {
                   //  for (const k of Object.keys(nodes)) impacted.add(k);
                 //}
 
-		 if (impacted.size === 0) {
+		 if (impacted.size === 0 && !forceRefresh) {
      		  console.log("No impacted formulas found. Skipping full recalculation.");
 		  return;
  		}
+		else{
+		for (const k of Object.keys(nodes)) impacted.add(k);
+		}
 
                 // ---------- Topological sort with cycle detection (keep your DFS order) ----------
                 const ordered = [];
@@ -68040,7 +68043,7 @@ parseDateToSerial: function (input) {
                     e = e.replace(/(\d+(\.\d+)?)%/g, "($1/100)");
 
                     // Calc chain update (unchanged)
-                    if ((sheetIndex == l || !l)) {
+                    if ((sheetIndex == l || (!l && l !== 0))) {
                         currentSheet.calcChain = currentSheet.calcChain ?? [];
                         const exists = currentSheet.calcChain.some(x => x.r === n && x.c === t);
                         if (!exists) {
@@ -84161,7 +84164,12 @@ parseDateToSerial: function (input) {
         // undo entry, and a spurious datachange entry on top would mask it.
         // Refresh grid so cross-sheet cell values update. Use bulkupdate=true
         // to avoid creating a duplicate undo entry.
-        ul.jfrefreshgrid(null, null, null, true, true, true);
+
+	if(String(sheetIndex) !== String(h.currentSheetIndex)){
+        	ul.jfrefreshgrid(null, null, null, true, true, true);
+	}
+
+
         if (p) p.execFunctionExist = null;
         p && p._dependencyInvalidate && p._dependencyIndexEnabled && p._dependencyIndexEnabled() && p._dependencyInvalidate("cross-sheet-reference-shift");
 
