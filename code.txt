@@ -1,13 +1,93 @@
-Formula Scroll Issue:
-1. qt() — Plain arrow keys (line 45549)
-45548:  ne.saveParam("mv", h.currentSheetIndex, h.luckysheet_select_save),
-45549:  W.scrollFreezen());    ← ADDED
-2. aa() — Ctrl+Arrow (line 45688)
-45687:  wl(),
-45688:  W.scrollFreezen());    ← ADDED
-3. Pn() — Shift+Arrow (line 45875)
-45874:  wl(),
-45875:  W.scrollFreezen());    ← ADDED
-4. an() — Ctrl+Shift+Arrow (line 46066)
-46065:  wl(),
-46066:  W.scrollFreezen());    ← ADDED
+ getCircularReferences: function (options) {
+                options = options || {};
+                const s = this;
+                const result = { hasCircular: false, totalCycles: 0, affectedSheets: [], cycles: [], summary: "No circular references found." };
+                try {
+                    const sheetsInfo = Ft() || [];
+                    const nameOf = (idx) => { const sh = sheetsInfo.find(x => String(x.index) === String(idx)); return sh ? sh.name : idx; };
+                    const formulaAt = (r, c, index) => {
+                        try { if (typeof zl === 'function') { const f = zl(r, c, index); if (f != null && f !== '') return f; } } catch (err) {}
+                        const sh = sheetsInfo.find(x => String(x.index) === String(index));
+                        const cd = (sh && Array.isArray(sh.celldata)) ? sh.celldata.find(x => x && x.r === r && x.c === c) : null;
+                        return (cd && cd.v && cd.v.f) || null;
+                    };
+                    const addrOf = (r, c) => { try { return s.getExcelAddr(r, c); } catch (err) { return "R" + (r + 1) + "C" + (c + 1); } };
+                    const REF_TOKENS = [
+                        /(?:'[^']+'|[A-Za-z_\u4e00-\u9fa5][\w\u4e00-\u9fa5]*)!\$?[A-Za-z]{1,4}\$?(?::\$?[A-Za-z]{1,4}\$?)?/g,
+                        /\$?[A-Za-z]{1,4}\$?:\$?[A-Za-z]{1,4}\$?(?![\d])/g,
+                        /\$?[A-Za-z]{1,4}\$?\d+(?::\$?[A-Za-z]{1,4}\$?\d+)?/g
+                    ];
+                    const coversRect = (rect, r, c, si) => {
+                        if (!rect || rect.row == null || rect.column == null) return false;
+                        const rsi = (rect.sheetIndex != null) ? rect.sheetIndex : si;
+                        if (String(rsi) !== String(si)) return false;
+                        const r0 = rect.row[0], r1f = rect.row[1];
+                        if (!(r >= r0)) return false;
+                        if (Number.isFinite(r1f) && r > r1f) return false;
+                        return c >= rect.column[0] && c <= rect.column[1];
+                    };
+                    let raw = [];
+                    try { raw = s.circulareReferences(null, null, null, null, null, false) || []; } catch (err) { raw = []; }
+                    if (!Array.isArray(raw)) raw = [];
+                    const seen = new Set();
+                    for (const cyc of raw) {
+                        const path = (cyc && cyc.path) ? cyc.path : [];
+                        const uniq = path.filter(k => k && k.key);
+                        if (uniq.length < 1) continue;
+                        const sig = uniq.map(k => k.key).sort().join('|');
+                        if (seen.has(sig)) continue;
+                        seen.add(sig);
+                        const steps = [];
+                        for (let i = 0; i < uniq.length; i++) {
+                            const cur = uniq[i];
+                            const nxt = uniq[(i + 1) % uniq.length];
+                            const isSelf = cur.key === nxt.key;
+                            const formula = formulaAt(cur.r, cur.c, cur.sheetIndex);
+                            const culpritRefs = [];
+                            if (formula) {
+                                for (const rx of REF_TOKENS) {
+                                    rx.lastIndex = 0;
+                                    let mch;
+                                    while ((mch = rx.exec(formula)) !== null) {
+                                        const tok = mch[0];
+                                        if (culpritRefs.indexOf(tok) > -1) continue;
+                                        let rect = null;
+                                        try { rect = s.getcellrange(tok, cur.sheetIndex); } catch (err) { rect = null; }
+                                        if (coversRect(rect, nxt.r, nxt.c, nxt.sheetIndex) || (isSelf && coversRect(rect, cur.r, cur.c, cur.sheetIndex))) {
+                                            culpritRefs.push(tok);
+                                        }
+                                    }
+                                }
+                            }
+                            steps.push({
+                                r: cur.r, c: cur.c, sheetIndex: cur.sheetIndex,
+                                sheetName: cur.sheetName || nameOf(cur.sheetIndex),
+                                address: cur.address || addrOf(cur.r, cur.c),
+                                formula: formula,
+                                nextAddress: (cur.key === nxt.key) ? null : (nxt.address || addrOf(nxt.r, nxt.c)),
+                                nextSheetName: (cur.key === nxt.key) ? null : (nxt.sheetName || nameOf(nxt.sheetIndex)),
+                                culpritRefs: culpritRefs,
+                                suggestion: isSelf
+                                    ? ("Cell references itself directly. Rewrite the formula so it does not include its own cell.")
+                                    : ("Break the loop by removing or replacing reference(s) " + (culpritRefs.length ? culpritRefs.join(", ") : "(see formula)") + ", or paste the needed value as static.")
+                            });
+                        }
+                        const descParts = steps.map(st => st.sheetName + "!" + st.address + (st.nextSheetName !== null ? "" : ""));
+                        result.hasCircular = true;
+                        result.totalCycles++;
+                        result.cycles.push({
+                            length: steps.length,
+                            description: descParts.join(" \u2192 ") + " \u2192 " + steps[0].sheetName + "!" + steps[0].address,
+                            steps: steps
+                        });
+                        for (const st of steps) { const nm = st.sheetName; if (result.affectedSheets.indexOf(nm) === -1) result.affectedSheets.push(nm); }
+                    }
+                    if (result.hasCircular) {
+                        result.summary = result.totalCycles + " circular chain(s) found across: " + result.affectedSheets.join(", ") + ". Each step lists the exact reference(s) inside its formula that feed the loop.";
+                    }
+                    return result;
+                } catch (err) {
+                    result.error = (err && err.message) || String(err);
+                    return result;
+                }
+            },
