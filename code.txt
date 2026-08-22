@@ -91,3 +91,156 @@
                     return result;
                 }
             },
+
+   circulareReferences: function () {
+                const s = this;
+                const sheetsInfo = Ft() || [];
+                const nameOf = (idx) => { const sh = sheetsInfo.find(x => String(x.index) === String(idx)); return sh ? sh.name : idx; };
+                const addrOf = (r, c) => { try { return s.getExcelAddr(r, c); } catch (err) { return "R" + (r + 1) + "C" + (c + 1); } };
+                const colName = (ci) => { let n = ci, t = ""; do { t = String.fromCharCode(65 + (n % 26)) + t; n = Math.floor(n / 26) - 1; } while (n >= 0); return t; };
+                const rangeLabel = (si, r0, r1, c0, c1, tokenText) => {
+                    if (tokenText) return tokenText;
+                    const a = colName(c0) + (r0 + 1);
+                    const b = (r0 === r1 && c0 === c1) ? "" : ":" + colName(c1) + (r1 + 1);
+                    return nameOf(si) + "!" + a + b;
+                };
+                const formulaAt = (r, c, index) => {
+                    try { if (typeof zl === 'function') { const f = zl(r, c, index); if (f != null && f !== '') return f; } } catch (err) {}
+                    const sh = sheetsInfo.find(x => String(x.index) === String(index));
+                    const cd = (sh && Array.isArray(sh.celldata)) ? sh.celldata.find(x => x && x.r === r && x.c === c) : null;
+                    return (cd && cd.v && cd.v.f) || null;
+                };
+                let nodes = null;
+                // ---------- fast path: maintained dependency index ----------
+                try {
+                    if (s._dependencyIndexEnabled && s._dependencyIndexEnabled() && s._dependencyGet && s._dependencyTryBuildGraph) {
+                        const idx = s._dependencyGet();
+                        if (idx && idx.valid && idx.dependencies) {
+                            const execSet = {};
+                            let seedCount = 0;
+                            for (const fk in idx.dependencies) { execSet[fk] = 1; seedCount++; }
+                            if (seedCount > 0) {
+                                const g = s._dependencyTryBuildGraph(execSet, { recomputeAllOnEmpty: false });
+                                if (g && g.nodes) {
+                                    for (const nk in g.nodes) {
+                                        const gn = g.nodes[nk];
+                                        gn.formula = formulaAt(gn.r, gn.c, gn.index) || gn.calc_funcStr || '';
+                                        const refs = [];
+                                        const rr = gn.refRanges || [];
+                                        for (const rg of rr) refs.push({ si: rg.si, r0: rg.r0, r1: rg.r1, c0: rg.c0, c1: rg.c1, label: rangeLabel(rg.si, rg.r0, rg.r1, rg.c0, rg.c1, null) });
+                                        gn.refs = refs;
+                                    }
+                                    nodes = g.nodes;
+                                }
+                            }
+                        }
+                    }
+                } catch (err) { nodes = null; }
+                // ---------- fallback: compact generic-token graph ----------
+                if (!nodes) {
+                    let cells = [];
+                    try { cells = s.getAllFunctionGroup() || []; } catch (err) { cells = []; }
+                    nodes = {};
+                    const bySheet = {};
+                    for (let i = 0; i < cells.length; i++) {
+                        const T = cells[i];
+                        if (!T || T.r == null || T.c == null || T.index == null) continue;
+                        const key = "r" + T.r + "c" + T.c + "i" + T.index;
+                        if (nodes[key]) continue;
+                        const R = formulaAt(T.r, T.c, T.index);
+                        if (!R) continue;
+                        nodes[key] = { key: key, r: T.r, c: T.c, index: T.index, formula: R, parents: {}, children: {}, refs: [] };
+                        if (!bySheet[T.index]) bySheet[T.index] = [];
+                        bySheet[T.index].push(nodes[key]);
+                    }
+                    const fmrSplit = p._fmrSplit || /([^A-Za-z0-9_$'!\u4e00-\u9fa5.]+)/g;
+                    for (const key in nodes) {
+                        const node = nodes[key];
+                        const seenTok = {};
+                        const rawToks = String(node.formula).split(fmrSplit);
+                        for (let ti = 0; ti < rawToks.length; ti++) {
+                            const tok = String(rawToks[ti] || '').trim();
+                            if (!tok || tok.length < 2 || seenTok[tok]) continue;
+                            seenTok[tok] = 1;
+                            let rect = null;
+                            try { rect = s.getcellrange(tok, node.index); } catch (err) { rect = null; }
+                            if (!rect || !rect.row || !rect.column) continue;
+                            if (!Number.isFinite(rect.row[0]) || !Number.isFinite(rect.column[0])) continue;
+                            const r1f = Number.isFinite(rect.row[1]) ? rect.row[1] : Infinity;
+                            const c1f = Number.isFinite(rect.column[1]) ? rect.column[1] : Infinity;
+                            const rsi = (rect.sheetIndex != null) ? rect.sheetIndex : node.index;
+                            const lbR1 = Number.isFinite(r1f) ? r1f : rect.row[0];
+                            const lbC1 = Number.isFinite(c1f) ? c1f : rect.column[0];
+                            node.refs.push({ si: rsi, r0: rect.row[0], r1: r1f, c0: rect.column[0], c1: c1f, label: rangeLabel(rsi, rect.row[0], lbR1, rect.column[0], lbC1, tok) });
+                            const bucket = bySheet[rsi];
+                            if (!bucket) continue;
+                            for (let bi = 0; bi < bucket.length; bi++) {
+                                const tn = bucket[bi];
+                                if (tn.key === key) continue;
+                                if (tn.r >= rect.row[0] && tn.r <= r1f && tn.c >= rect.column[0] && tn.c <= c1f) {
+                                    node.parents[tn.key] = 1;
+                                    tn.children[key] = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                // ---------- cycle detection (DFS over parents = prerequisites) ----------
+                const WHITE = 0, GRAY = 1, BLACK = 2;
+                const color = {}, stack = [], cycles = [], seenSig = {};
+                function dfs(nk) {
+                    const st = (color[nk] == null) ? WHITE : color[nk];
+                    if (st === GRAY) {
+                        const start = stack.indexOf(nk);
+                        const loop = stack.slice(start);
+                        const sig = loop.slice().sort().join('|');
+                        if (!seenSig[sig]) {
+                            seenSig[sig] = 1;
+                            const steps = [];
+                            for (let i = 0; i < loop.length; i++) {
+                                const cur = nodes[loop[i]];
+                                const nxt = nodes[loop[(i + 1) % loop.length]];
+                                const isSelf = cur.key === nxt.key;
+                                const culprits = [];
+                                const refs = cur.refs || [];
+                                for (let ri = 0; ri < refs.length; ri++) {
+                                    const rg = refs[ri];
+                                    const tr = isSelf ? cur : nxt;
+                                    if (String(rg.si) !== String(tr.index)) continue;
+                                    if (tr.r < rg.r0 || tr.r > rg.r1 || tr.c < rg.c0 || tr.c > rg.c1) continue;
+                                    if (culprits.indexOf(rg.label) === -1) culprits.push(rg.label);
+                                }
+                                steps.push({
+                                    key: cur.key,
+                                    r: cur.r,
+                                    c: cur.c,
+                                    sheetIndex: cur.index,
+                                    sheetName: cur.sheetName || nameOf(cur.index),
+                                    address: cur.address || addrOf(cur.r, cur.c),
+                                    formula: cur.formula || '',
+                                    dependsOnAddress: isSelf ? "(itself)" : addrOf(nxt.r, nxt.c),
+                                    dependsOnSheet: isSelf ? nameOf(cur.index) : nameOf(nxt.index),
+                                    culpritRefs: culprits,
+                                    suggestion: isSelf
+                                        ? "This cell references itself directly - rewrite the formula without its own address."
+                                        : (culprits.length
+                                            ? "Remove or replace reference " + culprits.join(", ") + " to break the loop."
+                                            : "One of its references feeds the loop - inspect the formula.")
+                                });
+                            }
+                            cycles.push({ length: steps.length, path: steps });
+                        }
+                        return;
+                    }
+                    if (st === BLACK) return;
+                    color[nk] = GRAY;
+                    stack.push(nk);
+                    const par = nodes[nk].parents || {};
+                    for (const pk in par) if (nodes[pk]) dfs(pk);
+                    stack.pop();
+                    color[nk] = BLACK;
+                }
+                for (const nk in nodes) dfs(nk);
+                return cycles;
+            },
+
