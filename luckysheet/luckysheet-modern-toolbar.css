@@ -1,0 +1,635 @@
+/* ============================================================================
+   LUCKYSHEET — MODERN TOOLBAR THEME (2026 SaaS UI)
+   ----------------------------------------------------------------------------
+   Scope   : Toolbar shell (#luckysheet-wa-editor), toolbar buttons, toolbar
+             dropdown panels ([id$="-menuButton"]), responsive overflow panel
+             (#luckysheet-icon-morebtn-div) and toolbar tooltips.
+   Contract: ZERO structural changes. Every height / line-height / padding /
+             margin that Luckysheet's JavaScript measures or positions is
+             re-declared EXACTLY as the legacy value and flagged with a
+             "GEOMETRY LOCK" comment. Colors, shadows, radii and transitions
+             are freely themed.
+   Load    : AFTER lib/luckysheet/css/*.css so the cascade resolves ties here.
+   ============================================================================ */
+
+/* ==========================================================================
+   0. DESIGN TOKENS
+   ========================================================================== */
+:root {
+    /* Surfaces */
+    --tb-bg:            #eef4fe;                      /* opaque fallback        */
+    --tb-bg-glass:      rgba(239, 246, 255, 0.90);    /* soft brand-wash glass  */
+    --tb-panel-bg:      #ffffff;
+
+    /* Interactive states */
+    --tb-hover:         rgba(255, 255, 255, 0.72);    /* hover fill (glass-safe) */
+    --tb-active:        #e0e7ff;                      /* toggled chip (indigo)  */
+    --tb-active-hover:  #dbeafe;                      /* hovering a toggled btn */
+    --tb-press:         #e5e7eb;                      /* mouse-down fill        */
+
+    /* Lines */
+    --tb-border:        #e5e7eb;
+    --tb-divider:       rgba(17, 24, 39, 0.08);
+
+    /* Radii */
+    --tb-radius-sm:     6px;
+    --tb-radius-md:     8px;
+    --tb-radius-lg:     12px;
+
+    /* Ink */
+    --tb-icon:          #374151;                      /* resting glyph          */
+    --tb-icon-strong:   #111827;                      /* emphasised glyph       */
+    --tb-text:          #374151;
+    --tb-text-muted:    #6b7280;
+    --tb-accent:        #2563eb;                      /* brand                  */
+    --tb-accent-strong: #1d4ed8;                      /* toggled ink            */
+
+    /* Focus */
+    --tb-focus-ring:    #3b82f6;
+
+    /* Elevation */
+    --tb-shadow-menu:   0 10px 15px -3px rgba(0, 0, 0, 0.10),
+                        0 4px 6px -2px rgba(0, 0, 0, 0.05),
+                        0 0 0 1px rgba(17, 24, 39, 0.02);
+    --tb-shadow-pop:    0 20px 25px -5px rgba(0, 0, 0, 0.10),
+                        0 8px 10px -6px rgba(0, 0, 0, 0.06);
+
+    /* Motion */
+    --tb-ease:          cubic-bezier(0.4, 0, 0.2, 1);
+    --tb-dur:           150ms;
+    --tb-dur-fast:      100ms;
+
+    /* Type */
+    --tb-font: 'Segoe UI', -apple-system, BlinkMacSystemFont,
+               'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ==========================================================================
+   1. TOOLBAR SHELL
+   --------------------------------------------------------------------------
+   GEOMETRY LOCK: height:32px / padding:5px 0 3px 15px reproduce the legacy
+   metrics byte-for-byte. Luckysheet's JS positions the formula bar and the
+   responsive overflow panel (#luckysheet-icon-morebtn-div) from these values
+   (content-box sizing is forced by `.luckysheet *`). Do not alter them.
+   ========================================================================== */
+#luckysheet-wa-editor {
+    /* --- GEOMETRY LOCK (do not edit) --- */
+    height: 32px;
+    padding: 5px 0 3px 15px;
+    /* ----------------------------------- */
+
+    background: var(--tb-bg-glass);
+    border-bottom: 1px solid var(--tb-border);
+    box-shadow: none;
+
+    /* Frosted glass, with graceful fallback */
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+    backdrop-filter: blur(8px) saturate(150%);
+}
+
+@supports not ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+    #luckysheet-wa-editor {
+        background: var(--tb-bg);
+    }
+}
+
+/* Neutralise legacy `transition: all .2s` (caused ghost animations when the
+   responsive logic reparents buttons in/out of the overflow panel). */
+#luckysheet-wa-editor {
+    transition: background-color var(--tb-dur) var(--tb-ease),
+                border-color var(--tb-dur) var(--tb-ease);
+    font-family: var(--tb-font);
+    color: var(--tb-text);
+}
+
+/* Airy rhythm between top-level controls (legacy items carry margin:0 1px;
+   this adds breathing room without touching measured widths materially).
+   Absolutely-positioned children (e.g. #luckysheet-icon-morebtn) are
+   unaffected by margins. */
+#luckysheet-wa-editor > .luckysheet-inline-block {
+    margin-right: 2px;
+}
+
+/* Decorative left edge strip from the legacy theme — silenced. */
+#luckysheet-wa-editor .luckysheet-toolbar-left-theme {
+    background: transparent;
+}
+
+/* ==========================================================================
+   2. BUTTON BASE (toggle / menu / combo families)
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-button,
+#luckysheet-wa-editor .luckysheet-toolbar-menu-button,
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-button,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--tb-radius-sm);
+    color: var(--tb-icon);
+
+    /* --- GEOMETRY LOCK --- */
+    height: 26px;
+    line-height: 26px;
+    vertical-align: middle;
+    /* ---------------------- */
+
+    cursor: pointer;
+    outline: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+
+    transition: background-color var(--tb-dur) var(--tb-ease),
+                color var(--tb-dur) var(--tb-ease),
+                border-color var(--tb-dur) var(--tb-ease),
+                box-shadow var(--tb-dur) var(--tb-ease),
+                transform var(--tb-dur-fast) var(--tb-ease);
+}
+
+/* Icon glyphs + caption text inherit the themed ink. */
+#luckysheet-wa-editor .luckysheet-icon-img-container,
+#luckysheet-icon-morebtn-div .luckysheet-icon-img-container,
+#luckysheet-wa-editor .luckysheet-toolbar-menu-button-caption,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button-caption,
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button-caption,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button-caption {
+    color: inherit;
+}
+
+/* Brand accents previously hardcoded to legacy blue. */
+#luckysheet-wa-editor #luckysheet-icon-pivotTable .luckysheet-toolbar-menu-button-caption,
+#luckysheet-wa-editor #luckysheet-icon-chart .luckysheet-toolbar-menu-button-caption {
+    color: var(--tb-accent);
+}
+
+/* ==========================================================================
+   3. HOVER STATE
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-button:hover,
+#luckysheet-wa-editor .luckysheet-toolbar-menu-button:hover,
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button:hover,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-button:hover,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button:hover,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button:hover {
+    background: var(--tb-hover);
+    border-color: transparent;
+    color: var(--tb-icon-strong);
+}
+
+/* JS-driven hover mirrors (Luckysheet toggles this class from script for
+   generic hover parity). No !important here on purpose: the toggled-state
+   rules in §4 outrank these via specificity so that hovering a control
+   which is currently ON deepens the brand chip instead of going gray. */
+.luckysheet-toolbar-button-hover:hover,
+.luckysheet-toolbar-menu-button-hover:hover {
+    background: var(--tb-hover);
+    color: var(--tb-icon-strong);
+}
+
+/* Split pair: hovering the right half paints the left half via JS class.
+   Split-lefts never carry the persistent toggle state (§4 excludes them),
+   so they always render as plain hover gray. */
+.luckysheet-toolbar-button-split-left.luckysheet-toolbar-button-hover {
+    background: var(--tb-hover);
+    color: var(--tb-icon-strong);
+    box-shadow: none;
+}
+
+/* Right half's own JS hover class (legacy sets rgba(0,0,0,.06) at equal
+   specificity; this file loads last, so plain declaration wins). */
+.luckysheet-toolbar-button-split-right-hover {
+    background: var(--tb-hover);
+}
+
+/* Soft divider between split halves on hover. */
+.luckysheet-toolbar-button-split-right.luckysheet-toolbar-menu-button:hover {
+    border-left-color: var(--tb-divider) !important;
+}
+
+/* ==========================================================================
+   4. TOGGLED / PRESSED-IN STATE (bold, italic, underline, strike…)
+   --------------------------------------------------------------------------
+   Luckysheet reuses `.luckysheet-toolbar-button-hover` as the PERSISTENT
+   marker for toggled formatting. Distinguish it from real hover with
+   `:not(:hover)` and exclude the split-left sync case handled above.
+   Future-proof aliases included per spec.
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-button-hover:not(:hover):not(.luckysheet-toolbar-button-split-left),
+#luckysheet-wa-editor .luckysheet-toolbar-change-active:not(:hover),
+#luckysheet-wa-editor .active:not(:hover),
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-button-hover:not(:hover):not(.luckysheet-toolbar-button-split-left) {
+    background: var(--tb-active);
+    color: var(--tb-accent-strong);
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18);
+}
+
+/* Hovering an already-toggled control deepens the chip. */
+#luckysheet-wa-editor .luckysheet-toolbar-button-hover:hover,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-button-hover:hover {
+    background: var(--tb-active-hover);
+    color: var(--tb-accent-strong);
+}
+
+/* ==========================================================================
+   5. PRESS FEEDBACK
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-button:active,
+#luckysheet-wa-editor .luckysheet-toolbar-menu-button:active,
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button:active,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-button:active,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button:active,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button:active {
+    background: var(--tb-press);
+    transform: scale(0.95);
+}
+
+/* ==========================================================================
+   6. DISABLED STATE
+   ========================================================================== */
+#luckysheet-wa-editor .disabled,
+#luckysheet-wa-editor [aria-disabled="true"],
+#luckysheet-icon-morebtn-div .disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+#luckysheet-wa-editor .disabled:hover,
+#luckysheet-wa-editor .disabled:active,
+#luckysheet-icon-morebtn-div .disabled:hover,
+#luckysheet-wa-editor .luckysheet-toolbar-button.disabled.luckysheet-toolbar-button-hover {
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+    color: var(--tb-icon);
+}
+
+/* ==========================================================================
+   7. FOCUS VISIBILITY (keyboard only — never fires on mouse clicks)
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-button:focus-visible,
+#luckysheet-wa-editor .luckysheet-toolbar-menu-button:focus-visible,
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button:focus-visible {
+    outline: 2px solid var(--tb-focus-ring);
+    outline-offset: 1px;
+    border-radius: var(--tb-radius-sm);
+}
+
+/* ==========================================================================
+   8. SPLIT BUTTON PAIRS (merge, alignment, …)
+   --------------------------------------------------------------------------
+   GEOMETRY LOCK: legacy enforces the asymmetric corner radii, min-width and
+   zeroed inter-half margins with !important selectors
+   (.luckysheet-toolbar-button-split-left/-right …). Those MUST stay in
+   control, so no radius/spacing overrides are issued here — only the shared
+   surface/hover treatment from §§2–4 applies.
+   ========================================================================== */
+
+/* ==========================================================================
+   9. COMBO BUTTONS (undo/redo, font-size stepper) & INPUTS
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button:hover,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button:hover {
+    background-image: none;
+    box-shadow: none;
+}
+
+/* Open-state (dropdown currently expanded). */
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button-open,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button-open {
+    background: var(--tb-active);
+    color: var(--tb-accent-strong);
+}
+
+/* Compact numeric input inside the font-size combobox. */
+#luckysheet-wa-editor input.luckysheet-toolbar-combo-button-input,
+#luckysheet-icon-morebtn-div input.luckysheet-toolbar-combo-button-input {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: 4px;
+    color: var(--tb-text) !important;
+    font-family: var(--tb-font) !important;
+    font-weight: 600 !important;
+    cursor: pointer;
+    transition: background-color var(--tb-dur) var(--tb-ease),
+                border-color var(--tb-dur) var(--tb-ease),
+                box-shadow var(--tb-dur) var(--tb-ease);
+}
+
+#luckysheet-wa-editor input.luckysheet-toolbar-combo-button-input:focus,
+#luckysheet-icon-morebtn-div input.luckysheet-toolbar-combo-button-input:focus {
+    background: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    outline: 2px solid var(--tb-focus-ring);
+    outline-offset: 1px;
+    box-shadow: none;
+    cursor: text;
+}
+
+/* Standalone text inputs living directly in the toolbar (skip the compact
+   combobox twin so it doesn't grow a permanent chrome box). */
+#luckysheet-wa-editor input.luckysheet-toolbar-textinput:not(.luckysheet-toolbar-combo-button-input) {
+    border: 1px solid #d1d5db;
+    border-radius: var(--tb-radius-sm);
+    background: #ffffff;
+    color: var(--tb-text);
+    padding: 3px 8px;
+    font-family: var(--tb-font);
+    transition: border-color var(--tb-dur) var(--tb-ease),
+                box-shadow var(--tb-dur) var(--tb-ease);
+}
+
+#luckysheet-wa-editor input.luckysheet-toolbar-textinput:not(.luckysheet-toolbar-combo-button-input):focus {
+    outline: 2px solid var(--tb-focus-ring);
+    outline-offset: 1px;
+    border-color: #d1d5db;
+}
+
+/* Zoom percentage combobox caption keeps its locked width. */
+.luckysheet-toolbar-zoom-combobox .luckysheet-toolbar-combo-button-caption {
+    width: 36px !important;      /* GEOMETRY LOCK (legacy !important) */
+}
+
+/* ==========================================================================
+   10. DROPDOWN ARROWS & COLOR-SWATCH INDICATOR
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-menu-button-dropdown,
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button-dropdown,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button-dropdown,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button-dropdown {
+    color: var(--tb-text-muted);
+    opacity: 1;
+    transition: color var(--tb-dur) var(--tb-ease),
+                transform var(--tb-dur) var(--tb-ease);
+}
+
+#luckysheet-wa-editor .luckysheet-toolbar-menu-button:hover .luckysheet-toolbar-menu-button-dropdown,
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button:hover .luckysheet-toolbar-combo-button-dropdown,
+#luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button:hover .luckysheet-toolbar-menu-button-dropdown {
+    color: var(--tb-icon-strong);
+    transform: translateY(0.5px);
+}
+
+/* Font-color / fill-color swatch bar. */
+.luckysheet-color-menu-button-indicator .text-color-bar {
+    background: var(--tb-accent);
+    border-radius: 2px;
+    bottom: 1px;
+    height: 3px;
+}
+
+/* ==========================================================================
+   11. GROUP DIVIDERS
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-toolbar-separator {
+    height: 18px;
+    width: 0;
+    margin: 7px 5px;
+    border-left: 1px solid var(--tb-divider);
+    border-radius: 1px;
+}
+
+/* ==========================================================================
+   12. DROPDOWN PANELS (body-level popups opened from the toolbar)
+   --------------------------------------------------------------------------
+   Every Luckysheet toolbar dropdown panel carries an id ending in
+   "-menuButton". The responsive overflow sheet is #luckysheet-icon-morebtn-div
+   (its position/top/right/z-index remain JS-owned inline styles).
+   ========================================================================== */
+[id$="-menuButton"],
+#luckysheet-icon-morebtn-div {
+    background-color: rgba(255, 255, 255, 0.74) !important;
+    /* Single-hue tinted frost: whisper of brand emerald top-left + lit edge */
+    background-image:
+        radial-gradient(130% 100% at 10% 0%,
+            rgba(16, 185, 129, 0.13), transparent 55%),
+        linear-gradient(to bottom,
+            rgba(255, 255, 255, 0.50), rgba(255, 255, 255, 0.08)) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    backdrop-filter: blur(28px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.80) !important;
+    outline: 1px solid rgba(6, 95, 70, 0.10);
+    outline-offset: -1px;
+    border-radius: var(--tb-radius-lg) !important;
+    box-shadow: 0 24px 48px -12px rgba(6, 78, 59, 0.16),
+                0 8px 16px -8px rgba(17, 24, 39, 0.10) !important;
+    font-family: var(--tb-font);
+}
+
+/* Graceful degradation: engines without backdrop-filter get a solid panel so
+   text never sits on unreadable translucent noise. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    [id$="-menuButton"],
+    #luckysheet-icon-morebtn-div {
+        background: var(--tb-panel-bg) !important;
+        border-color: var(--tb-border) !important;
+        outline: none;
+    }
+}
+
+/* NOTE: overflow stays visible — color-picker palettes inside some panels use
+   intentional negative-margin layouts that must not be clipped. */
+
+/* Gentle entrance (plays when display flips none -> block). */
+@keyframes tb-panel-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+[id$="-menuButton"] {
+    animation: tb-panel-in var(--tb-dur) var(--tb-ease);
+    transform-origin: top center;
+}
+
+/* ==========================================================================
+   13. PANEL MENU ITEMS
+   ========================================================================== */
+[id$="-menuButton"] .luckysheet-cols-menuitem {
+    margin: 1px 6px;
+    padding-left: 10px;
+    padding-right: 22px;
+    border-radius: var(--tb-radius-sm);
+    color: var(--tb-text);
+    transition: background-color var(--tb-dur-fast) var(--tb-ease),
+                color var(--tb-dur-fast) var(--tb-ease);
+}
+
+[id$="-menuButton"] .luckysheet-cols-menuitem-content {
+    color: inherit;
+}
+
+[id$="-menuButton"] .luckysheet-cols-menuitem:hover,
+[id$="-menuButton"] .luckysheet-cols-menuitem-hover {
+    background: var(--tb-hover) !important;
+    color: var(--tb-icon-strong);
+}
+
+[id$="-menuButton"] .luckysheet-cols-menuitem:active {
+    background: var(--tb-press) !important;
+}
+
+/* Selected entry (check mark injected into span.icon by Luckysheet). */
+[id$="-menuButton"] .luckysheet-cols-menuitem span.icon .fa-check {
+    color: var(--tb-accent);
+}
+
+/* Submenu chevrons. */
+[id$="-menuButton"] .luckysheet-submenu-arrow {
+    color: #9ca3af;
+    opacity: 1;
+}
+
+/* In-panel separators. */
+[id$="-menuButton"] .luckysheet-menuseparator,
+#luckysheet-icon-morebtn-div .luckysheet-menuseparator {
+    border-top: 1px solid var(--tb-border);
+    margin: 6px 10px;
+}
+
+/* Slim scrollbar for long lists (font family, formats…). */
+[id$="-menuButton"]::-webkit-scrollbar {
+    width: 8px;
+}
+
+[id$="-menuButton"]::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+[id$="-menuButton"]::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+    border: 2px solid var(--tb-panel-bg);
+}
+
+[id$="-menuButton"]::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* ==========================================================================
+   14. COLOR PICKER (Spectrum) — scoped to toolbar panels only
+   ========================================================================== */
+[id$="-menuButton"] .sp-container {
+    background: var(--tb-panel-bg);
+    border: 1px solid var(--tb-border);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+[id$="-menuButton"] .sp-thumb {
+    border-radius: 3px;
+}
+
+[id$="-menuButton"] .sp-thumb-active {
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
+}
+
+[id$="-menuButton"] .sp-input {
+    border: 1px solid #d1d5db;
+    border-radius: var(--tb-radius-sm);
+    color: var(--tb-text);
+}
+
+[id$="-menuButton"] .sp-input:focus {
+    border-color: #d1d5db;
+    outline: 2px solid var(--tb-focus-ring);
+    outline-offset: 1px;
+}
+
+/* ==========================================================================
+   15. RESPONSIVE OVERFLOW SHEET POLISH (visual layer only)
+   --------------------------------------------------------------------------
+   #luckysheet-icon-morebtn-div receives inline position/top/right/padding/
+   visibility from JS — untouched. Buttons inside it are regular toolbar
+   buttons and inherit sections 2–6 automatically.
+   ========================================================================== */
+#luckysheet-icon-morebtn-div {
+    /* Legacy inline padding is 5.5px; echo it optically around the card. */
+    background-clip: padding-box;
+    /* Floats over the grid edge — one step deeper than inline panels. */
+    box-shadow: var(--tb-shadow-pop) !important;
+}
+
+#luckysheet-icon-morebtn-div > .luckysheet-inline-block:last-child {
+    margin-right: 0;
+}
+
+/* ==========================================================================
+   16. TOOLBAR TOOLTIPS (data-tips bubbles, Google JFK style)
+   ========================================================================== */
+#luckysheet-tooltip-up.jfk-tooltip {
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--tb-radius-md);
+    box-shadow: 0 4px 12px rgba(17, 24, 39, 0.28);
+    color: #f9fafb;
+    font-family: var(--tb-font);
+    font-size: 12px;
+    line-height: 16px;
+    padding: 5px 9px;
+}
+
+#luckysheet-tooltip-up .jfk-tooltip-contentId {
+    color: inherit;
+}
+
+#luckysheet-tooltip-up .jfk-tooltip-arrowimplbefore,
+#luckysheet-tooltip-up .jfk-tooltip-arrowimplafter {
+    border-color: #111827;
+}
+
+/* ==========================================================================
+   17. PRINT-MODE VIEW SWITCHES (rendered inside the toolbar strip)
+   ========================================================================== */
+#luckysheet-wa-editor .luckysheet-print-viewBtn {
+    border-radius: var(--tb-radius-sm);
+    color: var(--tb-icon);
+    transition: background-color var(--tb-dur) var(--tb-ease),
+                color var(--tb-dur) var(--tb-ease);
+}
+
+#luckysheet-wa-editor .luckysheet-print-viewBtn:hover {
+    background: var(--tb-hover);
+    color: var(--tb-icon-strong);
+}
+
+#luckysheet-wa-editor .luckysheet-print-viewBtn-active,
+#luckysheet-wa-editor .luckysheet-print-viewBtn-active:hover {
+    background: var(--tb-active);
+    color: var(--tb-accent-strong);
+}
+
+/* ==========================================================================
+   18. REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+    #luckysheet-wa-editor,
+    #luckysheet-wa-editor .luckysheet-toolbar-button,
+    #luckysheet-wa-editor .luckysheet-toolbar-menu-button,
+    #luckysheet-wa-editor .luckysheet-toolbar-combo-button,
+    #luckysheet-wa-editor input.luckysheet-toolbar-combo-button-input,
+    [id$="-menuButton"],
+    [id$="-menuButton"] .luckysheet-cols-menuitem {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    #luckysheet-wa-editor .luckysheet-toolbar-button:active,
+    #luckysheet-wa-editor .luckysheet-toolbar-menu-button:active,
+    #luckysheet-wa-editor .luckysheet-toolbar-combo-button:active {
+        transform: none;
+    }
+}
+
+/* ==========================================================================
+   17. TOP INFO BAR � REMOVED
+   --------------------------------------------------------------------------
+   #luckysheet_info_detail (workbook title input, back button, sync status,
+   user badge) is disabled at the source via luckysheet.create({ showinfobar:
+   false }) in js/app.js � that path also zeroes infobarHeight so layout math
+   stays correct. The rule below is a guard: its !important beats any stray
+   jQuery .show() inline style. The vendor bundle itself stays untouched.
+   ========================================================================== */
+.luckysheet_info_detail {
+    display: none !important;
+}
