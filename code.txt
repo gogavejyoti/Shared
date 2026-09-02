@@ -1,19 +1,115 @@
-                        if (cell.border) {
-                                            const border = {};
-                                            const styleMap = {
-                                                1: 'thin', 2: 'hair', 3: 'dotted', 4: 'dashed', 5: 'dashDot', 6: 'dashDotDot',
-                                                8: 'medium', 9: 'dashed', 10: 'mediumDashDot', 11: 'mediumDashDotDot',
-                                                13: 'thick'
-                                            };
-                                            const lkToExcel = { t: 'top', b: 'bottom', l: 'left', r: 'right' };
-                                            for (const [side, val] of Object.entries(cell.border)) {
-                                                const excelSide = lkToExcel[side] || side;
-                                                if (val?.color) {
-                                                    border[excelSide] = {
-                                                        style: styleMap[val.style] || 'thin',
-                                                        color: { argb: hexToARGB(val.color) }
-                                                    };
+	// ✅ FINAL FIX FOR YOUR BORDER FORMAT
+                                if (sheet.config?.borderInfo) {
+
+                                    sheet.config.borderInfo.forEach(item => {
+
+                                        // ✅ Handle range-type borders (toolbar: has borderType/color/range, no per-cell value)
+                                        if (item && item.rangeType === 'range' && Array.isArray(item.range)) {
+                                            const rt = String(item.borderType || '').toLowerCase();
+                                            const isClear = rt === 'border-none';
+                                            // Only apply range borders that carry a real color (user's intent) or are a clear.
+                                            // Plain '#000' border-all rects are historical duplicates of the per-cell entries below.
+                                            const isBlack = item.color == null || String(item.color).replace(/[\s#]/gi, '').toLowerCase() === '000';
+                                            if (!isClear && isBlack) return;
+
+                                            const colArgb = hexToARGB(item.color);
+                                            const rStyleMap = { 1: 'thin', 2: 'hair', 3: 'dotted', 4: 'dashed', 5: 'dashDot', 6: 'dashDotDot', 8: 'medium', 9: 'dashed', 10: 'mediumDashDot', 11: 'mediumDashDotDot', 13: 'thick' };
+                                            const rStyle = rStyleMap[item.style] || 'thin';
+
+                                            for (const rng of item.range) {
+                                                const r0 = rng.row && rng.row[0];
+                                                const r1 = rng.row && rng.row[1];
+                                                const c0 = rng.column && rng.column[0];
+                                                const c1 = rng.column && rng.column[1];
+                                                if (r0 == null || r1 == null || c0 == null || c1 == null) continue;
+
+                                                for (let rr = r0; rr <= r1; rr++) {
+                                                    for (let cc = c0; cc <= c1; cc++) {
+                                                        const cell = ws.getCell(rr + 1, cc + 1);
+                                                        let border = Object.assign({}, cell.border || {});
+
+                                                        const setSide = (key) => {
+                                                            if (isClear) { delete border[key]; return; }
+                                                            if (colArgb) border[key] = { style: rStyle, color: { argb: colArgb } };
+                                                        };
+
+                                                        if (isClear) {
+                                                            delete border.top; delete border.bottom; delete border.left; delete border.right;
+                                                        } else if (rt === 'border-all') {
+                                                            setSide('top'); setSide('bottom'); setSide('left'); setSide('right');
+                                                        } else if (rt === 'border-top') {
+                                                            if (rr === r0) setSide('top');
+                                                        } else if (rt === 'border-bottom') {
+                                                            if (rr === r1) setSide('bottom');
+                                                        } else if (rt === 'border-left') {
+                                                            if (cc === c0) setSide('left');
+                                                        } else if (rt === 'border-right') {
+                                                            if (cc === c1) setSide('right');
+                                                        } else if (rt === 'border-outside') {
+                                                            if (rr === r0) setSide('top');
+                                                            if (rr === r1) setSide('bottom');
+                                                            if (cc === c0) setSide('left');
+                                                            if (cc === c1) setSide('right');
+                                                        } else if (rt === 'border-inside') {
+                                                            if (rr < r1) setSide('bottom');
+                                                            if (cc < c1) setSide('right');
+                                                            if (rr > r0) setSide('top');
+                                                            if (cc > c0) setSide('left');
+                                                        } else if (rt === 'border-horizontal') {
+                                                            if (rr < r1) setSide('bottom');
+                                                            if (rr > r0) setSide('top');
+                                                        } else if (rt === 'border-vertical') {
+                                                            if (cc < c1) setSide('right');
+                                                            if (cc > c0) setSide('left');
+                                                        }
+
+                                                        cell.border = border;
+                                                    }
                                                 }
                                             }
-                                            cellRef.border = border;
+                                            return;
                                         }
+
+  function getStyle(obj) {
+                                            if (!obj || !obj.color) return undefined;
+
+                                            const styleMap = {
+                                                1: 'thin',
+                                                2: 'hair',
+                                                3: 'dotted',
+                                                4: 'dashed',
+                                                5: 'dashDot',
+                                                6: 'dashDotDot',
+																  
+                                                8: 'medium',
+                                                9: 'mediumDashed',
+                                                10: 'mediumDashDot',
+                                                11: 'mediumDashDotDot',
+                                                13: 'thick'
+                                            };
+
+  // --- Normalize xl/styles.xml font element order (ExcelJS emits <name> out of
+                            // XSD CT_Font sequence, which makes Microsoft Excel flag the workbook as corrupt
+                            // and discard all formatting after recovery). Rewrite every <font> child in the
+                            // correct order before saving. ---
+                            try {
+                                const fflateLib = window.fflate || (typeof globalThis !== 'undefined' ? globalThis.fflate : undefined);
+                                if (fflateLib && typeof fflateLib.unzipSync === 'function' && typeof fflateLib.zipSync === 'function') {
+                                    const files = fflateLib.unzipSync(new Uint8Array(buf));
+                                    const stylesName = Object.keys(files).find(n => n.replace(/\\/g, '/') === 'xl/styles.xml');
+                                    if (stylesName && files[stylesName]) {
+                                        const styleXml = fflateLib.strFromU8(files[stylesName]);
+                                        const fontSeq = ['b', 'i', 'strike', 'condense', 'extend', 'outline', 'shadow', 'u', 'vertAlign', 'sz', 'color', 'name', 'charset', 'family', 'scheme'];
+                                        const reorderFont = (font) => font.replace(/^<font>|<\/font>$/g, '').match(/<[^>]+>/g).map(node => {
+                                            const nm = (node.match(/^<([a-zA-Z0-9]+)/) || [])[1] || '';
+                                            const rank = fontSeq.indexOf(nm);
+                                            return { nm, rank: rank === -1 ? 99 : rank, node };
+                                        }).sort((a, b) => a.rank - b.rank).map(o => o.node).join('');
+                                        const fixed = styleXml.replace(/<font>[\s\S]*?<\/font>/g, m => '<font>' + reorderFont(m) + '</font>');
+                                        files[stylesName] = fflateLib.strToU8(fixed);
+                                        buf = await Promise.resolve(fflateLib.zipSync(files));
+                                    }
+                                }
+                            } catch (fixErr) {
+                                console.warn("styles.xml normalization skipped:", fixErr);
+                            }
