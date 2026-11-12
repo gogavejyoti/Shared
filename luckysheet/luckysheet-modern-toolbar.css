@@ -102,13 +102,7 @@
     color: var(--tb-text);
 }
 
-/* Airy rhythm between top-level controls (legacy items carry margin:0 1px;
-   this adds breathing room without touching measured widths materially).
-   Absolutely-positioned children (e.g. #luckysheet-icon-morebtn) are
-   unaffected by margins. */
-#luckysheet-wa-editor > .luckysheet-inline-block {
-    margin-right: 2px;
-}
+
 
 /* Decorative left edge strip from the legacy theme — silenced. */
 #luckysheet-wa-editor .luckysheet-toolbar-left-theme {
@@ -118,35 +112,30 @@
 /* ==========================================================================
    2. BUTTON BASE (toggle / menu / combo families)
    ========================================================================== */
-#luckysheet-wa-editor .luckysheet-toolbar-button,
-#luckysheet-wa-editor .luckysheet-toolbar-menu-button,
-#luckysheet-wa-editor .luckysheet-toolbar-combo-button,
-#luckysheet-icon-morebtn-div .luckysheet-toolbar-button,
-#luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button,
-#luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--tb-radius-sm);
-    color: var(--tb-icon);
+    #luckysheet-wa-editor .luckysheet-toolbar-button,
+    #luckysheet-wa-editor .luckysheet-toolbar-menu-button,
+    #luckysheet-wa-editor .luckysheet-toolbar-combo-button,
+    #luckysheet-icon-morebtn-div .luckysheet-toolbar-button,
+    #luckysheet-icon-morebtn-div .luckysheet-toolbar-menu-button,
+    #luckysheet-icon-morebtn-div .luckysheet-toolbar-combo-button {
+        box-sizing: content-box !important;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--tb-radius-sm);
+        color: var(--tb-icon);
+        /* --- GEOMETRY LOCK --- */
+        height: 26px;
+        line-height: 26px;
+        vertical-align: middle;
+        /* ---------------------- */
 
-    /* --- GEOMETRY LOCK --- */
-    height: 26px;
-    line-height: 26px;
-    vertical-align: middle;
-    /* ---------------------- */
-
-    cursor: pointer;
-    outline: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    user-select: none;
-
-    transition: background-color var(--tb-dur) var(--tb-ease),
-                color var(--tb-dur) var(--tb-ease),
-                border-color var(--tb-dur) var(--tb-ease),
-                box-shadow var(--tb-dur) var(--tb-ease),
-                transform var(--tb-dur-fast) var(--tb-ease);
-}
+        cursor: pointer;
+        outline: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        user-select: none;
+        transition: background-color var(--tb-dur) var(--tb-ease), color var(--tb-dur) var(--tb-ease), border-color var(--tb-dur) var(--tb-ease), box-shadow var(--tb-dur) var(--tb-ease), transform var(--tb-dur-fast) var(--tb-ease);
+    }
 
 /* Icon glyphs + caption text inherit the themed ink. */
 #luckysheet-wa-editor .luckysheet-icon-img-container,
@@ -308,7 +297,6 @@
     background: transparent !important;
     border: 1px solid transparent !important;
     border-radius: 4px;
-    color: var(--tb-text) !important;
     font-family: var(--tb-font) !important;
     font-weight: 600 !important;
     cursor: pointer;
@@ -577,6 +565,27 @@
 #luckysheet-tooltip-up .jfk-tooltip-arrowimplafter {
     border-color: #111827;
 }
+/* ==========================================================================
+   FIX: TOOLTIP OVERLAP & OFFSET CORRECTION
+   ========================================================================== */
+
+/* Push the tooltip bubble safely below the toolbar button */
+#luckysheet-tooltip-up.jfk-tooltip {
+    margin-top: 8px !important;
+    pointer-events: none !important; /* Prevents tooltip from blocking clicks on the dropdown */
+    z-index: 100005 !important;
+}
+
+/* Adjust the tooltip arrow peak to match the new top offset */
+#luckysheet-tooltip-up .jfk-tooltip-arrow {
+    top: -5px !important;
+}
+
+/* Hide tooltips on active/open dropdowns so they don't cover opened menus */
+#luckysheet-wa-editor .luckysheet-toolbar-combo-button-open + #luckysheet-tooltip-up,
+#luckysheet-wa-editor .luckysheet-toolbar-button-active + #luckysheet-tooltip-up {
+    display: none !important;
+}
 
 /* ==========================================================================
    17. PRINT-MODE VIEW SWITCHES (rendered inside the toolbar strip)
@@ -632,4 +641,108 @@
    ========================================================================== */
 .luckysheet_info_detail {
     display: none !important;
+}
+/* ==========================================================================
+   GEOMETRY FIXES (Prevents Toolbar Squeezing & Icon Wrapping)
+   ========================================================================== */
+
+/* Force original content-box behavior so Luckysheet JS measurements stay accurate */
+#luckysheet-wa-editor,
+#luckysheet-wa-editor *,
+#luckysheet-icon-morebtn-div,
+#luckysheet-icon-morebtn-div * {
+    box-sizing: content-box !important;
+}
+
+    /* Stop text buttons (Chart, Pivot) from wrapping text onto two lines */
+    #luckysheet-wa-editor #luckysheet-icon-pivotTable,
+    #luckysheet-wa-editor #luckysheet-icon-chart,
+    #luckysheet-icon-morebtn-div #luckysheet-icon-pivotTable,
+    #luckysheet-icon-morebtn-div #luckysheet-icon-chart {
+        white-space: nowrap !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        padding: 0 4px !important;
+    }
+
+    /* Prevent the More button icon from squishing when space gets tight */
+    #luckysheet-wa-editor #luckysheet-icon-morebtn {
+        top: 5px !important;
+        height: 26px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    /* ==========================================================================
+   FIX 1: PREVENT "MORE" TEXT & ARROW FROM BREAKING ONTO TWO LINES
+   ========================================================================== */
+    #luckysheet-wa-editor #luckysheet-icon-morebtn,
+    #luckysheet-wa-editor #luckysheet-icon-morebtn-div {
+        white-space: nowrap !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 26px !important;
+        line-height: 26px !important;
+    }
+
+        /* Ensure caption and arrow sit side-by-side inside the More button */
+        #luckysheet-wa-editor #luckysheet-icon-morebtn .luckysheet-toolbar-menu-button-caption,
+        #luckysheet-wa-editor #luckysheet-icon-morebtn .luckysheet-toolbar-menu-button-dropdown {
+            display: inline-block !important;
+            vertical-align: middle !important;
+            float: none !important;
+            line-height: inherit !important;
+            margin-top: 15px;
+            margin-left: 10px;
+        }
+
+
+    /* ==========================================================================
+   FIX 2: CORRECT OVERLAP & VERTICAL ALIGNMENT OF TOOLBAR ICONS
+   ========================================================================== */
+    /* Keep all button containers inline-flex so icons & chevrons stay horizontal */
+    #luckysheet-wa-editor .luckysheet-toolbar-button,
+    #luckysheet-wa-editor .luckysheet-toolbar-menu-button,
+    #luckysheet-wa-editor .luckysheet-toolbar-combo-button {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        white-space: nowrap !important;
+    }
+
+    /* Give the More button clear spacing from the preceding icon */
+    #luckysheet-wa-editor #luckysheet-icon-morebtn {
+        position: relative !important;
+        top: 0 !important;
+        margin-left: 4px !important;
+    }
+/* ==========================================================================
+   FIX: SUBMENU BLANK BOX & TEXT VISIBILITY
+   ========================================================================== */
+
+/* 1. Reset nested submenus to use a solid background so text renders clearly without GPU blur stacking */
+[id$="-menuButton"] [id$="-menuButton"],
+.luckysheet-cols-menu [id$="-menuButton"],
+.luckysheet-cols-menu {
+    background: #ffffff !important;
+    background-image: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid var(--tb-border) !important;
+    box-shadow: var(--tb-shadow-menu) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+    /* 2. Force inner text and submenu options to remain visible and styled */
+    [id$="-menuButton"] .luckysheet-cols-menuitem,
+    .luckysheet-cols-menu .luckysheet-cols-menuitem {
+        display: block !important;
+        color: var(--tb-text) !important;
+        white-space: nowrap !important;
+    }
+
+/* 3. Ensure submenu arrow indicators stay visible */
+[id$="-menuButton"] .luckysheet-submenu-arrow {
+    display: inline-block !important;
+    float: right !important;
 }
