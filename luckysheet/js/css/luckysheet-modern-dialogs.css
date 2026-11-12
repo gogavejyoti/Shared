@@ -1,0 +1,452 @@
+/* ============================================================================
+   LUCKYSHEET — MODERN DIALOG THEME
+   ----------------------------------------------------------------------------
+   Covers every popup built from the internal template:
+     .luckysheet-modal-dialog          card (draggable, resizable)
+       ├─ .luckysheet-modal-dialog-title (-draggable) + -title-text
+       │                                 + -title-close (fa-times)
+       ├─ .luckysheet-modal-dialog-content   (forms live here)
+       └─ .luckysheet-modal-dialog-buttons   (.btn.btn-primary/.btn-default)
+     .luckysheet-modal-dialog-mask     overlay (#luckysheet-modal-dialog-mask)
+     .luckysheet-modal-dialog-slider   right drawers (pivot table,
+                                       alternate-format rows) with -title /
+                                       -content / .luckysheet-model-close-btn
+   GEOMETRY LOCK: card position & size are inline JS styles (drag/resize);
+   the eight .luckysheet-modal-dialog-resize-item* handles are invisible hit
+   zones — never hidden or resized. Only paint, radius, shadow, type change.
+   Buttons keep any caller-supplied inline margins/widths (they out-rank us).
+   Load order: this file comes AFTER bootstrap/plugin CSS → equal-or-higher
+   specificity rules below win without !important wars.
+   ============================================================================ */
+
+/* ==========================================================================
+   0. TOKENS
+   ========================================================================== */
+:root {
+    --dlg-font:      Arial, 'Helvetica Neue', Helvetica, sans-serif;
+    --dlg-accent:        #10b981;
+    --dlg-accent-strong: #059669;
+    --dlg-accent-deep:   #065f46;
+    --dlg-ring:      rgba(16, 185, 129, 0.22);
+    --dlg-line:      #e2e8f0;
+    --dlg-ink:       #111827;
+    --dlg-ink-body:  #374151;
+    --dlg-muted:     #6b7280;
+    --dlg-ease:      cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+
+/* ==========================================================================
+   1. OVERLAY MASK
+   ========================================================================== */
+.luckysheet-modal-dialog-mask {
+    background-color: rgba(15, 23, 42, 0.45) !important;
+    opacity: 1 !important;
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+}
+
+/* ==========================================================================
+   2. DIALOG CARD
+   --------------------------------------------------------------------------
+   Paint-only restyle of the draggable/resizable shell. Subtle translucency +
+   blur keeps it airy while staying fully readable over dimmed canvas.
+   ========================================================================== */
+.luckysheet-modal-dialog {
+    background-color: rgba(255, 255, 255, 0.97) !important;
+    background-image:
+        linear-gradient(to bottom,
+            rgba(255, 255, 255, 0.9),
+            rgba(255, 255, 255, 0)) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.85) !important;
+    outline: 1px solid rgba(6, 95, 70, 0.08);
+    outline-offset: -1px;
+    border-radius: 16px !important;
+    box-shadow: 0 32px 64px -16px rgba(15, 23, 42, 0.28),
+                0 8px 20px -8px rgba(15, 23, 42, 0.14) !important;
+    color: var(--dlg-ink-body);
+    font-family: var(--dlg-font);
+}
+
+/* Entrance: plays when display flips none -> block (same trick as toolbar
+   panels). Transform is animation-only, so drag math stays untouched. */
+@keyframes dlg-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.luckysheet-modal-dialog {
+    animation: dlg-card-in 220ms var(--dlg-ease);
+}
+
+/* ==========================================================================
+   3. TITLE BAR
+   ========================================================================== */
+.luckysheet-modal-dialog-title {
+    border-bottom: 1px solid var(--dlg-line) !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+.luckysheet-modal-dialog-title-text {
+    color: var(--dlg-ink) !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+    font-family: var(--dlg-font) !important;
+}
+
+/* Close affordance — ghost circle that warms up on hover.
+   LEGACY CONFLICT NOTE: stock rule is 11x11 content + 17px padding used FOR
+   centering; we must zero the padding or border-box collapses the glyph off
+   center. Flex centering replaces it and ignores fa glyph metrics. */
+.luckysheet-modal-dialog-title-close {
+    position: absolute;
+    top: 7px;
+    right: 9px;
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    margin: 0;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    line-height: 1 !important;
+    opacity: 1;
+    color: var(--dlg-muted) !important;
+    border-radius: 999px !important;
+    transition: background-color 120ms var(--dlg-ease),
+                color 120ms var(--dlg-ease);
+}
+
+.luckysheet-modal-dialog-title-close .fa {
+    line-height: 1;
+}
+
+.luckysheet-modal-dialog-title-close:hover {
+    background-color: #fee2e2;
+    color: #b91c1c !important;
+}
+
+/* ==========================================================================
+   4. CONTENT + FORM CONTROLS
+   ========================================================================== */
+.luckysheet-modal-dialog-content {
+    color: var(--dlg-ink-body);
+    font-size: 13px;
+    font-family: var(--dlg-font) !important;
+}
+
+.luckysheet-modal-dialog-content input[type="text"],
+.luckysheet-modal-dialog-content input[type="number"],
+.luckysheet-modal-dialog-content input:not([type]),
+.luckysheet-modal-dialog-content select,
+.luckysheet-modal-dialog-content textarea {
+    background: #ffffff;
+    border: 1px solid var(--dlg-line) !important;
+    border-radius: 8px !important;
+    color: var(--dlg-ink);
+    font-family: inherit;
+    transition: border-color 120ms var(--dlg-ease),
+                box-shadow 120ms var(--dlg-ease);
+}
+
+.luckysheet-modal-dialog-content input:focus,
+.luckysheet-modal-dialog-content select:focus,
+.luckysheet-modal-dialog-content textarea:focus {
+    border-color: var(--dlg-accent) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px var(--dlg-ring) !important;
+}
+
+.luckysheet-modal-dialog-content input::placeholder,
+.luckysheet-modal-dialog-content textarea::placeholder {
+    color: #94a3b8;
+}
+
+/* Range-pickers styled as read-only chips rather than naked inputs. */
+input.luckysheet-range-alter-check:checked,
+.luckysheet-modal-dialog-content input[type="checkbox"],
+.luckysheet-modal-dialog-content input[type="radio"] {
+    accent-color: var(--dlg-accent);
+}
+
+/* ==========================================================================
+   5. BUTTON ROW — primary / default pair used by every dialog
+   --------------------------------------------------------------------------
+   Specificity (.luckysheet-modal-dialog-buttons .btn…) outranks bootstrap's
+   .btn-primary; callers' inline margin/width still win where present.
+   ========================================================================== */
+.luckysheet-modal-dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.luckysheet-modal-dialog-buttons .btn {
+    border-radius: 8px !important;
+    padding: 6px 18px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    font-family: var(--dlg-font) !important;
+    line-height: 1.4 !important;
+    cursor: pointer;
+    transition: background-color 120ms var(--dlg-ease),
+                border-color 120ms var(--dlg-ease),
+                box-shadow 120ms var(--dlg-ease),
+                transform 120ms var(--dlg-ease);
+}
+
+.luckysheet-modal-dialog-buttons .btn:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 3px var(--dlg-ring) !important;
+}
+
+.luckysheet-modal-dialog-buttons .btn.btn-primary {
+    background-color: var(--dlg-accent) !important;
+    background-image: linear-gradient(180deg,
+        #34d399 0%, var(--dlg-accent) 55%, var(--dlg-accent-strong) 100%) !important;
+    border: 1px solid var(--dlg-accent-strong) !important;
+    color: #ffffff !important;
+    text-shadow: none !important;
+    box-shadow: 0 1px 2px rgba(6, 78, 59, 0.25) !important;
+}
+
+.luckysheet-modal-dialog-buttons .btn.btn-primary:hover {
+    background-image: linear-gradient(180deg,
+        #10b981 0%, var(--dlg-accent-strong) 60%, var(--dlg-accent-deep) 100%) !important;
+    box-shadow: 0 4px 10px -2px rgba(6, 78, 59, 0.35) !important;
+    transform: translateY(-1px);
+}
+
+.luckysheet-modal-dialog-buttons .btn.btn-primary:active {
+    transform: translateY(0);
+    box-shadow: inset 0 1px 2px rgba(6, 78, 59, 0.30) !important;
+}
+
+.luckysheet-modal-dialog-buttons .btn.btn-default {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: 1px solid #d1d5db !important;
+    color: var(--dlg-ink-body) !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+}
+
+.luckysheet-modal-dialog-buttons .btn.btn-default:hover {
+    background-color: #f0fdf4 !important;
+    border-color: var(--dlg-accent) !important;
+    color: var(--dlg-accent-deep) !important;
+}
+
+/* ==========================================================================
+   6. SLIDER DRAWERS (pivot table · alternate format)
+   --------------------------------------------------------------------------
+   Fixed right-hand panels; position/width/transition are JS-owned. Painted
+   as an opaque sheet with a soft westward shadow.
+   ========================================================================== */
+.luckysheet-modal-dialog-slider {
+    background: #ffffff !important;
+    border-left: 1px solid var(--dlg-line) !important;
+    box-shadow: -24px 0 48px -12px rgba(15, 23, 42, 0.18) !important;
+    font-family: var(--dlg-font);
+    color: var(--dlg-ink-body);
+}
+
+.luckysheet-modal-dialog-slider-title {
+    color: var(--dlg-ink) !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid var(--dlg-line) !important;
+    box-shadow: none !important;
+}
+
+#luckysheet-modal-dialog-slider-close,
+.luckysheet-model-close-btn {
+    color: var(--dlg-muted);
+    transition: color 120ms var(--dlg-ease);
+}
+
+#luckysheet-modal-dialog-slider-close:hover,
+.luckysheet-model-close-btn:hover {
+    color: #b91c1c;
+}
+
+/* Generic cancel buttons rendered as .btn-default inside sliders get the
+   same ghost treatment via section 5 selectors when wrapped in -buttons;
+   standalone ones stay quiet: */
+.luckysheet-modal-dialog-slider .btn.btn-default {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: var(--dlg-ink-body) !important;
+}
+
+/* ==========================================================================
+   7. FORMULA HELP TOOLTIP + AUTOCOMPLETE LIST
+   --------------------------------------------------------------------------
+   Two floating cards shown under the formula bar while typing:
+     .luckysheet-formula-help-c     syntax helper (close / collapse /
+                                    -title > -title-formula / -content,
+                                    max-height 300 scroll)
+     .luckysheet-formula-search-c   function autocomplete rows
+                                    (-search-item > -search-detail)
+   Position (left/top) and 300px width are JS-computed — geometry untouched.
+   These hover over live cell data while typing, so they stay near-opaque.
+   ========================================================================== */
+.luckysheet-formula-help-c,
+.luckysheet-formula-search-c {
+    background-color: rgba(255, 255, 255, 0.98) !important;
+    border: 1px solid rgba(255, 255, 255, 0.85) !important;
+    outline: 1px solid rgba(6, 95, 70, 0.10);
+    outline-offset: -1px;
+    border-radius: 12px !important;
+    box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.22),
+                0 4px 12px -6px rgba(15, 23, 42, 0.10) !important;
+    color: var(--dlg-ink-body);
+    font-family: var(--dlg-font);
+    overflow: hidden;
+}
+
+@keyframes dlg-float-in {
+    from { opacity: 0; transform: translateY(-5px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.luckysheet-formula-help-c,
+.luckysheet-formula-search-c {
+    animation: dlg-float-in 140ms var(--dlg-ease);
+}
+
+/* --- Syntax helper ------------------------------------------------------ */
+.luckysheet-formula-help-title {
+    background: linear-gradient(180deg, #f2fbf6, #e9f7ef) !important;
+    border-top: none !important;
+    border-bottom: 1px solid var(--dlg-line) !important;
+    box-shadow: inset 3px 0 0 var(--dlg-accent);
+    padding: 8px 12px !important;
+    color: var(--dlg-accent-deep) !important;
+}
+
+.luckysheet-formula-help-title-formula {
+    font-family: 'Cascadia Code', Consolas, 'Courier New', monospace !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0;
+}
+
+.luckysheet-formula-help-content {
+    font-size: 12.5px !important;
+    line-height: 1.55 !important;
+    padding: 10px 12px !important;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.luckysheet-formula-help-content::-webkit-scrollbar { width: 8px; }
+.luckysheet-formula-help-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 8px;
+}
+.luckysheet-formula-help-content::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.luckysheet-formula-help-content-example {
+    margin-top: 8px !important;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border-left: 3px solid var(--dlg-ring);
+    border-radius: 6px;
+    font-family: Consolas, 'Courier New', monospace;
+}
+
+/* Corner controls — ghost circles matching dialog close styling. */
+.luckysheet-formula-help-close,
+.luckysheet-formula-help-collapse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    border-radius: 999px;
+    color: var(--dlg-muted) !important;
+    cursor: pointer;
+    transition: background-color 120ms var(--dlg-ease),
+                color 120ms var(--dlg-ease);
+}
+
+.luckysheet-formula-help-close:hover {
+    background-color: #fee2e2;
+    color: #b91c1c !important;
+}
+
+.luckysheet-formula-help-collapse:hover {
+    background-color: rgba(16, 185, 129, 0.14);
+    color: var(--dlg-accent-deep) !important;
+}
+
+/* --- Autocomplete list --------------------------------------------------- */
+.luckysheet-formula-search-c .luckysheet-formula-search-item {
+    margin: 2px 6px;
+    border-radius: 8px;
+    transition: background-color 100ms var(--dlg-ease);
+}
+
+.luckysheet-formula-search-c .luckysheet-formula-search-item:hover {
+    background-color: rgba(16, 185, 129, 0.09) !important;
+}
+
+.luckysheet-formula-search-c .luckysheet-formula-search-item-active,
+.luckysheet-formula-search-c .luckysheet-formula-search-item[class*="active"] {
+    background-color: rgba(16, 185, 129, 0.14) !important;
+    box-shadow: inset 2px 0 0 var(--dlg-accent);
+}
+
+.luckysheet-formula-search-detail {
+    color: var(--dlg-muted) !important;
+}
+
+/* --- Argument inspector (active-parameter highlight et al.) -------------
+   Legacy paints the current argument #fff9b2 (yellow) — retinted to theme. */
+.luckysheet-arguments-help-section {
+    color: var(--dlg-ink-body) !important;
+}
+
+.luckysheet-arguments-help-section-title {
+    color: var(--dlg-muted) !important;
+    text-transform: uppercase;
+    font-size: 10.5px !important;
+    letter-spacing: 0.04em;
+    font-weight: 600 !important;
+}
+
+.luckysheet-arguments-help-formula {
+    font-family: Consolas, 'Courier New', monospace;
+}
+
+.luckysheet-arguments-help-parameter-active {
+    background-color: rgba(16, 185, 129, 0.18) !important;
+    border-radius: 4px;
+    box-shadow: inset 0 -1px 0 rgba(6, 95, 70, 0.35);
+    color: var(--dlg-accent-deep) !important;
+    padding: 0 3px;
+}
+
+/* ==========================================================================
+   8. REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+    .luckysheet-modal-dialog,
+    .luckysheet-modal-dialog-buttons .btn,
+    .luckysheet-modal-dialog-title-close,
+    .luckysheet-formula-help-c,
+    .luckysheet-formula-search-c {
+        animation: none !important;
+        transition: none !important;
+    }
+}

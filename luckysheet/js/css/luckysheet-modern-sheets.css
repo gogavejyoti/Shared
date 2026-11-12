@@ -1,0 +1,377 @@
+﻿/* ============================================================================
+   LUCKYSHEET â€” MODERN SHEET TAB BAR THEME
+   ----------------------------------------------------------------------------
+   Styles the bottom sheets section: tab chips (Sheet1, Sheet2â€¦), the "+"
+   add-sheet button, manage button, scroll arrows, edge fades, rename editor,
+   the tab context menu and the zoom cluster that shares the bar.
+   GEOMETRY LOCK: bar height (31px), tab metrics (29px/29px line-height,
+   legacy paddings, border widths) are re-declared verbatim â€” Luckysheet
+   computes the grid window offset from the bar height. Only paint, radius
+   and shadows are themed.
+   ============================================================================ */
+
+/* ==========================================================================
+   0. TOKENS
+   ========================================================================== */
+:root {
+    --sh-bar-bg:      #f2f9f4;                     /* sage-tinted bar        */
+    --sh-chip-hover:  rgba(16, 185, 129, 0.10);
+    --sh-chip-active: #ffffff;
+    --sh-accent:      #10b981;                     /* mirrors --gd-accent    */
+    --sh-ink:         #374151;
+    --sh-ink-strong:  #065f46;                     /* emerald-800 active ink */
+    --sh-muted:       #6b7280;
+    --sh-line:        #d2e7da;                     /* mirrors gridline sage  */
+    --sh-ease:        cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   1. BAR SHELL
+   ========================================================================== */
+#luckysheet .luckysheet-sheet-area {
+    background-color: var(--sh-bar-bg);
+    border-top: 1px solid var(--sh-line);
+    box-shadow: none;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont,
+                 'Helvetica Neue', Arial, sans-serif;
+    /* height / padding / flex layout stay JS-owned â€” do not touch */
+}
+
+#luckysheet #luckysheet-bottom-pager {
+    background-color: transparent;
+}
+
+/* Edge fades beside the scroll arrows */
+#luckysheet .docs-sheet-fade div {
+    background-color: var(--sh-line);
+}
+
+/* ==========================================================================
+   2. TAB ITEMS (base + hover) â€” underline-style tabs, NOT buttons
+   --------------------------------------------------------------------------
+   Flat text on a shared baseline. No card, no shadow, no pill. Hover shows a
+   faint wash with rounded TOP corners only; the bottom edge stays square so
+   items visibly sit ON the bar's baseline like real tabs.
+   GEOMETRY LOCK: height/line-height/padding and 1px border widths mirror the
+   legacy values exactly; borders are merely made transparent so nothing
+   reflows while the boxed look disappears.
+   ========================================================================== */
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-item {
+    background-color: transparent;
+    border-top-color: transparent;
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+    border-radius: 8px 8px 0 0;
+    color: var(--sh-muted);
+    font-weight: 500;
+    font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+
+    /* --- GEOMETRY LOCK --- */
+    height: 29px;
+    line-height: 29px;
+    padding: 2px 19px 0 5px;
+    margin-right: 1px;
+    box-sizing: border-box;
+    min-width: 30px;
+    /* ---------------------- */
+
+    transition: background-color 120ms var(--sh-ease),
+                color 120ms var(--sh-ease);
+}
+
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-item:hover {
+    background-color: rgba(16, 185, 129, 0.07);
+    color: var(--sh-ink-strong);
+}
+
+/* ==========================================================================
+   3. ACTIVE TAB â€” emerald underline on the shared baseline
+   --------------------------------------------------------------------------
+   Reads as a selected TAB, not a pressed button: same flat surface as the
+   rest of the strip, emphasis carried entirely by ink weight + a 3px accent
+   rule anchored to the bottom edge (full width, squared into the baseline).
+   ========================================================================== */
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-item-active {
+    background-color: transparent;
+    color: var(--sh-ink-strong);
+    font-weight: 600;
+    box-shadow: none;
+}
+
+/* Emerald underline â€” structural marker spanning the tab's full width. */
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-item-active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--sh-accent);
+}
+
+/* Faint surface lift without turning the tab into a card. */
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-item-active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: rgba(16, 185, 129, 0.06);
+}
+
+/* Kill the legacy gray flip when hovering the active tab. */
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-item-active:hover {
+    background-color: transparent;
+    color: var(--sh-ink-strong);
+}
+
+/* ==========================================================================
+   4. PER-TAB CHEVRON MENU
+   ========================================================================== */
+#luckysheet .luckysheet-sheet-area .luckysheet-sheets-item-menu {
+    color: var(--sh-muted);
+    border-radius: 4px;
+    transition: color 120ms var(--sh-ease),
+                background-color 120ms var(--sh-ease);
+}
+
+#luckysheet .luckysheet-sheet-area .luckysheet-sheets-item-menu:hover {
+    background-color: rgba(16, 185, 129, 0.14);
+    color: var(--sh-ink-strong);
+}
+
+/* Inline rename editor */
+#luckysheet .luckysheet-sheet-area .luckysheet-sheets-item-name[contenteditable="true"] {
+    background: #ffffff;
+    border: 1px solid var(--sh-accent) !important;
+    border-radius: 4px;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18);
+}
+
+/* ==========================================================================
+   5. ADD (+) AND MANAGE BUTTONS Â· SCROLL ARROWS
+   ========================================================================== */
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-add,
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-m,
+#luckysheet #luckysheet-sheets-add,
+#luckysheet #luckysheet-sheets-m,
+#luckysheet #luckysheet-sheets-leftscroll,
+#luckysheet #luckysheet-sheets-rightscroll {
+    color: var(--sh-muted);
+    border-radius: 6px;
+    transition: background-color 120ms var(--sh-ease),
+                color 120ms var(--sh-ease);
+    /* padding:6px 10px / iconfont 21px stay legacy â€” geometry lock */
+}
+
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-add:hover,
+#luckysheet .luckysheet-sheet-area div.luckysheet-sheets-m:hover,
+#luckysheet #luckysheet-sheets-add:hover,
+#luckysheet #luckysheet-sheets-m:hover,
+#luckysheet #luckysheet-sheets-leftscroll:hover,
+#luckysheet #luckysheet-sheets-rightscroll:hover {
+    background-color: var(--sh-chip-hover);
+    color: var(--sh-accent);
+}
+
+/* ==========================================================================
+   6. ZOOM CLUSTER (shares the bar)
+   ========================================================================== */
+#luckysheet .luckysheet-zoom-content .luckysheet-zoom-minus:hover,
+#luckysheet .luckysheet-zoom-content .luckysheet-zoom-plus:hover,
+#luckysheet .luckysheet-zoom-content .luckysheet-zoom-ratioText:hover {
+    background-color: var(--sh-chip-hover);
+    border-radius: 4px;
+}
+
+#luckysheet .luckysheet-zoom-content .luckysheet-zoom-ratioText {
+    color: var(--sh-muted);
+    font-weight: 500;
+}
+
+#luckysheet .luckysheet-zoom-content .luckysheet-zoom-cursor {
+    background: var(--sh-accent);
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(6, 78, 59, 0.35);
+}
+
+#luckysheet .luckysheet-zoom-content .luckysheet-zoom-cursor:hover {
+    background: var(--sh-accent);
+}
+
+#luckysheet .luckysheet-zoom-content .luckysheet-zoom-hundred {
+    background: #94a3b8;
+}
+
+/* ==========================================================================
+   7. TAB CONTEXT MENU (right-click on a tab)
+   --------------------------------------------------------------------------
+   Scoped by ID â€” other Luckysheet popups share the generic classes and must
+   not be affected.
+   ========================================================================== */
+#luckysheet-rightclick-menu {
+    background-color: rgba(255, 255, 255, 0.74) !important;
+    background-image:
+        radial-gradient(130% 100% at 10% 0%,
+            rgba(16, 185, 129, 0.13), transparent 55%),
+        linear-gradient(to bottom,
+            rgba(255, 255, 255, 0.50), rgba(255, 255, 255, 0.08)) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    backdrop-filter: blur(28px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.80) !important;
+    outline: 1px solid rgba(6, 95, 70, 0.10);
+    outline-offset: -1px;
+    border-radius: 12px !important;
+    box-shadow: 0 24px 48px -12px rgba(6, 78, 59, 0.16),
+                0 8px 16px -8px rgba(17, 24, 39, 0.10) !important;
+    overflow: hidden;
+    padding: 6px !important;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    #luckysheet-rightclick-menu {
+        background: #ffffff !important;
+        border-color: #e5e7eb !important;
+        outline: none;
+    }
+}
+
+#luckysheet-rightclick-menu .luckysheet-cols-menuitem {
+    margin: 1px 0;
+    border-radius: 6px;
+    color: var(--sh-ink);
+    transition: background-color 100ms var(--sh-ease);
+}
+
+#luckysheet-rightclick-menu .luckysheet-cols-menuitem:hover,
+#luckysheet-rightclick-menu .luckysheet-cols-menuitem-hover {
+    background: rgba(255, 255, 255, 0.72) !important;
+    color: #111827;
+}
+
+#luckysheet-rightclick-menu .luckysheet-menuseparator {
+    border-top: 1px solid #e5e7eb;
+    margin: 6px 8px;
+}
+
+/* ==========================================================================
+   8. REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+    #luckysheet .luckysheet-sheet-area div.luckysheet-sheets-item,
+    #luckysheet .luckysheet-sheet-area div.luckysheet-sheets-add,
+    #luckysheet .luckysheet-sheet-area div.luckysheet-sheets-m,
+    #luckysheet #luckysheet-sheets-leftscroll,
+    #luckysheet #luckysheet-sheets-rightscroll,
+    #luckysheet-rightclick-menu .luckysheet-cols-menuitem {
+        transition: none !important;
+    }
+}
+
+/* ==========================================================================
+   9. SHEET SCROLLBARS
+   --------------------------------------------------------------------------
+   Luckysheet scrolls the grid through dedicated strips:
+     .luckysheet-scrollbar-x / -y (+ .luckysheet-scrollbars, -ltr variants)
+   Stock look = 12px Chrome-era bars with sprite-image arrow buttons and
+   bordered tracks. Replaced with arrow-less floating pills:
+     - strip backgrounds go transparent (bars appear to float over canvas)
+     - track invisible, thumb = slim rounded pill, sage by default,
+       deepening on hover/active
+   Strip geometry (position/size) stays JS-owned; ::-webkit-scrollbar sizing
+   only affects the painted bar inside the strip. Firefox gets the standard
+   scrollbar-color/width pair.
+   ========================================================================== */
+.luckysheet-scrollbar-x,
+.luckysheet-scrollbar-y,
+.luckysheet-scrollbar-ltr,
+.luckysheet-scrollbars {
+    background-color: transparent !important;
+    scrollbar-width: thin;
+    scrollbar-color: #96BCB1 transparent;
+}
+
+/* Kill the waffle_sprite arrow buttons everywhere on these strips. */
+.luckysheet-scrollbar-x::-webkit-scrollbar-button,
+.luckysheet-scrollbar-y::-webkit-scrollbar-button,
+.luckysheet-scrollbar-ltr::-webkit-scrollbar-button,
+.luckysheet-scrollbars::-webkit-scrollbar-button {
+    display: none !important;
+    height: 0;
+    width: 0;
+}
+
+.luckysheet-scrollbar-x::-webkit-scrollbar,
+.luckysheet-scrollbar-y::-webkit-scrollbar,
+.luckysheet-scrollbar-ltr::-webkit-scrollbar,
+.luckysheet-scrollbars::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    background-color: transparent;
+}
+
+.luckysheet-scrollbar-x::-webkit-scrollbar-track,
+.luckysheet-scrollbar-y::-webkit-scrollbar-track,
+.luckysheet-scrollbar-ltr::-webkit-scrollbar-track,
+.luckysheet-scrollbars::-webkit-scrollbar-track {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.luckysheet-scrollbar-x::-webkit-scrollbar-thumb,
+.luckysheet-scrollbar-y::-webkit-scrollbar-thumb,
+.luckysheet-scrollbar-ltr::-webkit-scrollbar-thumb,
+.luckysheet-scrollbars::-webkit-scrollbar-thumb {
+    background-color: #96BCB1;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.luckysheet-scrollbar-x::-webkit-scrollbar-thumb:hover,
+.luckysheet-scrollbar-y::-webkit-scrollbar-thumb:hover,
+.luckysheet-scrollbar-ltr::-webkit-scrollbar-thumb:hover,
+.luckysheet-scrollbars::-webkit-scrollbar-thumb:hover {
+    background-color: #569281;
+}
+
+.luckysheet-scrollbar-x::-webkit-scrollbar-thumb:active,
+.luckysheet-scrollbar-y::-webkit-scrollbar-thumb:active,
+.luckysheet-scrollbar-ltr::-webkit-scrollbar-thumb:active,
+.luckysheet-scrollbars::-webkit-scrollbar-thumb:active {
+    background-color: #059669;
+}
+
+.luckysheet-scrollbar-x::-webkit-scrollbar-corner,
+.luckysheet-scrollbar-y::-webkit-scrollbar-corner {
+    background-color: transparent;
+}
+
+/* Sibling scrollables inherit the same pill language. */
+.luckysheet-modal-dialog-slider-content::-webkit-scrollbar,
+[id$="-menuButton"]::-webkit-scrollbar {
+    width: 8px;
+}
+
+.luckysheet-modal-dialog-slider-content::-webkit-scrollbar-thumb,
+[id$="-menuButton"]::-webkit-scrollbar-thumb {
+    background-color: #A0C2B9;
+    background-clip: padding-box;
+    border-radius: 8px;
+    border: 2px solid transparent;
+}
+
+.luckysheet-modal-dialog-slider-content::-webkit-scrollbar-thumb:hover,
+[id$="-menuButton"]::-webkit-scrollbar-thumb:hover {
+    background-color: #659C8C;
+}
+
+
+

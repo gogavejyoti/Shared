@@ -1,0 +1,172 @@
+/* ============================================================================
+   LUCKYSHEET — MODERN GRID CHROME THEME
+   ----------------------------------------------------------------------------
+   Styles the DOM layers that live ON TOP of the spreadsheet canvas:
+   header hover/selected overlays, selection boxes & handles, fill handle,
+   freeze bars, copy-marching border, formula-range highlights.
+   (The canvas gridlines themselves are recolored by js/grid-line-theme.js.)
+   Visual-only: no geometry that Luckysheet measures is altered — overlays are
+   absolutely positioned by JS and only their paint is themed here.
+   ============================================================================ */
+
+/* ==========================================================================
+   0. TOKENS
+   ========================================================================== */
+:root {
+    --gd-accent:        #10b981;                     /* emerald-500            */
+    --gd-accent-strong: #059669;                     /* emerald-600            */
+    --gd-tint:          rgba(16, 185, 129, 0.08);    /* hover wash             */
+    --gd-tint-strong:   rgba(16, 185, 129, 0.13);    /* selected wash          */
+    --gd-glow:          0 0 0 3px rgba(16, 185, 129, 0.12);
+    --gd-line:          #d2e7da;                     /* gridline sage (mirror of JS shim) */
+    --gd-formula:       #7c3aed;                     /* violet = formula refs (kept distinct) */
+    --gd-ease:          cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   1. COLUMN HEADER OVERLAYS
+   ========================================================================== */
+#luckysheet .luckysheet-cols-h-hover {
+    background-color: var(--gd-tint);
+}
+
+#luckysheet .luckysheet-cols-h-selected {
+    background-color: var(--gd-tint-strong);
+    border-bottom: 1px solid var(--gd-accent);
+    transition: background-color 100ms var(--gd-ease),
+                border-color 100ms var(--gd-ease);
+}
+
+/* ==========================================================================
+   2. ROW HEADER OVERLAYS
+   ========================================================================== */
+#luckysheet .luckysheet-rows-h-hover {
+    background-color: var(--gd-tint);
+}
+
+#luckysheet .luckysheet-rows-h-selected {
+    background-color: var(--gd-tint-strong);
+    border-right: 1px solid var(--gd-accent);
+    transition: background-color 100ms var(--gd-ease),
+                border-color 100ms var(--gd-ease);
+}
+
+/* ==========================================================================
+   2b. HEADER SURFACES (canvas wash comes from hooks; these are the DOM
+        underlays + corner box, tuned to match the effective tinted result:
+        white + rgba(16,185,129,.10) ~= #e7f5ef)
+   ========================================================================== */
+#luckysheet #luckysheet-left-top {
+    background: #e7f5ef;
+    border-right: 1px solid var(--gd-line);
+    border-bottom: 1px solid var(--gd-line);
+}
+
+#luckysheet #luckysheet-rows-h,
+#luckysheet #luckysheet-cols-h,
+#luckysheet #luckysheet-cols-h-c {
+    background: #e7f5ef;
+}
+
+/* ==========================================================================
+   3. CELL SELECTION BOX + FOCUS RING
+   ========================================================================== */
+#luckysheet #luckysheet-cell-selected,
+#luckysheet .luckysheet-cell-selected,
+#luckysheet #luckysheet-cell-selected-focus,
+#luckysheet .luckysheet-cell-selected-focus {
+    border: 1px solid var(--gd-accent) !important;
+    margin: -1px 0 0 -1px !important;
+    box-shadow: var(--gd-glow);
+}
+
+/* Move/extend ghost boxes stay airy. */
+#luckysheet .luckysheet-cell-selected-move,
+#luckysheet .luckysheet-cell-selected-extend {
+    border: 1px dashed rgba(16, 185, 129, 0.55);
+}
+
+/* ==========================================================================
+   4. FILL HANDLE + DRAG HANDLES
+   ========================================================================== */
+#luckysheet .luckysheet-cs-fillhandle {
+    width: 7px;
+    height: 7px;
+    right: -6px;
+    bottom: -6px;
+    background: var(--gd-accent);
+    border: 2px solid #ffffff;
+    border-radius: 2px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+    transition: transform 100ms var(--gd-ease);
+}
+
+#luckysheet .luckysheet-cs-fillhandle:hover {
+    transform: scale(1.25);
+}
+
+#luckysheet .luckysheet-cs-inner-border {
+    border-color: rgba(37, 99, 235, 0.30) !important;
+}
+
+/* ==========================================================================
+   5. FREEZE PANES
+   ========================================================================== */
+#luckysheet .luckysheet-freezebar-horizontal-handle-bar,
+#luckysheet .luckysheet-freezebar-vertical-handle-bar {
+    background: rgba(37, 99, 235, 0.45);
+    border-color: rgba(37, 99, 235, 0.55);
+    opacity: 1;
+}
+
+#luckysheet .luckysheet-freezebar-horizontal-handle-title,
+#luckysheet .luckysheet-freezebar-vertical-handle-title {
+    background: var(--gd-accent);
+    opacity: 0.9;
+}
+
+#luckysheet .luckysheet-freezebar-horizontal-drop,
+#luckysheet .luckysheet-freezebar-vertical-drop,
+#luckysheet .luckysheet-freezebar-drop {
+    background: rgba(37, 99, 235, 0.35);
+    opacity: 0.5;
+}
+
+#luckysheet .luckysheet-freezebar-hover {
+    background: rgba(37, 99, 235, 0.55);
+}
+
+/* ==========================================================================
+   6. COPY MARCHING BORDER
+   ========================================================================== */
+#luckysheet .luckysheet-selection-copy {
+    border-color: var(--gd-accent-strong) !important;
+    opacity: 0.65;
+}
+
+/* ==========================================================================
+   7. FORMULA RANGE HIGHLIGHTS (kept distinct from selection: violet)
+   ========================================================================== */
+#luckysheet .luckysheet-formula-functionrange-highlight .luckysheet-copy {
+    background: var(--gd-formula) !important;
+}
+
+#luckysheet .luckysheet-formula-functionrange-highlight {
+    border-color: var(--gd-formula) !important;
+    background: rgba(124, 58, 237, 0.06) !important;
+}
+
+#luckysheet .luckysheet-formula-functionrange-select {
+    box-shadow: inset 0 0 0 1px rgba(124, 58, 237, 0.35);
+}
+
+/* ==========================================================================
+   8. REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+    #luckysheet .luckysheet-cols-h-selected,
+    #luckysheet .luckysheet-rows-h-selected,
+    #luckysheet .luckysheet-cs-fillhandle {
+        transition: none !important;
+    }
+}

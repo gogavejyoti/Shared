@@ -1,0 +1,42 @@
+/* ============================================================================
+   LUCKYSHEET — PRINT VIEW BUTTONS (Normal · Page Layout · Page Break)
+   ----------------------------------------------------------------------------
+   Styles the bottom-bar print view switcher (see js/print-view.js for the
+   engine). GEOMETRY LOCK: buttons are absolutely positioned at left:0/42/84
+   inside a 126x22 strip by legacy CSS — only paint, radius and icon color
+   are themed. Active state uses an emerald underline to match the sheet-tab
+   language instead of the stock flat gray block.
+   ============================================================================ */
+
+#luckysheet .luckysheet-print-viewBtn {
+    background-color: transparent;
+    border-radius: 6px;
+    color: var(--sh-muted, #6b7280);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 120ms var(--sh-ease, ease),
+                color 120ms var(--sh-ease, ease);
+}
+
+#luckysheet .luckysheet-print-viewBtn:hover {
+    background-color: rgba(16, 185, 129, 0.10);
+    color: var(--sh-ink-strong, #065f46);
+}
+
+/* Active — emerald underline on the shared baseline (tab-style marker). */
+#luckysheet .luckysheet-print-viewBtn-active {
+    background-color: transparent;
+    box-shadow: inset 0 -3px 0 var(--sh-accent, #10b981);
+    color: var(--sh-ink-strong, #065f46);
+    cursor: default;
+}
+
+#luckysheet .luckysheet-print-viewBtn-active:hover {
+    background-color: transparent;
+}
+
+/* Icon sizing inherits the strip's 22px metrics — untouched. */
+
+/* Overlay elements themselves are styled inline by js/print-view.js; this
+   file only carries button chrome so the feature ships in one JS + one CSS. */
