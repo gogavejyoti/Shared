@@ -25786,16 +25786,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     return store.luckysheet_select_save;
   }
   function getAllSheets(e) {
-    return e && store.luckysheetfile.forEach(
-      (n) => {
-        n.chart && n.chart.forEach(
-          (t) => {
-            let l = store.getChartJson(t.chart_id);
-            t.chartOptions = l;
-          }
-        );
-      }
-    ), store.luckysheetfile;
+    return store.luckysheetfile;
   }
   function Hu() {
     return store.config;
@@ -27051,6 +27042,53 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       };
     }
   );
+
+  // src/engine/chart-hooks.js
+  var chartHooks = {
+    // the grid was redrawn: a cell in a chart's range may have changed
+    redraw() {
+    },
+    // row heights, column widths or zoom changed
+    relayout() {
+    },
+    // the grid scrolled (frozen panes clip charts)
+    scroll() {
+    },
+    // a sheet became the current one
+    showSheet(sheetIndex) {
+    },
+    // rows/columns were inserted or deleted: { type, sheetIndex, index, count }
+    rowCol(op2) {
+    },
+    // undo/redo of a row/column change: chart ranges as recorded on the history entry
+    restoreRanges(snapshot) {
+    },
+    // undo/redo of a chart change
+    applyHistory(entry, which) {
+    },
+    // a chart is selected (keyboard Delete removes it)
+    hasSelection() {
+      return false;
+    },
+    deleteSelected() {
+    },
+    deselect() {
+    },
+    // the charts of a sheet for its copy (new ids; ranges on the sheet point at the copy)
+    copyCharts(sheet, newIndex) {
+      return (sheet && sheet.chart || []).map((c2) => {
+        const n = JSON.parse(JSON.stringify(c2));
+        n.chart_id = "chart_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now();
+        n.sheetIndex = newIndex;
+        const r2 = n.chartOptions && n.chartOptions.range;
+        r2 && r2.sheetIndex == sheet.index && (r2.sheetIndex = newIndex);
+        return n;
+      });
+    },
+    // the workbook is being destroyed
+    destroy() {
+    }
+  };
 
   // src/modules/016-gs.vendor-pako-1.js
   var hn = lazyCommonJs(
@@ -33690,6 +33728,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           } else if (n.type == "addRC") {
             let l = lsDeepCopyObject(n.ctrlValue);
             l.direction == "rightbottom" && (l.index = l.index + 1), refreshAfterRowColChange(n.data, n.config, "delRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
+            n.chartRanges && chartHooks.restoreRanges(n.chartRanges.before);
             if (typeof _shiftCrossSheetReference === "function") {
               if (l.rc == "r") {
                 _shiftCrossSheetReference({
@@ -33713,6 +33752,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           } else if (n.type == "delRC") {
             let l = lsDeepCopyObject(n.ctrlValue);
             l.restore = true, l.direction = "lefttop", refreshAfterRowColChange(n.data, n.config, "addRC", l, n.calc, n.filterObj, n.cf, n.af, n.freezen, n.dataVerification, n.hyperlink);
+            n.chartRanges && chartHooks.restoreRanges(n.chartRanges.before);
             if (typeof _shiftCrossSheetReference === "function") {
               if (l.rc == "r") {
                 _shiftCrossSheetReference({
@@ -33764,6 +33804,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             $("#luckysheet-filter-selected-sheet" + n.sheetIndex + ", #luckysheet-filter-options-sheet" + n.sheetIndex).remove(), server.allowUpdate && server.saveParam("all", n.sheetIndex, null, {
               k: "filter_select"
             });
+          else if (n.type == "chartChange")
+            chartHooks.applyHistory(n, "undo");
           else if (n.type == "pivotTable_change")
             store.luckysheetfile[sheetPosition(n.sheetIndex)].pivotTable = lsDeepCopyObject(n.pivotTable), Be.getCellData(n.sheetIndex), Be.initialPivotManage(true), Be.refreshPivotTable();
           else if (n.type == "addSheet")
@@ -33885,6 +33927,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             n.restore = true, refreshGridAll(e.curdata[0].length, e.curdata.length, e.curdata, e.curconfig, e.currange, e.ctrlType, e.ctrlValue);
           } else if (e.type == "addRC") {
             refreshAfterRowColChange(e.curData, e.curConfig, "addRC", e.ctrlValue, e.curCalc, e.curFilterObj, e.curCf, e.curAf, e.curFreezen, e.curDataVerification, e.curHyperlink);
+            e.chartRanges && chartHooks.restoreRanges(e.chartRanges.after);
             if (typeof _shiftCrossSheetReference === "function") {
               if (e.ctrlValue.rc == "r") {
                 _shiftCrossSheetReference({
@@ -33908,6 +33951,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             }
           } else if (e.type == "delRC") {
             refreshAfterRowColChange(e.curData, e.curConfig, "delRC", e.ctrlValue, e.curCalc, e.curFilterObj, e.curCf, e.curAf, e.curFreezen, e.curDataVerification, e.curHyperlink);
+            e.chartRanges && chartHooks.restoreRanges(e.chartRanges.after);
             if (typeof _shiftCrossSheetReference === "function") {
               if (e.ctrlValue.rc == "r") {
                 _shiftCrossSheetReference({
@@ -33952,6 +33996,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             store.luckysheet_select_save = [e.filter_save], store.filterchage = false, Si(), store.filterchage = true, server.saveParam("all", e.sheetIndex, e.filter_save, {
               k: "filter_select"
             });
+          else if (e.type == "chartChange")
+            chartHooks.applyHistory(e, "redo");
           else if (e.type == "pivotTable_change")
             store.luckysheetfile[sheetPosition(e.sheetIndex)].pivotTable = lsDeepCopyObject(e.pivotTablecur), Be.getCellData(e.sheetIndex), Be.initialPivotManage(true), Be.refreshPivotTable();
           else if (e.type == "addSheet")
@@ -35807,7 +35853,1371 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     }
   );
 
+  // src/engine/chart-engine.js
+  var CHART_TYPES = [
+    { id: "column", label: "Column", family: "axis" },
+    { id: "column-stacked", label: "Stacked column", family: "axis" },
+    { id: "column-percent", label: "100% column", family: "axis" },
+    { id: "bar", label: "Bar", family: "axis" },
+    { id: "bar-stacked", label: "Stacked bar", family: "axis" },
+    { id: "bar-percent", label: "100% bar", family: "axis" },
+    { id: "line", label: "Line", family: "axis" },
+    { id: "line-smooth", label: "Smooth line", family: "axis" },
+    { id: "line-stacked", label: "Stacked line", family: "axis" },
+    { id: "area", label: "Area", family: "axis" },
+    { id: "area-stacked", label: "Stacked area", family: "axis" },
+    { id: "area-percent", label: "100% area", family: "axis" },
+    { id: "pie", label: "Pie", family: "pie" },
+    { id: "doughnut", label: "Doughnut", family: "pie" },
+    { id: "rose", label: "Rose", family: "pie" },
+    { id: "scatter", label: "Scatter", family: "scatter" },
+    { id: "radar", label: "Radar", family: "radar" }
+  ];
+  var TYPE_BY_ID = Object.fromEntries(CHART_TYPES.map((t) => [t.id, t]));
+  var chartTypeInfo = (id) => TYPE_BY_ID[id] || TYPE_BY_ID.column;
+  var PALETTES = {
+    default: ["#4472C4", "#ED7D31", "#A5A5A5", "#FFC000", "#5B9BD5", "#70AD47", "#264478", "#9E480E", "#636363", "#997300"],
+    vivid: ["#5470C6", "#91CC75", "#FAC858", "#EE6666", "#73C0DE", "#3BA272", "#FC8452", "#9A60B4", "#EA7CCC", "#2F4554"],
+    pastel: ["#8DB3E2", "#F4B183", "#C9C9C9", "#FFD966", "#9DC3E6", "#A9D18E", "#B4A7D6", "#F8CBAD", "#D9D9D9", "#BDD7EE"],
+    mono: ["#1F4E79", "#2E75B6", "#5B9BD5", "#9DC3E6", "#BDD7EE", "#DEEBF7", "#174A7C", "#3D85C6", "#6FA8DC", "#A4C2F4"]
+  };
+  function defaultSpec(over) {
+    return Object.assign({
+      version: 2,
+      type: "column",
+      range: null,
+      // { sheetIndex, row: [r0, r1], column: [c0, c1] }
+      headerRow: null,
+      // first row holds series names
+      headerCol: null,
+      // first column holds category labels
+      seriesIn: null,
+      // "col" | "row"
+      title: "",
+      legend: "bottom",
+      // top | bottom | left | right | none
+      xTitle: "",
+      yTitle: "",
+      yMin: null,
+      yMax: null,
+      dataLabels: false,
+      palette: "default"
+    }, over || {});
+  }
+  function columnLetters(c2) {
+    let s = "";
+    for (c2 = c2 + 1; c2 > 0; c2 = Math.floor((c2 - 1) / 26)) s = String.fromCharCode(65 + (c2 - 1) % 26) + s;
+    return s;
+  }
+  function columnNumber(letters) {
+    let n = 0;
+    for (const ch of letters.toUpperCase()) n = n * 26 + ch.charCodeAt(0) - 64;
+    return n - 1;
+  }
+  var quoteSheet = (name) => /^[A-Za-z_À-￿][\w.À-￿]*$/.test(name) && !/^[A-Za-z]{1,3}\d+$/.test(name) ? name : "'" + name.replace(/'/g, "''") + "'";
+  function formatRange(range2, sheetName) {
+    if (!range2) return "";
+    const [r0, r1] = range2.row, [c0, c12] = range2.column;
+    const a = columnLetters(c0) + (r0 + 1), b = columnLetters(c12) + (r1 + 1);
+    return (sheetName != null ? quoteSheet(sheetName) + "!" : "") + (a === b ? a : a + ":" + b);
+  }
+  function parseRange(text) {
+    if (text == null) return null;
+    text = String(text).trim().replace(/\$/g, "");
+    if (!text) return null;
+    let sheet = null, ref = text;
+    const bang = text.lastIndexOf("!");
+    if (bang >= 0) {
+      sheet = text.slice(0, bang).trim();
+      ref = text.slice(bang + 1).trim();
+      if (sheet.startsWith("'") && sheet.endsWith("'") && sheet.length >= 2) sheet = sheet.slice(1, -1).replace(/''/g, "'");
+      if (!sheet) return null;
+    }
+    const parts = ref.split(":");
+    if (parts.length > 2) return null;
+    const cells = parts.map((p) => /^([A-Za-z]{1,3})?(\d+)?$/.exec(p.trim()));
+    if (cells.some((m) => !m || !m[1] && !m[2])) return null;
+    const a = cells[0], b = cells[1] || cells[0];
+    if (!!a[1] !== !!b[1] || !!a[2] !== !!b[2]) return null;
+    const col = (m) => m[1] ? columnNumber(m[1]) : null, row = (m) => m[2] ? parseInt(m[2], 10) - 1 : null;
+    const ra2 = row(a), rb = row(b), ca2 = col(a), cb = col(b);
+    if (ra2 != null && ra2 < 0 || rb != null && rb < 0) return null;
+    return {
+      sheet,
+      row: ra2 == null ? null : [Math.min(ra2, rb), Math.max(ra2, rb)],
+      column: ca2 == null ? null : [Math.min(ca2, cb), Math.max(ca2, cb)]
+    };
+  }
+  function shiftRange(range2, op2) {
+    if (!range2 || op2.sheetIndex != range2.sheetIndex) return range2;
+    const isRow = op2.type === "insertRow" || op2.type === "deleteRow";
+    const key = isRow ? "row" : "column";
+    let [a, b] = range2[key];
+    const at2 = op2.index, n = op2.count;
+    if (op2.type === "insertRow" || op2.type === "insertCol") {
+      if (at2 <= a) {
+        a += n;
+        b += n;
+      } else if (at2 <= b) b += n;
+    } else {
+      const end = at2 + n - 1;
+      if (end < a) {
+        a -= n;
+        b -= n;
+      } else if (at2 > b) {
+      } else {
+        const keepBefore = Math.max(0, at2 - a);
+        const keepAfter = Math.max(0, b - end);
+        if (keepBefore + keepAfter === 0) return null;
+        a = Math.min(a, at2);
+        b = a + keepBefore + keepAfter - 1;
+      }
+    }
+    return Object.assign({}, range2, { [key]: [a, b] });
+  }
+  function readRange(getCell, range2, hiddenRows, hiddenCols) {
+    const out = [];
+    if (!range2 || !range2.row || !range2.column) return out;
+    const [r0, r1] = range2.row, [c0, c12] = range2.column;
+    const cols = [];
+    for (let c2 = c0; c2 <= c12; c2++) if (!(hiddenCols && hiddenCols[c2] != null)) cols.push(c2);
+    for (let r2 = r0; r2 <= r1; r2++) {
+      if (hiddenRows && hiddenRows[r2] != null) continue;
+      const row = new Array(cols.length);
+      for (let i2 = 0; i2 < cols.length; i2++) row[i2] = typedCell(getCell(r2, cols[i2]));
+      out.push(row);
+    }
+    return out;
+  }
+  var EMPTY = Object.freeze({ t: "e", v: null, s: "" });
+  function typedCell(cell) {
+    if (cell == null) return EMPTY;
+    const s = pivotCellText(cell);
+    const isDate = typeof cell === "object" && cell.ct && cell.ct.t === "d";
+    const v = isDate ? null : pivotCellNumber(cell);
+    if (v != null) return { t: "n", v, s };
+    if (s === "") return EMPTY;
+    return { t: "s", v: null, s };
+  }
+  function detectLayout(grid) {
+    const R = grid.length, C = R ? grid[0].length : 0;
+    if (!R || !C) return { headerRow: false, headerCol: false, seriesIn: "col" };
+    const noNumbers = (cells) => cells.every((x) => x.t !== "n");
+    const anyText = (cells) => cells.some((x) => x.t === "s");
+    const anyNumber = (cells) => cells.some((x) => x.t === "n");
+    const row0 = grid[0], col0 = grid.map((r2) => r2[0]);
+    let headerRow = R > 1 && noNumbers(row0.slice(1).concat(C === 1 ? [row0[0]] : [])) && anyText(row0) && anyNumber(grid.slice(1).flat());
+    let headerCol = C > 1 && noNumbers(col0.slice(headerRow ? 1 : 0)) && anyText(col0.slice(headerRow ? 1 : 0)) && anyNumber(grid.map((r2) => r2.slice(1)).flat());
+    if (!headerRow && headerCol && R > 1 && row0[0].t === "e" && noNumbers(row0.slice(1)) && anyText(row0.slice(1))) headerRow = true;
+    const dataRows = R - (headerRow ? 1 : 0), dataCols = C - (headerCol ? 1 : 0);
+    return { headerRow, headerCol, seriesIn: dataRows >= dataCols ? "col" : "row" };
+  }
+  function extractSeries(grid, spec) {
+    const auto = detectLayout(grid);
+    const layout = {
+      headerRow: spec && spec.headerRow != null ? !!spec.headerRow : auto.headerRow,
+      headerCol: spec && spec.headerCol != null ? !!spec.headerCol : auto.headerCol,
+      seriesIn: spec && (spec.seriesIn === "row" || spec.seriesIn === "col") ? spec.seriesIn : auto.seriesIn
+    };
+    const R = grid.length, C = R ? grid[0].length : 0;
+    const r0 = layout.headerRow ? 1 : 0, c0 = layout.headerCol ? 1 : 0;
+    const categories = [], series = [];
+    if (layout.seriesIn === "col") {
+      for (let r2 = r0; r2 < R; r2++) categories.push(c0 ? grid[r2][0].s : String(r2 - r0 + 1));
+      for (let c2 = c0; c2 < C; c2++) {
+        const s = { name: r0 ? grid[0][c2].s || "Series " + (c2 - c0 + 1) : "Series " + (c2 - c0 + 1), values: [], texts: [] };
+        for (let r2 = r0; r2 < R; r2++) {
+          s.values.push(grid[r2][c2].v);
+          s.texts.push(grid[r2][c2].s);
+        }
+        series.push(s);
+      }
+    } else {
+      for (let c2 = c0; c2 < C; c2++) categories.push(r0 ? grid[0][c2].s : String(c2 - c0 + 1));
+      for (let r2 = r0; r2 < R; r2++) {
+        const s = { name: c0 ? grid[r2][0].s || "Series " + (r2 - r0 + 1) : "Series " + (r2 - r0 + 1), values: [], texts: [] };
+        for (let c2 = c0; c2 < C; c2++) {
+          s.values.push(grid[r2][c2].v);
+          s.texts.push(grid[r2][c2].s);
+        }
+        series.push(s);
+      }
+    }
+    return { categories, series, layout };
+  }
+  function dataSignature(grid) {
+    let h = 2166136261 >>> 0;
+    const mix = (str) => {
+      for (let i2 = 0; i2 < str.length; i2++) h = Math.imul(h ^ str.charCodeAt(i2), 16777619) >>> 0;
+    };
+    mix(grid.length + "x" + (grid[0] ? grid[0].length : 0));
+    for (const row of grid) for (const x of row) mix(x.t === "e" ? "" : x.s + "" + (x.v == null ? "" : x.v));
+    return h;
+  }
+  var fmtNumber = (v) => {
+    if (v == null || !Number.isFinite(v)) return "";
+    const a = Math.abs(v);
+    if (a !== 0 && (a >= 1e15 || a < 1e-6)) return v.toExponential(3);
+    return v.toLocaleString(void 0, { maximumFractionDigits: a >= 100 ? 2 : 6 });
+  };
+  var shortNumber = (v) => {
+    const a = Math.abs(v);
+    if (a >= 1e12) return +(v / 1e12).toFixed(2) + "T";
+    if (a >= 1e9) return +(v / 1e9).toFixed(2) + "B";
+    if (a >= 1e6) return +(v / 1e6).toFixed(2) + "M";
+    if (a >= 1e4) return +(v / 1e3).toFixed(1) + "K";
+    return fmtNumber(v);
+  };
+  var esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  function legendOption(pos, show) {
+    if (!show || pos === "none") return { show: false };
+    const base = { show: true, type: "scroll", textStyle: { fontSize: 11 }, itemWidth: 14, itemHeight: 10 };
+    if (pos === "top") return Object.assign(base, { top: 28, left: "center", orient: "horizontal" });
+    if (pos === "left") return Object.assign(base, { left: 4, top: "middle", orient: "vertical" });
+    if (pos === "right") return Object.assign(base, { right: 4, top: "middle", orient: "vertical" });
+    return Object.assign(base, { bottom: 4, left: "center", orient: "horizontal" });
+  }
+  function gridOption(spec, hasTitle, legendShown, horizontal) {
+    const g = { containLabel: true, left: 12, right: 18, top: hasTitle ? 36 : 14, bottom: 10 };
+    const pos = legendShown ? spec.legend : "none";
+    if (pos === "top") g.top += 26;
+    if (pos === "bottom") g.bottom += 26;
+    if (pos === "left") g.left += 90;
+    if (pos === "right") g.right += 90;
+    if (spec.xTitle) horizontal ? g.left += 18 : g.bottom += 20;
+    if (spec.yTitle) horizontal ? g.bottom += 20 : g.left += 18;
+    return g;
+  }
+  function buildOption(spec, data) {
+    spec = defaultSpec(spec);
+    const info = chartTypeInfo(spec.type), type = info.id;
+    const colors = PALETTES[spec.palette] || PALETTES.default;
+    const series = (data && data.series || []).filter((s) => s.values.some((v) => v != null));
+    const categories = data && data.categories || [];
+    const points = series.reduce((n, s) => n + s.values.length, 0);
+    const big = points > 4e3;
+    const hasTitle = !!(spec.title && String(spec.title).trim());
+    const option = {
+      color: colors,
+      animation: !big,
+      backgroundColor: "#ffffff",
+      textStyle: { fontFamily: "Segoe UI, Roboto, Helvetica, Arial, sans-serif" },
+      title: { show: hasTitle, text: hasTitle ? String(spec.title) : "", left: "center", top: 6, textStyle: { fontSize: 14, fontWeight: "bold", color: "#333" } }
+    };
+    if (!series.length) {
+      option.title = { show: true, text: hasTitle ? String(spec.title) : "", subtext: spec.range ? "No numbers in the data range" : "No data range", left: "center", top: "middle", textStyle: { fontSize: 14, color: "#333" }, subtextStyle: { fontSize: 12, color: "#888" } };
+      option.series = [];
+      return option;
+    }
+    const legendShown = spec.legend !== "none" && (info.family === "pie" ? categories.length > 0 : series.length > 1 || info.family !== "axis");
+    option.legend = legendOption(spec.legend, legendShown);
+    if (info.family === "pie") {
+      let items;
+      if (categories.length === 1 && series.length > 1) items = series.map((s) => ({ name: s.name, value: s.values[0], text: s.texts[0] }));
+      else items = categories.map((name, i2) => ({ name, value: series[0].values[i2], text: series[0].texts[i2] }));
+      items = items.filter((x) => x.value != null && x.value > 0);
+      const center = ["50%", "54%"], pos = legendShown ? spec.legend : "none";
+      if (pos === "left") center[0] = "58%";
+      if (pos === "right") center[0] = "42%";
+      if (pos === "top") center[1] = hasTitle ? "60%" : "56%";
+      if (pos === "bottom") center[1] = hasTitle ? "50%" : "46%";
+      option.legend.data = items.map((x) => x.name);
+      option.tooltip = { trigger: "item", confine: true, formatter: (p) => esc(p.name) + "<br/>" + esc(p.data.text || fmtNumber(p.value)) + " (" + p.percent + "%)" };
+      option.series = [{
+        name: series[0].name,
+        type: "pie",
+        radius: type === "doughnut" ? ["40%", "68%"] : type === "rose" ? ["12%", "70%"] : "68%",
+        roseType: type === "rose" ? "radius" : void 0,
+        center,
+        data: items,
+        avoidLabelOverlap: true,
+        label: { show: spec.dataLabels || items.length <= 12, formatter: spec.dataLabels ? "{b}: {d}%" : "{b}", fontSize: 11 },
+        labelLine: { show: spec.dataLabels || items.length <= 12 },
+        itemStyle: { borderColor: "#fff", borderWidth: 1 }
+      }];
+      return option;
+    }
+    if (info.family === "radar") {
+      const max = categories.map((_, i2) => Math.max(0, ...series.map((s) => s.values[i2] == null ? 0 : s.values[i2])));
+      option.tooltip = { trigger: "item", confine: true };
+      option.radar = { indicator: categories.map((name, i2) => ({ name, max: max[i2] > 0 ? max[i2] * 1.1 : 1 })), radius: "62%", center: ["50%", hasTitle ? "56%" : "52%"], name: { textStyle: { color: "#555", fontSize: 11 } } };
+      option.series = [{ type: "radar", data: series.map((s) => ({ name: s.name, value: s.values.map((v) => v == null ? 0 : v) })), label: { show: !!spec.dataLabels }, areaStyle: { opacity: 0.12 } }];
+      return option;
+    }
+    const valueAxis = {
+      type: "value",
+      name: spec.yTitle || "",
+      nameLocation: "middle",
+      nameGap: 40,
+      nameTextStyle: { color: "#555", fontSize: 12 },
+      axisLabel: { color: "#666", fontSize: 11, formatter: shortNumber },
+      splitLine: { lineStyle: { color: "#e8e8e8" } },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      scale: false
+    };
+    if (spec.yMin != null && spec.yMin !== "" && Number.isFinite(+spec.yMin)) valueAxis.min = +spec.yMin;
+    if (spec.yMax != null && spec.yMax !== "" && Number.isFinite(+spec.yMax)) valueAxis.max = +spec.yMax;
+    if (info.family === "scatter") {
+      const labelled = !data.layout || data.layout.headerCol;
+      let xs2 = categories.map((c2) => {
+        const n = Number(c2);
+        return labelled && c2 !== "" && Number.isFinite(n) ? n : null;
+      });
+      let ys2 = series;
+      if (xs2.some((x) => x == null)) {
+        if (series.length >= 2) {
+          xs2 = series[0].values;
+          ys2 = series.slice(1);
+        } else xs2 = categories.map((_, i2) => i2 + 1);
+      }
+      option.tooltip = { trigger: "item", confine: true, formatter: (p) => esc(p.seriesName) + "<br/>(" + fmtNumber(p.value[0]) + ", " + fmtNumber(p.value[1]) + ")" };
+      option.grid = gridOption(spec, hasTitle, legendShown && ys2.length > 1, false);
+      option.legend = legendOption(spec.legend, legendShown && ys2.length > 1);
+      option.xAxis = Object.assign({}, valueAxis, { name: spec.xTitle || "", nameGap: 26, min: void 0, max: void 0, scale: true });
+      option.yAxis = Object.assign({}, valueAxis, { scale: valueAxis.min == null });
+      option.series = ys2.map((s) => ({
+        name: s.name,
+        type: "scatter",
+        symbolSize: big ? 4 : 8,
+        large: big,
+        data: s.values.map((y, i2) => [xs2[i2], y]).filter((p) => p[0] != null && p[1] != null),
+        label: { show: !!spec.dataLabels && !big, position: "top", fontSize: 10, formatter: (p) => fmtNumber(p.value[1]) }
+      }));
+      return option;
+    }
+    const horizontal = type.startsWith("bar");
+    const isLine = type.startsWith("line") || type.startsWith("area");
+    const stacked = /-stacked$|-percent$/.test(type);
+    const percent = /-percent$/.test(type);
+    let values = series.map((s) => s.values);
+    if (percent) {
+      const totals = categories.map((_, i2) => series.reduce((t, s) => t + Math.abs(s.values[i2] || 0), 0));
+      values = series.map((s) => s.values.map((v, i2) => v == null ? null : totals[i2] ? Math.abs(v) / totals[i2] * 100 : 0));
+      valueAxis.max = 100;
+      valueAxis.min = 0;
+      valueAxis.axisLabel.formatter = (v) => v + "%";
+    }
+    const categoryAxis = {
+      type: "category",
+      data: categories,
+      name: spec.xTitle || "",
+      nameLocation: "middle",
+      nameGap: horizontal ? 60 : 28,
+      nameTextStyle: { color: "#555", fontSize: 12 },
+      boundaryGap: !isLine,
+      axisLabel: { color: "#666", fontSize: 11, hideOverlap: true },
+      axisLine: { lineStyle: { color: "#bbb" } },
+      axisTick: { alignWithLabel: true },
+      inverse: horizontal
+      // first category on top, as in a bar chart in Excel
+    };
+    option.grid = gridOption(spec, hasTitle, legendShown, horizontal);
+    if (horizontal) {
+      option.xAxis = Object.assign({}, valueAxis, { name: spec.yTitle || "", nameGap: 26 });
+      option.yAxis = categoryAxis;
+    } else {
+      option.xAxis = categoryAxis;
+      option.yAxis = valueAxis;
+    }
+    option.tooltip = {
+      trigger: "axis",
+      confine: true,
+      axisPointer: { type: isLine ? "line" : "shadow" },
+      formatter: (list) => {
+        if (!list || !list.length) return "";
+        let html = esc(list[0].name);
+        for (const p of list) {
+          const s = series[p.seriesIndex];
+          const text = s && s.texts[p.dataIndex] ? s.texts[p.dataIndex] : fmtNumber(s ? s.values[p.dataIndex] : p.value);
+          html += "<br/>" + p.marker + esc(p.seriesName) + ": " + esc(text) + (percent && p.value != null ? " (" + (+p.value).toFixed(1) + "%)" : "");
+        }
+        return html;
+      }
+    };
+    option.series = series.map((s, k) => {
+      const o = {
+        name: s.name,
+        type: isLine ? "line" : "bar",
+        data: values[k],
+        label: { show: !!spec.dataLabels && !big, position: stacked ? "inside" : horizontal ? "right" : "top", fontSize: 10, formatter: (p) => percent ? (+p.value).toFixed(0) + "%" : shortNumber(p.value) }
+      };
+      if (stacked) o.stack = "total";
+      if (isLine) {
+        o.smooth = type === "line-smooth";
+        o.showSymbol = !big && values[k].length <= 60;
+        o.symbolSize = 5;
+        o.connectNulls = false;
+        if (big) o.sampling = "lttb";
+        if (type.startsWith("area")) o.areaStyle = { opacity: stacked ? 0.85 : 0.3 };
+        o.lineStyle = { width: 2 };
+      } else {
+        o.barMaxWidth = 48;
+        if (big) o.large = true;
+      }
+      return o;
+    });
+    return option;
+  }
+  var LEGACY_TYPES = {
+    "line|default": "line",
+    "line|smooth": "line-smooth",
+    "line|label": "line",
+    "line|stack": "line-stacked",
+    "area|default": "area",
+    "area|stack": "area-stacked",
+    "area|stackRatio": "area-percent",
+    "column|default": "column",
+    "column|stack": "column-stacked",
+    "column|stackRatio": "column-percent",
+    "column|label": "column",
+    "bar|default": "bar",
+    "bar|stack": "bar-stacked",
+    "bar|stackRatio": "bar-percent",
+    "bar|label": "bar",
+    "pie|default": "pie",
+    "pie|ring": "doughnut",
+    "pie|rose": "rose",
+    "pie|split": "pie",
+    "scatter|default": "scatter",
+    "scatter|label": "scatter",
+    "radar|default": "radar"
+  };
+  function migrateChart(chart, sheetIndex) {
+    if (!chart || typeof chart !== "object") return null;
+    const o = chart.chartOptions;
+    if (o && o.version === 2) return chart;
+    const spec = defaultSpec();
+    if (o && typeof o === "object") {
+      const parts = String(o.chartAllType || "").split("|");
+      spec.type = LEGACY_TYPES[(parts[1] || "column") + "|" + (parts[2] || "default")] || LEGACY_TYPES[(parts[1] || "column") + "|default"] || "column";
+      const ra2 = Array.isArray(o.rangeArray) ? o.rangeArray[0] : null;
+      if (ra2 && Array.isArray(ra2.row) && Array.isArray(ra2.column))
+        spec.range = { sheetIndex: chart.dataSheetIndex != null ? chart.dataSheetIndex : sheetIndex, row: ra2.row.slice(0, 2), column: ra2.column.slice(0, 2) };
+      const d = o.defaultOption || {};
+      if (d.title && d.title.show !== false && d.title.text) spec.title = String(d.title.text);
+      if (d.legend && d.legend.show === false) spec.legend = "none";
+      else if (d.legend && d.legend.position) {
+        const p = String(d.legend.position);
+        spec.legend = /left/.test(p) ? "left" : /right/.test(p) ? "right" : /top/.test(p) ? "top" : "bottom";
+      }
+      if (o.rangeRowCheck && o.rangeRowCheck.exits != null) spec.headerRow = !!o.rangeRowCheck.exits;
+      if (o.rangeColCheck && o.rangeColCheck.exits != null) spec.headerCol = !!o.rangeColCheck.exits;
+    }
+    return {
+      chart_id: chart.chart_id,
+      sheetIndex: chart.sheetIndex != null ? chart.sheetIndex : sheetIndex,
+      left: +chart.left || 0,
+      top: +chart.top || 0,
+      width: +chart.width || 480,
+      height: +chart.height || 288,
+      chartOptions: spec
+    };
+  }
+
+  // src/modules/075-Io.js
+  var lsChartScriptBase = (() => {
+    try {
+      const s = typeof document != "undefined" && document.currentScript && document.currentScript.src;
+      return s ? s.replace(/[^/]*$/, "") : "";
+    } catch (err) {
+      return "";
+    }
+  })();
+  var MIN_W = 160, MIN_H = 100;
+  var clone = (x) => x == null ? x : JSON.parse(JSON.stringify(x));
+  var escHtml = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  var live = /* @__PURE__ */ new Map();
+  var shownSheet = null, activeId = null, panelId = null, echartsLoading = null, echartsFailed = false, redrawTimer = null, drag = null;
+  function fileOf(idx) {
+    if (idx == null)
+      return null;
+    const i2 = sheetPosition(idx);
+    return i2 == null || i2 < 0 ? null : store.luckysheetfile[i2] || null;
+  }
+  function chartsOf(file) {
+    if (!file)
+      return [];
+    Array.isArray(file.chart) || (file.chart = []);
+    for (let i2 = 0; i2 < file.chart.length; i2++) {
+      let c2 = file.chart[i2];
+      if (!c2 || !c2.chartOptions || c2.chartOptions.version !== 2) {
+        c2 = migrateChart(c2, file.index);
+        if (!c2 || !c2.chart_id) {
+          file.chart.splice(i2--, 1);
+          continue;
+        }
+        file.chart[i2] = c2;
+      }
+      c2.sheetIndex = file.index;
+    }
+    return file.chart;
+  }
+  function findChart(id) {
+    for (const f of store.luckysheetfile || [])
+      for (const c2 of chartsOf(f))
+        if (c2.chart_id == id)
+          return { file: f, chart: c2 };
+    return null;
+  }
+  function newId() {
+    return "chart_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now();
+  }
+  function readOnly(sheetIndex, hint = true) {
+    return de() || store.allowEdit === false || !It(sheetIndex, "editObjects", hint);
+  }
+  function sheetData(file) {
+    if (file.index == store.currentSheetIndex && Array.isArray(store.flowdata) && store.flowdata.length)
+      return store.flowdata;
+    file.data == null && sheetManage.buildGridData && (file.data = sheetManage.buildGridData(file));
+    return file.data || [];
+  }
+  function sheetConfig(file) {
+    return (file.index == store.currentSheetIndex ? store.config : file.config) || {};
+  }
+  function lastUsed(d, range2, alongRows) {
+    if (alongRows) {
+      for (let r2 = d.length - 1; r2 >= 0; r2--) {
+        const row = d[r2];
+        if (row) {
+          for (let c2 = range2.column[0]; c2 <= range2.column[1]; c2++)
+            if (hasValue(row[c2]))
+              return r2;
+        }
+      }
+      return -1;
+    }
+    let best = -1;
+    for (let r2 = range2.row[0]; r2 <= Math.min(range2.row[1], d.length - 1); r2++) {
+      const row = d[r2];
+      if (row) {
+        for (let c2 = row.length - 1; c2 > best; c2--)
+          if (hasValue(row[c2])) {
+            best = c2;
+            break;
+          }
+      }
+    }
+    return best;
+  }
+  function hasValue(cell) {
+    if (cell == null)
+      return false;
+    if (typeof cell != "object")
+      return cell !== "";
+    let v = cell.v;
+    v != null && typeof v == "object" && (v = v.v);
+    return v != null && v !== "" || cell.ct != null && cell.ct.t == "inlineStr" && Array.isArray(cell.ct.s) && cell.ct.s.length > 0;
+  }
+  function trimRange(file, range2) {
+    const d = sheetData(file), rows = d.length, cols = d[0] ? d[0].length : 0;
+    let r2 = range2.row ? range2.row.slice() : [0, rows - 1], c2 = range2.column ? range2.column.slice() : [0, cols - 1];
+    r2[1] = Math.min(r2[1], rows - 1), c2[1] = Math.min(c2[1], cols - 1);
+    if (r2[1] < r2[0] || c2[1] < c2[0])
+      return null;
+    if (!range2.row || r2[1] - r2[0] > 2e3) {
+      const last = lastUsed(d, { row: r2, column: c2 }, true);
+      last >= r2[0] && (r2[1] = last);
+    }
+    if (!range2.column || c2[1] - c2[0] > 200) {
+      const last = lastUsed(d, { row: r2, column: c2 }, false);
+      last >= c2[0] && (c2[1] = last);
+    }
+    return { sheetIndex: file.index, row: r2, column: c2 };
+  }
+  function currentRegion(file, r2, c2) {
+    const d = sheetData(file), rows = d.length, cols = d[0] ? d[0].length : 0;
+    const filled = (y, x) => y >= 0 && x >= 0 && y < rows && x < cols && d[y] && hasValue(d[y][x]);
+    let r0 = r2, r1 = r2, c0 = c2, c12 = c2, grew = true;
+    const anyRow = (y, a, b) => {
+      for (let x = a; x <= b; x++) if (filled(y, x)) return true;
+      return false;
+    };
+    const anyCol = (x, a, b) => {
+      for (let y = a; y <= b; y++) if (filled(y, x)) return true;
+      return false;
+    };
+    for (let guard = 0; grew && guard < 1e5; guard++) {
+      grew = false;
+      r0 > 0 && anyRow(r0 - 1, Math.max(0, c0 - 1), Math.min(cols - 1, c12 + 1)) && (r0--, grew = true);
+      r1 < rows - 1 && anyRow(r1 + 1, Math.max(0, c0 - 1), Math.min(cols - 1, c12 + 1)) && (r1++, grew = true);
+      c0 > 0 && anyCol(c0 - 1, Math.max(0, r0 - 1), Math.min(rows - 1, r1 + 1)) && (c0--, grew = true);
+      c12 < cols - 1 && anyCol(c12 + 1, Math.max(0, r0 - 1), Math.min(rows - 1, r1 + 1)) && (c12++, grew = true);
+    }
+    return { sheetIndex: file.index, row: [r0, r1], column: [c0, c12] };
+  }
+  function chartGrid(spec) {
+    const range2 = spec && spec.range, file = range2 && fileOf(range2.sheetIndex);
+    if (!file)
+      return [];
+    const d = sheetData(file), cfg = sheetConfig(file);
+    return readRange((r2, c2) => d[r2] ? d[r2][c2] : null, range2, cfg.rowhidden, cfg.colhidden);
+  }
+  function rangeText(range2, chartSheet) {
+    if (!range2)
+      return "";
+    const f = fileOf(range2.sheetIndex);
+    return f ? formatRange(range2, f.name) : "#REF!";
+  }
+  function rangeFromText(text, defaultSheet) {
+    const p = parseRange(text);
+    if (!p)
+      return { error: "Not a valid range (example: Sheet1!A1:D10)" };
+    let file = fileOf(defaultSheet);
+    if (p.sheet != null && (file = (store.luckysheetfile || []).find((f) => f.name == p.sheet) || null, !file))
+      return { error: 'No sheet named "' + p.sheet + '"' };
+    if (!file)
+      return { error: "No sheet" };
+    const range2 = trimRange(file, { row: p.row, column: p.column });
+    return range2 ? { range: range2 } : { error: "The range is outside the sheet" };
+  }
+  function echartsReady() {
+    return typeof window != "undefined" && window.echarts && typeof window.echarts.init == "function";
+  }
+  function chartConfig() {
+    const p = (store.plugins || []).find((x) => x === "chart" || x && x.name === "chart");
+    return p && typeof p == "object" && p.config || {};
+  }
+  function loadEcharts() {
+    if (echartsReady())
+      return Promise.resolve(window.echarts);
+    if (echartsLoading)
+      return echartsLoading;
+    const urls = [chartConfig().echartsUrl, lsChartScriptBase && lsChartScriptBase + "chart/echarts.min.js"].filter(Boolean);
+    echartsLoading = new Promise((resolve, reject) => {
+      const next = (i2) => {
+        if (echartsReady())
+          return resolve(window.echarts);
+        if (i2 >= urls.length)
+          return reject(new Error("ECharts could not be loaded"));
+        const s = document.createElement("script");
+        s.src = urls[i2];
+        s.onload = () => echartsReady() ? resolve(window.echarts) : next(i2 + 1);
+        s.onerror = () => next(i2 + 1);
+        document.head.appendChild(s);
+      };
+      next(0);
+    });
+    echartsLoading.then(() => {
+      echartsFailed = false;
+      refreshShown(true);
+    }, (err) => {
+      echartsLoading = null;
+      echartsFailed || (echartsFailed = true, console.warn("[charts] " + err.message + "; set window.echarts or plugins: [{ name: 'chart', config: { echartsUrl } }]"));
+      for (const e of live.values())
+        e.host.innerHTML = '<div class="ls-chart-msg">Chart library (ECharts) not available</div>';
+    });
+    return echartsLoading;
+  }
+  var ICON_EDIT = '<svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M11.7 1.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4L5.6 13.4 2 14l.6-3.6 9.1-9.1zM3.5 11l-.3 1.8 1.8-.3 7.4-7.4-1.5-1.5L3.5 11z"/></svg>';
+  var ICON_DEL = '<svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M6 1h4l1 1h3v2H2V2h3l1-1zm-3 4h10l-.8 9.1A1 1 0 0 1 11.2 15H4.8a1 1 0 0 1-1-.9L3 5zm3 2v6h1V7H6zm3 0v6h1V7H9z"/></svg>';
+  function ensureStyle() {
+    if (document.getElementById("ls-chart-css"))
+      return;
+    const st = document.createElement("style");
+    st.id = "ls-chart-css";
+    st.textContent = `
+.ls-chart-box{position:absolute;background:#fff;border:1px solid #d9d9d9;box-sizing:border-box;z-index:16;cursor:default}
+.ls-chart-box.ls-chart-active{border-color:#2a7de1;box-shadow:0 0 0 1px #2a7de1}
+.ls-chart-box .ls-chart-host{position:absolute;inset:0;overflow:hidden}
+.ls-chart-box .ls-chart-msg{display:flex;align-items:center;justify-content:center;height:100%;color:#888;font:12px sans-serif;text-align:center;padding:8px;box-sizing:border-box}
+.ls-chart-box .ls-chart-h{position:absolute;width:8px;height:8px;background:#fff;border:1px solid #2a7de1;box-sizing:border-box;display:none;z-index:3}
+.ls-chart-box.ls-chart-active .ls-chart-h{display:block}
+.ls-chart-h[data-h=nw]{left:-5px;top:-5px;cursor:nwse-resize}.ls-chart-h[data-h=n]{left:calc(50% - 4px);top:-5px;cursor:ns-resize}
+.ls-chart-h[data-h=ne]{right:-5px;top:-5px;cursor:nesw-resize}.ls-chart-h[data-h=e]{right:-5px;top:calc(50% - 4px);cursor:ew-resize}
+.ls-chart-h[data-h=se]{right:-5px;bottom:-5px;cursor:nwse-resize}.ls-chart-h[data-h=s]{left:calc(50% - 4px);bottom:-5px;cursor:ns-resize}
+.ls-chart-h[data-h=sw]{left:-5px;bottom:-5px;cursor:nesw-resize}.ls-chart-h[data-h=w]{left:-5px;top:calc(50% - 4px);cursor:ew-resize}
+.ls-chart-box .ls-chart-tools{position:absolute;top:4px;right:4px;display:none;gap:2px;z-index:4}
+.ls-chart-box.ls-chart-active .ls-chart-tools,.ls-chart-box:hover .ls-chart-tools{display:flex}
+.ls-chart-tools button{width:24px;height:22px;border:1px solid #d0d0d0;border-radius:3px;background:#fff;color:#444;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ls-chart-tools button:hover{background:#eef4fd;color:#1a5fb4}
+.ls-chart-box.ls-chart-moving{opacity:.85;cursor:move}
+.ls-chart-range{position:absolute;box-sizing:border-box;pointer-events:none;z-index:15}
+#luckysheet-chart-panel{position:absolute;top:1px;bottom:1px;right:0;width:290px;background:#fff;border-left:1px solid #d9d9d9;box-shadow:-2px 0 6px rgba(0,0,0,.08);z-index:1004;display:none;font:12px/1.4 "Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#333;user-select:none}
+#luckysheet-chart-panel .lcp-head{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid #e6e6e6;font-size:14px;font-weight:600}
+#luckysheet-chart-panel .lcp-close{cursor:pointer;font-size:18px;line-height:1;color:#666;border:0;background:none;padding:4px}
+#luckysheet-chart-panel .lcp-body{position:absolute;top:41px;bottom:0;left:0;right:0;overflow-y:auto;padding:8px 12px 16px}
+#luckysheet-chart-panel .lcp-sec{margin:10px 0 4px;font-weight:600;color:#555;text-transform:uppercase;font-size:11px;letter-spacing:.04em}
+#luckysheet-chart-panel .lcp-types{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+#luckysheet-chart-panel .lcp-type{border:1px solid #ddd;border-radius:3px;padding:5px 2px;text-align:center;cursor:pointer;background:#fafafa;font-size:11px}
+#luckysheet-chart-panel .lcp-type:hover{border-color:#9bbcec}
+#luckysheet-chart-panel .lcp-type.on{border-color:#2a7de1;background:#e8f1fd;color:#1a5fb4}
+#luckysheet-chart-panel .lcp-row{display:flex;align-items:center;gap:6px;margin:5px 0}
+#luckysheet-chart-panel .lcp-row>label{width:82px;flex:none;color:#555}
+#luckysheet-chart-panel input[type=text],#luckysheet-chart-panel select{flex:1;min-width:0;height:26px;border:1px solid #ccc;border-radius:3px;padding:0 6px;font:inherit;box-sizing:border-box;background:#fff}
+#luckysheet-chart-panel input.lcp-bad{border-color:#d9534f;background:#fff5f5}
+#luckysheet-chart-panel .lcp-err{color:#c9302c;min-height:14px;font-size:11px}
+#luckysheet-chart-panel .lcp-check{display:flex;align-items:center;gap:6px;margin:5px 0;cursor:pointer}
+#luckysheet-chart-panel button.lcp-btn{height:26px;border:1px solid #ccc;border-radius:3px;background:#f7f7f7;cursor:pointer;font:inherit;padding:0 8px}
+#luckysheet-chart-panel button.lcp-btn:hover{background:#eef4fd;border-color:#9bbcec}
+#luckysheet-chart-panel button.lcp-danger{color:#c9302c;margin-top:14px;width:100%}
+#luckysheet-chart-panel .lcp-pal{display:flex;gap:1px;height:10px;margin-left:4px}
+#luckysheet-chart-panel .lcp-pal i{width:8px;display:block}
+`;
+    document.head.appendChild(st);
+  }
+  function gridMain() {
+    const m = document.getElementById("luckysheet-cell-main");
+    return m;
+  }
+  function makeBox(chart) {
+    const box = document.createElement("div");
+    box.className = "luckysheet-data-visualization-chart ls-chart-box";
+    box.id = chart.chart_id + "_c";
+    box.setAttribute("data-chart", chart.chart_id);
+    box.innerHTML = '<div class="ls-chart-host"></div>' + ["nw", "n", "ne", "e", "se", "s", "sw", "w"].map((h) => '<div class="ls-chart-h" data-h="' + h + '"></div>').join("") + '<div class="ls-chart-tools"><button type="button" data-act="edit" title="Edit chart">' + ICON_EDIT + '</button><button type="button" data-act="delete" title="Delete chart">' + ICON_DEL + "</button></div>";
+    box.addEventListener("mousedown", onBoxMouseDown);
+    box.addEventListener("dblclick", (ev2) => {
+      ev2.stopPropagation();
+      openPanel(chart.chart_id);
+    });
+    box.addEventListener("contextmenu", (ev2) => {
+      ev2.preventDefault();
+      ev2.stopPropagation();
+      select(chart.chart_id);
+    });
+    return box;
+  }
+  function place(e, chart) {
+    const z = store.zoomRatio || 1, s = e.box.style;
+    s.left = Math.round(chart.left * z) + "px";
+    s.top = Math.round(chart.top * z) + "px";
+    const w = Math.max(MIN_W, Math.round(chart.width * z)), h = Math.max(MIN_H, Math.round(chart.height * z));
+    if (e.w !== w || e.h !== h) {
+      s.width = w + "px";
+      s.height = h + "px";
+      e.w = w, e.h = h;
+      e.ec && e.ec.resize();
+    }
+  }
+  function render(chart, force) {
+    const main = gridMain();
+    if (!main)
+      return;
+    let e = live.get(chart.chart_id);
+    if (!e || !e.box.isConnected) {
+      e && dispose(chart.chart_id);
+      const box = makeBox(chart);
+      main.appendChild(box);
+      e = { sheetIndex: chart.sheetIndex, box, host: box.querySelector(".ls-chart-host"), ec: null, sig: null };
+      live.set(chart.chart_id, e);
+    }
+    place(e, chart);
+    e.box.classList.toggle("ls-chart-active", activeId == chart.chart_id);
+    if (!echartsReady()) {
+      echartsFailed ? e.host.innerHTML = '<div class="ls-chart-msg">Chart library (ECharts) not available</div>' : (e.host.innerHTML = '<div class="ls-chart-msg">Loading chart…</div>', loadEcharts().catch(() => {
+      }));
+      return;
+    }
+    if (!e.ec) {
+      e.host.innerHTML = "";
+      e.ec = window.echarts.init(e.host, null, { renderer: "canvas" });
+      e.sig = null;
+    }
+    const spec = chart.chartOptions, grid = chartGrid(spec);
+    const sig = dataSignature(grid) + "|" + JSON.stringify(spec);
+    if (!force && sig === e.sig)
+      return;
+    e.sig = sig;
+    const data = extractSeries(grid, spec);
+    e.layout = data.layout;
+    try {
+      e.ec.setOption(buildOption(spec, data), true);
+    } catch (err) {
+      console.error("[charts] could not draw " + chart.chart_id, err);
+    }
+    panelId == chart.chart_id && syncPanelLayout(e.layout);
+  }
+  function dispose(id) {
+    const e = live.get(id);
+    if (!e)
+      return;
+    try {
+      e.ec && e.ec.dispose();
+    } catch (err) {
+    }
+    e.box.remove();
+    live.delete(id);
+  }
+  function showSheet(idx, force) {
+    const file = fileOf(idx), list = chartsOf(file), ids = new Set(list.map((c2) => c2.chart_id));
+    for (const id of [...live.keys()])
+      (live.get(id).sheetIndex != idx || !ids.has(id)) && dispose(id);
+    shownSheet = gridMain() ? idx : null;
+    activeId != null && !ids.has(activeId) && deselect();
+    panelId != null && !ids.has(panelId) && closePanel();
+    if (!list.length || !gridMain())
+      return;
+    ensureStyle();
+    for (const c2 of list)
+      render(c2, force);
+    activeId != null && showRange(activeId);
+    clipFrozen();
+  }
+  function refreshShown(force) {
+    if (store.currentSheetIndex == null)
+      return;
+    if (shownSheet != store.currentSheetIndex)
+      return showSheet(store.currentSheetIndex, force);
+    for (const c2 of chartsOf(fileOf(store.currentSheetIndex)))
+      render(c2, force);
+    activeId != null && showRange(activeId);
+  }
+  function relayout() {
+    if (!live.size)
+      return;
+    for (const c2 of chartsOf(fileOf(store.currentSheetIndex))) {
+      const e = live.get(c2.chart_id);
+      e && place(e, c2);
+    }
+    activeId != null && showRange(activeId);
+    clipFrozen();
+  }
+  function clipFrozen() {
+    if (!live.size)
+      return;
+    const h = freeze.freezenhorizontaldata, v = freeze.freezenverticaldata, main = gridMain();
+    if (!main)
+      return;
+    const st = main.scrollTop, sl2 = main.scrollLeft, z = store.zoomRatio || 1;
+    const lineY = h ? st + (h[0] - h[2]) : null, lineX = v ? sl2 + (v[0] - v[2]) : null;
+    for (const c2 of chartsOf(fileOf(store.currentSheetIndex))) {
+      const e = live.get(c2.chart_id);
+      if (!e)
+        continue;
+      const top = c2.top * z, left = c2.left * z;
+      const ct = lineY != null && top < lineY ? lineY - top : 0, cl = lineX != null && left < lineX ? lineX - left : 0;
+      e.box.style.clipPath = ct || cl ? "inset(" + ct + "px 0 0 " + cl + "px)" : "";
+      e.box.style.visibility = ct >= e.h || cl >= e.w ? "hidden" : "";
+    }
+  }
+  function select(id) {
+    if (activeId == id) {
+      showRange(id);
+      return;
+    }
+    activeId = id;
+    let z = 20;
+    for (const [k, e] of live) {
+      e.box.classList.toggle("ls-chart-active", k == id);
+      k == id && (e.box.style.zIndex = 17);
+    }
+    for (const [k, e] of live)
+      k != id && (e.box.style.zIndex = 16);
+    showRange(id);
+    panelId != null && panelId != id && openPanel(id);
+  }
+  function deselect() {
+    if (activeId == null)
+      return;
+    activeId = null;
+    for (const e of live.values())
+      e.box.classList.remove("ls-chart-active");
+    showRange(null);
+  }
+  function rowTop(r2) {
+    return r2 <= 0 ? 0 : store.visibledatarow[r2 - 1] || 0;
+  }
+  function colLeft(c2) {
+    return c2 <= 0 ? 0 : store.visibledatacolumn[c2 - 1] || 0;
+  }
+  function showRange(id) {
+    const holder = document.getElementById("luckysheet-chart-rangeShow");
+    if (!holder)
+      return;
+    holder.innerHTML = "";
+    const f = id != null && findChart(id), spec = f && f.chart.chartOptions, range2 = spec && spec.range;
+    if (!range2 || range2.sheetIndex != store.currentSheetIndex || !store.visibledatarow || !store.visibledatarow.length)
+      return;
+    const e = live.get(id), layout = e && e.layout || { headerRow: false, headerCol: false, seriesIn: "col" };
+    const [r0, r1] = range2.row, [c0, c12] = range2.column;
+    const box = (a, b, c2, d, color, fill) => {
+      if (a > b || c2 > d)
+        return;
+      const div = document.createElement("div");
+      div.className = "ls-chart-range";
+      const top = rowTop(a), left = colLeft(c2);
+      div.style.cssText = "top:" + top + "px;left:" + left + "px;width:" + Math.max(0, colLeft(d + 1) - left) + "px;height:" + Math.max(0, rowTop(b + 1) - top) + "px;border:2px solid " + color + ";background:" + fill;
+      holder.appendChild(div);
+    };
+    const hr = layout.headerRow ? 1 : 0, hc2 = layout.headerCol ? 1 : 0;
+    const labelsAreRows = layout.seriesIn == "row";
+    hr && box(r0, r0, c0 + hc2, c12, labelsAreRows ? "#9667C0" : "#C65151", "rgba(198,81,81,.06)");
+    hc2 && box(r0 + hr, r1, c0, c0, labelsAreRows ? "#C65151" : "#9667C0", "rgba(150,103,192,.06)");
+    box(r0 + hr, r1, c0 + hc2, c12, "#4970D1", "rgba(73,112,209,.06)");
+  }
+  function onBoxMouseDown(ev2) {
+    const box = ev2.currentTarget, id = box.getAttribute("data-chart");
+    ev2.stopPropagation();
+    if (ev2.button !== 0) {
+      select(id);
+      return;
+    }
+    const act = ev2.target.closest && ev2.target.closest("[data-act]");
+    if (act) {
+      ev2.preventDefault();
+      act.getAttribute("data-act") == "delete" ? deleteChart(id) : openPanel(id);
+      return;
+    }
+    ev2.preventDefault();
+    select(id);
+    const f = findChart(id);
+    if (!f || readOnly(f.file.index, false))
+      return;
+    const handle = ev2.target.closest && ev2.target.closest(".ls-chart-h");
+    drag = {
+      id,
+      mode: handle ? handle.getAttribute("data-h") : "move",
+      x: ev2.clientX,
+      y: ev2.clientY,
+      moved: false,
+      start: { left: f.chart.left, top: f.chart.top, width: f.chart.width, height: f.chart.height },
+      before: clone(f.file.chart),
+      sheetIndex: f.file.index
+    };
+    document.addEventListener("mousemove", onDragMove, true);
+    document.addEventListener("mouseup", onDragEnd, true);
+  }
+  function onDragMove(ev2) {
+    if (!drag)
+      return;
+    const f = findChart(drag.id), e = live.get(drag.id);
+    if (!f || !e)
+      return;
+    const z = store.zoomRatio || 1, dx = (ev2.clientX - drag.x) / z, dy2 = (ev2.clientY - drag.y) / z;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy2) < 3)
+      return;
+    drag.moved = true;
+    ev2.preventDefault();
+    ev2.stopPropagation();
+    const s = drag.start, c2 = f.chart, m = drag.mode, minW = MIN_W / z, minH = MIN_H / z;
+    if (m == "move") {
+      c2.left = Math.max(0, Math.round(s.left + dx));
+      c2.top = Math.max(0, Math.round(s.top + dy2));
+      e.box.classList.add("ls-chart-moving");
+    } else {
+      let { left, top, width: width2, height } = s;
+      m.includes("e") && (width2 = Math.max(minW, s.width + dx));
+      m.includes("s") && (height = Math.max(minH, s.height + dy2));
+      m.includes("w") && (width2 = Math.max(minW, s.width - dx), left = Math.max(0, s.left + s.width - width2));
+      m.includes("n") && (height = Math.max(minH, s.height - dy2), top = Math.max(0, s.top + s.height - height));
+      Object.assign(c2, { left: Math.round(left), top: Math.round(top), width: Math.round(width2), height: Math.round(height) });
+    }
+    place(e, c2);
+    clipFrozen();
+  }
+  function onDragEnd() {
+    document.removeEventListener("mousemove", onDragMove, true);
+    document.removeEventListener("mouseup", onDragEnd, true);
+    const d = drag;
+    drag = null;
+    if (!d)
+      return;
+    const e = live.get(d.id);
+    e && e.box.classList.remove("ls-chart-moving");
+    d.moved && commit(d.sheetIndex, d.before);
+  }
+  function onKeyDown(ev2) {
+    if (activeId == null)
+      return;
+    const t = ev2.target, panel = document.getElementById("luckysheet-chart-panel");
+    if (panel && panel.contains(t) || t && (t.tagName == "INPUT" || t.tagName == "TEXTAREA" || t.tagName == "SELECT"))
+      return;
+    if (ev2.key == "Delete" || ev2.key == "Backspace") {
+      ev2.preventDefault();
+      ev2.stopImmediatePropagation();
+      deleteChart(activeId);
+    } else if (ev2.key == "Escape") {
+      ev2.preventDefault();
+      ev2.stopImmediatePropagation();
+      deselect();
+    }
+  }
+  function commit(sheetIndex, before) {
+    const file = fileOf(sheetIndex);
+    if (!file)
+      return;
+    const after = clone(chartsOf(file));
+    if (JSON.stringify(before) === JSON.stringify(after))
+      return;
+    store.clearjfundo && (store.jfundo.length = 0, store.jfredo.push({ type: "chartChange", sheetIndex, before, after }));
+    server.saveParam("all", sheetIndex, after, { k: "chart" });
+  }
+  function applyHistory(entry, which) {
+    const file = fileOf(entry.sheetIndex);
+    if (!file)
+      return;
+    file.chart = clone(which == "undo" ? entry.before : entry.after) || [];
+    server.saveParam("all", entry.sheetIndex, file.chart, { k: "chart" });
+    if (entry.sheetIndex == store.currentSheetIndex) {
+      activeId != null && !file.chart.some((c2) => c2.chart_id == activeId) && deselect();
+      showSheet(entry.sheetIndex, true);
+      panelId != null && fillPanel();
+    }
+  }
+  function addChart(sheetIndex, spec, box) {
+    const file = fileOf(sheetIndex);
+    if (!file)
+      return null;
+    const before = clone(chartsOf(file));
+    const chart = Object.assign({ chart_id: newId(), sheetIndex: file.index, left: 40, top: 40, width: 480, height: 288 }, box || {}, { chartOptions: defaultSpec(spec) });
+    file.chart.push(chart);
+    commit(file.index, before);
+    file.index == store.currentSheetIndex && (showSheet(file.index), select(chart.chart_id));
+    return chart;
+  }
+  function updateChart(id, patch, noUndo) {
+    const f = findChart(id);
+    if (!f)
+      return null;
+    const before = clone(f.file.chart), c2 = f.chart;
+    for (const k of ["left", "top", "width", "height"])
+      patch[k] != null && Number.isFinite(+patch[k]) && (c2[k] = Math.max(k == "width" ? MIN_W : k == "height" ? MIN_H : 0, Math.round(+patch[k])));
+    const spec = c2.chartOptions;
+    for (const k in patch)
+      k in spec && k != "version" && (spec[k] = patch[k]);
+    noUndo || commit(f.file.index, before);
+    if (f.file.index == store.currentSheetIndex) {
+      const e = live.get(id);
+      e ? (place(e, c2), render(c2, true)) : showSheet(f.file.index);
+      activeId == id && showRange(id);
+    }
+    return c2;
+  }
+  function deleteChart(id) {
+    const f = findChart(id);
+    if (!f || readOnly(f.file.index))
+      return false;
+    const before = clone(f.file.chart);
+    f.file.chart = f.file.chart.filter((c2) => c2.chart_id != id);
+    activeId == id && deselect();
+    panelId == id && closePanel();
+    dispose(id);
+    commit(f.file.index, before);
+    return true;
+  }
+  function onRowCol(op2) {
+    const before = [], after = [];
+    for (const f of store.luckysheetfile || [])
+      for (const c2 of chartsOf(f)) {
+        const r2 = c2.chartOptions.range;
+        if (!r2 || r2.sheetIndex != op2.sheetIndex)
+          continue;
+        const n = shiftRange(r2, op2);
+        if (JSON.stringify(n) === JSON.stringify(r2))
+          continue;
+        before.push({ sheetIndex: f.index, chart_id: c2.chart_id, range: clone(r2) });
+        after.push({ sheetIndex: f.index, chart_id: c2.chart_id, range: clone(n) });
+        c2.chartOptions.range = n;
+      }
+    if (!before.length)
+      return;
+    const top = store.jfredo[store.jfredo.length - 1];
+    top && (top.type == "addRC" || top.type == "delRC") && top.sheetIndex == op2.sheetIndex && !top.chartRanges && (top.chartRanges = { before, after });
+    refreshShown(true);
+  }
+  function restoreRanges(list) {
+    if (!Array.isArray(list))
+      return;
+    for (const x of list) {
+      const f = findChart(x.chart_id);
+      f && (f.chart.chartOptions.range = clone(x.range));
+    }
+    refreshShown(true);
+  }
+  function createFromSelection() {
+    const idx = store.currentSheetIndex, file = fileOf(idx);
+    if (!file || readOnly(idx))
+      return null;
+    const sel = (store.luckysheet_select_save || [])[(store.luckysheet_select_save || []).length - 1];
+    if (!sel || !sel.row || !sel.column) {
+      tooltip.info("", "Select the data for the chart first");
+      return null;
+    }
+    let range2 = sel.row[0] == sel.row[1] && sel.column[0] == sel.column[1] ? currentRegion(file, sel.row[0], sel.column[0]) : trimRange(file, { row: sel.row.slice(), column: sel.column.slice() });
+    range2 || (range2 = { sheetIndex: idx, row: sel.row.slice(), column: sel.column.slice() });
+    const z = store.zoomRatio || 1, main = gridMain(), w = 480, h = 288;
+    const viewL = main ? main.scrollLeft / z : 0, viewT = main ? main.scrollTop / z : 0;
+    const viewW = main ? main.clientWidth / z : 900, viewH = main ? main.clientHeight / z : 500;
+    let left = colLeft(range2.column[1] + 1) / z + 24, top = rowTop(range2.row[0]) / z;
+    (left + w > viewL + viewW || left < viewL) && (left = viewL + Math.max(10, (viewW - w) / 2));
+    (top + h > viewT + viewH || top < viewT) && (top = viewT + Math.max(10, (viewH - h) / 2));
+    const chart = addChart(idx, { range: range2 }, { left: Math.round(left), top: Math.round(top), width: w, height: h });
+    chart && openPanel(chart.chart_id);
+    return chart;
+  }
+  var TYPE_ICON = {
+    column: "M3 13V8h2v5zm4 0V4h2v9zm4 0V6h2v7z",
+    bar: "M2 3h7v2H2zm0 4h11v2H2zm0 4h5v2H2z",
+    line: "M2 12l4-5 3 3 5-7",
+    area: "M2 13V9l4-4 3 3 5-5v10z",
+    pie: "M8 2a6 6 0 1 0 6 6H8z",
+    scatter: "M4 11h1v1H4zm3-4h1v1H7zm3 2h1v1h-1zm2-5h1v1h-1z",
+    radar: "M8 2l6 4.5-2.3 7H4.3L2 6.5z"
+  };
+  function typeIcon(id) {
+    const fam = id.startsWith("column") ? "column" : id.startsWith("bar") ? "bar" : id.startsWith("line") ? "line" : id.startsWith("area") ? "area" : chartTypeInfo(id).family == "pie" ? "pie" : chartTypeInfo(id).family;
+    const p = TYPE_ICON[fam] || TYPE_ICON.column, stroke = fam == "line" || fam == "radar";
+    return '<svg viewBox="0 0 16 16" width="22" height="18"><path d="' + p + '" fill="' + (stroke ? "none" : "currentColor") + '" stroke="' + (stroke ? "currentColor" : "none") + '" stroke-width="1.5"/></svg>';
+  }
+  function panelEl() {
+    let p = document.getElementById("luckysheet-chart-panel");
+    if (p)
+      return p;
+    ensureStyle();
+    const host = document.getElementById(store.container) || document.body;
+    p = document.createElement("div");
+    p.id = "luckysheet-chart-panel";
+    p.className = "chartSetting luckysheet-mousedown-cancel";
+    const opt = (v, t) => '<option value="' + v + '">' + t + "</option>";
+    p.innerHTML = '<div class="lcp-head"><span>Chart</span><button type="button" class="lcp-close" title="Close">×</button></div><div class="lcp-body"><div class="lcp-sec">Type</div><div class="lcp-types">' + CHART_TYPES.map((t) => '<div class="lcp-type" data-type="' + t.id + '" title="' + t.label + '">' + typeIcon(t.id) + "<div>" + t.label + "</div></div>").join("") + '</div><div class="lcp-sec">Data</div><div class="lcp-row"><input type="text" data-k="range" placeholder="Sheet1!A1:D10"><button type="button" class="lcp-btn" data-act="use-selection" title="Use the selected cells">Selection</button></div><div class="lcp-err" data-err="range"></div><div class="lcp-row"><label>Series in</label><select data-k="seriesIn">' + opt("col", "Columns") + opt("row", "Rows") + '</select></div><label class="lcp-check"><input type="checkbox" data-k="headerRow"> First row is series names</label><label class="lcp-check"><input type="checkbox" data-k="headerCol"> First column is labels</label><div class="lcp-sec">Labels</div><div class="lcp-row"><label>Title</label><input type="text" data-k="title"></div><div class="lcp-row"><label>X axis title</label><input type="text" data-k="xTitle"></div><div class="lcp-row"><label>Y axis title</label><input type="text" data-k="yTitle"></div><div class="lcp-row"><label>Legend</label><select data-k="legend">' + opt("bottom", "Bottom") + opt("top", "Top") + opt("right", "Right") + opt("left", "Left") + opt("none", "None") + '</select></div><label class="lcp-check"><input type="checkbox" data-k="dataLabels"> Show data labels</label><div class="lcp-sec">Style</div><div class="lcp-row"><label>Colors</label><select data-k="palette">' + Object.keys(PALETTES).map((k) => opt(k, k[0].toUpperCase() + k.slice(1))).join("") + '</select><span class="lcp-pal"></span></div><div class="lcp-row"><label>Y axis min</label><input type="text" data-k="yMin" placeholder="auto"></div><div class="lcp-row"><label>Y axis max</label><input type="text" data-k="yMax" placeholder="auto"></div><button type="button" class="lcp-btn lcp-danger" data-act="delete">Delete chart</button></div>';
+    host.appendChild(p);
+    for (const t of ["mousedown", "keydown", "keyup", "keypress", "dblclick", "click", "contextmenu"])
+      p.addEventListener(t, (ev2) => ev2.stopPropagation());
+    p.querySelector(".lcp-close").addEventListener("click", closePanel);
+    p.addEventListener("click", (ev2) => {
+      const t = ev2.target.closest(".lcp-type"), a = ev2.target.closest("[data-act]");
+      t && panelId != null && setFromPanel({ type: t.getAttribute("data-type") });
+      if (a && panelId != null) {
+        const act = a.getAttribute("data-act");
+        if (act == "delete")
+          deleteChart(panelId);
+        else if (act == "use-selection") {
+          const sel = (store.luckysheet_select_save || [])[store.luckysheet_select_save.length - 1];
+          if (sel) {
+            const file = fileOf(store.currentSheetIndex);
+            const r2 = sel.row[0] == sel.row[1] && sel.column[0] == sel.column[1] ? currentRegion(file, sel.row[0], sel.column[0]) : trimRange(file, { row: sel.row.slice(), column: sel.column.slice() });
+            r2 && setFromPanel({ range: r2, headerRow: null, headerCol: null, seriesIn: null });
+          }
+        }
+      }
+    });
+    p.addEventListener("change", (ev2) => {
+      const k = ev2.target.getAttribute("data-k");
+      if (!k || panelId == null)
+        return;
+      const t = ev2.target;
+      if (k == "range") {
+        const f = findChart(panelId), res = rangeFromText(t.value, f ? f.file.index : store.currentSheetIndex);
+        t.classList.toggle("lcp-bad", !!res.error);
+        p.querySelector('[data-err="range"]').textContent = res.error || "";
+        res.range && setFromPanel({ range: res.range, headerRow: null, headerCol: null, seriesIn: null });
+        return;
+      }
+      if (k == "yMin" || k == "yMax") {
+        const v = t.value.trim(), n = v === "" ? null : Number(v);
+        t.classList.toggle("lcp-bad", n != null && !Number.isFinite(n));
+        (n == null || Number.isFinite(n)) && setFromPanel({ [k]: n });
+        return;
+      }
+      setFromPanel({ [k]: t.type == "checkbox" ? t.checked : t.value });
+    });
+    p.addEventListener("keydown", (ev2) => {
+      ev2.key == "Enter" && ev2.target.matches("input[type=text]") && ev2.target.blur();
+    });
+    return p;
+  }
+  function setFromPanel(patch) {
+    const f = panelId != null && findChart(panelId);
+    if (!f || readOnly(f.file.index))
+      return fillPanel();
+    updateChart(panelId, patch);
+    fillPanel();
+  }
+  function syncPanelLayout(layout) {
+    const p = document.getElementById("luckysheet-chart-panel");
+    if (!p || !layout)
+      return;
+    p.querySelector('[data-k="seriesIn"]').value = layout.seriesIn;
+    p.querySelector('[data-k="headerRow"]').checked = !!layout.headerRow;
+    p.querySelector('[data-k="headerCol"]').checked = !!layout.headerCol;
+  }
+  function fillPanel() {
+    const p = document.getElementById("luckysheet-chart-panel"), f = panelId != null && findChart(panelId);
+    if (!p || !f)
+      return;
+    const s = f.chart.chartOptions;
+    p.querySelectorAll(".lcp-type").forEach((el2) => el2.classList.toggle("on", el2.getAttribute("data-type") == s.type));
+    const set = (k, v) => {
+      const el2 = p.querySelector('[data-k="' + k + '"]');
+      el2 && (el2.type == "checkbox" ? el2.checked = !!v : el2.value = v == null ? "" : v, el2.classList.remove("lcp-bad"));
+    };
+    set("range", rangeText(s.range, f.file.index));
+    p.querySelector('[data-err="range"]').textContent = s.range && !fileOf(s.range.sheetIndex) ? "The data sheet was deleted" : s.range ? "" : "Choose the data range";
+    for (const k of ["title", "xTitle", "yTitle", "legend", "dataLabels", "palette", "yMin", "yMax"])
+      set(k, s[k]);
+    const e = live.get(panelId);
+    syncPanelLayout(e && e.layout || { seriesIn: s.seriesIn || "col", headerRow: s.headerRow, headerCol: s.headerCol });
+    p.querySelector(".lcp-pal").innerHTML = (PALETTES[s.palette] || PALETTES.default).slice(0, 6).map((c2) => '<i style="background:' + c2 + '"></i>').join("");
+    const ro = readOnly(f.file.index, false);
+    p.querySelectorAll("input,select,button.lcp-btn").forEach((el2) => el2.disabled = ro);
+  }
+  function openPanel(id) {
+    const f = findChart(id);
+    if (!f)
+      return;
+    f.file.index != store.currentSheetIndex && sheetManage.changeSheetExec(f.file.index);
+    const p = panelEl(), wasOpen = p.style.display == "block";
+    panelId = id;
+    select(id);
+    fillPanel();
+    p.style.display = "block";
+    wasOpen || $t();
+  }
+  function closePanel() {
+    const p = document.getElementById("luckysheet-chart-panel");
+    panelId = null;
+    if (p && p.style.display == "block") {
+      p.style.display = "none";
+      $t();
+    }
+  }
+  function resolveSheet(order) {
+    if (order == null)
+      return fileOf(store.currentSheetIndex);
+    return typeof order == "number" ? store.luckysheetfile.find((f) => f.order == order) || null : store.luckysheetfile.find((f) => f.name == order || f.index == order) || null;
+  }
+  function apiInsertChart(opts = {}) {
+    const file = resolveSheet(opts.order != null ? opts.order : opts.sheet);
+    if (!file)
+      throw new Error("insertChart: no such sheet");
+    let range2 = null;
+    if (opts.range != null) {
+      const res = typeof opts.range == "string" ? rangeFromText(opts.range, file.index) : { range: { sheetIndex: opts.range.sheetIndex != null ? opts.range.sheetIndex : file.index, row: opts.range.row, column: opts.range.column } };
+      if (res.error)
+        throw new Error("insertChart: " + res.error);
+      range2 = res.range;
+    }
+    const spec = {};
+    for (const k of Object.keys(defaultSpec()))
+      k in opts && k != "range" && k != "version" && (spec[k] = opts[k]);
+    spec.range = range2;
+    if (spec.type && !CHART_TYPES.some((t) => t.id == spec.type))
+      throw new Error("insertChart: unknown type " + spec.type);
+    const box = {};
+    for (const k of ["left", "top", "width", "height"])
+      opts[k] != null && (box[k] = +opts[k]);
+    const c2 = addChart(file.index, spec, box);
+    return c2 ? c2.chart_id : null;
+  }
+  function apiUpdateChart(id, patch = {}) {
+    patch = Object.assign({}, patch);
+    if (typeof patch.range == "string") {
+      const f = findChart(id), res = rangeFromText(patch.range, f ? f.file.index : store.currentSheetIndex);
+      if (res.error)
+        throw new Error("updateChart: " + res.error);
+      patch.range = res.range;
+    }
+    if (patch.type && !CHART_TYPES.some((t) => t.id == patch.type))
+      throw new Error("updateChart: unknown type " + patch.type);
+    const c2 = updateChart(id, patch);
+    panelId == id && fillPanel();
+    return !!c2;
+  }
+  function apiGetCharts(order) {
+    const files = order == null ? store.luckysheetfile : [resolveSheet(order)].filter(Boolean);
+    const out = [];
+    for (const f of files)
+      for (const c2 of chartsOf(f))
+        out.push(Object.assign(clone(c2), { rangeText: rangeText(c2.chartOptions.range, f.index) }));
+    return out;
+  }
+  function apiChartImage(id) {
+    const e = live.get(id);
+    return e && e.ec ? e.ec.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: "#fff" }) : null;
+  }
+  var chartApi = {
+    insertChart: apiInsertChart,
+    updateChart: apiUpdateChart,
+    deleteChart,
+    getCharts: apiGetCharts,
+    getChartImage: apiChartImage,
+    selectChart: select,
+    openChartSettings: openPanel,
+    closeChartSettings: closePanel,
+    chartTypes: () => CHART_TYPES.map((t) => t.id),
+    // test helpers
+    _live: live,
+    get _active() {
+      return activeId;
+    },
+    get _panel() {
+      return panelId;
+    }
+  };
+  function Mf(e, n) {
+    Io();
+    refreshShown(true);
+  }
+  function Sc() {
+    Io();
+    return createFromSelection();
+  }
+  function $c() {
+    deselect();
+  }
+  function Ic(e) {
+    Io();
+    showSheet(e);
+  }
+  var Io = lazyInit(() => {
+    Ze();
+    Mt();
+    Et();
+    Hl();
+    rr();
+    _l();
+    Jt();
+    el();
+    gl();
+    typeof document != "undefined" && document.addEventListener("keydown", onKeyDown, true);
+    Object.assign(chartHooks, {
+      redraw() {
+        if (!live.size && !(fileOf(store.currentSheetIndex) || {}).chart?.length && shownSheet == store.currentSheetIndex)
+          return;
+        clearTimeout(redrawTimer);
+        redrawTimer = setTimeout(() => refreshShown(false), 80);
+      },
+      relayout,
+      scroll: clipFrozen,
+      showSheet: (idx, force) => showSheet(idx, force),
+      rowCol: onRowCol,
+      restoreRanges,
+      applyHistory,
+      hasSelection: () => activeId != null,
+      deleteSelected: () => activeId != null && deleteChart(activeId),
+      deselect,
+      destroy() {
+        for (const id of [...live.keys()])
+          dispose(id);
+        shownSheet = null, activeId = null, panelId = null;
+        const p = document.getElementById("luckysheet-chart-panel");
+        p && p.remove();
+      }
+    });
+  });
+
   // src/modules/092-pa.js
+  function lsInsertChart(options) {
+    Io();
+    return chartApi.insertChart(options);
+  }
+  function lsUpdateChart(chartId, patch) {
+    Io();
+    return chartApi.updateChart(chartId, patch);
+  }
+  function lsDeleteChart(chartId) {
+    Io();
+    return chartApi.deleteChart(chartId);
+  }
+  function lsGetCharts(order) {
+    Io();
+    return chartApi.getCharts(order);
+  }
+  function lsGetChartImage(chartId) {
+    Io();
+    return chartApi.getChartImage(chartId);
+  }
   var Wc = {};
   A1(Wc, {
     cancelFrozen: () => Uo,
@@ -35864,6 +37274,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     insertColumn: () => Jp,
     insertColumnRight: () => Qp,
     insertImage: () => sy,
+    insertChart: () => lsInsertChart,
+    updateChart: () => lsUpdateChart,
+    deleteChart: () => lsDeleteChart,
+    getCharts: () => lsGetCharts,
+    getChartImage: () => lsGetChartImage,
     insertRow: () => Kp,
     insertRowBottom: () => Zp,
     insertRowBottomOrColumnRight: () => Bc,
@@ -38315,7 +39730,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     if (n == null && (n = t + 1), !isRealNumber(n))
       return tooltip.info("The targetOrder parameter is invalid.", "");
     let o = a.index, s = sheetManage.generateRandomSheetIndex(), u = lsDeepCopyObject(a);
-    u.order = store.luckysheetfile.length, u.index = s, u.name = sheetManage.generateCopySheetName(store.luckysheetfile, u.name);
+    u.order = store.luckysheetfile.length, u.index = s, u.name = sheetManage.generateCopySheetName(store.luckysheetfile, u.name), u.chart = chartHooks.copyCharts(a, s);
     let d = "";
     u.color != null && (d = '<div class="luckysheet-sheets-item-color" style=" position: absolute; width: 100%; height: 3px; bottom: 0px; left: 0px; background-color: ' + u.color + ';"></div>');
     let f = $("#luckysheet-sheets-item" + o);
@@ -39643,6 +41058,12 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       rowCount: e == "row" ? t : void 0,
       colCount: e == "column" ? t : void 0
     }));
+    chartHooks.rowCol({
+      type: e == "row" ? "insertRow" : "insertCol",
+      sheetIndex: s.index,
+      index: l == "lefttop" ? n : n + 1,
+      count: t
+    });
     window.markConditionalFormatDirty(s.index);
     let D = null;
     if (e == "row" ? l == "lefttop" ? D = [{
@@ -39975,6 +41396,12 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       rowCount: e == "row" ? t - n + 1 : void 0,
       colCount: e == "column" ? t - n + 1 : void 0
     }));
+    chartHooks.rowCol({
+      type: e == "row" ? "deleteRow" : "deleteCol",
+      sheetIndex: o.index,
+      index: n,
+      count: t - n + 1
+    });
     window.markConditionalFormatDirty(o.index);
   }
   function oa(e, n, t, l, a, o) {
@@ -40671,1186 +42098,6 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     }
   );
 
-  // src/modules/041-Ea.js
-  function Fa(e, n, t, l, a) {
-    t == null && (t = true), e || (e = "down"), n || (n = "cell"), a == null && (a = false);
-    let o = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], s = o.row == null ? 0 : o.row[0], u = o.column == null ? 0 : o.column[0], d = o.row == null ? 0 : o.row[0], f = o.column == null ? 0 : o.column[0], m = o.row == null ? 0 : o.row[1], g = o.column == null ? 0 : o.column[1];
-    if (formula.fucntionboxshow(s, u), n == "range") {
-      var y = store.luckysheet_shiftpositon.row[0], v = store.luckysheet_shiftpositon.column[0];
-      let S = store.luckysheet_shiftpositon.row[1], _ = store.luckysheet_shiftpositon.column[1];
-      e == "down" || e == "up" ? S < m ? s = o.row == null ? 0 : o.row[1] : y > d ? s = o.row == null ? 0 : o.row[0] : S == m && y == d && (e == "down" ? s = o.row == null ? 0 : o.row[1] : s = o.row == null ? 0 : o.row[0]) : (e == "right" || e == "left") && (_ < g ? u = o.column == null ? 0 : o.column[1] : v > f ? u = o.column == null ? 0 : o.column[0] : _ == g && v == f && (e == "right" ? u = o.column == null ? 0 : o.column[1] : u = o.column == null ? 0 : o.column[0]));
-    }
-    let k = store.flowdata.length, b = store.flowdata[0].length, w = store.flowdata, x = "", C = 0;
-    if (e == "up") {
-      if (s == 0)
-        return;
-      {
-        let S = [], _ = null, T = 0, A = null;
-        for (let R = f; R <= g; R++) {
-          S = [], T = 0;
-          for (let I = s - 1; I >= 0; I--) {
-            let F = w[I][R];
-            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
-              if (S[T] == true && S[T - 1] == false) {
-                _ = I;
-                break;
-              } else if (S[T] == false && S[T - 1] == true) {
-                _ = I + 1;
-                break;
-              }
-            }
-            T++;
-          }
-          _ == null && (_ = 0), (A == null || _ < A) && (A = _);
-        }
-        x = "down", C = A - s;
-      }
-    } else if (e == "down") {
-      if (s == k - 1)
-        return;
-      {
-        let S = [], _ = null, T = 0, A = null;
-        for (let R = f; R <= g; R++) {
-          S = [], T = 0;
-          for (let I = s + 1; I < w.length; I++) {
-            let F = w[I][R];
-            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
-              if (S[T] == true && S[T - 1] == false) {
-                _ = I;
-                break;
-              } else if (S[T] == false && S[T - 1] == true) {
-                _ = I - 1;
-                break;
-              }
-            }
-            T++;
-          }
-          _ == null && (_ = w.length - 1), (A == null || _ > A) && (A = _);
-        }
-        x = "down", C = A - s;
-      }
-    } else if (e == "left") {
-      if (u == 0)
-        return;
-      {
-        let S = [], _ = null, T = 0, A = null;
-        for (let R = d; R <= m; R++) {
-          S = [], T = 0;
-          for (let I = u - 1; I >= 0; I--) {
-            let F = w[R][I];
-            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
-              if (S[T] == true && S[T - 1] == false) {
-                _ = I;
-                break;
-              } else if (S[T] == false && S[T - 1] == true) {
-                _ = I + 1;
-                break;
-              }
-            }
-            T++;
-          }
-          _ == null && (_ = 0), (A == null || _ < A) && (A = _);
-        }
-        x = "right", C = A - u;
-      }
-    } else if (e == "right") {
-      if (u == b - 1)
-        return;
-      {
-        let S = [], _ = null, T = 0, A = null;
-        for (let R = d; R <= m; R++) {
-          S = [], T = 0;
-          for (let I = u + 1; I < w[0].length; I++) {
-            let F = w[R][I];
-            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
-              if (S[T] == true && S[T - 1] == false) {
-                _ = I;
-                break;
-              } else if (S[T] == false && S[T - 1] == true) {
-                _ = I - 1;
-                break;
-              }
-            }
-            T++;
-          }
-          _ == null && (_ = w[0].length - 1), (A == null || _ > A) && (A = _);
-        }
-        x = "right", C = A - u;
-      }
-    }
-    if (n == "range" && (e == "up" ? p_endR < m && C + s < p_endR && (C = p_endR - s) : e == "down" ? y > d && C + s > y && (C = y - s) : e == "left" ? p_endC < g && C + u < p_endC && (C = p_endC - u) : e == "right" && v > f && C + u > v && (C = v - u), l != null && Math.abs(C) > Math.abs(l) && (C = l)), !a)
-      n == "cell" ? qt(x, C, "rangeOfSelect", t) : n == "range" && Pn(x, C, "rangeOfSelect", t);
-    else
-      return C;
-  }
-  function qt(e, n, t, l) {
-    l == null && (l = true), e || e == "down";
-    let a = store.flowdata.length, o = store.flowdata[0].length, s, u, d, f, m, g, y, v;
-    if (t == "rangeOfSelect") {
-      let _ = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], T;
-      _.row_focus == null ? T = _.row[0] : T = _.row_focus;
-      let A;
-      _.column_focus == null ? A = _.column[0] : A = _.column_focus;
-      let R = be.mergeborer(store.flowdata, T, A);
-      if (R) {
-        let D = R.row[2], E = R.row[3], P = R.column[2], z = R.column[3];
-        n > 0 ? e == "down" ? (T = E, A = P) : e == "right" && (T = D, A = z) : (T = D, A = P);
-      }
-      let I = _.moveXY == null ? T : _.moveXY.x, F = _.moveXY == null ? A : _.moveXY.y;
-      e == "down" ? (T += n, I = T) : e == "right" && (A += n, F = A), T >= a && (T = a - 1, I = T), T < 0 && (T = 0, I = T), A >= o && (A = o - 1, F = A), A < 0 && (A = 0, F = A);
-      let N = be.mergeborer(store.flowdata, T, A);
-      N ? (s = N.row[1], u = N.row[0], d = N.row[2], f = N.row[3], m = N.column[1], g = N.column[0], y = N.column[2], v = N.column[3]) : (s = store.visibledatarow[I], u = I - 1 == -1 ? 0 : store.visibledatarow[I - 1], m = store.visibledatacolumn[F], g = F - 1 == -1 ? 0 : store.visibledatacolumn[F - 1], d = f = T, y = v = A), _.row = [d, f], _.column = [y, v], _.row_focus = d, _.column_focus = y, _.moveXY = {
-        x: I,
-        y: F
-      }, showSelectionHighlight(), Be.pivotclick(d, y), formula.fucntionboxshow(d, y);
-    } else if (t == "rangeOfFormula") {
-      let _ = formula.func_selectedrange, T;
-      _.row_focus == null ? T = _.row[0] : T = _.row_focus;
-      let A;
-      _.column_focus == null ? A = _.column[0] : A = _.column_focus;
-      let R = be.mergeborer(store.flowdata, T, A);
-      if (R) {
-        let D = R.row[2], E = R.row[3], P = R.column[2], z = R.column[3];
-        n > 0 ? e == "down" ? (T = E, A = P) : e == "right" && (T = D, A = z) : (T = D, A = P);
-      }
-      let I = _.moveXY == null ? T : _.moveXY.x, F = _.moveXY == null ? A : _.moveXY.y;
-      e == "down" ? (T += n, I = T) : e == "right" && (A += n, F = A), T >= a && (T = a - 1, I = T), T < 0 && (T = 0, I = T), A >= o && (A = o - 1, F = A), A < 0 && (A = 0, F = A);
-      let N = be.mergeborer(store.flowdata, T, A);
-      N ? (s = N.row[1], u = N.row[0], d = N.row[2], f = N.row[3], m = N.column[1], g = N.column[0], y = N.column[2], v = N.column[3]) : (s = store.visibledatarow[I], u = I - 1 == -1 ? 0 : store.visibledatarow[I - 1], d = I, f = I, m = store.visibledatacolumn[F], g = F - 1 == -1 ? 0 : store.visibledatacolumn[F - 1], y = F, v = F), formula.func_selectedrange = {
-        left: g,
-        width: m - g - 1,
-        top: u,
-        height: s - u - 1,
-        left_move: g,
-        width_move: m - g - 1,
-        top_move: u,
-        height_move: s - u - 1,
-        row: [d, f],
-        column: [y, v],
-        row_focus: d,
-        column_focus: y,
-        moveXY: {
-          x: I,
-          y: F
-        }
-      }, $("#luckysheet-formula-functionrange-select").css({
-        left: g,
-        width: m - g - 1,
-        top: u,
-        height: s - u - 1
-      }).show(), formula.rangeSetValue({
-        row: [d, f],
-        column: [y, v]
-      });
-    }
-    let k = $("#luckysheet-cell-main").scrollLeft(), b = $("#luckysheet-cell-main").scrollTop(), w = $("#luckysheet-cell-main").height(), x = $("#luckysheet-cell-main").width(), C = 0, S = 0;
-    m - k - x + 20 > 0 ? (C = m - x + 20, l && $("#luckysheet-scrollbar-x").scrollLeft(C)) : g - k - 20 < 0 && (C = g - 20, l && $("#luckysheet-scrollbar-x").scrollLeft(C)), s - b - w + 20 > 0 ? (S = s - w + 20, l && $("#luckysheet-scrollbar-y").scrollTop(S)) : u - b - 20 < 0 && (S = u - 20, l && $("#luckysheet-scrollbar-y").scrollTop(S)), clearTimeout(store.countfuncTimeout), wl(), server.saveParam("mv", store.currentSheetIndex, store.luckysheet_select_save), freeze.scrollFreezen();
-  }
-  function aa(e, n, t) {
-    t || (t = true);
-    let l, a, o, s;
-    if (n == "rangeOfSelect") {
-      let v = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], k = v.row_focus, b = v.column_focus, w = false, x = {};
-      if (store.config.merge != null && k + "_" + b in store.config.merge && (w = true, x = store.config.merge[k + "_" + b]), e == "down") {
-        if (k == store.flowdata.length - 1)
-          return;
-        w ? k = pt("down", b, x.r + x.rs - 1, store.flowdata.length - 1) : k = pt("down", b, k, store.flowdata.length - 1);
-      } else if (e == "up") {
-        if (k == 0)
-          return;
-        w ? k = pt("up", b, 0, x.r) : k = pt("up", b, 0, k);
-      } else if (e == "right") {
-        if (b == store.flowdata[0].length - 1)
-          return;
-        w ? b = pt("right", k, x.c + x.cs - 1, store.flowdata[0].length - 1) : b = pt("right", k, b, store.flowdata[0].length - 1);
-      } else if (e == "left") {
-        if (b == 0)
-          return;
-        w ? b = pt("left", k, 0, x.c) : b = pt("left", k, 0, b);
-      }
-      let C = [k, k], S = [b, b];
-      l = store.visibledatarow[k], a = k - 1 == -1 ? 0 : store.visibledatarow[k - 1], o = store.visibledatacolumn[b], s = b - 1 == -1 ? 0 : store.visibledatacolumn[b - 1];
-      let _ = be.mergeMoveMain(S, C, v, a, l - a - 1, s, o - s - 1);
-      _ != null && (S = _[0], C = _[1]), store.luckysheet_select_save = [{
-        row: C,
-        column: S
-      }], showSelectionHighlight(), Be.pivotclick(k, b), formula.fucntionboxshow(k, b);
-    } else if (n == "rangeOfFormula") {
-      let v = formula.func_selectedrange, k = v.row_focus, b = v.column_focus, w = false, x = {};
-      if (store.config.merge != null && k + "_" + b in store.config.merge && (w = true, x = store.config.merge[k + "_" + b]), e == "down") {
-        if (k == store.flowdata.length - 1)
-          return;
-        w ? k = pt("down", b, x.r + x.rs - 1, store.flowdata.length - 1) : k = pt("down", b, k, store.flowdata.length - 1);
-      } else if (e == "up") {
-        if (k == 0)
-          return;
-        w ? k = pt("up", b, 0, x.r) : k = pt("up", b, 0, k);
-      } else if (e == "right") {
-        if (b == store.flowdata[0].length - 1)
-          return;
-        w ? b = pt("right", k, x.c + x.cs - 1, store.flowdata[0].length - 1) : b = pt("right", k, b, store.flowdata[0].length - 1);
-      } else if (e == "left") {
-        if (b == 0)
-          return;
-        w ? b = pt("left", k, 0, x.c) : b = pt("left", k, 0, b);
-      }
-      let C = [k, k], S = [b, b];
-      l = store.visibledatarow[k], a = k - 1 == -1 ? 0 : store.visibledatarow[k - 1], o = store.visibledatacolumn[b], s = b - 1 == -1 ? 0 : store.visibledatacolumn[b - 1];
-      let _ = a, T = l - a - 1, A = s, R = o - s - 1, I = be.mergeMoveMain(S, C, v, _, T, A, R);
-      I != null && (S = I[0], C = I[1], _ = I[2], T = I[3], A = I[4], R = I[5]), formula.func_selectedrange = {
-        left: A,
-        width: R,
-        top: _,
-        height: T,
-        left_move: A,
-        width_move: R,
-        top_move: _,
-        height_move: T,
-        row: C,
-        column: S,
-        row_focus: k,
-        column_focus: b
-      }, $("#luckysheet-formula-functionrange-select").css({
-        left: A,
-        width: R,
-        top: _,
-        height: T
-      }).show(), formula.rangeSetValue({
-        row: C,
-        column: S
-      });
-    }
-    let u = $("#luckysheet-cell-main").scrollLeft(), d = $("#luckysheet-cell-main").scrollTop(), f = $("#luckysheet-cell-main").height(), m = $("#luckysheet-cell-main").width(), g = 0, y = 0;
-    o - u - m + 20 > 0 ? (g = o - m + 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)) : s - u - 20 < 0 && (g = s - 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)), l - d - f + 20 > 0 ? (y = l - f + 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)), clearTimeout(store.countfuncTimeout), wl(), freeze.scrollFreezen();
-  }
-  function Pn(e, n, t, l) {
-    l == null && (l = true), e || e == "down";
-    let a, o, s, u;
-    if (t == "rangeOfSelect") {
-      let k = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], b = k.row[0], w = k.row[1], x = k.column[0], C = k.column[1], S = k.row_focus, _ = k.column_focus, T = store.flowdata.length, A = store.flowdata[0].length;
-      if (e == "down") {
-        if (Ol(S, x, C)) {
-          let N = tr(S, x, C), D = N[0], E = N[1];
-          D > b && E == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : E < w && D == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : n > 0 ? w += n : b += n;
-        } else
-          S > b && S == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : S < w && S == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : S == b && S == w && (n > 0 ? w += n : b += n);
-        w >= T && (w = T - 1), w < 0 && (w = 0), b >= T && (b = T - 1), b < 0 && (b = 0);
-      } else {
-        if (Bl(_, b, w)) {
-          let N = lr(_, b, w), D = N[0], E = N[1];
-          D > x && E == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : E < C && D == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : n > 0 ? C += n : x += n;
-        } else
-          _ > x && _ == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : _ < C && _ == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : _ == x && _ == C && (n > 0 ? C += n : x += n);
-        C >= A && (C = A - 1), C < 0 && (C = 0), x >= A && (x = A - 1), x < 0 && (x = 0);
-      }
-      let R = [b, w], I = [x, C];
-      a = store.visibledatarow[w], o = b - 1 == -1 ? 0 : store.visibledatarow[b - 1], s = store.visibledatacolumn[C], u = x - 1 == -1 ? 0 : store.visibledatacolumn[x - 1];
-      let F = be.mergeMoveMain(I, R, k, o, a - o - 1, u, s - u - 1);
-      F != null && (I = F[0], R = F[1]), k.row = R, k.column = I, showSelectionHighlight();
-    } else if (t == "rangeOfFormula") {
-      let k = formula.func_selectedrange, b = k.row[0], w = k.row[1], x = k.column[0], C = k.column[1], S = k.row_focus, _ = k.column_focus, T = store.flowdata.length, A = store.flowdata[0].length;
-      if (e == "down") {
-        if (Ol(S, x, C)) {
-          let z = tr(S, x, C), O2 = z[0], V = z[1];
-          O2 > b && V == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : V < w && O2 == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : n > 0 ? w += n : b += n;
-        } else
-          S > b && S == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : S < w && S == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : S == b && S == w && (n > 0 ? w += n : b += n);
-        w >= T && (w = T - 1), w < 0 && (w = 0), b >= T && (b = T - 1), b < 0 && (b = 0);
-      } else {
-        if (Bl(_, b, w)) {
-          let z = lr(_, b, w), O2 = z[0], V = z[1];
-          O2 > x && V == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : V < C && O2 == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : n > 0 ? C += n : x += n;
-        } else
-          _ > x && _ == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : _ < C && _ == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : _ == x && _ == C && (n > 0 ? C += n : x += n);
-        C >= A && (C = A - 1), C < 0 && (C = 0), x >= A && (x = A - 1), x < 0 && (x = 0);
-      }
-      let R = [b, w], I = [x, C];
-      a = store.visibledatarow[w], o = b - 1 == -1 ? 0 : store.visibledatarow[b - 1], s = store.visibledatacolumn[C], u = x - 1 == -1 ? 0 : store.visibledatacolumn[x - 1];
-      let F = o, N = a - o - 1, D = u, E = s - u - 1, P = be.mergeMoveMain(I, R, k, F, N, D, E);
-      P != null && (I = P[0], R = P[1], F = P[2], N = P[3], D = P[4], E = P[5]), formula.func_selectedrange = {
-        left: D,
-        width: E,
-        top: F,
-        height: N,
-        left_move: D,
-        width_move: E,
-        top_move: F,
-        height_move: N,
-        row: R,
-        column: I,
-        row_focus: S,
-        column_focus: _
-      }, $("#luckysheet-formula-functionrange-select").css({
-        left: D,
-        width: E,
-        top: F,
-        height: N
-      }).show(), formula.rangeSetValue({
-        row: R,
-        column: I
-      });
-    }
-    let d = $("#luckysheet-cell-main").scrollLeft(), f = $("#luckysheet-cell-main").scrollTop(), m = $("#luckysheet-cell-main").height(), g = $("#luckysheet-cell-main").width(), y = 0, v = 0;
-    s - d - g + 20 > 0 ? (y = s - g + 20, l && $("#luckysheet-scrollbar-x").scrollLeft(y)) : u - d - 20 < 0 && (y = u - 20, l && $("#luckysheet-scrollbar-x").scrollLeft(y)), a - f - m + 20 > 0 ? (v = a - m + 20, l && $("#luckysheet-scrollbar-y").scrollTop(v)) : o - f - 20 < 0 && (v = o - 20, l && $("#luckysheet-scrollbar-y").scrollTop(v)), clearTimeout(store.countfuncTimeout), wl(), freeze.scrollFreezen();
-  }
-  function an(e, n, t) {
-    t || (t = true);
-    let l, a, o, s;
-    if (n == "rangeOfSelect") {
-      let v = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], k = v.row_focus, b = v.column_focus, w = v.row[0], x = v.row[1], C = v.column[0], S = v.column[1];
-      if (e == "down") {
-        if (x == store.flowdata.length - 1)
-          return;
-        if (Ol(k, C, S)) {
-          let R = tr(k, C, S), I = R[0], F = R[1];
-          I > w && F == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
-        } else
-          k > w && k == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
-      } else if (e == "up") {
-        if (w == 0)
-          return;
-        if (Ol(k, C, S)) {
-          let R = tr(k, C, S), I = R[0];
-          R[1] < x && I == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
-        } else
-          k < x && k == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
-      } else if (e == "right") {
-        if (S == store.flowdata[0].length - 1)
-          return;
-        if (Bl(b, w, x)) {
-          let R = lr(b, w, x), I = R[0], F = R[1];
-          I > C && F == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
-        } else
-          b > C && b == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
-      } else if (e == "left") {
-        if (C == 0)
-          return;
-        if (Bl(b, w, x)) {
-          let R = lr(b, w, x), I = R[0];
-          R[1] < S && I == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
-        } else
-          b < S && b == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
-      }
-      let _ = [w, x], T = [C, S];
-      l = store.visibledatarow[x], a = w - 1 == -1 ? 0 : store.visibledatarow[w - 1], o = store.visibledatacolumn[S], s = C - 1 == -1 ? 0 : store.visibledatacolumn[C - 1];
-      let A = be.mergeMoveMain(T, _, v, a, l - a - 1, s, o - s - 1);
-      A != null && (T = A[0], _ = A[1]), v.row = _, v.column = T, showSelectionHighlight();
-    } else if (n == "rangeOfFormula") {
-      let v = formula.func_selectedrange, k = v.row_focus, b = v.column_focus, w = v.row[0], x = v.row[1], C = v.column[0], S = v.column[1];
-      if (e == "down") {
-        if (x == store.flowdata.length - 1)
-          return;
-        if (Ol(k, C, S)) {
-          let D = tr(k, C, S), E = D[0], P = D[1];
-          E > w && P == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
-        } else
-          k > w && k == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
-      } else if (e == "up") {
-        if (w == 0)
-          return;
-        if (Ol(k, C, S)) {
-          let D = tr(k, C, S), E = D[0];
-          D[1] < x && E == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
-        } else
-          k < x && k == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
-      } else if (e == "right") {
-        if (S == store.flowdata[0].length - 1)
-          return;
-        if (Bl(b, w, x)) {
-          let D = lr(b, w, x), E = D[0], P = D[1];
-          E > C && P == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
-        } else
-          b > C && b == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
-      } else if (e == "left") {
-        if (C == 0)
-          return;
-        if (Bl(b, w, x)) {
-          let D = lr(b, w, x), E = D[0];
-          D[1] < S && E == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
-        } else
-          b < S && b == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
-      }
-      let _ = [w, x], T = [C, S];
-      l = store.visibledatarow[x], a = w - 1 == -1 ? 0 : store.visibledatarow[w - 1], o = store.visibledatacolumn[S], s = C - 1 == -1 ? 0 : store.visibledatacolumn[C - 1];
-      let A = a, R = l - a - 1, I = s, F = o - s - 1, N = be.mergeMoveMain(T, _, v, A, R, I, F);
-      N != null && (T = N[0], _ = N[1], A = N[2], R = N[3], I = N[4], F = N[5]), formula.func_selectedrange = {
-        left: I,
-        width: F,
-        top: A,
-        height: R,
-        left_move: I,
-        width_move: F,
-        top_move: A,
-        height_move: R,
-        row: _,
-        column: T,
-        row_focus: k,
-        column_focus: b
-      }, $("#luckysheet-formula-functionrange-select").css({
-        left: I,
-        width: F,
-        top: A,
-        height: R
-      }).show(), formula.rangeSetValue({
-        row: _,
-        column: T
-      });
-    }
-    let u = $("#luckysheet-cell-main").scrollLeft(), d = $("#luckysheet-cell-main").scrollTop(), f = $("#luckysheet-cell-main").height(), m = $("#luckysheet-cell-main").width(), g = 0, y = 0;
-    o - u - m + 20 > 0 ? (g = o - m + 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)) : s - u - 20 < 0 && (g = s - 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)), l - d - f + 20 > 0 ? (y = l - f + 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)), clearTimeout(store.countfuncTimeout), wl(), freeze.scrollFreezen();
-  }
-  function Ol(e, n, t) {
-    let l = false;
-    for (let a = n; a <= t; a++) {
-      let o = store.flowdata[e][a];
-      if (typeOf(o) == "object" && "mc" in o) {
-        l = true;
-        break;
-      }
-    }
-    return l;
-  }
-  function Bl(e, n, t) {
-    let l = false;
-    for (let a = n; a <= t; a++) {
-      let o = store.flowdata[a][e];
-      if (typeOf(o) == "object" && "mc" in o) {
-        l = true;
-        break;
-      }
-    }
-    return l;
-  }
-  function tr(e, n, t) {
-    let l = 0, a = store.flowdata.length - 1, o = null;
-    if (e > l)
-      for (let u = e; u >= l; u--) {
-        for (let d = n; d <= t; d++) {
-          let f = store.flowdata[u][d];
-          if (typeOf(f) == "object" && "mc" in f) {
-            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
-            (o == null || m.r < o) && (o = m.r);
-          }
-        }
-        if (Ol(o - 1, n, t) && o > l)
-          u = o;
-        else
-          break;
-      }
-    else
-      o = l;
-    let s = null;
-    if (e < a)
-      for (let u = e; u <= a; u++) {
-        for (let d = n; d <= t; d++) {
-          let f = store.flowdata[u][d];
-          if (typeOf(f) == "object" && "mc" in f) {
-            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
-            (s == null || m.r + m.rs - 1 > s) && (s = m.r + m.rs - 1);
-          }
-        }
-        if (Ol(s + 1, n, t) && s < a)
-          u = s;
-        else
-          break;
-      }
-    else
-      s = a;
-    return [o, s];
-  }
-  function lr(e, n, t) {
-    let l = 0, a = store.flowdata[0].length - 1, o = null;
-    if (e > l)
-      for (let u = e; u >= l; u--) {
-        for (let d = n; d <= t; d++) {
-          let f = store.flowdata[d][u];
-          if (typeOf(f) == "object" && "mc" in f) {
-            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
-            (o == null || m.c < o) && (o = m.c);
-          }
-        }
-        if (Bl(o - 1, n, t) && o > l)
-          u = o;
-        else
-          break;
-      }
-    else
-      o = l;
-    let s = null;
-    if (e < a)
-      for (let u = e; u <= a; u++) {
-        for (let d = n; d <= t; d++) {
-          let f = store.flowdata[d][u];
-          if (typeOf(f) == "object" && "mc" in f) {
-            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
-            (s == null || m.c + m.cs - 1 > s) && (s = m.c + m.cs - 1);
-          }
-        }
-        if (Bl(s + 1, n, t) && s < a)
-          u = s;
-        else
-          break;
-      }
-    else
-      s = a;
-    return [o, s];
-  }
-  function pt(e, n, t, l) {
-    let a = null, o;
-    if (e == "down") {
-      let s = store.flowdata[t][n];
-      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false, console.log(o, "stNull");
-      let u = [], d = 0;
-      for (let f = t + 1; f <= l; f++) {
-        let m = store.flowdata[f][n];
-        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o == true && u[d] == false) {
-          a = t + d + 1;
-          break;
-        } else if (u.length > 1) {
-          if (o && u[d] == false) {
-            a = t + d + 1;
-            break;
-          } else if (!o) {
-            if (u[d] == false && u[d - 1] == true) {
-              a = t + d + 1;
-              break;
-            } else if (u[d] == true && u[d - 1] == false) {
-              a = t + d;
-              break;
-            }
-          }
-        }
-        f == l && (a = l), d++;
-      }
-    } else if (e == "up") {
-      let s = store.flowdata[l][n];
-      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false;
-      let u = [], d = 0;
-      for (let f = l - 1; f >= t; f--) {
-        let m = store.flowdata[f][n];
-        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o && u[d] == false) {
-          a = l - (d + 1);
-          break;
-        } else if (u.length > 1) {
-          if (o && u[d] == false) {
-            a = l - (d + 1);
-            break;
-          } else if (!o) {
-            if (u[d] == false && u[d - 1] == true) {
-              a = l - (d + 1);
-              break;
-            } else if (u[d] == true && u[d - 1] == false) {
-              a = l - d;
-              break;
-            }
-          }
-        }
-        f == t && (a = t), d++;
-      }
-    } else if (e == "right") {
-      let s = store.flowdata[n][t];
-      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false;
-      let u = [], d = 0;
-      for (let f = t + 1; f <= l; f++) {
-        let m = store.flowdata[n][f];
-        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o && u[d] == false) {
-          a = t + d + 1;
-          break;
-        } else if (u.length > 1) {
-          if (o && u[d] == false) {
-            a = t + d + 1;
-            break;
-          } else if (!o) {
-            if (u[d] == false && u[d - 1] == true) {
-              a = t + d + 1;
-              break;
-            } else if (u[d] == true && u[d - 1] == false) {
-              a = t + d;
-              break;
-            }
-          }
-        }
-        f == l && (a = l), d++;
-      }
-    } else if (e == "left") {
-      let s = store.flowdata[n][l];
-      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false;
-      let u = [], d = 0;
-      for (let f = l - 1; f >= t; f--) {
-        let m = store.flowdata[n][f];
-        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o && u[d] == false) {
-          a = l - (d + 1);
-          break;
-        } else if (u.length > 1) {
-          if (o && u[d] == false) {
-            a = l - (d + 1);
-            break;
-          } else if (!o) {
-            if (u[d] == false && u[d - 1] == true) {
-              a = l - (d + 1);
-              break;
-            } else if (u[d] == true && u[d - 1] == false) {
-              a = l - d;
-              break;
-            }
-          }
-        }
-        f == t && (a = t), d++;
-      }
-    }
-    return a;
-  }
-  var Ea = lazyInit(
-    () => {
-      ht();
-      Ht();
-      Mt();
-      Ma();
-      nl();
-      Xt();
-      on();
-      Ze();
-      Jt();
-    }
-  );
-
-  // src/modules/071-If.js
-  function $f(e) {
-    e == null && (e = "chart");
-    for (var n = window.navigator.userAgent.replace(/[^a-zA-Z0-9]/g, "").split(""), t = "", l = 0; l < 12; l++)
-      t += n[Math.round(Math.random() * (n.length - 1))];
-    var a = (/* @__PURE__ */ new Date()).getTime();
-    return e + "_" + t + "_" + a;
-  }
-  function kc(e, n) {
-    return e.replace(/\$\{([\w]+)\}/g, function(t, l) {
-      var a = n[l];
-      return typeof a != "undefined" ? a : t;
-    });
-  }
-  var If = lazyInit(
-    () => {
-    }
-  );
-
-  // src/modules/075-Io.js
-  function Mf(e, n, t) {
-    let l = e.data;
-    Ao(Tp), Ro(Cp, null, function() {
-      if (typeof ELEMENT !== "undefined" && ELEMENT.lang && ELEMENT.lang.en) {
-        ELEMENT.locale(ELEMENT.lang.en);
-      }
-      let a = new Vuex.Store();
-      console.info("chartmix::", chartmix.default), Vue.use(chartmix.default, {
-        store: a
-      });
-      store.onWorkbookLoaded();
-      let o = document.getElementsByTagName("body")[0];
-      chartmix.default.initChart(o, store.lang), $(".chartSetting").css({
-        top: "1px",
-        bottom: "1px",
-        position: "absolute",
-        right: "0px",
-        width: "350px",
-        background: "#fff",
-        border: "1px solid #E5E5E5",
-        "z-index": 1004,
-        "box-shadow": "0px 2px 4px rgba(0,0,0,0.2)",
-        "-webkit-box-shadow": "0px 2px 4px rgba(0,0,0,0.2)",
-        "-moz-box-shadow": "0px 2px 4px rgba(0,0,0,0.2)",
-        "-moz-user-select": "none",
-        "-khtml-user-select": "none",
-        "-webkit-user-select": "none",
-        "-ms-user-select": "none",
-        "user-select": "none",
-        "padding-left": "30px",
-        display: "none"
-      }), store.createChart = chartmix.default.createChart, store.highlightChart = chartmix.default.highlightChart, store.deleteChart = chartmix.default.deleteChart, store.resizeChart = chartmix.default.resizeChart, store.changeChartRange = chartmix.default.changeChartRange, store.changeChartCellData = chartmix.default.changeChartCellData, store.getChartJson = chartmix.default.getChartJson, store.chart_selection = Ip(), store.chartparam.jfrefreshchartall = $p, store.chartparam.changeChartCellData = chartmix.default.changeChartCellData, store.chartparam.renderChart = chartmix.default.renderChart, store.chartparam.getChartJson = chartmix.default.getChartJson, store.chartparam.insertToStore = chartmix.default.insertToStore;
-      for (let s = 0; s < l.length; s++)
-        Sp(l[s].chart, t);
-      for (let s = 0; s < l.length; s++)
-        l[s].status == "1" && Ic(l[s].index);
-      Do(store.asyncLoad, "chart");
-    });
-  }
-  function Sp(e, n) {
-    if (e != null)
-      for (let t = 0; t < e.length; t++) {
-        let l = e[t];
-        n && store.chartparam.insertToStore({
-          chart_id: l.chart_id,
-          chartOptions: l.chartOptions
-        });
-        let a = l.chart_id, o = a + "_c", s = '<div id="${id}"class="luckysheet-modal-dialog luckysheet-modal-dialog-chart ${addclass}"tabindex="0"role="dialog"aria-labelledby=":41e"dir="ltr"><div class="luckysheet-modal-dialog-resize"><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-lt"data-type="lt"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-mt"data-type="mt"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-lm"data-type="lm"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-rm"data-type="rm"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-rt"data-type="rt"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-lb"data-type="lb"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-mb"data-type="mb"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-rb"data-type="rb"></div></div><div class="luckysheet-modal-dialog-controll"><span class="luckysheet-modal-controll-btn luckysheet-modal-controll-update"role="button"tabindex="0"aria-label="修改图表"title="Modify chart"><i class="fa fa-pencil"aria-hidden="true"></i></span><span class="luckysheet-modal-controll-btn luckysheet-modal-controll-max"role="butluckysheet_chartIns_indexton"tabindex="0"aria-label="最大化"title="Maximize"><i class="fa fa-window-maximize"aria-hidden="true"></i></span><span class="luckysheet-modal-controll-btn luckysheet-modal-controll-del"role="button"tabindex="0"aria-label="删除"title="Delete"><i class="fa fa-trash"aria-hidden="true"></i></span></div><div class="luckysheet-modal-dialog-content">${content}</div></div>', u;
-        if ($(`.luckysheet-cell-main #${o}`).length === 0 && (u = $(kc(s, {
-          id: o,
-          addclass: "luckysheet-data-visualization-chart",
-          title: "Generate chart",
-          content: ""
-        })).appendTo($(".luckysheet-cell-main"))), !u)
-          return;
-        Ff(u), $(`#${o}`).children(".luckysheet-modal-dialog-content")[0].id = a;
-        let d = document.getElementById(o), f;
-        f = store.chartparam.getChartJson(l.chart_id), store.chartparam.renderChart({
-          chart_id: l.chart_id,
-          chartOptions: f
-        }), store.currentChart = f, Ga(a), $(`#${a}_c .luckysheet-modal-controll-del`).click(function(k) {
-          Ef(a);
-        }), $(`#${a}_c .luckysheet-modal-controll-update`).click(function(k) {
-          Lf();
-        }), $(`#${a}_c`).mouseup(function(k) {
-          let b = $(this).css("width"), w = $(this).css("height"), x = $(this).css("top"), C = $(this).css("left"), S = store.luckysheetfile[sheetPosition(store.currentSheetIndex)];
-          S.chart || (S.chart = []), S.chart.forEach(
-            (_) => {
-              _.chart_id === a && (_.width = parseFloat(b), _.height = parseFloat(w), _.left = parseFloat(C), _.top = parseFloat(x));
-            }
-          );
-        }), u.children(".luckysheet-modal-dialog-content").mousedown(function(k) {
-          store.chartparam.luckysheetCurrentChartMaxState || Ga(a), k.stopPropagation();
-        }), u.mousedown(function(k) {
-          if (!store.chartparam.luckysheetCurrentChartMaxState) {
-            Ga(a), Qr(true), !$(k.target).is(".luckysheet-modal-dialog-controll") && !$(k.target).is(".luckysheet-modal-controll-btn") && !$(k.target).is("i") && (store.chartparam.luckysheetCurrentChartMoveTimeout = setTimeout(function() {
-              store.chartparam.luckysheetCurrentChartMove = true;
-            }, 100));
-            var b = store.chartparam.luckysheetCurrentChartMoveObj.offset(), w = store.chartparam.luckysheetCurrentChartMoveObj.position();
-            store.chartparam.luckysheetCurrentChartMoveXy = [k.pageX - b.left, k.pageY - b.top, w.left, w.top, $("#luckysheet-scrollbar-x").scrollLeft(), $("#luckysheet-scrollbar-y").scrollTop()], store.chartparam.luckysheetCurrentChartMoveWinH = $("#luckysheet-cell-main")[0].scrollHeight, store.chartparam.luckysheetCurrentChartMoveWinW = $("#luckysheet-cell-main")[0].scrollWidth, !$(k.target).hasClass("luckysheet-mousedown-cancel") && $(k.target).filter("[class*='sp-palette']").length == 0 && $(k.target).filter("[class*='sp-thumb']").length == 0 && $(k.target).filter("[class*='sp-']").length == 0 && ($("#luckysheet-rightclick-menu").hide(), $("#luckysheet-cols-h-hover").hide(), $("#luckysheet-cols-menu-btn").hide(), $("#luckysheet-rightclick-menu").hide(), $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu, #luckysheet-user-menu").hide(), $("body > .luckysheet-filter-menu, body > .luckysheet-filter-submenu, body > .luckysheet-cols-menu").hide()), k.stopPropagation();
-          }
-        }).find(".luckysheet-modal-dialog-resize-item").mousedown(function(k) {
-          if (store.chartparam.luckysheetCurrentChartActive) {
-            store.chartparam.luckysheetCurrentChartResize = $(this).data("type");
-            var b = nt(k.pageX, k.pageY), w = $("#luckysheet-scrollbar-x").scrollLeft(), x = $("#luckysheet-scrollbar-y").scrollTop(), C = b[0] + w, S = b[1] + x, _ = store.chartparam.luckysheetCurrentChartResizeObj.position();
-            store.chartparam.luckysheetCurrentChartResizeXy = [C, S, u.width(), u.height(), _.left + w, _.top + x, w, x], store.chartparam.luckysheetCurrentChartResizeWinH = $("#luckysheet-cell-main")[0].scrollHeight, store.chartparam.luckysheetCurrentChartResizeWinW = $("#luckysheet-cell-main")[0].scrollWidth, store.chartparam.luckysheetCurrentChart = a, k.stopPropagation();
-          }
-        });
-        let m = l.width, g = l.height, y = l.left, v = l.top;
-        d.style.width = m + "px", d.style.height = g + "px", d.style.position = "absolute", d.style.background = "#fff", d.style.left = y + "px", d.style.top = v + "px", d.style.zIndex = store.zIndex ? store.zIndex : 15, store.zIndex++;
-      }
-  }
-  function $p(e, n, t, l, a) {
-    let o = store.luckysheetfile.find((u) => u.index == store.currentSheetIndex), s = o.chart;
-    s && s.forEach(
-      (u) => {
-        var d = getCellData(o.name + "!" + u.chartOptions.rangeTxt);
-        if (typeof d == "object" && d.length != 0 && d.data.length != null) {
-          var f = d.data;
-          store.chartparam.changeChartCellData(u.chart_id, f);
-        }
-      }
-    );
-  }
-  function Ip() {
-    return {
-      create: function() {
-        var e = store.currentChart;
-        if (e.rangeArray.length > 1)
-          return;
-        $("#luckysheet-chart-rangeShow").empty(), $("#luckysheet-cell-selected-boxs").hide(), $("#luckysheet-cell-selected-focus").hide(), $("#luckysheet-rows-h-selected").empty(), $("#luckysheet-cols-h-selected").empty(), $("#luckysheet-row-count-show").hide(), $("#luckysheet-column-count-show").hide();
-        var n = e.rangeArray[0].row[0], t = e.rangeArray[0].column[0], l = e.rangeSplitArray, a = e.rangeRowCheck;
-        if (a.exits)
-          var o = f("rowtitle", l.rowtitle.row[0] + n, l.rowtitle.row[1] + n, l.rowtitle.column[0] + t, l.rowtitle.column[1] + t);
-        else
-          var o = "";
-        var s = e.rangeColCheck;
-        if (s.exits)
-          var u = f("coltitle", l.coltitle.row[0] + n, l.coltitle.row[1] + n, l.coltitle.column[0] + t, l.coltitle.column[1] + t);
-        else
-          var u = "";
-        var d = f("content", l.content.row[0] + n, l.content.row[1] + n, l.content.column[0] + t, l.content.column[1] + t);
-        $("#luckysheet-chart-rangeShow").append(o + u + d);
-        function f(m, g, y, v, k) {
-          var b = Xi(), w = Ki(), x = b[y], C = g - 1 == -1 ? 0 : b[g - 1], S = w[k], _ = v - 1 == -1 ? 0 : w[v - 1];
-          if (m == "rowtitle")
-            var T = "#C65151";
-          if (m == "coltitle")
-            var T = "#9667C0";
-          if (m == "content")
-            var T = "#4970D1";
-          var A = '<div id="luckysheet-chart-rangeShow-' + m + '" style="left: ' + _ + "px;width: " + (S - _ - 1) + "px;top: " + C + "px;height: " + (x - C - 1) + 'px;border: none;margin: 0;position: absolute;z-index: 14;"><div class="luckysheet-chart-rangeShow-move" data-type="top" style="height: 2px;border-top: 2px solid #fff;border-bottom: 2px solid #fff;background: ' + T + ';position: absolute;left: 0;right: 0;top: -2px;z-index: 18;opacity: 0.9;cursor: move;"></div><div class="luckysheet-chart-rangeShow-move" data-type="right" style="width: 2px;border-left: 2px solid #fff;border-right: 2px solid #fff;background: ' + T + ';position: absolute;top: 0;bottom: 0;right: -2px;z-index: 18;opacity: 0.9;cursor: move;"></div><div class="luckysheet-chart-rangeShow-move" data-type="bottom" style="height: 2px;border-top: 2px solid #fff;border-bottom: 2px solid #fff;background: ' + T + ';position: absolute;left: 0;right: 0;bottom: -2px;z-index: 18;opacity: 0.9;cursor: move;"></div><div class="luckysheet-chart-rangeShow-move" data-type="left" style="width: 2px;border-left: 2px solid #fff;border-right: 2px solid #fff;background: ' + T + ';position: absolute;top: 0;bottom: 0;left: -2px;z-index: 18;opacity: 0.9;cursor: move;"></div><div style="border: 2px solid #85c0fc;background: ' + T + ';position: absolute;top: 0;right: 0;bottom: 0;left: 0;z-index: 15;opacity: 0.1;"></div><div class="luckysheet-chart-rangeShow-resize" data-type="lt" style="width: 6px;height: 6px;border: 1px solid #fff;background: ' + T + ';position: absolute;left: -3px;top: -3px;z-index: 19;cursor: se-resize;"></div><div class="luckysheet-chart-rangeShow-resize" data-type="rt" style="width: 6px;height: 6px;border: 1px solid #fff;background: ' + T + ';position: absolute;right: -3px;top: -3px;z-index: 19;cursor: ne-resize;"></div><div class="luckysheet-chart-rangeShow-resize" data-type="lb" style="width: 6px;height: 6px;border: 1px solid #fff;background: ' + T + ';position: absolute;left: -3px;bottom: -3px;z-index: 19;cursor: ne-resize;"></div><div class="luckysheet-chart-rangeShow-resize" data-type="rb" style="width: 6px;height: 6px;border: 1px solid #fff;background: ' + T + ';position: absolute;right: -3px;bottom: -3px;z-index: 19;cursor: se-resize;"></div></div>';
-          return A;
-        }
-      },
-      rangeMove: false,
-      rangeMovexy: null,
-      rangeMoveIndex: null,
-      rangeMoveObj: null,
-      rangeMoveDraging: function(e, n, t) {
-        var l = store.currentChart, a = l.rangeArray[0].row[0], o = l.rangeArray[0].column[0], s = l.rangeRowCheck, u = l.rangeColCheck, d = l.rangeSplitArray, f = nt(e.pageX, e.pageY), m = $("#luckysheet-cell-main").scrollLeft(), g = $("#luckysheet-cell-main").scrollTop(), y = f[0] + m, v = f[1] + g, k = $(window).height() + g - n - t, b = $(window).width() + m, w = Af(v), x = w[2], C = Df(y), S = C[2], _ = Xi(), T = Ki(), A = store.chart_selection.rangeMoveObj.attr("id");
-        if (A == "luckysheet-chart-rangeShow-content") {
-          var R = store.chart_selection.rangeMoveIndex[0] - store.chart_selection.rangeMovexy[0] + x;
-          s.exits ? (R < a + s.range[1] + 1 || v < 0) && (R = a + s.range[1] + 1) : (R < 0 || v < 0) && (R = 0);
-          var I = d.content.row[1] - d.content.row[0] + R;
-          (I >= _.length - 1 || v > k) && (R = _.length - 1 - d.content.row[1] + d.content.row[0], I = _.length - 1);
-          var F = store.chart_selection.rangeMoveIndex[1] - store.chart_selection.rangeMovexy[1] + S;
-          u.exits ? (F < o + u.range[1] + 1 || y < 0) && (F = o + u.range[1] + 1) : (F < 0 || y < 0) && (F = 0);
-          var N = d.content.column[1] - d.content.column[0] + F;
-          (N >= T.length - 1 || y > b) && (F = T.length - 1 - d.content.column[1] + d.content.column[0], N = T.length - 1), s.exits && u.exits ? (l.rangeArray = [{
-            row: [a, I],
-            column: [o, N]
-          }], l.rangeSplitArray.range = {
-            row: [a, I],
-            column: [o, N]
-          }, l.rangeSplitArray.content = {
-            row: [R - a, I - a],
-            column: [F - o, N - o]
-          }, l.rangeSplitArray.rowtitle = {
-            row: l.rangeSplitArray.rowtitle.row,
-            column: [F - o, N - o]
-          }, l.rangeSplitArray.coltitle = {
-            row: [R - a, I - a],
-            column: l.rangeSplitArray.coltitle.column
-          }) : s.exits ? (l.rangeArray = [{
-            row: [a, I],
-            column: [F, N]
-          }], l.rangeSplitArray.range = {
-            row: [a, I],
-            column: [F, N]
-          }, l.rangeSplitArray.content = {
-            row: [R - a, I - a],
-            column: l.rangeSplitArray.content.column
-          }) : u.exits ? (l.rangeArray = [{
-            row: [R, I],
-            column: [o, N]
-          }], l.rangeSplitArray.range = {
-            row: [R, I],
-            column: [o, N]
-          }, l.rangeSplitArray.content = {
-            row: l.rangeSplitArray.content.row,
-            column: [F - o, N - o]
-          }) : (l.rangeArray = [{
-            row: [R, I],
-            column: [F, N]
-          }], l.rangeSplitArray.range = {
-            row: [R, I],
-            column: [F, N]
-          });
-        } else if (A == "luckysheet-chart-rangeShow-rowtitle") {
-          var F = store.chart_selection.rangeMoveIndex[1] - store.chart_selection.rangeMovexy[1] + S;
-          u.exits ? (F < o + u.range[1] + 1 || y < 0) && (F = o + u.range[1] + 1) : (F < 0 || y < 0) && (F = 0);
-          var N = d.rowtitle.column[1] - d.rowtitle.column[0] + F;
-          (N >= T.length - 1 || y > b) && (F = T.length - 1 - d.rowtitle.column[1] + d.rowtitle.column[0], N = T.length - 1), u.exits ? (l.rangeArray = [{
-            row: l.rangeArray[0].row,
-            column: [o, N]
-          }], l.rangeSplitArray.range = {
-            row: l.rangeArray[0].row,
-            column: [o, N]
-          }, l.rangeSplitArray.rowtitle = {
-            row: l.rangeSplitArray.rowtitle.row,
-            column: [F - o, N - o]
-          }, l.rangeSplitArray.content = {
-            row: l.rangeSplitArray.content.row,
-            column: [F - o, N - o]
-          }) : (l.rangeArray = [{
-            row: l.rangeArray[0].row,
-            column: [F, N]
-          }], l.rangeSplitArray.range = {
-            row: l.rangeArray[0].row,
-            column: [F, N]
-          });
-        } else if (A == "luckysheet-chart-rangeShow-coltitle") {
-          var R = store.chart_selection.rangeMoveIndex[0] - store.chart_selection.rangeMovexy[0] + x;
-          s.exits ? (R < a + s.range[1] + 1 || v < 0) && (R = a + s.range[1] + 1) : (R < 0 || v < 0) && (R = 0);
-          var I = d.coltitle.row[1] - d.coltitle.row[0] + R;
-          (I >= _.length - 1 || v > k) && (R = _.length - 1 - d.coltitle.row[1] + d.coltitle.row[0], I = _.length - 1), s.exits ? (l.rangeArray = [{
-            row: [a, I],
-            column: l.rangeArray[0].column
-          }], l.rangeSplitArray.range = {
-            row: [a, I],
-            column: l.rangeArray[0].column
-          }, l.rangeSplitArray.coltitle = {
-            row: [R - a, I - a],
-            column: l.rangeSplitArray.coltitle.column
-          }, l.rangeSplitArray.content = {
-            row: [R - a, I - a],
-            column: l.rangeSplitArray.content.column
-          }) : (l.rangeArray = [{
-            row: [R, I],
-            column: l.rangeArray[0].column
-          }], l.rangeSplitArray.range = {
-            row: [R, I],
-            column: l.rangeArray[0].column
-          });
-        }
-        store.chart_selection.create();
-      },
-      rangeMoveDragged: function() {
-        store.chart_selection.rangeMove = false;
-        var e = store.currentChart;
-        e.rangeTxt = rangeToAddress(store.currentSheetIndex, e.rangeArray[0], store.currentSheetIndex), e.chartData = getDataBySelection(e.rangeArray[0], store.currentSheetIndex), store.changeChartRange(e.chart_id, e.chartData, e.rangeArray, e.rangeTxt);
-      },
-      rangeResize: false,
-      rangeResizexy: null,
-      rangeResizeIndex: null,
-      rangeResizeObj: null,
-      rangeResizeDraging: function(e, n, t) {
-        var l = store.currentChart, a = l.rangeArray[0].row[0], o = l.rangeArray[0].column[0], s = l.rangeRowCheck, u = l.rangeColCheck, d = l.rangeSplitArray, f = nt(e.pageX, e.pageY), m = $("#luckysheet-cell-main").scrollLeft(), g = $("#luckysheet-cell-main").scrollTop(), y = f[0] + m, v = f[1] + g, k = $(window).height() + g - n - t, b = $(window).width() + m, w = Af(v), x = w[2], C = Df(y), S = C[2], _ = Xi(), T = Ki(), A = store.chart_selection.rangeResizeObj.attr("id");
-        if (A == "luckysheet-chart-rangeShow-content") {
-          var R, I, F, N;
-          if (store.chart_selection.rangeResize == "lt" ? (R = store.chart_selection.rangeResizeIndex.row[0], F = store.chart_selection.rangeResizeIndex.column[0], I = store.chart_selection.rangeResizeIndex.row[1], N = store.chart_selection.rangeResizeIndex.column[1]) : store.chart_selection.rangeResize == "lb" ? (R = store.chart_selection.rangeResizeIndex.row[1], F = store.chart_selection.rangeResizeIndex.column[0], I = store.chart_selection.rangeResizeIndex.row[0], N = store.chart_selection.rangeResizeIndex.column[1]) : store.chart_selection.rangeResize == "rt" ? (R = store.chart_selection.rangeResizeIndex.row[0], F = store.chart_selection.rangeResizeIndex.column[1], I = store.chart_selection.rangeResizeIndex.row[1], N = store.chart_selection.rangeResizeIndex.column[0]) : store.chart_selection.rangeResize == "rb" && (R = store.chart_selection.rangeResizeIndex.row[1], F = store.chart_selection.rangeResizeIndex.column[1], I = store.chart_selection.rangeResizeIndex.row[0], N = store.chart_selection.rangeResizeIndex.column[0]), s.exits) {
-            var D = R - store.chart_selection.rangeResizexy[0] + x;
-            D < a + s.range[1] + 1 || v < 0 ? D = a + s.range[1] + 1 : (D >= _.length - 1 || v > k) && (D = _.length - 1);
-          } else {
-            var D = a - store.chart_selection.rangeResizexy[0] + x;
-            D < 0 || v < 0 ? D = 0 : (D >= _.length - 1 || v > k) && (D = _.length - 1);
-          }
-          if (u.exits) {
-            var E = F - store.chart_selection.rangeResizexy[1] + S;
-            E < o + u.range[1] + 1 || y < 0 ? E = o + u.range[1] + 1 : (E >= T.length - 1 || y > b) && (E = T.length - 1);
-          } else {
-            var E = o - store.chart_selection.rangeResizexy[1] + S;
-            E < 0 || y < 0 ? E = 0 : (E >= T.length - 1 || y > b) && (E = T.length - 1);
-          }
-          var P, z, O2, V;
-          D > I ? (P = I, z = D) : (P = D, z = I), E > N ? (O2 = N, V = E) : (O2 = E, V = N), !s.exits && !u.exits ? (l.rangeArray = [{
-            row: [P, z],
-            column: [O2, V]
-          }], l.rangeSplitArray.range = {
-            row: [P, z],
-            column: [O2, V]
-          }) : (l.rangeArray = [{
-            row: [a, z],
-            column: [o, V]
-          }], l.rangeSplitArray.range = {
-            row: [a, z],
-            column: [o, V]
-          }, l.rangeSplitArray.content = {
-            row: [P - a, z - a],
-            column: [O2 - o, V - o]
-          }, s.exits && (l.rangeSplitArray.rowtitle = {
-            row: l.rangeSplitArray.rowtitle.row,
-            column: [O2 - o, V - o]
-          }), u.exits && (l.rangeSplitArray.coltitle = {
-            row: [P - a, z - a],
-            column: l.rangeSplitArray.coltitle.column
-          }));
-        } else if (A == "luckysheet-chart-rangeShow-rowtitle") {
-          var F, N;
-          if (store.chart_selection.rangeResize == "lt" || store.chart_selection.rangeResize == "lb" ? (F = store.chart_selection.rangeResizeIndex.column[0], N = store.chart_selection.rangeResizeIndex.column[1]) : (store.chart_selection.rangeResize == "rt" || store.chart_selection.rangeResize == "rb") && (F = store.chart_selection.rangeResizeIndex.column[1], N = store.chart_selection.rangeResizeIndex.column[0]), u.exits) {
-            var E = F - store.chart_selection.rangeResizexy[1] + S;
-            E < o + u.range[1] + 1 || y < 0 ? E = o + u.range[1] + 1 : (E >= T.length - 1 || y > b) && (E = T.length - 1);
-          } else {
-            var E = o - store.chart_selection.rangeResizexy[1] + S;
-            E < 0 || y < 0 ? E = 0 : (E >= T.length - 1 || y > b) && (E = T.length - 1);
-          }
-          var O2, V;
-          E > N ? (O2 = N, V = E) : (O2 = E, V = N), u.exits ? (l.rangeArray = [{
-            row: l.rangeArray[0].row,
-            column: [o, V]
-          }], l.rangeSplitArray.range = {
-            row: l.rangeArray[0].row,
-            column: [o, V]
-          }, l.rangeSplitArray.rowtitle = {
-            row: l.rangeSplitArray.rowtitle.row,
-            column: [O2 - o, V - o]
-          }, l.rangeSplitArray.content = {
-            row: l.rangeSplitArray.content.row,
-            column: [O2 - o, V - o]
-          }) : (l.rangeArray = [{
-            row: l.rangeArray[0].row,
-            column: [O2, V]
-          }], l.rangeSplitArray.range = {
-            row: l.rangeArray[0].row,
-            column: [O2, V]
-          });
-        } else if (A == "luckysheet-chart-rangeShow-coltitle") {
-          var R, I;
-          if (store.chart_selection.rangeResize == "lt" || store.chart_selection.rangeResize == "rt" ? (R = store.chart_selection.rangeResizeIndex.row[0], I = store.chart_selection.rangeResizeIndex.row[1]) : (store.chart_selection.rangeResize == "lb" || store.chart_selection.rangeResize == "rb") && (R = store.chart_selection.rangeResizeIndex.row[1], I = store.chart_selection.rangeResizeIndex.row[0]), s.exits) {
-            var D = R - store.chart_selection.rangeResizexy[0] + x;
-            D < a + s.range[1] + 1 || v < 0 ? D = a + s.range[1] + 1 : (D >= _.length - 1 || v > k) && (D = _.length - 1);
-          } else {
-            var D = a - store.chart_selection.rangeResizexy[0] + x;
-            D < 0 || v < 0 ? D = 0 : (D >= _.length - 1 || v > k) && (D = _.length - 1);
-          }
-          var P, z;
-          D > I ? (P = I, z = D) : (P = D, z = I), s.exits ? (l.rangeArray = [{
-            row: [a, z],
-            column: l.rangeArray[0].column
-          }], l.rangeSplitArray.range = {
-            row: [a, z],
-            column: l.rangeArray[0].column
-          }, l.rangeSplitArray.coltitle = {
-            row: [P - a, z - a],
-            column: l.rangeSplitArray.coltitle.column
-          }, l.rangeSplitArray.content = {
-            row: [P - a, z - a],
-            column: l.rangeSplitArray.content.column
-          }) : (l.rangeArray = [{
-            row: [P, z],
-            column: l.rangeArray[0].column
-          }], l.rangeSplitArray.range = {
-            row: [P, z],
-            column: l.rangeArray[0].column
-          });
-        }
-        store.chart_selection.create();
-      },
-      rangeResizeDragged: function() {
-        store.chart_selection.rangeResize = null;
-        var e = store.currentChart;
-        e.rangeTxt = rangeToAddress(store.currentSheetIndex, e.rangeArray[0], store.currentSheetIndex), e.chartData = getDataBySelection(e.rangeArray[0], store.currentSheetIndex), store.changeChartRange(e.chart_id, e.chartData, e.rangeArray, e.rangeTxt);
-      }
-    };
-  }
-  function Sc(e, n, t, l) {
-    var a = luckysheet.getluckysheet_select_save();
-    a.length == 1 && a[0].row[0] == a[0].row[1] && a[0].column[0] == a[0].column[1] && (an("right", "rangeOfSelect"), an("down", "rangeOfSelect"), a = luckysheet.getluckysheet_select_save());
-    for (var o = -1, s = a[0].row[1] - a[0].row[0], u = a[0].row[0]; u <= a[0].row[1]; u++) {
-      for (var d = a[0].column[0]; d <= a[0].column[1]; d++) {
-        var f = Oe(u, d, luckysheet.flowdata());
-        if (f != null && f.toString().length > 0) {
-          o = u;
-          break;
-        }
-      }
-      if (o !== -1)
-        break;
-    }
-    o == -1 && (o = 0), a[0].row = [o, o], a[0].row_focus = o, luckysheet.setluckysheet_select_save(a), store.luckysheet_shiftpositon = lsDeepCopyObject(a[0]), Fa("down", "range", false, s), a = luckysheet.getluckysheet_select_save();
-    for (var m = -1, g = a[0].column[1] - a[0].column[0], d = a[0].column[0]; d <= a[0].column[1]; d++) {
-      for (var u = a[0].row[0]; u <= a[0].row[1]; u++) {
-        var f = Oe(u, d, luckysheet.flowdata());
-        if (f != null && f.toString().length > 0) {
-          m = d;
-          break;
-        }
-      }
-      if (m !== -1)
-        break;
-    }
-    m == -1 && (m = 0), a[0].column = [m, m], a[0].column_focus = m, luckysheet.setluckysheet_select_save(a), store.luckysheet_shiftpositon = lsDeepCopyObject(a[0]), Fa("right", "range", false, g), a = luckysheet.getluckysheet_select_save();
-    var y = lsDeepCopyArray(a), v = rangeToAddress(store.currentSheetIndex, y[0], store.currentSheetIndex);
-    let k = getDataBySelection();
-    console.dir(k);
-    let b = $f("chart"), w = b + "_c", x = '<div id="${id}"class="luckysheet-modal-dialog luckysheet-modal-dialog-chart ${addclass}"tabindex="0"role="dialog"aria-labelledby=":41e"dir="ltr"><div class="luckysheet-modal-dialog-resize"><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-lt"data-type="lt"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-mt"data-type="mt"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-lm"data-type="lm"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-rm"data-type="rm"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-rt"data-type="rt"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-lb"data-type="lb"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-mb"data-type="mb"></div><div class="luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-rb"data-type="rb"></div></div><div class="luckysheet-modal-dialog-controll"><span class="luckysheet-modal-controll-btn luckysheet-modal-controll-update"role="button"tabindex="0"aria-label="修改图表"title="Modify chart"><i class="fa fa-pencil"aria-hidden="true"></i></span><span class="luckysheet-modal-controll-btn luckysheet-modal-controll-max"role="butluckysheet_chartIns_indexton"tabindex="0"aria-label="最大化"title="Maximize"><i class="fa fa-window-maximize"aria-hidden="true"></i></span><span class="luckysheet-modal-controll-btn luckysheet-modal-controll-del"role="button"tabindex="0"aria-label="删除"title="Delete"><i class="fa fa-trash"aria-hidden="true"></i></span></div><div class="luckysheet-modal-dialog-content">${content}</div></div>', C = $(kc(x, {
-      id: w,
-      addclass: "luckysheet-data-visualization-chart",
-      title: "图表生成",
-      content: ""
-    })).appendTo($(".luckysheet-cell-main")), S = document.getElementById(w), { render: _, chart_json: T } = store.createChart($(`#${w}`).children(".luckysheet-modal-dialog-content")[0], k, b, y, v);
-    console.dir(JSON.stringify(T)), e = e || 400, n = n || 250, t = t || 0, l = l || 0, S.style.width = e + "px", S.style.height = n + "px", S.style.position = "absolute", S.style.background = "#fff", S.style.left = t + "px", S.style.top = l + "px", _.style.width = "100%", _.style.height = "100%", S.style.zIndex = store.zIndex ? store.zIndex : 15, store.zIndex++;
-    let A = store.luckysheetfile[sheetPosition(store.currentSheetIndex)];
-    A.chart || (A.chart = []), A.chart.push({
-      chart_id: b,
-      width: e,
-      height: n,
-      left: t,
-      top: l,
-      chartOptions: T.chartOptions,
-      sheetIndex: A.index
-    }), Ga(b), $(`#${b}_c .luckysheet-modal-controll-del`).click(function(R) {
-      Ef(b);
-    }), Ff(C), $(`#${b}_c .luckysheet-modal-controll-update`).click(function(R) {
-      Lf();
-    }), C.children(".luckysheet-modal-dialog-content").mousedown(function(R) {
-      store.chartparam.luckysheetCurrentChartMaxState || Ga(b), R.stopPropagation();
-    }), C.mousedown(function(R) {
-      if (!store.chartparam.luckysheetCurrentChartMaxState) {
-        Ga(b), Qr(true), !$(R.target).is(".luckysheet-modal-dialog-controll") && !$(R.target).is(".luckysheet-modal-controll-btn") && !$(R.target).is("i") && (store.chartparam.luckysheetCurrentChartMoveTimeout = setTimeout(function() {
-          store.chartparam.luckysheetCurrentChartMove = true;
-        }, 100));
-        var I = store.chartparam.luckysheetCurrentChartMoveObj.offset(), F = store.chartparam.luckysheetCurrentChartMoveObj.position();
-        store.chartparam.luckysheetCurrentChartMoveXy = [R.pageX - I.left, R.pageY - I.top, F.left, F.top, $("#luckysheet-scrollbar-x").scrollLeft(), $("#luckysheet-scrollbar-y").scrollTop()], store.chartparam.luckysheetCurrentChartMoveWinH = $("#luckysheet-cell-main")[0].scrollHeight, store.chartparam.luckysheetCurrentChartMoveWinW = $("#luckysheet-cell-main")[0].scrollWidth, !$(R.target).hasClass("luckysheet-mousedown-cancel") && $(R.target).filter("[class*='sp-palette']").length == 0 && $(R.target).filter("[class*='sp-thumb']").length == 0 && $(R.target).filter("[class*='sp-']").length == 0 && ($("#luckysheet-rightclick-menu").hide(), $("#luckysheet-cols-h-hover").hide(), $("#luckysheet-cols-menu-btn").hide(), $("#luckysheet-rightclick-menu").hide(), $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu, #luckysheet-user-menu").hide(), $("body > .luckysheet-filter-menu, body > .luckysheet-filter-submenu, body > .luckysheet-cols-menu").hide()), R.stopPropagation();
-      }
-    }).find(".luckysheet-modal-dialog-resize-item").mousedown(function(R) {
-      if (store.chartparam.luckysheetCurrentChartActive) {
-        store.chartparam.luckysheetCurrentChartResize = $(this).data("type");
-        var I = nt(R.pageX, R.pageY), F = $("#luckysheet-scrollbar-x").scrollLeft(), N = $("#luckysheet-scrollbar-y").scrollTop(), D = I[0] + F, E = I[1] + N, P = store.chartparam.luckysheetCurrentChartResizeObj.position();
-        store.chartparam.luckysheetCurrentChartResizeXy = [D, E, C.width(), C.height(), P.left + F, P.top + N, F, N], store.chartparam.luckysheetCurrentChartResizeWinH = $("#luckysheet-cell-main")[0].scrollHeight, store.chartparam.luckysheetCurrentChartResizeWinW = $("#luckysheet-cell-main")[0].scrollWidth, store.chartparam.luckysheetCurrentChart = b, R.stopPropagation();
-      }
-    }), $(`#${b}_c`).mouseup(function(R) {
-      let I = $(this).css("width"), F = $(this).css("height"), N = $(this).css("top"), D = $(this).css("left"), E = store.luckysheetfile[sheetPosition(store.currentSheetIndex)];
-      E.chart || (E.chart = []), E.chart.forEach(
-        (P) => {
-          P.chart_id === b && (P.width = parseFloat(I), P.height = parseFloat(F), P.left = parseFloat(D), P.top = parseFloat(N));
-        }
-      );
-    });
-  }
-  function Ff(e) {
-    e.find(".luckysheet-modal-dialog-content").hover(function() {
-      e.removeClass("chart-moveable");
-    }, function() {
-      e.addClass("chart-moveable");
-    }), e.hover(function() {
-      e.addClass("chart-moveable");
-    }, function() {
-      e.removeClass("chart-moveable");
-    });
-  }
-  function Ef(e) {
-    $(`.luckysheet-cell-main #${e}_c`).remove(), $c();
-    let n = store.luckysheetfile[sheetPosition(store.currentSheetIndex)], t = n.chart.findIndex((l) => l.chart_id == e);
-    n.chart.splice(t, 1), store.deleteChart(e);
-  }
-  function Ga(e) {
-    let n = store.luckysheetfile[sheetPosition(store.currentSheetIndex)].chart;
-    for (let t in n)
-      n[t].needRangeShow = false, n[t].chart_id == e && (n[t].needRangeShow = true, store.currentChart = store.getChartJson(e));
-    Nf(e);
-  }
-  function $c() {
-    let e = store.luckysheetfile[sheetPosition(store.currentSheetIndex)].chart;
-    for (let n in e)
-      e[n].needRangeShow = false;
-    Pf();
-  }
-  function Nf(e) {
-    let n = $("#" + e + "_c");
-    store.chart_selection.create(), store.chartparam.luckysheetCurrentChartActive = true, store.chartparam.luckysheetCurrentChartMoveObj = n, store.chartparam.luckysheetCurrentChartResizeObj = n, store.chartparam.luckysheetCurrentChart = e, $("#luckysheet-cell-main").find(".luckysheet-modal-dialog-chart .luckysheet-modal-dialog-resize").hide(), $("#luckysheet-cell-main").find(".luckysheet-modal-dialog-chart .luckysheet-modal-dialog-controll").hide(), n.css("z-index", store.chartparam.luckysheetCurrentChartZIndexRank++), n.find(".luckysheet-modal-dialog-resize").show(), n.find(".luckysheet-modal-dialog-controll").show(), ($(".chartSetting").is(":visible") || store.chartparam.luckysheet_chart_redo_click) && e != store.chartparam.luckysheetCurrentChart && $("body .luckysheet-cols-menu").hide(), store.currentChart = store.highlightChart(e);
-  }
-  function Pf(e) {
-    $("#luckysheet-cell-main .luckysheet-modal-dialog-chart .luckysheet-modal-dialog-resize, #luckysheet-cell-main .luckysheet-modal-dialog-chart .luckysheet-modal-dialog-controll").hide(), $("#luckysheet-cell-main").find(".luckysheet-datavisual-selection-set div").remove(), store.chartparam.luckysheetCurrentChartActive = false, $("#luckysheet-chart-rangeShow").empty(), !e && $(".chartSetting").is(":visible") && !de() && Rp();
-  }
-  function Lf(e, n) {
-    $(".chartSetting").is(":visible") || ($(".chartSetting").show(), $("#luckysheet-cell-main").find(".luckysheet-datavisual-selection-set div").show(), store.chartparam.luckysheetCurrentChartActive = true, setTimeout(function() {
-      $t();
-    }, 0));
-  }
-  function Rp(e) {
-    $(".chartSetting").is(":visible") && ($(".chartSetting").hide(), $("#luckysheet-cell-main .luckysheet-modal-dialog-chart .luckysheet-modal-dialog-resize, #luckysheet-cell-main .luckysheet-modal-dialog-chart .luckysheet-modal-dialog-controll").hide(), $("#luckysheet-cell-main").find(".luckysheet-datavisual-selection-set div").remove(), store.chartparam.luckysheetCurrentChartActive = false, !de() && !e && setTimeout(function() {
-      $t();
-    }, 0));
-  }
-  function Ic(e) {
-    Pf("true"), store.luckysheetfile.forEach(
-      (t) => {
-        t.index == e ? (t.chart || []).forEach(
-          (a) => {
-            a.isShow = true, $("#" + a.chart_id + "_c").show(), typeof store?.resizeChart === "function" && a?.chart_id && store.resizeChart(a.chart_id), a.needRangeShow == true && (store.currentChart = store.getChartJson(a.chart_id), Nf(a.chart_id));
-          }
-        ) : (t.chart || []).forEach(
-          (a) => {
-            a.isShow = false, $("#" + a.chart_id + "_c").hide();
-          }
-        );
-      }
-    );
-  }
-  var Af, Df, Cp, Tp, Io = lazyInit(
-    () => {
-      ht();
-      If();
-      Yt();
-      Ze();
-      Ht();
-      Li();
-      Et();
-      Xl();
-      Sn();
-      Ea();
-      Mt();
-      rr();
-      Ze();
-      Af = wt, Df = kt, Cp = [
-        "../../expendPlugins/chart/vue.min.js",
-        "../../expendPlugins/chart/vuex.min.js",
-        "../../expendPlugins/chart/element-ui.js",
-        "../../expendPlugins/chart/en.js",
-        "../../expendPlugins/chart/echarts.min.js",
-        "../../expendPlugins/chart/chartmix.umd.min.js"
-      ], Tp = ["../../expendPlugins/chart/element-ui.css", "../../expendPlugins/chart/chartmix.css"];
-    }
-  );
-
   // src/modules/077-gl.sheet-manage.js
   var Dp, sheetManage, gl = lazyInit(
     () => {
@@ -42126,13 +42373,14 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           s.order = l;
           s.index = a;
           s.name = t.generateCopySheetName(store.luckysheetfile, s.name);
+          const sheetIndexKeys = { index: 1, sheetIndex: 1, dataSheetIndex: 1, pivotDataSheetIndex: 1, i: 1 };
           (function replaceIndex(obj) {
             if (obj == null) return;
             if (typeof obj === "object") {
               for (let key in obj) {
                 if (!obj.hasOwnProperty(key)) continue;
                 let val = obj[key];
-                if (val === oldIndex) {
+                if (val === oldIndex && sheetIndexKeys[key]) {
                   obj[key] = a;
                 } else if (typeof val === "object") {
                   replaceIndex(val);
@@ -42140,6 +42388,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
             }
           })(s);
+          s.chart = chartHooks.copyCharts(store.luckysheetfile[o], a);
           if (!methods.createHookFunction("sheetCopyBefore", {
             targetSheet: store.luckysheetfile[o],
             copySheet: s
@@ -42372,7 +42621,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         },
         setSheetParam: function(e = true) {
           let n = this.getSheetIndex(store.currentSheetIndex), t = store.luckysheetfile[n];
-          store.flowdata = t.data, editor.webWorkerFlowDataCache(store.flowdata), formula.execFunctionGlobalData = null, lsState.compiledFormulas && lsState.compiledFormulas.clear(), lsState.cellDataCache = null, lsState.vlookupCache = {}, lsState.xlookupCache = {}, this.sheetParamRestore(t, store.flowdata), t.freezen == null ? (freeze.freezenhorizontaldata = null, freeze.freezenverticaldata = null) : (freeze.freezenhorizontaldata = t.freezen.horizontal == null ? null : t.freezen.horizontal.freezenhorizontaldata, freeze.freezenverticaldata = t.freezen.vertical == null ? null : t.freezen.vertical.freezenverticaldata), e && gn(store.flowdata.length, store.flowdata[0].length), Ve.buildAllPs(store.flowdata), Re.currentImgId = null, Re.images = t.images, Re.allImagesShow(), Re.init(), dataVerificationCtrl.dataVerification = t.dataVerification, dataVerificationCtrl.init(), Cl.hyperlink = t.hyperlink, Cl.init(), Dl(t.filter_select, t.filter);
+          store.flowdata = t.data, editor.webWorkerFlowDataCache(store.flowdata), formula.execFunctionGlobalData = null, lsState.compiledFormulas && lsState.compiledFormulas.clear(), lsState.cellDataCache = null, lsState.vlookupCache = {}, lsState.xlookupCache = {}, this.sheetParamRestore(t, store.flowdata), t.freezen == null ? (freeze.freezenhorizontaldata = null, freeze.freezenverticaldata = null) : (freeze.freezenhorizontaldata = t.freezen.horizontal == null ? null : t.freezen.horizontal.freezenhorizontaldata, freeze.freezenverticaldata = t.freezen.vertical == null ? null : t.freezen.vertical.freezenverticaldata), e && gn(store.flowdata.length, store.flowdata[0].length), Ve.buildAllPs(store.flowdata), Re.currentImgId = null, Re.images = t.images, Re.allImagesShow(), Re.init(), chartHooks.showSheet(store.currentSheetIndex), dataVerificationCtrl.dataVerification = t.dataVerification, dataVerificationCtrl.init(), Cl.hyperlink = t.hyperlink, Cl.init(), Dl(t.filter_select, t.filter);
         },
         restoreselect: function() {
           let e = this.getSheetIndex(store.currentSheetIndex), n = store.luckysheetfile[e];
@@ -48805,13 +49054,6 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         }
       }
       server.allowUpdate && server.historyParam(store.flowdata, store.currentSheetIndex, r2);
-      typeof store.chartparam.jfrefreshchartall === "function" && store.chartparam.jfrefreshchartall(
-        store.flowdata,
-        r2.row[0],
-        r2.row[1],
-        r2.column[0],
-        r2.column[1]
-      );
     });
     l && recalcChangedRanges(n, store.currentSheetIndex, store.flowdata, oldData);
     a && (Rr = setTimeout(() => redrawGrid(), 1));
@@ -49370,11 +49612,12 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         height: f - m - 1
       });
     }
-    sheetManage.showSheet(), t && (Rr = setTimeout(function() {
+    sheetManage.showSheet(), chartHooks.relayout(), t && (Rr = setTimeout(function() {
       redrawGrid();
     }, 1));
   }
   function redrawGrid(e, n) {
+    chartHooks.redraw();
     if (formula.groupValuesRefresh(), e == null && (e = $("#luckysheet-cell-main").scrollLeft()), n == null && (n = $("#luckysheet-cell-main").scrollTop()), freeze.freezenverticaldata != null || freeze.freezenhorizontaldata != null) {
       let t, l, a, o, s, u, d = store.luckysheetTableContentHW[0], f = store.luckysheetTableContentHW[1];
       freeze.freezenverticaldata != null && freeze.freezenhorizontaldata != null ? (t = freeze.freezenhorizontaldata[0], l = freeze.freezenhorizontaldata[1], a = freeze.freezenhorizontaldata[2], o = freeze.freezenverticaldata[0], s = freeze.freezenverticaldata[1], u = freeze.freezenverticaldata[2], Vl(u, a, o, t, 1, 1, null, null, "freezen_3"), Vl(e + o - u, a, d - o + u, t, 1, 1, null, null, "freezen_4"), Vl(u, n + t - a, o, f - t + a, 1, 1, null, null, "freezen_7"), Vl(e + o - u, n + t - a, d - o + u, f - t + a, o - u + store.rowHeaderWidth, t - a + store.columnHeaderHeight), ha(u, o, store.rowHeaderWidth), ha(e + o - u, d - o + u, o - u + store.rowHeaderWidth), ua(a, t, store.columnHeaderHeight), ua(n + t - a, f - t + a, t - a + store.columnHeaderHeight)) : freeze.freezenhorizontaldata != null ? (t = freeze.freezenhorizontaldata[0], l = freeze.freezenhorizontaldata[1], a = freeze.freezenhorizontaldata[2], Vl(e, a, d, t, 1, 1, null, null, "freezen_h"), Vl(e, n + t - a, d, f - t + a, null, t - a + store.columnHeaderHeight), ha(e, d, null), ua(a, t, store.columnHeaderHeight), ua(n + t - a, f - t + a, t - a + store.columnHeaderHeight)) : freeze.freezenverticaldata != null && (o = freeze.freezenverticaldata[0], s = freeze.freezenverticaldata[1], u = freeze.freezenverticaldata[2], Vl(u, n, o, f, 1, 1, null, null, "freezen_v"), Vl(e + o - u, n, d - o + u, f, o - u + store.rowHeaderWidth, null), ua(n, f, null), ha(u, o, store.rowHeaderWidth), ha(e + o - u, d - o + u, o - u + store.rowHeaderWidth));
@@ -51595,13 +51838,13 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           window.__cfComputeCache = {};
           window.__cfComputeDirty = {};
           window._cfReinitCacheVars && window._cfReinitCacheVars();
+          chartHooks.destroy();
           store.asyncLoad = ["core"];
         },
+        // (custom) the old chart plugin's edit-mode entry; charts are now made with
+        // luckysheet.insertChart(...) and edited in their settings panel
         editorChart: function(e) {
-          let n = Ul[0], t = "luckysheetEditMode-datav-chart", l = t + "_selection";
-          e.chart_id = t;
-          let a = e.chartTheme;
-          a = a == null ? "default0000" : a, luckysheet.insertChartTosheet(e.sheetIndex, e.dataSheetIndex, e.option, e.chartType, e.selfOption, e.defaultOption, e.row, e.column, n, t, l, e.chartStyle, e.rangeConfigCheck, e.rangeRowCheck, e.rangeColCheck, e.chartMarkConfig, e.chartTitleConfig, e.winWidth, e.winHeight, e.scrollLeft, e.scrollTop, a, e.myWidth, e.myHeight, e.myLeft != null ? parseFloat(e.myLeft) : null, e.myTop != null ? parseFloat(e.myTop) : null, e.myindexrank, true), $("#" + t).find(".luckysheet-modal-controll-update").click();
+          console.warn("editorChart is no longer supported; use luckysheet.insertChart / updateChart");
         },
         // (custom) true when the host registered this hook; lets callers skip
         // preparing expensive hook arguments nobody will receive
@@ -53408,10 +53651,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         },
         scrollAdapt: function() {
           let e = this;
-          if (store.luckysheet_select_save != null && store.luckysheet_select_save.length > 0 && e.scrollAdaptOfselect(), $(".luckysheet-modal-dialog-image").length > 0 && typeof imageCtrl !== "undefined" && imageCtrl && imageCtrl.images != null && e.scrollAdaptOfImage(), $("#luckysheet-cell-main .luckysheet-data-visualization-chart").length > 0) {
-            let n = store.luckysheetfile[sheetPosition(store.currentSheetIndex)].chart;
-            n != null && n.length > 0 && e.scrollAdaptOfchart();
-          }
+          if (store.luckysheet_select_save != null && store.luckysheet_select_save.length > 0 && e.scrollAdaptOfselect(), $(".luckysheet-modal-dialog-image").length > 0 && typeof imageCtrl !== "undefined" && imageCtrl && imageCtrl.images != null && e.scrollAdaptOfImage(), $("#luckysheet-cell-main .luckysheet-data-visualization-chart").length > 0)
+            e.scrollAdaptOfchart();
           $("#luckysheet-postil-showBoxs .luckysheet-postil-show").length > 0 && e.scrollAdaptOfpostil(), $("#luckysheet-dropCell-icon").length > 0 && e.scrollAdaptOfdpicon(), $("#luckysheet-filter-options-sheet" + store.currentSheetIndex + " .luckysheet-filter-options").length > 0 && e.scrollAdaptOffilteroptions();
         },
         scrollAdaptOfselect: function() {
@@ -53573,89 +53814,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             }));
           });
         },
+        // (custom) charts sit in the scrolled grid; only the part under frozen rows/columns
+        // has to be cut off (done by the chart module)
         scrollAdaptOfchart: function() {
-          let e = this, n = $("#luckysheet-cell-main").scrollTop(), t = $("#luckysheet-cell-main").scrollLeft();
-          if (e.freezenhorizontaldata != null && e.freezenverticaldata != null) {
-            let l = e.freezenhorizontaldata[0] - e.freezenhorizontaldata[2], a = e.freezenverticaldata[0] - e.freezenverticaldata[2];
-            $("#luckysheet-cell-main .luckysheet-data-visualization-chart").each(function(o, s) {
-              let u = $(s).position(), d = $(s).width(), f = $(s).height(), m = $(s).find("canvas").width(), g = $(s).find("canvas").height(), y = g - f, v = m - d;
-              if (u.top - y < l) {
-                let k = l - (u.top - y);
-                k > g + 40 + 2 ? $(s).css("visibility", "hidden") : ($(s).css({
-                  top: l + n,
-                  height: g - k,
-                  visibility: "visible"
-                }), $(s).find("canvas").css("top", -k));
-              } else
-                $(s).css({
-                  top: u.top - y + n,
-                  height: g,
-                  visibility: "visible"
-                }), $(s).find("canvas").css("top", 0);
-              if (u.left - v < a) {
-                let k = a - (u.left - v);
-                k > m + 20 + 2 ? $(s).css("visibility", "hidden") : ($(s).css({
-                  left: a + t,
-                  width: m - k,
-                  visibility: "visible"
-                }), $(s).find("canvas").css("left", -k));
-              } else
-                $(s).css({
-                  left: u.left - v + t,
-                  width: m,
-                  visibility: "visible"
-                }), $(s).find("canvas").css("left", 0);
-            });
-          } else if (e.freezenhorizontaldata != null) {
-            let l = e.freezenhorizontaldata[0] - e.freezenhorizontaldata[2];
-            $("#luckysheet-cell-main .luckysheet-data-visualization-chart").each(function(a, o) {
-              let s = $(o).position(), u = $(o).height(), d = $(o).find("canvas").height(), f = d - u;
-              if (s.top - f < l) {
-                let m = l - (s.top - f);
-                m > d + 40 + 2 ? $(o).css("visibility", "hidden") : ($(o).css({
-                  top: l + n,
-                  height: d - m,
-                  visibility: "visible"
-                }), $(o).find("canvas").css("top", -m));
-              } else
-                $(o).css({
-                  top: s.top - f + n,
-                  height: d,
-                  visibility: "visible"
-                }), $(o).find("canvas").css("top", 0);
-            });
-          } else if (e.freezenverticaldata != null) {
-            let l = e.freezenverticaldata[0] - e.freezenverticaldata[2];
-            $("#luckysheet-cell-main .luckysheet-data-visualization-chart").each(function(a, o) {
-              let s = $(o).position(), u = $(o).width(), d = $(o).find("canvas").width(), f = d - u;
-              if (s.left - f < l) {
-                let m = l - (s.left - f);
-                m > d + 20 + 2 ? $(o).css("visibility", "hidden") : ($(o).css({
-                  left: l + t,
-                  width: d - m,
-                  visibility: "visible"
-                }), $(o).find("canvas").css("left", -m));
-              } else
-                $(o).css({
-                  left: s.left - f + t,
-                  width: d,
-                  visibility: "visible"
-                }), $(o).find("canvas").css("left", 0);
-            });
-          } else
-            $("#luckysheet-cell-main .luckysheet-data-visualization-chart").each(function(l, a) {
-              let o = $(a).position(), s = $(a).width(), u = $(a).height(), d = $(a).find("canvas").width(), f = $(a).find("canvas").height(), m = f - u, g = d - s;
-              $(a).css({
-                top: o.top - m + n,
-                height: f,
-                left: o.left - g + t,
-                width: d,
-                visibility: "visible"
-              }), $(a).find("canvas").css({
-                top: 0,
-                left: 0
-              });
-            });
+          chartHooks.scroll();
         },
         scrollAdaptOfpostil: function() {
           let e = this, n = $("#luckysheet-cell-main").scrollTop(), t = $("#luckysheet-cell-main").scrollLeft();
@@ -61139,6 +61301,649 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     }
   );
 
+  // src/modules/041-Ea.js
+  function Fa(e, n, t, l, a) {
+    t == null && (t = true), e || (e = "down"), n || (n = "cell"), a == null && (a = false);
+    let o = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], s = o.row == null ? 0 : o.row[0], u = o.column == null ? 0 : o.column[0], d = o.row == null ? 0 : o.row[0], f = o.column == null ? 0 : o.column[0], m = o.row == null ? 0 : o.row[1], g = o.column == null ? 0 : o.column[1];
+    if (formula.fucntionboxshow(s, u), n == "range") {
+      var y = store.luckysheet_shiftpositon.row[0], v = store.luckysheet_shiftpositon.column[0];
+      let S = store.luckysheet_shiftpositon.row[1], _ = store.luckysheet_shiftpositon.column[1];
+      e == "down" || e == "up" ? S < m ? s = o.row == null ? 0 : o.row[1] : y > d ? s = o.row == null ? 0 : o.row[0] : S == m && y == d && (e == "down" ? s = o.row == null ? 0 : o.row[1] : s = o.row == null ? 0 : o.row[0]) : (e == "right" || e == "left") && (_ < g ? u = o.column == null ? 0 : o.column[1] : v > f ? u = o.column == null ? 0 : o.column[0] : _ == g && v == f && (e == "right" ? u = o.column == null ? 0 : o.column[1] : u = o.column == null ? 0 : o.column[0]));
+    }
+    let k = store.flowdata.length, b = store.flowdata[0].length, w = store.flowdata, x = "", C = 0;
+    if (e == "up") {
+      if (s == 0)
+        return;
+      {
+        let S = [], _ = null, T = 0, A = null;
+        for (let R = f; R <= g; R++) {
+          S = [], T = 0;
+          for (let I = s - 1; I >= 0; I--) {
+            let F = w[I][R];
+            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
+              if (S[T] == true && S[T - 1] == false) {
+                _ = I;
+                break;
+              } else if (S[T] == false && S[T - 1] == true) {
+                _ = I + 1;
+                break;
+              }
+            }
+            T++;
+          }
+          _ == null && (_ = 0), (A == null || _ < A) && (A = _);
+        }
+        x = "down", C = A - s;
+      }
+    } else if (e == "down") {
+      if (s == k - 1)
+        return;
+      {
+        let S = [], _ = null, T = 0, A = null;
+        for (let R = f; R <= g; R++) {
+          S = [], T = 0;
+          for (let I = s + 1; I < w.length; I++) {
+            let F = w[I][R];
+            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
+              if (S[T] == true && S[T - 1] == false) {
+                _ = I;
+                break;
+              } else if (S[T] == false && S[T - 1] == true) {
+                _ = I - 1;
+                break;
+              }
+            }
+            T++;
+          }
+          _ == null && (_ = w.length - 1), (A == null || _ > A) && (A = _);
+        }
+        x = "down", C = A - s;
+      }
+    } else if (e == "left") {
+      if (u == 0)
+        return;
+      {
+        let S = [], _ = null, T = 0, A = null;
+        for (let R = d; R <= m; R++) {
+          S = [], T = 0;
+          for (let I = u - 1; I >= 0; I--) {
+            let F = w[R][I];
+            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
+              if (S[T] == true && S[T - 1] == false) {
+                _ = I;
+                break;
+              } else if (S[T] == false && S[T - 1] == true) {
+                _ = I + 1;
+                break;
+              }
+            }
+            T++;
+          }
+          _ == null && (_ = 0), (A == null || _ < A) && (A = _);
+        }
+        x = "right", C = A - u;
+      }
+    } else if (e == "right") {
+      if (u == b - 1)
+        return;
+      {
+        let S = [], _ = null, T = 0, A = null;
+        for (let R = d; R <= m; R++) {
+          S = [], T = 0;
+          for (let I = u + 1; I < w[0].length; I++) {
+            let F = w[R][I];
+            if (typeOf(F) == "object" && isRealNull(F.v) || isRealNull(F) ? S.push(false) : S.push(true), S.length > 1) {
+              if (S[T] == true && S[T - 1] == false) {
+                _ = I;
+                break;
+              } else if (S[T] == false && S[T - 1] == true) {
+                _ = I - 1;
+                break;
+              }
+            }
+            T++;
+          }
+          _ == null && (_ = w[0].length - 1), (A == null || _ > A) && (A = _);
+        }
+        x = "right", C = A - u;
+      }
+    }
+    if (n == "range" && (e == "up" ? p_endR < m && C + s < p_endR && (C = p_endR - s) : e == "down" ? y > d && C + s > y && (C = y - s) : e == "left" ? p_endC < g && C + u < p_endC && (C = p_endC - u) : e == "right" && v > f && C + u > v && (C = v - u), l != null && Math.abs(C) > Math.abs(l) && (C = l)), !a)
+      n == "cell" ? qt(x, C, "rangeOfSelect", t) : n == "range" && Pn(x, C, "rangeOfSelect", t);
+    else
+      return C;
+  }
+  function qt(e, n, t, l) {
+    l == null && (l = true), e || e == "down";
+    let a = store.flowdata.length, o = store.flowdata[0].length, s, u, d, f, m, g, y, v;
+    if (t == "rangeOfSelect") {
+      let _ = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], T;
+      _.row_focus == null ? T = _.row[0] : T = _.row_focus;
+      let A;
+      _.column_focus == null ? A = _.column[0] : A = _.column_focus;
+      let R = be.mergeborer(store.flowdata, T, A);
+      if (R) {
+        let D = R.row[2], E = R.row[3], P = R.column[2], z = R.column[3];
+        n > 0 ? e == "down" ? (T = E, A = P) : e == "right" && (T = D, A = z) : (T = D, A = P);
+      }
+      let I = _.moveXY == null ? T : _.moveXY.x, F = _.moveXY == null ? A : _.moveXY.y;
+      e == "down" ? (T += n, I = T) : e == "right" && (A += n, F = A), T >= a && (T = a - 1, I = T), T < 0 && (T = 0, I = T), A >= o && (A = o - 1, F = A), A < 0 && (A = 0, F = A);
+      let N = be.mergeborer(store.flowdata, T, A);
+      N ? (s = N.row[1], u = N.row[0], d = N.row[2], f = N.row[3], m = N.column[1], g = N.column[0], y = N.column[2], v = N.column[3]) : (s = store.visibledatarow[I], u = I - 1 == -1 ? 0 : store.visibledatarow[I - 1], m = store.visibledatacolumn[F], g = F - 1 == -1 ? 0 : store.visibledatacolumn[F - 1], d = f = T, y = v = A), _.row = [d, f], _.column = [y, v], _.row_focus = d, _.column_focus = y, _.moveXY = {
+        x: I,
+        y: F
+      }, showSelectionHighlight(), Be.pivotclick(d, y), formula.fucntionboxshow(d, y);
+    } else if (t == "rangeOfFormula") {
+      let _ = formula.func_selectedrange, T;
+      _.row_focus == null ? T = _.row[0] : T = _.row_focus;
+      let A;
+      _.column_focus == null ? A = _.column[0] : A = _.column_focus;
+      let R = be.mergeborer(store.flowdata, T, A);
+      if (R) {
+        let D = R.row[2], E = R.row[3], P = R.column[2], z = R.column[3];
+        n > 0 ? e == "down" ? (T = E, A = P) : e == "right" && (T = D, A = z) : (T = D, A = P);
+      }
+      let I = _.moveXY == null ? T : _.moveXY.x, F = _.moveXY == null ? A : _.moveXY.y;
+      e == "down" ? (T += n, I = T) : e == "right" && (A += n, F = A), T >= a && (T = a - 1, I = T), T < 0 && (T = 0, I = T), A >= o && (A = o - 1, F = A), A < 0 && (A = 0, F = A);
+      let N = be.mergeborer(store.flowdata, T, A);
+      N ? (s = N.row[1], u = N.row[0], d = N.row[2], f = N.row[3], m = N.column[1], g = N.column[0], y = N.column[2], v = N.column[3]) : (s = store.visibledatarow[I], u = I - 1 == -1 ? 0 : store.visibledatarow[I - 1], d = I, f = I, m = store.visibledatacolumn[F], g = F - 1 == -1 ? 0 : store.visibledatacolumn[F - 1], y = F, v = F), formula.func_selectedrange = {
+        left: g,
+        width: m - g - 1,
+        top: u,
+        height: s - u - 1,
+        left_move: g,
+        width_move: m - g - 1,
+        top_move: u,
+        height_move: s - u - 1,
+        row: [d, f],
+        column: [y, v],
+        row_focus: d,
+        column_focus: y,
+        moveXY: {
+          x: I,
+          y: F
+        }
+      }, $("#luckysheet-formula-functionrange-select").css({
+        left: g,
+        width: m - g - 1,
+        top: u,
+        height: s - u - 1
+      }).show(), formula.rangeSetValue({
+        row: [d, f],
+        column: [y, v]
+      });
+    }
+    let k = $("#luckysheet-cell-main").scrollLeft(), b = $("#luckysheet-cell-main").scrollTop(), w = $("#luckysheet-cell-main").height(), x = $("#luckysheet-cell-main").width(), C = 0, S = 0;
+    m - k - x + 20 > 0 ? (C = m - x + 20, l && $("#luckysheet-scrollbar-x").scrollLeft(C)) : g - k - 20 < 0 && (C = g - 20, l && $("#luckysheet-scrollbar-x").scrollLeft(C)), s - b - w + 20 > 0 ? (S = s - w + 20, l && $("#luckysheet-scrollbar-y").scrollTop(S)) : u - b - 20 < 0 && (S = u - 20, l && $("#luckysheet-scrollbar-y").scrollTop(S)), clearTimeout(store.countfuncTimeout), wl(), server.saveParam("mv", store.currentSheetIndex, store.luckysheet_select_save), freeze.scrollFreezen();
+  }
+  function aa(e, n, t) {
+    t || (t = true);
+    let l, a, o, s;
+    if (n == "rangeOfSelect") {
+      let v = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], k = v.row_focus, b = v.column_focus, w = false, x = {};
+      if (store.config.merge != null && k + "_" + b in store.config.merge && (w = true, x = store.config.merge[k + "_" + b]), e == "down") {
+        if (k == store.flowdata.length - 1)
+          return;
+        w ? k = pt("down", b, x.r + x.rs - 1, store.flowdata.length - 1) : k = pt("down", b, k, store.flowdata.length - 1);
+      } else if (e == "up") {
+        if (k == 0)
+          return;
+        w ? k = pt("up", b, 0, x.r) : k = pt("up", b, 0, k);
+      } else if (e == "right") {
+        if (b == store.flowdata[0].length - 1)
+          return;
+        w ? b = pt("right", k, x.c + x.cs - 1, store.flowdata[0].length - 1) : b = pt("right", k, b, store.flowdata[0].length - 1);
+      } else if (e == "left") {
+        if (b == 0)
+          return;
+        w ? b = pt("left", k, 0, x.c) : b = pt("left", k, 0, b);
+      }
+      let C = [k, k], S = [b, b];
+      l = store.visibledatarow[k], a = k - 1 == -1 ? 0 : store.visibledatarow[k - 1], o = store.visibledatacolumn[b], s = b - 1 == -1 ? 0 : store.visibledatacolumn[b - 1];
+      let _ = be.mergeMoveMain(S, C, v, a, l - a - 1, s, o - s - 1);
+      _ != null && (S = _[0], C = _[1]), store.luckysheet_select_save = [{
+        row: C,
+        column: S
+      }], showSelectionHighlight(), Be.pivotclick(k, b), formula.fucntionboxshow(k, b);
+    } else if (n == "rangeOfFormula") {
+      let v = formula.func_selectedrange, k = v.row_focus, b = v.column_focus, w = false, x = {};
+      if (store.config.merge != null && k + "_" + b in store.config.merge && (w = true, x = store.config.merge[k + "_" + b]), e == "down") {
+        if (k == store.flowdata.length - 1)
+          return;
+        w ? k = pt("down", b, x.r + x.rs - 1, store.flowdata.length - 1) : k = pt("down", b, k, store.flowdata.length - 1);
+      } else if (e == "up") {
+        if (k == 0)
+          return;
+        w ? k = pt("up", b, 0, x.r) : k = pt("up", b, 0, k);
+      } else if (e == "right") {
+        if (b == store.flowdata[0].length - 1)
+          return;
+        w ? b = pt("right", k, x.c + x.cs - 1, store.flowdata[0].length - 1) : b = pt("right", k, b, store.flowdata[0].length - 1);
+      } else if (e == "left") {
+        if (b == 0)
+          return;
+        w ? b = pt("left", k, 0, x.c) : b = pt("left", k, 0, b);
+      }
+      let C = [k, k], S = [b, b];
+      l = store.visibledatarow[k], a = k - 1 == -1 ? 0 : store.visibledatarow[k - 1], o = store.visibledatacolumn[b], s = b - 1 == -1 ? 0 : store.visibledatacolumn[b - 1];
+      let _ = a, T = l - a - 1, A = s, R = o - s - 1, I = be.mergeMoveMain(S, C, v, _, T, A, R);
+      I != null && (S = I[0], C = I[1], _ = I[2], T = I[3], A = I[4], R = I[5]), formula.func_selectedrange = {
+        left: A,
+        width: R,
+        top: _,
+        height: T,
+        left_move: A,
+        width_move: R,
+        top_move: _,
+        height_move: T,
+        row: C,
+        column: S,
+        row_focus: k,
+        column_focus: b
+      }, $("#luckysheet-formula-functionrange-select").css({
+        left: A,
+        width: R,
+        top: _,
+        height: T
+      }).show(), formula.rangeSetValue({
+        row: C,
+        column: S
+      });
+    }
+    let u = $("#luckysheet-cell-main").scrollLeft(), d = $("#luckysheet-cell-main").scrollTop(), f = $("#luckysheet-cell-main").height(), m = $("#luckysheet-cell-main").width(), g = 0, y = 0;
+    o - u - m + 20 > 0 ? (g = o - m + 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)) : s - u - 20 < 0 && (g = s - 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)), l - d - f + 20 > 0 ? (y = l - f + 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)), clearTimeout(store.countfuncTimeout), wl(), freeze.scrollFreezen();
+  }
+  function Pn(e, n, t, l) {
+    l == null && (l = true), e || e == "down";
+    let a, o, s, u;
+    if (t == "rangeOfSelect") {
+      let k = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], b = k.row[0], w = k.row[1], x = k.column[0], C = k.column[1], S = k.row_focus, _ = k.column_focus, T = store.flowdata.length, A = store.flowdata[0].length;
+      if (e == "down") {
+        if (Ol(S, x, C)) {
+          let N = tr(S, x, C), D = N[0], E = N[1];
+          D > b && E == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : E < w && D == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : n > 0 ? w += n : b += n;
+        } else
+          S > b && S == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : S < w && S == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : S == b && S == w && (n > 0 ? w += n : b += n);
+        w >= T && (w = T - 1), w < 0 && (w = 0), b >= T && (b = T - 1), b < 0 && (b = 0);
+      } else {
+        if (Bl(_, b, w)) {
+          let N = lr(_, b, w), D = N[0], E = N[1];
+          D > x && E == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : E < C && D == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : n > 0 ? C += n : x += n;
+        } else
+          _ > x && _ == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : _ < C && _ == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : _ == x && _ == C && (n > 0 ? C += n : x += n);
+        C >= A && (C = A - 1), C < 0 && (C = 0), x >= A && (x = A - 1), x < 0 && (x = 0);
+      }
+      let R = [b, w], I = [x, C];
+      a = store.visibledatarow[w], o = b - 1 == -1 ? 0 : store.visibledatarow[b - 1], s = store.visibledatacolumn[C], u = x - 1 == -1 ? 0 : store.visibledatacolumn[x - 1];
+      let F = be.mergeMoveMain(I, R, k, o, a - o - 1, u, s - u - 1);
+      F != null && (I = F[0], R = F[1]), k.row = R, k.column = I, showSelectionHighlight();
+    } else if (t == "rangeOfFormula") {
+      let k = formula.func_selectedrange, b = k.row[0], w = k.row[1], x = k.column[0], C = k.column[1], S = k.row_focus, _ = k.column_focus, T = store.flowdata.length, A = store.flowdata[0].length;
+      if (e == "down") {
+        if (Ol(S, x, C)) {
+          let z = tr(S, x, C), O2 = z[0], V = z[1];
+          O2 > b && V == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : V < w && O2 == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : n > 0 ? w += n : b += n;
+        } else
+          S > b && S == w ? (n > 0 && Ol(b, x, C) && (b = tr(b, x, C)[1]), b += n) : S < w && S == b ? (n < 0 && Ol(w, x, C) && (w = tr(w, x, C)[0]), w += n) : S == b && S == w && (n > 0 ? w += n : b += n);
+        w >= T && (w = T - 1), w < 0 && (w = 0), b >= T && (b = T - 1), b < 0 && (b = 0);
+      } else {
+        if (Bl(_, b, w)) {
+          let z = lr(_, b, w), O2 = z[0], V = z[1];
+          O2 > x && V == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : V < C && O2 == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : n > 0 ? C += n : x += n;
+        } else
+          _ > x && _ == C ? (n > 0 && Bl(x, b, w) && (x = lr(x, b, w)[1]), x += n) : _ < C && _ == x ? (n < 0 && Bl(C, b, w) && (C = lr(C, b, w)[0]), C += n) : _ == x && _ == C && (n > 0 ? C += n : x += n);
+        C >= A && (C = A - 1), C < 0 && (C = 0), x >= A && (x = A - 1), x < 0 && (x = 0);
+      }
+      let R = [b, w], I = [x, C];
+      a = store.visibledatarow[w], o = b - 1 == -1 ? 0 : store.visibledatarow[b - 1], s = store.visibledatacolumn[C], u = x - 1 == -1 ? 0 : store.visibledatacolumn[x - 1];
+      let F = o, N = a - o - 1, D = u, E = s - u - 1, P = be.mergeMoveMain(I, R, k, F, N, D, E);
+      P != null && (I = P[0], R = P[1], F = P[2], N = P[3], D = P[4], E = P[5]), formula.func_selectedrange = {
+        left: D,
+        width: E,
+        top: F,
+        height: N,
+        left_move: D,
+        width_move: E,
+        top_move: F,
+        height_move: N,
+        row: R,
+        column: I,
+        row_focus: S,
+        column_focus: _
+      }, $("#luckysheet-formula-functionrange-select").css({
+        left: D,
+        width: E,
+        top: F,
+        height: N
+      }).show(), formula.rangeSetValue({
+        row: R,
+        column: I
+      });
+    }
+    let d = $("#luckysheet-cell-main").scrollLeft(), f = $("#luckysheet-cell-main").scrollTop(), m = $("#luckysheet-cell-main").height(), g = $("#luckysheet-cell-main").width(), y = 0, v = 0;
+    s - d - g + 20 > 0 ? (y = s - g + 20, l && $("#luckysheet-scrollbar-x").scrollLeft(y)) : u - d - 20 < 0 && (y = u - 20, l && $("#luckysheet-scrollbar-x").scrollLeft(y)), a - f - m + 20 > 0 ? (v = a - m + 20, l && $("#luckysheet-scrollbar-y").scrollTop(v)) : o - f - 20 < 0 && (v = o - 20, l && $("#luckysheet-scrollbar-y").scrollTop(v)), clearTimeout(store.countfuncTimeout), wl(), freeze.scrollFreezen();
+  }
+  function an(e, n, t) {
+    t || (t = true);
+    let l, a, o, s;
+    if (n == "rangeOfSelect") {
+      let v = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], k = v.row_focus, b = v.column_focus, w = v.row[0], x = v.row[1], C = v.column[0], S = v.column[1];
+      if (e == "down") {
+        if (x == store.flowdata.length - 1)
+          return;
+        if (Ol(k, C, S)) {
+          let R = tr(k, C, S), I = R[0], F = R[1];
+          I > w && F == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
+        } else
+          k > w && k == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
+      } else if (e == "up") {
+        if (w == 0)
+          return;
+        if (Ol(k, C, S)) {
+          let R = tr(k, C, S), I = R[0];
+          R[1] < x && I == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
+        } else
+          k < x && k == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
+      } else if (e == "right") {
+        if (S == store.flowdata[0].length - 1)
+          return;
+        if (Bl(b, w, x)) {
+          let R = lr(b, w, x), I = R[0], F = R[1];
+          I > C && F == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
+        } else
+          b > C && b == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
+      } else if (e == "left") {
+        if (C == 0)
+          return;
+        if (Bl(b, w, x)) {
+          let R = lr(b, w, x), I = R[0];
+          R[1] < S && I == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
+        } else
+          b < S && b == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
+      }
+      let _ = [w, x], T = [C, S];
+      l = store.visibledatarow[x], a = w - 1 == -1 ? 0 : store.visibledatarow[w - 1], o = store.visibledatacolumn[S], s = C - 1 == -1 ? 0 : store.visibledatacolumn[C - 1];
+      let A = be.mergeMoveMain(T, _, v, a, l - a - 1, s, o - s - 1);
+      A != null && (T = A[0], _ = A[1]), v.row = _, v.column = T, showSelectionHighlight();
+    } else if (n == "rangeOfFormula") {
+      let v = formula.func_selectedrange, k = v.row_focus, b = v.column_focus, w = v.row[0], x = v.row[1], C = v.column[0], S = v.column[1];
+      if (e == "down") {
+        if (x == store.flowdata.length - 1)
+          return;
+        if (Ol(k, C, S)) {
+          let D = tr(k, C, S), E = D[0], P = D[1];
+          E > w && P == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
+        } else
+          k > w && k == x ? w = pt("down", b, w, x) : x = pt("down", b, x, store.flowdata.length - 1);
+      } else if (e == "up") {
+        if (w == 0)
+          return;
+        if (Ol(k, C, S)) {
+          let D = tr(k, C, S), E = D[0];
+          D[1] < x && E == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
+        } else
+          k < x && k == w ? x = pt("up", b, w, x) : w = pt("up", b, 0, w);
+      } else if (e == "right") {
+        if (S == store.flowdata[0].length - 1)
+          return;
+        if (Bl(b, w, x)) {
+          let D = lr(b, w, x), E = D[0], P = D[1];
+          E > C && P == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
+        } else
+          b > C && b == S ? C = pt("right", k, C, S) : S = pt("right", k, S, store.flowdata[0].length - 1);
+      } else if (e == "left") {
+        if (C == 0)
+          return;
+        if (Bl(b, w, x)) {
+          let D = lr(b, w, x), E = D[0];
+          D[1] < S && E == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
+        } else
+          b < S && b == C ? S = pt("left", k, C, S) : C = pt("left", k, 0, C);
+      }
+      let _ = [w, x], T = [C, S];
+      l = store.visibledatarow[x], a = w - 1 == -1 ? 0 : store.visibledatarow[w - 1], o = store.visibledatacolumn[S], s = C - 1 == -1 ? 0 : store.visibledatacolumn[C - 1];
+      let A = a, R = l - a - 1, I = s, F = o - s - 1, N = be.mergeMoveMain(T, _, v, A, R, I, F);
+      N != null && (T = N[0], _ = N[1], A = N[2], R = N[3], I = N[4], F = N[5]), formula.func_selectedrange = {
+        left: I,
+        width: F,
+        top: A,
+        height: R,
+        left_move: I,
+        width_move: F,
+        top_move: A,
+        height_move: R,
+        row: _,
+        column: T,
+        row_focus: k,
+        column_focus: b
+      }, $("#luckysheet-formula-functionrange-select").css({
+        left: I,
+        width: F,
+        top: A,
+        height: R
+      }).show(), formula.rangeSetValue({
+        row: _,
+        column: T
+      });
+    }
+    let u = $("#luckysheet-cell-main").scrollLeft(), d = $("#luckysheet-cell-main").scrollTop(), f = $("#luckysheet-cell-main").height(), m = $("#luckysheet-cell-main").width(), g = 0, y = 0;
+    o - u - m + 20 > 0 ? (g = o - m + 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)) : s - u - 20 < 0 && (g = s - 20, t && $("#luckysheet-scrollbar-x").scrollLeft(g)), l - d - f + 20 > 0 ? (y = l - f + 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)) : a - d - 20 < 0 && (y = a - 20, t && $("#luckysheet-scrollbar-y").scrollTop(y)), clearTimeout(store.countfuncTimeout), wl(), freeze.scrollFreezen();
+  }
+  function Ol(e, n, t) {
+    let l = false;
+    for (let a = n; a <= t; a++) {
+      let o = store.flowdata[e][a];
+      if (typeOf(o) == "object" && "mc" in o) {
+        l = true;
+        break;
+      }
+    }
+    return l;
+  }
+  function Bl(e, n, t) {
+    let l = false;
+    for (let a = n; a <= t; a++) {
+      let o = store.flowdata[a][e];
+      if (typeOf(o) == "object" && "mc" in o) {
+        l = true;
+        break;
+      }
+    }
+    return l;
+  }
+  function tr(e, n, t) {
+    let l = 0, a = store.flowdata.length - 1, o = null;
+    if (e > l)
+      for (let u = e; u >= l; u--) {
+        for (let d = n; d <= t; d++) {
+          let f = store.flowdata[u][d];
+          if (typeOf(f) == "object" && "mc" in f) {
+            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
+            (o == null || m.r < o) && (o = m.r);
+          }
+        }
+        if (Ol(o - 1, n, t) && o > l)
+          u = o;
+        else
+          break;
+      }
+    else
+      o = l;
+    let s = null;
+    if (e < a)
+      for (let u = e; u <= a; u++) {
+        for (let d = n; d <= t; d++) {
+          let f = store.flowdata[u][d];
+          if (typeOf(f) == "object" && "mc" in f) {
+            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
+            (s == null || m.r + m.rs - 1 > s) && (s = m.r + m.rs - 1);
+          }
+        }
+        if (Ol(s + 1, n, t) && s < a)
+          u = s;
+        else
+          break;
+      }
+    else
+      s = a;
+    return [o, s];
+  }
+  function lr(e, n, t) {
+    let l = 0, a = store.flowdata[0].length - 1, o = null;
+    if (e > l)
+      for (let u = e; u >= l; u--) {
+        for (let d = n; d <= t; d++) {
+          let f = store.flowdata[d][u];
+          if (typeOf(f) == "object" && "mc" in f) {
+            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
+            (o == null || m.c < o) && (o = m.c);
+          }
+        }
+        if (Bl(o - 1, n, t) && o > l)
+          u = o;
+        else
+          break;
+      }
+    else
+      o = l;
+    let s = null;
+    if (e < a)
+      for (let u = e; u <= a; u++) {
+        for (let d = n; d <= t; d++) {
+          let f = store.flowdata[d][u];
+          if (typeOf(f) == "object" && "mc" in f) {
+            let m = store.config.merge[f.mc.r + "_" + f.mc.c];
+            (s == null || m.c + m.cs - 1 > s) && (s = m.c + m.cs - 1);
+          }
+        }
+        if (Bl(s + 1, n, t) && s < a)
+          u = s;
+        else
+          break;
+      }
+    else
+      s = a;
+    return [o, s];
+  }
+  function pt(e, n, t, l) {
+    let a = null, o;
+    if (e == "down") {
+      let s = store.flowdata[t][n];
+      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false, console.log(o, "stNull");
+      let u = [], d = 0;
+      for (let f = t + 1; f <= l; f++) {
+        let m = store.flowdata[f][n];
+        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o == true && u[d] == false) {
+          a = t + d + 1;
+          break;
+        } else if (u.length > 1) {
+          if (o && u[d] == false) {
+            a = t + d + 1;
+            break;
+          } else if (!o) {
+            if (u[d] == false && u[d - 1] == true) {
+              a = t + d + 1;
+              break;
+            } else if (u[d] == true && u[d - 1] == false) {
+              a = t + d;
+              break;
+            }
+          }
+        }
+        f == l && (a = l), d++;
+      }
+    } else if (e == "up") {
+      let s = store.flowdata[l][n];
+      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false;
+      let u = [], d = 0;
+      for (let f = l - 1; f >= t; f--) {
+        let m = store.flowdata[f][n];
+        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o && u[d] == false) {
+          a = l - (d + 1);
+          break;
+        } else if (u.length > 1) {
+          if (o && u[d] == false) {
+            a = l - (d + 1);
+            break;
+          } else if (!o) {
+            if (u[d] == false && u[d - 1] == true) {
+              a = l - (d + 1);
+              break;
+            } else if (u[d] == true && u[d - 1] == false) {
+              a = l - d;
+              break;
+            }
+          }
+        }
+        f == t && (a = t), d++;
+      }
+    } else if (e == "right") {
+      let s = store.flowdata[n][t];
+      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false;
+      let u = [], d = 0;
+      for (let f = t + 1; f <= l; f++) {
+        let m = store.flowdata[n][f];
+        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o && u[d] == false) {
+          a = t + d + 1;
+          break;
+        } else if (u.length > 1) {
+          if (o && u[d] == false) {
+            a = t + d + 1;
+            break;
+          } else if (!o) {
+            if (u[d] == false && u[d - 1] == true) {
+              a = t + d + 1;
+              break;
+            } else if (u[d] == true && u[d - 1] == false) {
+              a = t + d;
+              break;
+            }
+          }
+        }
+        f == l && (a = l), d++;
+      }
+    } else if (e == "left") {
+      let s = store.flowdata[n][l];
+      typeOf(s) == "object" && isRealNull(s.v) || isRealNull(s) ? o = true : o = false;
+      let u = [], d = 0;
+      for (let f = l - 1; f >= t; f--) {
+        let m = store.flowdata[n][f];
+        if (typeOf(m) == "object" && isRealNull(m.v) || isRealNull(m) ? u.push(true) : u.push(false), u.length == 1 && o && u[d] == false) {
+          a = l - (d + 1);
+          break;
+        } else if (u.length > 1) {
+          if (o && u[d] == false) {
+            a = l - (d + 1);
+            break;
+          } else if (!o) {
+            if (u[d] == false && u[d - 1] == true) {
+              a = l - (d + 1);
+              break;
+            } else if (u[d] == true && u[d - 1] == false) {
+              a = l - d;
+              break;
+            }
+          }
+        }
+        f == t && (a = t), d++;
+      }
+    }
+    return a;
+  }
+  var Ea = lazyInit(
+    () => {
+      ht();
+      Ht();
+      Mt();
+      Ma();
+      nl();
+      Xt();
+      on();
+      Ze();
+      Jt();
+    }
+  );
+
   // src/modules/044-kn.js
   function zn(e, n, t, l, a, o, s, u, d, f) {
     if (n ? (e.addClass("luckysheet-filter-options-active").data("rowhidden", JSON.stringify(t)).data("caljs", JSON.stringify(l)).html('<i class="fa fa-filter luckysheet-mousedown-cancel" aria-hidden="true"></i>'), l != null && (e.data("byconditionvalue", l.value).data("byconditiontype", l.type).data("byconditiontext", l.text), l.value1 != null && e.data("byconditionvalue1", l.value1), l.value2 != null && e.data("byconditionvalue2", l.value2))) : (e.removeClass("luckysheet-filter-options-active").data("rowhidden", "").data("caljs", "").html('<i class="fa fa-caret-down luckysheet-mousedown-cancel" aria-hidden="true"></i>'), e.data("byconditionvalue", "null").data("byconditiontype", "0").data("byconditiontext", "无").data("byconditionvalue1", "").data("byconditionvalue2", "")), a) {
@@ -61949,7 +62754,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               else if (o == "color") {
                 let s = $("#luckysheet-sheet-container-c #luckysheet-sheets-item" + t);
                 s.find(".luckysheet-sheets-item-color").remove(), (l != null || l != "") && s.append('<div class="luckysheet-sheets-item-color" style=" position: absolute; width: 100%; height: 3px; bottom: 0px; left: 0px; background-color: ' + l + ';"></div>');
-              } else if (o != "pivotTable")
+              } else if (o == "chart")
+                t == store.currentSheetIndex && chartHooks.showSheet(t, true);
+              else if (o != "pivotTable")
                 if (o == "frozen") {
                   if (freeze.frozenTofreezen(), t == store.currentSheetIndex) {
                     let u = getLocale().freezen;
@@ -62095,26 +62902,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               o == "hide" ? (a.hide = 1, $("#luckysheet-sheets-item" + t).hide(), t == store.currentSheetIndex && ($("#luckysheet-sheets-item" + s).addClass("luckysheet-sheets-item-active"), sheetManage.changeSheetExec(s))) : o == "show" && (a.hide = 0, $("#luckysheet-sheets-item" + t).show()), sheetManage.locationSheet();
             } else if (n == "c") {
               let o = e.op, s = e.cid;
-              if (o == "add")
-                a.chart.push(l), luckysheet.insertChartTosheet(l.sheetIndex, l.dataSheetIndex, l.option, l.chartType, l.selfOption, l.defaultOption, l.row, l.column, l.chart_selection_color, l.chart_id, l.chart_selection_id, l.chartStyle, l.rangeConfigCheck, l.rangeRowCheck, l.rangeColCheck, l.chartMarkConfig, l.chartTitleConfig, l.winWidth, l.winHeight, l.scrollLeft1, l.scrollTop1, l.chartTheme, l.myWidth, l.myHeight, l.myLeft, l.myTop, l.myindexrank1, true);
-              else if (o == "xy" || o == "wh" || o == "update")
-                for (let u = 0; u < a.chart.length; u++) {
-                  let d = a.chart[u];
-                  if (d.chart_id == s) {
-                    for (let f in d)
-                      for (let m in l)
-                        f == m && (d[f] = l[m]);
-                    sheetManage.saveChart(d);
-                    return;
-                  }
-                }
-              else if (o == "del") {
-                for (let u = 0; u < a.chart.length; u++)
-                  if (a.chart[u].chart_id == s) {
-                    a.chart.splice(u, 1), $("#" + s).remove(), sheetManage.delChart($("#" + s).attr("chart_id"), $("#" + s).attr("sheetIndex"));
-                    return;
-                  }
-              }
+              Array.isArray(a.chart) || (a.chart = []);
+              let u = a.chart.findIndex((d) => d && d.chart_id == s);
+              o == "add" ? u < 0 && l && a.chart.push(l) : o == "del" ? u >= 0 && a.chart.splice(u, 1) : u >= 0 && l && typeof l == "object" && Object.assign(a.chart[u], l);
+              t == store.currentSheetIndex && chartHooks.showSheet(t, true);
             } else
               n == "na" && $("#luckysheet_info_detail_input").val(l).css("width", fa(l) * 10);
         },
@@ -67919,9 +68710,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             let cached = sheetRefRegexCache.get(name);
             if (cached) return cached;
             const quotedName = name.replace(/'/g, "''");
-            const esc = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const unquoted = esc(name);
-            const quoted = `'${esc(quotedName)}'`;
+            const esc2 = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const unquoted = esc2(name);
+            const quoted = `'${esc2(quotedName)}'`;
             const pattern = new RegExp(String.raw`(^|[^\p{L}\p{N}_.'])(?:(?:\[[^\]]+\])\s*)?(?:${quoted}|${unquoted})!`, "gu");
             sheetRefRegexCache.set(name, pattern);
             return pattern;
@@ -72377,29 +73168,6 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             }), $("#luckysheet-rows-change-size").css({
               top: b
             }));
-          } else if (store.chartparam.luckysheetCurrentChartMove) {
-            let v = nt(g.pageX, g.pageY), k = v[0] + $("#luckysheet-cell-main").scrollLeft(), b = v[1] + $("#luckysheet-cell-main").scrollTop(), w = store.chartparam.luckysheetCurrentChartMoveObj.height(), x = store.chartparam.luckysheetCurrentChartMoveObj.width(), C = b - store.chartparam.luckysheetCurrentChartMoveXy[1], S = k - store.chartparam.luckysheetCurrentChartMoveXy[0];
-            if (C < 0 && (C = 0), C + w + 42 + 6 > store.chartparam.luckysheetCurrentChartMoveWinH && (C = store.chartparam.luckysheetCurrentChartMoveWinH - w - 42 - 6), S < 0 && (S = 0), S + x + 22 + 36 > store.chartparam.luckysheetCurrentChartMoveWinW && (S = store.chartparam.luckysheetCurrentChartMoveWinW - x - 22 - 36), store.chartparam.luckysheetCurrentChartMoveObj.css({
-              top: C,
-              left: S
-            }), freeze.freezenhorizontaldata != null || freeze.freezenverticaldata != null) {
-              freeze.scrollAdapt();
-              let _ = store.chartparam.luckysheetCurrentChartMoveObj.offset(), T = store.chartparam.luckysheetCurrentChartMoveObj.position();
-              store.chartparam.luckysheetCurrentChartMoveXy = [g.pageX - _.left, g.pageY - _.top, T.left, T.top, $("#luckysheet-scrollbar-x").scrollLeft(), $("#luckysheet-scrollbar-y").scrollTop()];
-            }
-          } else if (store.chartparam.luckysheetCurrentChartResize) {
-            let v = $("#luckysheet-cell-main").scrollTop(), k = $("#luckysheet-cell-main").scrollLeft(), b = nt(g.pageX, g.pageY), w = b[0] + k, x = b[1] + v;
-            if (w < 0 || x < 0)
-              return false;
-            let C = store.chartparam.luckysheetCurrentChartResizeObj.height(), S = store.chartparam.luckysheetCurrentChartResizeObj.width(), _ = x - store.chartparam.luckysheetCurrentChartResizeXy[1], T = w - store.chartparam.luckysheetCurrentChartResizeXy[0], A = store.chartparam.luckysheetCurrentChartResizeXy[5], R = store.chartparam.luckysheetCurrentChartResizeXy[3], I = store.chartparam.luckysheetCurrentChartResizeXy[4], F = store.chartparam.luckysheetCurrentChartResizeXy[2];
-            (store.chartparam.luckysheetCurrentChartResize == "lm" || store.chartparam.luckysheetCurrentChartResize == "lt" || store.chartparam.luckysheetCurrentChartResize == "lb") && (I = w, F = store.chartparam.luckysheetCurrentChartResizeXy[2] - T, I > store.chartparam.luckysheetCurrentChartResizeXy[2] + store.chartparam.luckysheetCurrentChartResizeXy[4] - 60 ? (I = store.chartparam.luckysheetCurrentChartResizeXy[2] + store.chartparam.luckysheetCurrentChartResizeXy[4] - 60, F = store.chartparam.luckysheetCurrentChartResizeXy[2] - (store.chartparam.luckysheetCurrentChartResizeXy[2] + store.chartparam.luckysheetCurrentChartResizeXy[4] - 60 - store.chartparam.luckysheetCurrentChartResizeXy[0])) : I <= 0 && (I = 0, F = store.chartparam.luckysheetCurrentChartResizeXy[2] + store.chartparam.luckysheetCurrentChartResizeXy[0])), (store.chartparam.luckysheetCurrentChartResize == "rm" || store.chartparam.luckysheetCurrentChartResize == "rt" || store.chartparam.luckysheetCurrentChartResize == "rb") && (F = store.chartparam.luckysheetCurrentChartResizeXy[2] + T, F < 60 ? F = 60 : F >= store.chartparam.luckysheetCurrentChartResizeWinW - store.chartparam.luckysheetCurrentChartResizeXy[4] - 22 - 36 && (F = store.chartparam.luckysheetCurrentChartResizeWinW - store.chartparam.luckysheetCurrentChartResizeXy[4] - 22 - 36)), (store.chartparam.luckysheetCurrentChartResize == "mt" || store.chartparam.luckysheetCurrentChartResize == "lt" || store.chartparam.luckysheetCurrentChartResize == "rt") && (A = x, R = store.chartparam.luckysheetCurrentChartResizeXy[3] - _, A > store.chartparam.luckysheetCurrentChartResizeXy[3] + store.chartparam.luckysheetCurrentChartResizeXy[5] - 60 ? (A = store.chartparam.luckysheetCurrentChartResizeXy[3] + store.chartparam.luckysheetCurrentChartResizeXy[5] - 60, R = store.chartparam.luckysheetCurrentChartResizeXy[3] - (store.chartparam.luckysheetCurrentChartResizeXy[3] + store.chartparam.luckysheetCurrentChartResizeXy[5] - 60 - store.chartparam.luckysheetCurrentChartResizeXy[1])) : A <= 0 && (A = 0, R = store.chartparam.luckysheetCurrentChartResizeXy[3] + store.chartparam.luckysheetCurrentChartResizeXy[1])), (store.chartparam.luckysheetCurrentChartResize == "mb" || store.chartparam.luckysheetCurrentChartResize == "lb" || store.chartparam.luckysheetCurrentChartResize == "rb") && (R = store.chartparam.luckysheetCurrentChartResizeXy[3] + _, R < 60 ? R = 60 : R >= store.chartparam.luckysheetCurrentChartResizeWinH - store.chartparam.luckysheetCurrentChartResizeXy[5] - 42 - 6 && (R = store.chartparam.luckysheetCurrentChartResizeWinH - store.chartparam.luckysheetCurrentChartResizeXy[5] - 42 - 6));
-            let N = {
-              top: A,
-              left: I,
-              height: R,
-              width: F
-            };
-            store.chartparam.luckysheetCurrentChartResizeObj.css(N), store.resizeChart(store.chartparam.luckysheetCurrentChart);
           } else if (Re.move) {
             let v = nt(g.pageX, g.pageY), k = v[0] + $("#luckysheet-cell-main").scrollLeft(), b = v[1] + $("#luckysheet-cell-main").scrollTop(), w = Re.images[Re.currentImgId];
             w.isFixedPos && (k = g.pageX, b = g.pageY);
@@ -72528,41 +73296,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         });
       }), Be.refreshPivotTable())), store.luckysheet_sheet_move_status && (store.luckysheet_sheet_move_status = false, store.luckysheet_sheet_move_data.activeobject.insertBefore($("#luckysheet-sheets-item-clone")), store.luckysheet_sheet_move_data.activeobject.removeAttr("style"), $("#luckysheet-sheets-item-clone").remove(), store.luckysheet_sheet_move_data.cursorobject.css({
         cursor: "pointer"
-      }), store.luckysheet_sheet_move_data = {}, sheetManage.reOrderAllSheet()), clearTimeout(store.chartparam.luckysheetCurrentChartMoveTimeout), store.chartparam.luckysheetCurrentChartMove && (store.chartparam.luckysheetCurrentChartMove = false, store.chartparam.luckysheetInsertChartTosheetChange)) {
-        var y = store.chartparam.luckysheetCurrentChartMoveObj.css("top"), v = store.chartparam.luckysheetCurrentChartMoveObj.css("left"), k = $("#luckysheet-cell-main").scrollLeft(), b = $("#luckysheet-cell-main").scrollTop(), w = store.chartparam.luckysheetCurrentChartMoveXy[2], x = store.chartparam.luckysheetCurrentChartMoveXy[3], C = store.chartparam.luckysheetCurrentChartMoveXy[4], S = store.chartparam.luckysheetCurrentChartMoveXy[5], _ = store.chartparam.luckysheetCurrentChartMoveObj.find(".luckysheet-modal-dialog-content").attr("id");
-        store.jfredo.push({
-          type: "moveChart",
-          chart_id: _,
-          sheetIndex: store.currentSheetIndex,
-          myTop: y,
-          myLeft: v,
-          scrollTop: b,
-          scrollLeft: k,
-          x: w,
-          y: x,
-          scrollTop1: S,
-          scrollLeft1: C
-        });
-      }
-      if (store.chartparam.luckysheetCurrentChartResize && (store.chartparam.luckysheetCurrentChartResize = null, store.chartparam.luckysheetInsertChartTosheetChange)) {
-        var T = store.chartparam.luckysheetCurrentChartResizeObj.height(), A = store.chartparam.luckysheetCurrentChartResizeObj.width(), k = $("#luckysheet-cell-main").scrollLeft(), b = $("#luckysheet-cell-main").scrollTop(), y = store.chartparam.luckysheetCurrentChartMoveObj.css("top"), v = store.chartparam.luckysheetCurrentChartMoveObj.css("left"), _ = store.chartparam.luckysheetCurrentChartResizeObj.find(".luckysheet-modal-dialog-content").attr("id"), R = store.chartparam.luckysheetCurrentChartResizeXy[2], I = store.chartparam.luckysheetCurrentChartResizeXy[3], w = store.chartparam.luckysheetCurrentChartResizeXy[4], x = store.chartparam.luckysheetCurrentChartResizeXy[5], C = store.chartparam.luckysheetCurrentChartResizeXy[6], S = store.chartparam.luckysheetCurrentChartResizeXy[7];
-        store.jfredo.push({
-          type: "resizeChart",
-          chart_id: _,
-          sheetIndex: store.currentSheetIndex,
-          myTop: y,
-          myLeft: v,
-          myHeight: T,
-          myWidth: A,
-          scrollTop: b,
-          scrollLeft: k,
-          x: w,
-          y: x,
-          myWidth1: R,
-          myHeight1: I,
-          scrollTop1: S,
-          scrollLeft1: C
-        });
+      }), store.luckysheet_sheet_move_data = {}, sheetManage.reOrderAllSheet())) {
       }
       if (formula.rangeResize && formula.rangeResizeDragged(g, formula.rangeResizeObj, formula.rangeResize, formula.rangeResizexy, formula.rangeResizeWinW, formula.rangeResizeWinH), Re.move && Re.moveImgItem(), Re.resize && Re.resizeImgItem(), Re.cropChange && Re.cropChangeImgItem(), Ve.move) {
         Ve.move = false;
@@ -72749,7 +73483,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           wl();
         }, 500);
       }
-      if (store.chart_selection.rangeMove && store.chart_selection.rangeMoveDragged(), store.chart_selection.rangeResize && store.chart_selection.rangeResizeDragged(), store.luckysheet_cell_selected_extend) {
+      if (store.luckysheet_cell_selected_extend) {
         if (store.luckysheet_cell_selected_extend = false, $("#luckysheet-cell-selected-extend").hide(), !gr(store.luckysheet_select_save, store.currentSheetIndex))
           return;
         let F = nt(g.pageX, g.pageY), N = $("#luckysheet-cell-main").scrollLeft(), D = $("#luckysheet-cell-main").scrollTop(), E = F[0] + N - 5, P = F[1] + D - 5, z = $(window).height() + D - store.sheetBarHeight - store.statisticBarHeight, O2 = $(window).width() + N, V = wt(P), q = V[1], Y = V[0], X = V[2], ee = kt(E), te = ee[1], ce = ee[0], se = ee[2], ie = store.luckysheet_cell_selected_extend_index[0], ue = store.luckysheet_cell_selected_extend_index[1], he = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], J = he.row[0], G = he.row[1], le = he.column[0], pe = he.column[1];
@@ -73132,48 +73866,6 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       ($("#textcolorselect").is(":visible") || $("#cellcolorselect").is(":visible")) && $("#luckysheet-conditionformat-dialog").show(), $(g.currentTarget).parents(".luckysheet-modal-dialog").hide(), $("#luckysheet-modal-dialog-mask").hide(), $(this).parents(".luckysheet-modal-dialog").hasClass("luckysheet-search-formula") && (formula.dontupdate(), qt("down", 0, "rangeOfSelect")), $(this).parents(".luckysheet-modal-dialog").hasClass("luckysheet-search-formula-parm") && (formula.dontupdate(), qt("down", 0, "rangeOfSelect")), $(this).parents(".luckysheet-modal-dialog").hasClass("luckysheet-search-formula-parm-select") && (formula.dontupdate(), qt("down", 0, "rangeOfSelect")), rt();
     }), $("#luckysheet_info_detail_title").click(function() {
       window.open(settings.myFolderUrl, "_self");
-    }), $("#luckysheet-chart-rangeShow").on("mousedown.chartRangeShowMove", ".luckysheet-chart-rangeShow-move", function(g) {
-      store.chart_selection.rangeMove = true, store.luckysheet_scroll_status = true, store.chart_selection.rangeMoveObj = $(this).parent();
-      let y = store.currentChart, v = $(this).parent().attr("id");
-      if (v == "luckysheet-chart-rangeShow-content") {
-        let _ = y.rangeArray[0].row[0] + y.rangeSplitArray.content.row[0], T = y.rangeArray[0].column[0] + y.rangeSplitArray.content.column[0];
-        store.chart_selection.rangeMoveIndex = [_, T];
-      } else if (v == "luckysheet-chart-rangeShow-rowtitle") {
-        let _ = y.rangeArray[0].row[0] + y.rangeSplitArray.rowtitle.row[0], T = y.rangeArray[0].column[0] + y.rangeSplitArray.rowtitle.column[0];
-        store.chart_selection.rangeMoveIndex = [_, T];
-      } else if (v == "luckysheet-chart-rangeShow-coltitle") {
-        let _ = y.rangeArray[0].row[0] + y.rangeSplitArray.coltitle.row[0], T = y.rangeArray[0].column[0] + y.rangeSplitArray.coltitle.column[0];
-        store.chart_selection.rangeMoveIndex = [_, T];
-      }
-      let k = nt(g.pageX, g.pageY), b = k[0] + $("#luckysheet-cell-main").scrollLeft(), w = k[1] + $("#luckysheet-cell-main").scrollTop(), x = $(this).data("type");
-      x == "top" ? w += 3 : x == "right" ? b -= 3 : x == "bottom" ? w -= 3 : x == "left" && (b += 3);
-      let C = wt(w)[2], S = kt(b)[2];
-      store.chart_selection.rangeMovexy = [C, S], g.stopPropagation();
-    }), $("#luckysheet-chart-rangeShow").on("mousedown.chartRangeShowResize", ".luckysheet-chart-rangeShow-resize", function(g) {
-      store.chart_selection.rangeResize = $(this).data("type"), store.luckysheet_scroll_status = true, store.chart_selection.rangeResizeObj = $(this).parent();
-      let y = store.currentChart, v, k, b, w, x = $(this).parent().attr("id");
-      if (x == "luckysheet-chart-rangeShow-content")
-        y.rangeRowCheck.exits ? (v = y.rangeArray[0].row[0] + y.rangeSplitArray.content.row[0], k = y.rangeArray[0].row[0] + y.rangeSplitArray.content.row[1]) : (v = y.rangeSplitArray.content.row[0], k = y.rangeSplitArray.content.row[0]), y.rangeColCheck.exits ? (b = y.rangeArray[0].column[0] + y.rangeSplitArray.content.column[0], w = y.rangeArray[0].column[0] + y.rangeSplitArray.content.column[1]) : (b = y.rangeSplitArray.content.column[0], w = y.rangeSplitArray.content.column[1]), store.chart_selection.rangeResizeIndex = {
-          row: [v, k],
-          column: [b, w]
-        };
-      else if (x == "luckysheet-chart-rangeShow-rowtitle") {
-        let R = y.rangeArray[0].row[0] + y.rangeSplitArray.rowtitle.row[0], I = y.rangeArray[0].row[0] + y.rangeSplitArray.rowtitle.row[1], F = y.rangeArray[0].column[0] + y.rangeSplitArray.rowtitle.column[0], N = y.rangeArray[0].column[0] + y.rangeSplitArray.rowtitle.column[1];
-        store.chart_selection.rangeResizeIndex = {
-          row: [R, I],
-          column: [F, N]
-        };
-      } else if (x == "luckysheet-chart-rangeShow-coltitle") {
-        let R = y.rangeArray[0].row[0] + y.rangeSplitArray.coltitle.row[0], I = y.rangeArray[0].row[0] + y.rangeSplitArray.coltitle.row[1], F = y.rangeArray[0].column[0] + y.rangeSplitArray.coltitle.column[0], N = y.rangeArray[0].column[0] + y.rangeSplitArray.coltitle.column[1];
-        store.chart_selection.rangeResizeIndex = {
-          row: [R, I],
-          column: [F, N]
-        };
-      }
-      let C = nt(g.pageX, g.pageY), S = C[0] + $("#luckysheet-cell-main").scrollLeft(), _ = C[1] + $("#luckysheet-cell-main").scrollTop();
-      store.chart_selection.rangeResize == "lt" ? (S += 3, _ += 3) : store.chart_selection.rangeResize == "lb" ? (S += 3, _ -= 3) : store.chart_selection.rangeResize == "rt" ? (S -= 3, _ += 3) : store.chart_selection.rangeResize == "rb" && (S -= 3, _ -= 3);
-      let T = wt(_)[2], A = kt(S)[2];
-      store.chart_selection.rangeResizexy = [T, A], g.stopPropagation();
     }), $("#luckysheet-wa-calculate-size").mousedown(function(g) {
       let y = g.pageY;
       formula.functionResizeData.y = y, formula.functionResizeStatus = true, formula.functionResizeData.calculatebarHeight = store.calculatebarHeight, formula.rangetosheet && formula.rangetosheet != null && formula.updatecell(store.luckysheetCellUpdate[0], store.luckysheetCellUpdate[1]);
@@ -75665,7 +76357,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       } else if (s == at.ESC)
         be.luckysheetPaintModelOn ? be.cancelPaintModel() : (tl(t), t.preventDefault()), showSelectionHighlight();
       else if (s == at.DELETE || s == at.BACKSPACE)
-        Re.currentImgId != null ? Re.removeImgItem() : $("#luckysheet-delete-text").click(), t.preventDefault();
+        chartHooks.hasSelection() ? chartHooks.deleteSelected() : Re.currentImgId != null ? Re.removeImgItem() : $("#luckysheet-delete-text").click(), t.preventDefault();
       else if (s == 8 && Re.currentImgId != null)
         Re.removeImgItem(), t.preventDefault();
       else if (s == at.UP) {
@@ -76141,9 +76833,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
 
   // src/modules/114-qm.js
   function Vm(e, n) {
-    e.length && e.forEach(
+    Array.isArray(e) && e.forEach(
       (t) => {
-        zy[t.name](n, t.config, Oy);
+        const name = typeof t == "string" ? t : t && t.name;
+        typeof zy[name] == "function" && zy[name](n, t && typeof t == "object" ? t.config : void 0, Oy);
       }
     );
   }
@@ -82099,16 +82792,16 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               var cache = lsState.vlookupCache[cacheKey];
               if (!cache) {
                 if (a && a.length) {
-                  var lastUsed = -1;
+                  var lastUsed2 = -1;
                   for (var r2 = a.length - 1; r2 >= 0; r2--) {
                     var v = a[r2] && a[r2][0];
                     if (v != null && v !== "") {
-                      lastUsed = r2;
+                      lastUsed2 = r2;
                       break;
                     }
                   }
-                  if (lastUsed === -1) return formula.error.na;
-                  lsState.vlookupCache[cacheKey] = lastUsed + 1;
+                  if (lastUsed2 === -1) return formula.error.na;
+                  lsState.vlookupCache[cacheKey] = lastUsed2 + 1;
                 } else {
                   return formula.error.na;
                 }
@@ -82180,19 +82873,19 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
             } else if (typeOf(l) == "object" && l.startCell != null) {
               _fast = formula._passDerived(l, "vlookupCol0", function(en) {
-                var map = /* @__PURE__ */ new Map(), lastUsed2 = -1, keys = new Array(en.rowl);
+                var map = /* @__PURE__ */ new Map(), lastUsed3 = -1, keys = new Array(en.rowl);
                 for (var r3 = 0; r3 < en.rowl; r3++) {
                   var cell = en.data[r3][0], v2 = cell;
                   typeOf(cell) === "object" && (v2 = cell.v);
                   v2 == null && (v2 = "");
                   keys[r3] = v2;
-                  if (v2 !== "") lastUsed2 = r3;
+                  if (v2 !== "") lastUsed3 = r3;
                 }
-                for (var r3 = 0; r3 <= lastUsed2; r3++) {
+                for (var r3 = 0; r3 <= lastUsed3; r3++) {
                   var k = keys[r3].toString();
                   map.has(k) || map.set(k, r3);
                 }
-                return { map, lastUsed: lastUsed2, en };
+                return { map, lastUsed: lastUsed3, en };
               });
               if (!_fast) a = funcMethods.getCellDataDyadicArr(l, "text");
             } else return formula.error.v;
@@ -82213,16 +82906,16 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               var cache = lsState.vlookupCache[cacheKey];
               if (!cache) {
                 if (a && a.length) {
-                  var lastUsed = -1;
+                  var lastUsed2 = -1;
                   for (var r2 = a.length - 1; r2 >= 0; r2--) {
                     var v = a[r2] && a[r2][0];
                     if (v != null && v !== "") {
-                      lastUsed = r2;
+                      lastUsed2 = r2;
                       break;
                     }
                   }
-                  if (lastUsed === -1) return formula.error.na;
-                  lsState.vlookupCache[cacheKey] = lastUsed + 1;
+                  if (lastUsed2 === -1) return formula.error.na;
+                  lsState.vlookupCache[cacheKey] = lastUsed2 + 1;
                 } else {
                   return formula.error.na;
                 }
@@ -82455,28 +83148,28 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
               var cachedLen = lsState.xlookupCache[cacheKey];
               if (!cachedLen) {
-                var lastUsed = -1;
+                var lastUsed2 = -1;
                 if (shape.kind === "row") {
                   var row = dy2[0];
                   for (var c2 = row.length - 1; c2 >= 0; c2--) {
                     var v = row[c2];
                     if (v != null && v !== "") {
-                      lastUsed = c2;
+                      lastUsed2 = c2;
                       break;
                     }
                   }
-                  if (lastUsed === -1) return { error: formula.error.na };
-                  cachedLen = lastUsed + 1;
+                  if (lastUsed2 === -1) return { error: formula.error.na };
+                  cachedLen = lastUsed2 + 1;
                 } else {
                   for (var r2 = dy2.length - 1; r2 >= 0; r2--) {
                     var v2 = dy2[r2] && dy2[r2][0];
                     if (v2 != null && v2 !== "") {
-                      lastUsed = r2;
+                      lastUsed2 = r2;
                       break;
                     }
                   }
-                  if (lastUsed === -1) return { error: formula.error.na };
-                  cachedLen = lastUsed + 1;
+                  if (lastUsed2 === -1) return { error: formula.error.na };
+                  cachedLen = lastUsed2 + 1;
                 }
                 lsState.xlookupCache[cacheKey] = cachedLen;
               }
@@ -97906,7 +98599,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         for (let d in e)
           d !== "data" && (store.toJsonOptions[d] = e[d]);
         let n = Zc(du, e), t = n.loadUrl, l = n.menu, a = n.title, o = n.container;
-        store.container = o, store.exportFileName = n.exportFileName, store.cycleErrorElement = n.cycleErrorElement, store.luckysheetfile = n.data, store.defaultcolumnNum = n.column, store.defaultrowNum = n.row, store.defaultFontSize = n.defaultFontSize, store.fullscreenmode = n.fullscreenmode, store.lang = n.lang, store.allowEdit = n.allowEdit, store.limitSheetNameLength = n.limitSheetNameLength, store.defaultSheetNameMaxLength = n.defaultSheetNameMaxLength, store.onWorkbookLoaded = n.onWorkbookLoaded, store.fontList = n.fontList, server.gridKey = n.gridKey, server.loadUrl = n.loadUrl, server.updateUrl = n.updateUrl, server.updateImageUrl = n.updateImageUrl, server.title = n.title, server.loadSheetUrl = n.loadSheetUrl, server.allowUpdate = n.allowUpdate, settings.autoFormatw = n.autoFormatw, settings.accuracy = n.accuracy, settings.total = n.data[0].total, settings.loading = n.loading, settings.allowCopy = n.allowCopy, settings.showtoolbar = n.showtoolbar, settings.showtoolbarConfig = n.showtoolbarConfig, settings.showinfobar = n.showinfobar, settings.showsheetbar = n.showsheetbar, settings.showsheetbarConfig = n.showsheetbarConfig, settings.showstatisticBar = n.showstatisticBar, settings.showstatisticBarConfig = n.showstatisticBarConfig, settings.sheetFormulaBar = n.sheetFormulaBar, settings.cellRightClickConfig = n.cellRightClickConfig, settings.sheetRightClickConfig = n.sheetRightClickConfig, settings.pointEdit = n.pointEdit, settings.pointEditUpdate = n.pointEditUpdate, settings.pointEditZoom = n.pointEditZoom, settings.userInfo = n.userInfo, settings.userMenuItem = n.userMenuItem, settings.myFolderUrl = n.myFolderUrl, settings.functionButton = n.functionButton, settings.showConfigWindowResize = n.showConfigWindowResize, settings.enableAddRow = n.enableAddRow, settings.enableAddBackTop = n.enableAddBackTop, settings.addRowCount = n.addRowCount, settings.enablePage = n.enablePage, settings.pageInfo = n.pageInfo, settings.editMode = n.editMode, settings.beforeCreateDom = n.beforeCreateDom, settings.workbookCreateBefore = n.workbookCreateBefore, settings.workbookCreateAfter = n.workbookCreateAfter, settings.remoteFunction = n.remoteFunction, settings.customFunctions = n.customFunctions, settings.fireMousedown = n.fireMousedown, settings.forceCalculation = n.forceCalculation, settings.plugins = n.plugins, settings.enableDependencyIndexOptimization = n.enableDependencyIndexOptimization !== false, settings.validateDependencyIndex = n.validateDependencyIndex === true, settings.debugDependencyIndex = n.debugDependencyIndex === true, settings.dependencyIndexMaxRefKeys = n.dependencyIndexMaxRefKeys, settings.rowHeaderWidth = n.rowHeaderWidth, settings.columnHeaderHeight = n.columnHeaderHeight, settings.defaultColWidth = n.defaultColWidth, settings.defaultRowHeight = n.defaultRowHeight, settings.title = n.title, settings.container = n.container, settings.hook = n.hook, settings.pager = n.pager, settings.initShowsheetbarConfig = false, settings.imageUpdateMethodConfig = n.imageUpdateMethodConfig, store.lang === "zh" && Bo.localize(u1.default.zh), store.asyncLoad.push(...settings.plugins), Vm(n.plugins, n), store.plugins = n.plugins, initFunctionList(n.customFunctions);
+        store.container = o, store.exportFileName = n.exportFileName, store.cycleErrorElement = n.cycleErrorElement, store.luckysheetfile = n.data, store.defaultcolumnNum = n.column, store.defaultrowNum = n.row, store.defaultFontSize = n.defaultFontSize, store.fullscreenmode = n.fullscreenmode, store.lang = n.lang, store.allowEdit = n.allowEdit, store.limitSheetNameLength = n.limitSheetNameLength, store.defaultSheetNameMaxLength = n.defaultSheetNameMaxLength, store.onWorkbookLoaded = n.onWorkbookLoaded, store.fontList = n.fontList, server.gridKey = n.gridKey, server.loadUrl = n.loadUrl, server.updateUrl = n.updateUrl, server.updateImageUrl = n.updateImageUrl, server.title = n.title, server.loadSheetUrl = n.loadSheetUrl, server.allowUpdate = n.allowUpdate, settings.autoFormatw = n.autoFormatw, settings.accuracy = n.accuracy, settings.total = n.data[0].total, settings.loading = n.loading, settings.allowCopy = n.allowCopy, settings.showtoolbar = n.showtoolbar, settings.showtoolbarConfig = n.showtoolbarConfig, settings.showinfobar = n.showinfobar, settings.showsheetbar = n.showsheetbar, settings.showsheetbarConfig = n.showsheetbarConfig, settings.showstatisticBar = n.showstatisticBar, settings.showstatisticBarConfig = n.showstatisticBarConfig, settings.sheetFormulaBar = n.sheetFormulaBar, settings.cellRightClickConfig = n.cellRightClickConfig, settings.sheetRightClickConfig = n.sheetRightClickConfig, settings.pointEdit = n.pointEdit, settings.pointEditUpdate = n.pointEditUpdate, settings.pointEditZoom = n.pointEditZoom, settings.userInfo = n.userInfo, settings.userMenuItem = n.userMenuItem, settings.myFolderUrl = n.myFolderUrl, settings.functionButton = n.functionButton, settings.showConfigWindowResize = n.showConfigWindowResize, settings.enableAddRow = n.enableAddRow, settings.enableAddBackTop = n.enableAddBackTop, settings.addRowCount = n.addRowCount, settings.enablePage = n.enablePage, settings.pageInfo = n.pageInfo, settings.editMode = n.editMode, settings.beforeCreateDom = n.beforeCreateDom, settings.workbookCreateBefore = n.workbookCreateBefore, settings.workbookCreateAfter = n.workbookCreateAfter, settings.remoteFunction = n.remoteFunction, settings.customFunctions = n.customFunctions, settings.fireMousedown = n.fireMousedown, settings.forceCalculation = n.forceCalculation, settings.plugins = n.plugins, settings.enableDependencyIndexOptimization = n.enableDependencyIndexOptimization !== false, settings.validateDependencyIndex = n.validateDependencyIndex === true, settings.debugDependencyIndex = n.debugDependencyIndex === true, settings.dependencyIndexMaxRefKeys = n.dependencyIndexMaxRefKeys, settings.rowHeaderWidth = n.rowHeaderWidth, settings.columnHeaderHeight = n.columnHeaderHeight, settings.defaultColWidth = n.defaultColWidth, settings.defaultRowHeight = n.defaultRowHeight, settings.title = n.title, settings.container = n.container, settings.hook = n.hook, settings.pager = n.pager, settings.initShowsheetbarConfig = false, settings.imageUpdateMethodConfig = n.imageUpdateMethodConfig, store.lang === "zh" && Bo.localize(u1.default.zh), // (custom) plugins are no longer waited for: none of them loads anything before the
+        // workbook is usable (charts load ECharts on first use), and the entries were never
+        // removed, so naming any plugin stopped workbookCreateAfter from firing
+        Vm(n.plugins, n), store.plugins = n.plugins, initFunctionList(n.customFunctions);
         let s = n.devicePixelRatio;
         s == null && (s = 1), store.devicePixelRatio = Math.ceil(s);
         let u = Fr("#" + o);
