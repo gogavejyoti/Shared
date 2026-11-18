@@ -25733,7 +25733,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     xlookupCache: {},
     compiledFormulas: null,
     dependentSheets: null,
-    sheetRefRegex: null
+    sheetRefRegex: null,
+    // > 0 while a whole grid is being swapped in (undo/redo, full refreshes): the
+    // "skip formulas whose inputs did not change" shortcut is not safe then, because the
+    // swapped-in cells already hold their old values
+    noPrune: 0
   };
   function lsResetCaches() {
     lsState.cellDataCache = null;
@@ -30025,6 +30029,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       if (a.v = parseFloat(o), a.ct == null && (a.ct = {
         fa: "General",
         t: "n"
+      }), // (custom fix) a formula that showed an error and now gives a number is a number
+      // again (the error type used to stay on the cell)
+      a.ct.t == "e" && (a.ct = {
+        fa: a.ct.fa || "General",
+        t: "n"
       }), a.ct?.fa === "#" && Number.isFinite(a.v) && a.v != 0 && (a.ct.fa = "0"), a.v == Infinity || a.v == -Infinity)
         a.m = a.v.toString();
       else if (a.v.toString().indexOf("e") > -1) {
@@ -30048,7 +30057,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       u === o ? (u = generateCellValue(o), a.m = u[0].toString(), //a.ct = u[1],
       a.v = u[2]) : (a.m = u.toString(), a.v = o);
     } else if (isRealNumber(o) && !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(o))
-      if (typeof o == "string" && o.split("").every((d) => d == "0" || d == ".") && (o = parseFloat(o)), a.v = o, a.ct = {
+      if (typeof o == "string" && o.split("").every((d) => d == "0" || d == ".") && (o = parseFloat(o)), // (custom fix) a typed plain number ("100", "12.5", "-7") is stored as a number, so
+      // functions that compare by type (MATCH, exact lookups) find it. Text with
+      // leading zeros ("007") or more than 15 digits stays text, so codes are kept.
+      typeof o == "string" && /^\s*[+-]?(?:(?:0|[1-9]\d*)(?:\.\d*)?|\.\d+)\s*$/.test(o) && o.replace(/[^0-9]/g, "").replace(/^0+/, "").length <= 15 && (o = parseFloat(o)), a.v = o, a.ct = {
         fa: "General",
         t: "n"
       }, a.v == Infinity || a.v == -Infinity)
@@ -31509,6 +31521,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             t = e.data.v, e.data.ct != null && e.data.ct.t == "d" && (t = mt("YYYY-MM-DD h:mm:ss", t));
           } else
             t = e;
+          typeof t == "string" && /^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$/.test(t) && (t = parseFloat(t));
           typeof t == "number" && t === t && t > -657435 && t < 2958466 && (t = this.serialToDateText(t));
           if (typeof t == "string") {
             let tm2 = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?\s*$/i.exec(t);
@@ -33183,6 +33196,29 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
   );
 
   // src/modules/079-Fo.js
+  function lsApplyCrossText(ctrl, which) {
+    if (!ctrl || !Array.isArray(ctrl.cross)) return;
+    for (const x of ctrl.cross) {
+      const sh = store.luckysheetfile[sheetPosition(x.sheetIndex)];
+      if (!sh) continue;
+      let cell = sh.data && sh.data[x.r] ? sh.data[x.r][x.c] : null;
+      if (!cell && Array.isArray(sh.celldata)) {
+        const cd = sh.celldata.find((q) => q && q.r === x.r && q.c === x.c);
+        cell = cd ? cd.v : null;
+      }
+      cell && typeof cell == "object" && (cell.f = x[which]);
+    }
+  }
+  function lsRecalcCross(entry) {
+    formula.execFunctionExist = entry.cross.map((p) => ({ r: p.r, c: p.c, i: p.sheetIndex }));
+    try {
+      formula.execFunctionGroup(null, null, null, null);
+    } finally {
+      formula.execFunctionExist = null;
+    }
+    formula.groupValuesRefresh();
+    formula.execFunctionGlobalData = null;
+  }
   function Mo(e, n = "redo") {
     if (e == null)
       return;
@@ -33192,7 +33228,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       let a = e.range[l].row[0], o = e.range[l].row[1], s = e.range[l].column[0], u = e.range[l].column[1];
       for (let d = a; d < o + 1; d++)
         for (let f = s; f < u + 1 && !(d > t.length - 1); f++)
-          t[d][f] == null || t[d][f].f == null || t[d][f].f == "" ? formula.delFunctionGroup(d, f, e.sheetIndex) : t[d][f] != null && t[d][f].f != null && t[d][f].f.length > 0 && formula.insertUpdateFunctionGroup(d, f, e.sheetIndex);
+          t[d] == null || t[d][f] == null || t[d][f].f == null || t[d][f].f == "" ? formula.delFunctionGroup(d, f, e.sheetIndex) : t[d][f] != null && t[d][f].f != null && t[d][f].f.length > 0 && formula.insertUpdateFunctionGroup(d, f, e.sheetIndex);
     }
   }
   var Fp, _n, Fo = lazyInit(
@@ -33217,10 +33253,19 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       Pl();
       Fp = {
         redo: function(e) {
+          lsState.noPrune++;
+          try {
+            return this._redoImpl(e);
+          } finally {
+            lsState.noPrune--;
+          }
+        },
+        _redoImpl: function(e) {
           if (store.jfredo.length == 0)
             return;
           let n = store.jfredo.pop();
           if (store.jfundo.push(n), store.clearjfundo = false, sheetManage.hasSheet(n.sheetIndex) && store.currentSheetIndex != n.sheetIndex && sheetManage.changeSheetExec(n.sheetIndex), n.type == "datachange") {
+            n.cross && (lsApplyCrossText(n, "before"), formula._dependencyInvalidate && formula._dependencyInvalidate("undo-move"));
             Mo(n);
             let l = {
               cfg: n.config,
@@ -33230,7 +33275,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               dynamicArray: n.dynamicArray,
               hyperlink: n.hyperlink
             };
-            refreshGrid(n.data, n.dataRange, l);
+            refreshGrid(n.data, n.dataRange, l), n.cross && lsRecalcCross(n);
           } else if (n.type == "pasteCut") {
             let l = {
               sheetIndex: n.source.sheetIndex,
@@ -33281,6 +33326,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (typeof _shiftCrossSheetReference === "function") {
               if (l.rc == "r") {
                 _shiftCrossSheetReference({
+                  historyEntry: n,
                   type: "deleteRow",
                   sheetIndex: store.currentSheetIndex,
                   rowIndex: l.index,
@@ -33289,6 +33335,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
               if (l.rc == "c") {
                 _shiftCrossSheetReference({
+                  historyEntry: n,
                   type: "deleteCol",
                   sheetIndex: store.currentSheetIndex,
                   colIndex: l.index,
@@ -33302,6 +33349,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (typeof _shiftCrossSheetReference === "function") {
               if (l.rc == "r") {
                 _shiftCrossSheetReference({
+                  restoreFormulas: n.crossRefBackup,
                   type: "insertRow",
                   sheetIndex: store.currentSheetIndex,
                   rowIndex: l.index,
@@ -33310,6 +33358,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
               if (l.rc == "c") {
                 _shiftCrossSheetReference({
+                  restoreFormulas: n.crossRefBackup,
                   type: "insertCol",
                   sheetIndex: store.currentSheetIndex,
                   colIndex: l.index,
@@ -33318,7 +33367,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
             }
           } else if (n.type == "deleteCell")
-            $i(n.data, n.config, n.ctrl, n.calc, n.filterObj, n.cf, n.dataVerification, n.hyperlink);
+            lsApplyCrossText(n.ctrl, "before"), $i(n.data, n.config, n.ctrl, n.calc, n.filterObj, n.cf, n.dataVerification, n.hyperlink);
           else if (n.type == "showHidRows")
             store.config = n.config, store.luckysheetfile[sheetPosition(n.sheetIndex)].config = n.config, server.saveParam("cg", n.sheetIndex, n.config.rowhidden, {
               k: "rowhidden"
@@ -33360,7 +33409,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               store.luckysheetfile[a].name == n.name && (l = true);
             l || (sheetManage.createSheetbydata(n, "isrenew"), $("#luckysheet-input-box").removeAttr("style"), $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide());
           } else if (n.type == "sheetName")
-            store.luckysheetfile[sheetPosition(n.sheetIndex)].name = n.oldtxt, $("#luckysheet-sheets-item" + n.sheetIndex).find(".luckysheet-sheets-item-name").html(n.oldtxt), server.saveParam("all", n.sheetIndex, n.oldtxt, {
+            fixCrossSheetReferencesAfterRename(n.txt, n.oldtxt), store.luckysheetfile[sheetPosition(n.sheetIndex)].name = n.oldtxt, $("#luckysheet-sheets-item" + n.sheetIndex).find(".luckysheet-sheets-item-name").html(n.oldtxt), server.saveParam("all", n.sheetIndex, n.oldtxt, {
               k: "name"
             });
           else if (n.type == "sheetColor") {
@@ -33414,7 +33463,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             n.type == "imageCtrl" ? (Re.images = lsDeepCopyObject(n.images), Re.allImagesShow(), Re.ref()) : n.type == "zoomChange" && (store.zoomRatio = n.zoomRatio, server.saveParam("all", n.currentSheetIndex, n.zoomRatio, {
               k: "zoomRatio"
             }), ar(), Wa());
-          tl(e), n.range && (store.luckysheet_select_save = n.range, showSelectionHighlight()), store.clearjfundo = true;
+          tl(e), // (custom fix) give the selection its own copy: sharing the history entry's
+          // range object meant that clicking another cell rewrote the entry, and the
+          // next undo/redo of that entry crashed
+          n.range && (store.luckysheet_select_save = lsDeepCopyArray(n.range), showSelectionHighlight()), store.clearjfundo = true;
           let t = cu(je({}, n), {
             data: n.curdata,
             curdata: n.data
@@ -33422,6 +33474,14 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           methods.createHookFunction("updated", t);
         },
         undo: function() {
+          lsState.noPrune++;
+          try {
+            return this._undoImpl();
+          } finally {
+            lsState.noPrune--;
+          }
+        },
+        _undoImpl: function() {
           if (store.jfundo.length == 0)
             return;
           let e = store.jfundo.pop();
@@ -33434,7 +33494,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               dynamicArray: e.curDynamicArray,
               hyperlink: e.curHyperlink
             };
-            Mo(e, "undo"), refreshGrid(e.curdata, e.range, n);
+            e.cross && (lsApplyCrossText(e, "after"), formula._dependencyInvalidate && formula._dependencyInvalidate("redo-move")), Mo(e, "undo"), refreshGrid(e.curdata, e.range, n), e.cross && lsRecalcCross(e);
           } else if (e.type == "pasteCut")
             Va(e.source, e.target, e.RowlChange);
           else if (e.type == "rangechange")
@@ -33461,6 +33521,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (typeof _shiftCrossSheetReference === "function") {
               if (e.ctrlValue.rc == "r") {
                 _shiftCrossSheetReference({
+                  restoreFormulas: e.crossRefBackup,
                   type: "insertRow",
                   // undo adding rows = delete
                   sheetIndex: store.currentSheetIndex,
@@ -33469,6 +33530,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 });
               } else if (e.ctrlValue.rc == "c") {
                 _shiftCrossSheetReference({
+                  restoreFormulas: e.crossRefBackup,
                   type: "insertCol",
                   // undo adding columns = delete
                   sheetIndex: store.currentSheetIndex,
@@ -33482,6 +33544,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (typeof _shiftCrossSheetReference === "function") {
               if (e.ctrlValue.rc == "r") {
                 _shiftCrossSheetReference({
+                  historyEntry: e,
                   type: "deleteRow",
                   sheetIndex: store.currentSheetIndex,
                   rowIndex: e.ctrlValue.index,
@@ -33489,6 +33552,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 });
               } else if (e.ctrlValue.rc == "c") {
                 _shiftCrossSheetReference({
+                  historyEntry: e,
                   type: "deleteCol",
                   sheetIndex: store.currentSheetIndex,
                   colIndex: e.ctrlValue.index,
@@ -33497,7 +33561,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
             }
           } else if (e.type == "deleteCell")
-            $i(e.curData, e.curConfig, e.ctrl, e.curCalc, e.curFilterObj, e.curCf, e.curDataVerification, e.curHyperlink);
+            lsApplyCrossText(e.ctrl, "after"), $i(e.curData, e.curConfig, e.ctrl, e.curCalc, e.curFilterObj, e.curCf, e.curDataVerification, e.curHyperlink);
           else if (e.type == "showHidRows")
             store.config = e.curconfig, store.luckysheetfile[sheetPosition(e.sheetIndex)].config = e.curconfig, server.saveParam("cg", e.sheetIndex, e.curconfig.rowhidden, {
               k: "rowhidden"
@@ -33530,7 +33594,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           else if (e.type == "deleteSheet")
             sheetManage.deleteSheet(e.index), e.order == 0 ? sheetManage.changeSheetExec(store.luckysheetfile[0].index) : sheetManage.changeSheetExec(store.luckysheetfile[e.order - 1].index), $("#luckysheet-input-box").removeAttr("style"), $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
           else if (e.type == "sheetName")
-            store.luckysheetfile[sheetPosition(e.sheetIndex)].name = e.txt, $("#luckysheet-sheets-item" + e.sheetIndex).find(".luckysheet-sheets-item-name").html(e.txt), server.saveParam("all", e.sheetIndex, e.txt, {
+            fixCrossSheetReferencesAfterRename(e.oldtxt, e.txt), store.luckysheetfile[sheetPosition(e.sheetIndex)].name = e.txt, $("#luckysheet-sheets-item" + e.sheetIndex).find(".luckysheet-sheets-item-name").html(e.txt), server.saveParam("all", e.sheetIndex, e.txt, {
               k: "name"
             });
           else if (e.type == "sheetColor") {
@@ -33582,7 +33646,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             e.type == "imageCtrl" ? (Re.images = lsDeepCopyObject(e.curImages), Re.allImagesShow(), Re.ref()) : e.type == "zoomChange" && (store.zoomRatio = e.curZoomRatio, server.saveParam("all", e.currentSheetIndex, e.curZoomRatio, {
               k: "zoomRatio"
             }), ar(), Wa());
-          e.range && (store.luckysheet_select_save = e.range, showSelectionHighlight()), store.clearjfundo = true;
+          e.range && (store.luckysheet_select_save = lsDeepCopyArray(e.range), showSelectionHighlight()), store.clearjfundo = true;
         }
       }, _n = Fp;
     }
@@ -35869,7 +35933,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     typeOf(u) == "object" ? (delete u.m, delete u.v, u.f != null && (delete u.f, formula.delFunctionGroup(e, n, a), delete u.spl)) : u = null, a === l ? (refreshGrid(s, [{
       row: [e, e],
       column: [n, n]
-    }], void 0, false), formula.execFunctionGroup(e, n, null, l)) : store.luckysheetfile[a].data = s, o && typeof o == "function" && o(u);
+    }], void 0, false), formula.execFunctionGroup(e, n, null, store.luckysheetfile[l].index)) : store.luckysheetfile[a].data = s, o && typeof o == "function" && o(u);
   }
   function qp(e, n, t, l = {}) {
     if (!e || ["left", "up"].indexOf(e) < 0)
@@ -35946,7 +36010,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       }
     );
     let d = lsDeepCopyArray(s.data);
-    return s.data.length = 0, s.data.push(...u), s.index == store.currentSheetIndex && refreshGrid(d, void 0, void 0, true, false), redrawGrid(), t.success && typeof t.success == "function" && t.success(l), l;
+    let _ranges = l.map((c2) => ({ row: [c2.row, c2.row], column: [c2.column, c2.column] }));
+    return s.data.length = 0, s.data.push(...u), s.index == store.currentSheetIndex && _ranges.length > 0 && refreshGrid(d, _ranges, void 0, true, false, false, void 0, u), redrawGrid(), t.success && typeof t.success == "function" && t.success(l), l;
   }
   function Up(e = {}) {
     parseInt($("#luckysheet-input-box").css("top")) > 0 && ($("#luckysheet-formula-search-c").is(":visible") && formula.searchFunctionCell != null ? formula.searchFunctionEnter($("#luckysheet-formula-search-c").find(".luckysheet-formula-search-item-active")) : (formula.updatecell(store.luckysheetCellUpdate[0], store.luckysheetCellUpdate[1]), store.luckysheet_select_save = [{
@@ -36631,7 +36696,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     if (["normal", "anti", "offset"].indexOf(e) < 0)
       return tooltip.info("The type parameter must be included in ['normal', 'anti', 'offset']", "");
     let l = sheetPosition(store.currentSheetIndex), a = JSON.parse(JSON.stringify(store.luckysheet_select_save)), { column: o = 1, range: s = a, order: u = l } = je({}, n), f = store.luckysheetfile[u].config;
-    if (s && typeof s == "string" && formula.iscelldata(s) && (s = formula.getcellrange(s)), !s || s.length > 1) {
+    if (s && typeof s == "string" && formula.iscelldata(s) && (s = formula.getcellrange(s)), s && !Array.isArray(s) && typeof s == "object" && (s = [s]), !s || s.length > 1) {
       de() ? alert(getLocale().drag.noMulti) : tooltip.info(getLocale().drag.noMulti, "");
       return;
     }
@@ -36642,7 +36707,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         return;
       }
     }
-    let m = getDataBySelection(s, u), g = [];
+    let m = getDataBySelection(s[0], store.luckysheetfile[u].index), g = [];
     if (m.length === 0)
       return;
     let y = m[0].length;
@@ -36668,11 +36733,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           g.push(m[v][v + o]);
         break;
     }
-    selection.copybyformat(new Event(), JSON.stringify(g));
+    return selection.copybyformat(new Event("copy"), JSON.stringify(g)), g;
   }
   function kg(e = {}) {
     let n = sheetPosition(store.currentSheetIndex), t = JSON.parse(JSON.stringify(store.luckysheet_select_save)), { range: l = t, order: a = n } = je({}, e), s = store.luckysheetfile[a].config;
-    if (l && typeof l == "string" && formula.iscelldata(l) && (l = formula.getcellrange(l)), !l || l.length > 1) {
+    if (l && typeof l == "string" && formula.iscelldata(l) && (l = formula.getcellrange(l)), l && !Array.isArray(l) && typeof l == "object" && (l = [l]), !l || l.length > 1) {
       de() ? alert(getLocale().drag.noMulti) : tooltip.info(getLocale().drag.noMulti, "");
       return;
     }
@@ -36683,7 +36748,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         return;
       }
     }
-    let u = getDataBySelection(l, a), d = [];
+    let u = getDataBySelection(l[0], store.luckysheetfile[a].index), d = [];
     if (u.length !== 0) {
       for (let f = 0; f < u.length; f++) {
         let m = [];
@@ -36693,8 +36758,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         }
         d.push(m);
       }
-      selection.copybyformat(event, JSON.stringify(d));
+      selection.copybyformat(new Event("copy"), JSON.stringify(d));
     }
+    return d;
   }
   function bg(e, n = {}) {
     if (typeOf(e) == "string") {
@@ -36769,10 +36835,12 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         });
       }
     let y = lsDeepCopyArray(m.data);
-    m.data.length = 0, m.data.push(...g), m.index == store.currentSheetIndex && refreshGrid(y, [{
+    m.data.length = 0, m.data.push(...g), // (custom fix) undo "before" comes from the copy taken before any cell was set:
+    // the per-cell writes above can leave the live grid half-updated
+    m.index == store.currentSheetIndex && refreshGrid(y, [{
       row: a.row,
       column: a.column
-    }], void 0, true, false), o && redrawGrid(), u && typeof u == "function" && u();
+    }], void 0, true, false, false, void 0, g), o && redrawGrid(), u && typeof u == "function" && u();
   }
   function nm(e, n, t = {}) {
     let l = sheetPosition(store.currentSheetIndex), a = store.luckysheet_select_save[store.luckysheet_select_save.length - 1], { range: o = a, order: s = l } = je({}, t);
@@ -36789,7 +36857,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       return tooltip.info("The range parameter is invalid.", ""), "error";
     for (let u = o.row[0]; u <= o.row[1]; u++)
       for (let d = o.column[0]; d <= o.column[1]; d++)
-        console.log("r", u), console.log("c", d), Ka(u, d, {
+        Ka(u, d, {
           [e]: n
         }, {
           order: s,
@@ -36817,15 +36885,42 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     if (typeOf(o) != "array")
       return tooltip.info("The range parameter is invalid.", "");
     let d = store.luckysheetfile[s], f = [];
+    let _before = {};
     for (let g = 0; g < o.length; g++)
-      f.push(nm(e, n, {
-        range: o[g],
-        order: s
-      }));
+      for (let r2 = o[g].row[0]; r2 <= o[g].row[1]; r2++) {
+        let row = d.data && d.data[r2];
+        _before[r2] || (_before[r2] = {});
+        for (let c2 = o[g].column[0]; c2 <= o[g].column[1]; c2++)
+          _before[r2][c2] = row && row[c2] != null ? lsDeepCopyObject(row[c2]) : null;
+      }
+    let _cfgBefore = e == "bd" ? lsDeepCopyObject(d.config) : null;
+    if (e == "bd") {
+      if (n == null || typeof n != "object")
+        return tooltip.info("The border value must be an object such as { borderType, style, color }.", "");
+      d.config == null && (d.config = {});
+      Array.isArray(d.config.borderInfo) || (d.config.borderInfo = []);
+      for (let g = 0; g < o.length; g++) {
+        let _bi = je({
+          rangeType: "range",
+          borderType: "border-all",
+          color: "#000",
+          style: "1"
+        }, n);
+        _bi.range = [{ row: o[g].row.slice(), column: o[g].column.slice() }];
+        d.config.borderInfo.push(_bi);
+      }
+    } else
+      for (let g = 0; g < o.length; g++)
+        f.push(nm(e, n, {
+          range: o[g],
+          order: s
+        }));
     let m = lsDeepCopyArray(d.data);
     if (f.some((g) => g === "error"))
       return d.data.length = 0, d.data.push(...m), false;
-    d.data.length = 0, d.data.push(...m), d.index == store.currentSheetIndex && refreshGrid(m, void 0, void 0, true, false), redrawGrid(), u && typeof u == "function";
+    let _cfgAfter = null;
+    _cfgBefore && (_cfgAfter = lsDeepCopyObject(d.config), d.config = _cfgBefore, d.index == store.currentSheetIndex && (store.config = _cfgBefore));
+    d.data.length = 0, d.data.push(...m), d.index == store.currentSheetIndex && refreshGrid(m, o.map((g) => ({ row: g.row, column: g.column })), _cfgAfter ? { cfg: _cfgAfter } : void 0, true, false, false, void 0, _before), d.index != store.currentSheetIndex && _cfgAfter && (d.config = _cfgAfter), redrawGrid(), u && typeof u == "function";
   }
   function _g(e, n = {}) {
     if (!["open", "close"].includes(e))
@@ -37770,7 +37865,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       let m = [];
       for (let g = 0; g < u[0].length; g++) {
         let y = "";
-        u[f] != null && u[f][g] != null && (y = u[f][g], parseInt(y) != null && u[f][g].ct != null && u[f][g].ct.t == "n" && (e == "minus" ? y.v = y.v - n : e == "multiply" ? y.v = y.v * n : e == "divided" ? y.v = numFormat(y.v / n, 4) : e == "power" ? y.v = Math.pow(y.v, n) : e == "root" ? n == 2 ? y.v = numFormat(Math.sqrt(y.v), 4) : n == 3 && Math.cbrt ? y.v = numFormat(Math.cbrt(y.v), 4) : y.v = numFormat(jfnqrt(y.v, n), 4) : e == "log" ? y.v = numFormat(Math.log(y.v) * 1e4 / Math.log(Math.abs(n)), 4) : y.v = y.v + n, y.v == null ? y.m = "" : y.m = y.v.toString())), m.push(y);
+        u[f] != null && u[f][g] != null && (y = lsDeepCopyObject(u[f][g]), parseInt(y) != null && u[f][g].ct != null && u[f][g].ct.t == "n" && (e == "minus" ? y.v = y.v - n : e == "multiply" ? y.v = y.v * n : e == "divided" ? y.v = numFormat(y.v / n, 4) : e == "power" ? y.v = Math.pow(y.v, n) : e == "root" ? n == 2 ? y.v = numFormat(Math.sqrt(y.v), 4) : n == 3 && Math.cbrt ? y.v = numFormat(Math.cbrt(y.v), 4) : y.v = numFormat(jfnqrt(y.v, n), 4) : e == "log" ? y.v = numFormat(Math.log(y.v) * 1e4 / Math.log(Math.abs(n)), 4) : y.v = y.v + n, y.v == null ? y.m = "" : y.m = y.v.toString())), m.push(y);
       }
       d.push(m);
     }
@@ -37921,6 +38016,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     if (a == null)
       return tooltip.info("The order parameter is invalid.", "");
     let o = a.name;
+    o !== e && fixCrossSheetReferencesAfterRename(o, e);
     if (a.name = e, $("#luckysheet-sheets-item" + a.index + " .luckysheet-sheets-item-name").text(e), server.saveParam("all", a.index, e, {
       k: "name"
     }), store.clearjfundo) {
@@ -39515,7 +39611,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     window.markConditionalFormatDirty(o.index);
   }
   function oa(e, n, t, l, a, o) {
-    if (o = o || store.currentSheetIndex, !qr(o) || !method.createHookFunction("rangeDeleteBefore", r, c))
+    if (o = o || store.currentSheetIndex, // (custom fix) was "method.createHookFunction(..., r, c)": an undefined name, so every
+    // delete-cells call (API and right-click "delete, shift up/left") failed
+    !qr(o) || !methods.createHookFunction("rangeDeleteBefore", { row: [n, t], column: [l, a] }, e))
       return;
     let s = sheetPosition(o), u = store.luckysheetfile[s], d = lsDeepCopyArray(u.data), f = t - n + 1, m = a - l + 1, g = lsDeepCopyObject(store.config);
     g.merge == null && (g.merge = {});
@@ -39562,13 +39660,26 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               delete d[O2][V].mc;
     }
     g.merge = y;
-    let v = u.calcChain, k = [];
+    let v = u.calcChain, k = [], _lsChanged = [], _lsCross = [];
+    for (let _s2 = 0; _s2 < store.luckysheetfile.length; _s2++) {
+      let _sh = store.luckysheetfile[_s2];
+      if (_sh === u) continue;
+      let _visit = (cell, r2, c2) => {
+        if (!cell || typeof cell.f != "string" || cell.f.indexOf("!") < 0) return;
+        let _nf = lsShiftRefsForDeletedCells(cell.f, _sh.name, u.name, e, n, t, l, a);
+        _nf !== cell.f && (_lsCross.push({ sheetIndex: _sh.index, r: r2, c: c2, before: cell.f, after: _nf }), cell.f = _nf);
+      };
+      if (Array.isArray(_sh.data) && _sh.data.length)
+        _sh.data.forEach((row, r2) => row && row.forEach((cell, c2) => _visit(cell, r2, c2)));
+      else if (Array.isArray(_sh.celldata))
+        _sh.celldata.forEach((cd) => cd && _visit(cd.v, cd.r, cd.c));
+    }
     if (v != null && v.length > 0)
       for (let F = 0; F < v.length; F++) {
         let N = lsDeepCopyObject(v[F]), D = N.r, E = N.c, P = N.index, z = getCellFormula(D, E, P);
         if (!!z && (D < n || D > t || E < l || E > a)) {
-          let O2;
-          e == "moveLeft" ? (O2 = "=" + formula.functionStrChange(z, "del", "col", null, l, m), E > a && D >= n && D <= t && (N.c = E - m)) : e == "moveUp" && (O2 = "=" + formula.functionStrChange(z, "del", "row", null, n, f), D > t && E >= l && E <= a && (N.r = D - f)), d[D][E] && d[D][E].f == z && (d[D][E].f = O2), k.push(N);
+          let O2 = lsShiftRefsForDeletedCells(z, u.name, u.name, e, n, t, l, a);
+          e == "moveLeft" ? E > a && D >= n && D <= t && (N.c = E - m) : e == "moveUp" && D > t && E >= l && E <= a && (N.r = D - f), d[D][E] && d[D][E].f == z && (d[D][E].f = O2), O2 !== z && _lsChanged.push({ r: N.r, c: N.c, i: u.index }), k.push(N);
         }
       }
     let b = u.filter_select, w = u.filter, x = null;
@@ -39743,13 +39854,16 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     } else if (e == "moveLeft")
       for (let F = n; F <= t; F++)
         d[F].splice(l, m), d[F] = d[F].concat(I);
-    _dependencyInvalidate("move-delete-cells-in-range");
+    formula._dependencyInvalidate && formula._dependencyIndexEnabled && formula._dependencyIndexEnabled() && formula._dependencyInvalidate("move-delete-cells-in-range");
+    formula._rangeTextCacheClear && formula._rangeTextCacheClear();
     u.index == store.currentSheetIndex ? $i(d, g, {
       type: e,
       str: n,
       edr: t,
       stc: l,
-      edc: a
+      edc: a,
+      changed: _lsChanged,
+      cross: _lsCross
     }, k, x, S, T, R) : (u.data = d, u.config = g, u.calcChain = k, u.filter = x.filter, u.filter_select = x.filter_select, u.luckysheet_conditionformat_save = S, u.dataVerification = T, u.hyperlink = R);
   }
   function ef(e, n, t, l, a, o, s, u, d, f, m) {
@@ -44502,6 +44616,30 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
   );
 
   // src/modules/068-qa.selection-copy-paste.js
+  function lsFinishMove(N, ranges, se, cross, srcIndex, sameSheet, u, d, f, m, x, C, S, _) {
+    formula._rangeTextCacheClear && formula._rangeTextCacheClear();
+    formula._dependencyInvalidate && formula._dependencyIndexEnabled && formula._dependencyIndexEnabled() && formula._dependencyInvalidate("move-range");
+    let before = store.jfredo.length;
+    refreshGrid(N, ranges, se, false, true, false, store.flowdata);
+    let entry = store.jfredo.length > before ? store.jfredo[store.jfredo.length - 1] : null;
+    entry && cross.length && (entry.cross = cross);
+    let seeds = [];
+    ranges.forEach((rg2) => {
+      for (let r2 = rg2.row[0]; r2 <= rg2.row[1]; r2++) for (let c2 = rg2.column[0]; c2 <= rg2.column[1]; c2++) seeds.push({ r: r2, c: c2, i: store.currentSheetIndex });
+    });
+    if (!sameSheet) for (let r2 = u; r2 <= d; r2++) for (let c2 = f; c2 <= m; c2++) seeds.push({ r: r2, c: c2, i: srcIndex });
+    cross.forEach((p) => seeds.push({ r: p.r, c: p.c, i: p.sheetIndex }));
+    lsState.noPrune++;
+    try {
+      formula.execFunctionExist = seeds;
+      formula.execFunctionGroup(null, null, null, null);
+    } finally {
+      lsState.noPrune--;
+      formula.execFunctionExist = null;
+    }
+    formula.groupValuesRefresh();
+    formula.execFunctionGlobalData = null;
+  }
   var wp, selection, qa = lazyInit(
     () => {
       Xt();
@@ -45077,6 +45215,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }
             }
           }
+          const _srcName = store.luckysheetfile[sheetPosition(s)].name, _dstName = store.luckysheetfile[sheetPosition(store.currentSheetIndex)].name;
           let JMap = {};
           let ue = x - u;
           let he = S - f;
@@ -45124,11 +45263,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 oe = lsDeepCopyObject(v[rr2][cc2]);
               }
               if (oe != null && oe.f != null) {
-                let Fe = oe.f;
-                if (ue > 0) Fe = "=" + formula.functionCopy(Fe, "down", ue);
-                if (ue < 0) Fe = "=" + formula.functionCopy(Fe, "up", Math.abs(ue));
-                if (he > 0) Fe = "=" + formula.functionCopy(Fe, "right", he);
-                if (he < 0) Fe = "=" + formula.functionCopy(Fe, "left", Math.abs(he));
+                let Fe = lsMoveRefs(oe.f, _srcName, _dstName, _srcName, _dstName, u, d, f, m, ue, he);
                 lsState.cellDataCache = null;
                 let ae = formula.execfunction(Fe, G, pe, void 0);
                 if (oe.spl != null) {
@@ -45262,45 +45397,36 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (q == null) q = lsDeepCopyObject(store.luckysheetfile[sheetPosition(store.currentSheetIndex)].dataVerification);
             q = srcDV;
           }
+          let _changedHere = [], _cross = [];
+          for (let _si = 0; _si < store.luckysheetfile.length; _si++) {
+            let _sh = store.luckysheetfile[_si];
+            let _isDst = _sh.index == store.currentSheetIndex, _isSrc = _sh.index == s;
+            let _grid = _isDst ? N : _isSrc && !sameSheet ? srcFlow : _sh.data;
+            let _visit = (cell, r2, c2) => {
+              if (!cell || typeof cell.f != "string") return;
+              if (_isDst && r2 >= x && r2 <= C && c2 >= S && c2 <= _) return;
+              let _nf = lsMoveRefs(cell.f, _sh.name, _sh.name, _srcName, _dstName, u, d, f, m, ue, he);
+              if (_nf === cell.f) return;
+              if (_isDst || _isSrc && sameSheet) cell.f = _nf, _changedHere.push({ r: r2, c: c2 });
+              else _cross.push({ sheetIndex: _sh.index, r: r2, c: c2, before: cell.f, after: _nf }), cell.f = _nf;
+            };
+            if (Array.isArray(_grid) && _grid.length)
+              _grid.forEach((row, r2) => row && row.forEach((cell, c2) => _visit(cell, r2, c2)));
+            else if (Array.isArray(_sh.celldata))
+              _sh.celldata.forEach((cd) => cd && _visit(cd.v, cd.r, cd.c));
+          }
+          let _ranges = [{ row: [x, C], column: [S, _] }];
+          sameSheet && _ranges.push({ row: [u, d], column: [f, m] });
+          _changedHere.forEach((p) => _ranges.push({ row: [p.r, p.r], column: [p.c, p.c] }));
           w.row = [x, C];
           w.column = [S, _];
           if (o || P > 0 || z > 0) {
             l = yl(N, x, C, l);
             const se = { cfg: l, RowlChange: true, cdformat: ce, dataVerification: q };
-            refreshGrid(N, store.luckysheet_select_save, se, true, true, false, store.flowdata);
-            _shiftCrossSheetReference({
-              type: "moveRange",
-              fromSheetIndex: s,
-              // source sheet index
-              toSheetIndex: store.currentSheetIndex,
-              // destination sheet index
-              fromRowIndex: u,
-              fromColIndex: f,
-              rowCount: d - u + 1,
-              colCount: m - f + 1,
-              toRowIndex: x,
-              toColIndex: S,
-              partialPolicy: "keep"
-              // or "ref"
-            });
+            lsFinishMove(N, _ranges, se, _cross, s, sameSheet, u, d, f, m, x, C, S, _);
           } else {
             const se = { cfg: l, cdformat: ce, dataVerification: q };
-            refreshGrid(N, store.luckysheet_select_save, se, true, true, false, store.flowdata);
-            _shiftCrossSheetReference({
-              type: "moveRange",
-              fromSheetIndex: s,
-              // source sheet index
-              toSheetIndex: store.currentSheetIndex,
-              // destination sheet index
-              fromRowIndex: u,
-              fromColIndex: f,
-              rowCount: d - u + 1,
-              colCount: m - f + 1,
-              toRowIndex: x,
-              toColIndex: S,
-              partialPolicy: "keep"
-              // or "ref"
-            });
+            lsFinishMove(N, _ranges, se, _cross, s, sameSheet, u, d, f, m, x, C, S, _);
             showSelectionHighlight();
           }
         },
@@ -48377,7 +48503,23 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     server.allowUpdate = prevAllowUpdate;
     window.markConditionalFormatDirty();
   }
-  function refreshGridAll(e, n, t, l, a, o, s, u, d = true) {
+  function refreshGridAll() {
+    lsState.noPrune++;
+    try {
+      return lsRefreshGridAllImpl.apply(this, arguments);
+    } finally {
+      lsState.noPrune--;
+    }
+  }
+  function refreshRange() {
+    lsState.noPrune++;
+    try {
+      return lsRefreshRangeImpl.apply(this, arguments);
+    } finally {
+      lsState.noPrune--;
+    }
+  }
+  function lsRefreshGridAllImpl(e, n, t, l, a, o, s, u, d = true) {
     let f = {}, m = false;
     formula._rangeTextCacheClear && formula._rangeTextCacheClear();
     formula._dependencyInvalidate && formula._dependencyIndexEnabled && formula._dependencyIndexEnabled() && formula._dependencyInvalidate("rowcol-resize-shift");
@@ -48425,7 +48567,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       redrawGrid();
     }, 1)), sheetManage.storeSheetParamALL(), lsState.cellDataCache = null;
   }
-  function refreshRange(e, n, t) {
+  function lsRefreshRangeImpl(e, n, t) {
     clearTimeout(Rr), store.clearjfundo && (store.jfundo.length = 0, store.jfredo.push({
       type: "rangechange",
       data: store.flowdata,
@@ -48439,6 +48581,51 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     }, 1);
     for (let l = 0; l < n.length; l++)
       server.historyParam(store.flowdata, store.currentSheetIndex, n[l]);
+  }
+  function orderCalcChainByDependencies(chain, data) {
+    try {
+      if (!(formula._dependencyIndexEnabled && formula._dependencyIndexEnabled() && formula._dependencyTryBuildGraph))
+        return chain;
+      const keyOf = (C) => "r" + C.r + "c" + C.c + "i" + C.index;
+      const execSet = {}, keyToCell = {};
+      for (const C of chain) {
+        if (C == null || data[C.r] == null || data[C.r][C.c] == null) continue;
+        if (typeof getCellFormula(C.r, C.c, C.index, data) != "string") continue;
+        const k = keyOf(C);
+        execSet[k] = 1;
+        keyToCell[k] || (keyToCell[k] = C);
+      }
+      if (Object.keys(execSet).length < 2) return chain;
+      const graph = formula._dependencyTryBuildGraph(execSet, { recomputeAllOnEmpty: false, lean: true });
+      if (!graph || !graph.nodes || !graph.impacted || !graph.parentKeysOf || graph.impacted.size === 0)
+        return chain;
+      const ordered = [], done = {}, onStack = {};
+      const visit = (root) => {
+        if (done[root] || onStack[root] || !graph.nodes[root]) return;
+        onStack[root] = 1;
+        const stack = [{ k: root, parents: graph.parentKeysOf(root), i: 0 }];
+        while (stack.length > 0) {
+          const fr2 = stack[stack.length - 1];
+          if (fr2.i < fr2.parents.length) {
+            const pk = fr2.parents[fr2.i++];
+            if (done[pk] || onStack[pk] || !graph.nodes[pk]) continue;
+            onStack[pk] = 1;
+            stack.push({ k: pk, parents: graph.parentKeysOf(pk), i: 0 });
+          } else {
+            done[fr2.k] = 1;
+            delete onStack[fr2.k];
+            keyToCell[fr2.k] && ordered.push(keyToCell[fr2.k]);
+            stack.pop();
+          }
+        }
+      };
+      for (const C of chain) C != null && visit(keyOf(C));
+      for (const C of chain)
+        if (C != null && !done[keyOf(C)]) ordered.push(C);
+      return ordered;
+    } catch (err) {
+      return chain;
+    }
   }
   function refreshAfterRowColChange(e, n, t, l, a, o, s, u, d, f, m) {
     formula._rangeTextCacheClear && formula._rangeTextCacheClear();
@@ -48561,10 +48748,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       window.luckysheet_getSpecialReference = getSpecialReference;
     }
     if (a.length > 0) {
+      const evalList = orderCalcChainByDependencies(a, e);
       formula._passRangeCacheBegin();
       try {
-        for (let x = 0; x < a.length; x++) {
-          let C = a[x], S = C.r, _ = C.c, T = C.index, A = getCellFormula(S, _, T, e);
+        for (let x = 0; x < evalList.length; x++) {
+          let C = evalList[x], S = C.r, _ = C.c, T = C.index, A = getCellFormula(S, _, T, e);
           if (typeof A != "string" || e[S] == null || e[S][_] == null)
             continue;
           lsState.cellDataCache = null;
@@ -48720,6 +48908,31 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       k: "hyperlink"
     }), Rr = setTimeout(function() {
       redrawGrid();
+      try {
+        let _ctl = t || {}, _seeds = [], _rows = e.length, _cols = e[0] ? e[0].length : 0;
+        let _r0 = _ctl.str, _r1 = _ctl.type == "moveUp" ? _rows - 1 : _ctl.edr, _c0 = _ctl.stc, _c1 = _ctl.type == "moveUp" ? _ctl.edc : _cols - 1;
+        if (_r0 != null && _c0 != null && (_r1 - _r0 + 1) * (_c1 - _c0 + 1) <= 5e5)
+          for (let _r2 = _r0; _r2 <= _r1; _r2++)
+            for (let _c = _c0; _c <= _c1; _c++)
+              _seeds.push({ r: _r2, c: _c, i: store.currentSheetIndex });
+        (_ctl.changed || []).forEach((x) => _seeds.push(x));
+        (_ctl.cross || []).forEach((x) => _seeds.push({ r: x.r, c: x.c, i: x.sheetIndex }));
+        if (_seeds.length) {
+          let _prev = settings.skipUnchangedDependents;
+          settings.skipUnchangedDependents = false;
+          try {
+            formula.execFunctionExist = _seeds;
+            formula.execFunctionGroup(null, null, null, null);
+          } finally {
+            settings.skipUnchangedDependents = _prev;
+            formula.execFunctionExist = null;
+          }
+          formula.groupValuesRefresh();
+          formula.execFunctionGlobalData = null;
+        }
+      } catch (_err) {
+        console.warn("[delete cells] recalculation failed", _err);
+      }
     }, 1);
   }
   function Va(e, n, t) {
@@ -51628,9 +51841,13 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                   cell.m = cell.v.toExponential(Math.min(len, 5)).toString();
                 } else {
                   const rounded = Math.round(cell.v * 1e9) / 1e9;
-                  const [mOut, ctOut] = generateCellValue(rounded);
-                  cell.m = String(mOut);
-                  cell.ct = cell.ct || ctOut || { fa: "General", t: "n" };
+                  if (cell.ct && cell.ct.fa && cell.ct.fa !== "General" && cell.ct.fa !== "@") {
+                    cell.m = String(mt(cell.ct.fa, rounded));
+                  } else {
+                    const [mOut, ctOut] = generateCellValue(rounded);
+                    cell.m = String(mOut);
+                    cell.ct = cell.ct || ctOut || { fa: "General", t: "n" };
+                  }
                 }
               } else {
                 const [mOut, ctOut] = generateCellValue(cell.v);
@@ -51796,9 +52013,13 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                   cell.m = cell.v.toExponential(Math.min(len, 5)).toString();
                 } else {
                   const rounded = Math.round(cell.v * 1e9) / 1e9;
-                  const [mOut, ctOut] = generateCellValue(rounded);
-                  cell.m = String(mOut);
-                  cell.ct = cell.ct || ctOut || { fa: "General", t: "n" };
+                  if (cell.ct && cell.ct.fa && cell.ct.fa !== "General" && cell.ct.fa !== "@") {
+                    cell.m = String(mt(cell.ct.fa, rounded));
+                  } else {
+                    const [mOut, ctOut] = generateCellValue(rounded);
+                    cell.m = String(mOut);
+                    cell.ct = cell.ct || ctOut || { fa: "General", t: "n" };
+                  }
                 }
               } else {
                 const [mOut, ctOut] = generateCellValue(cell.v);
@@ -62104,11 +62325,15 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             let y = [].concat(l[g + o]);
             for (let v = 0; v < d; v++) {
               let k = "";
-              e[g] != null && e[g][v] != null && (k = e[g][v]), y[v + s] = k;
+              e[g] != null && e[g][v] != null && (k = e[g][v] !== null && typeof e[g][v] == "object" ? lsCloneDeep(e[g][v]) : e[g][v]), y[v + s] = k;
             }
             l[g + o] = y;
           }
-          f > 0 || m > 0 ? refreshGridAll(l[0].length, l.length, l, null, store.luckysheet_select_save, "datachangeAll") : refreshRange(l, store.luckysheet_select_save);
+          let _written = [{
+            row: [o, o + u - 1],
+            column: [s, s + d - 1]
+          }];
+          f > 0 || m > 0 ? refreshGridAll(l[0].length, l.length, l, null, _written, "datachangeAll") : refreshRange(l, _written);
         },
         clearRangeByindex: function(e, n, t, l, a) {
           let o = sheetPosition(a), s = lsDeepCopyArray(store.luckysheetfile[o].data);
@@ -63269,7 +63494,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     }, p._dependencyFormulaFor = function(r2, c2, index2) {
       const liveCell = getCellObject(r2, c2, index2);
       if (liveCell != null) return liveCell.f || null;
-      return sheetManage.getSheetByIndex(index2)?.celldata?.find((x) => x?.r === r2 && x?.c === c2)?.v?.f || null;
+      const sh = sheetManage.getSheetByIndex(index2);
+      if (sh && Array.isArray(sh.data) && sh.data.length) return null;
+      return sh?.celldata?.find((x) => x?.r === r2 && x?.c === c2)?.v?.f || null;
     }, p._dependencyBuild = function() {
       try {
         const _bpOn = !!(settings && settings.debugDependencyIndex === true && typeof performance !== "undefined");
@@ -63826,7 +64053,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           return false;
         }
         const mustEval = graph.seeds || null;
-        let prune = mustEval !== null && !(settings && settings.skipUnchangedDependents === false);
+        let prune = mustEval !== null && !(settings && settings.skipUnchangedDependents === false) && !(lsState.noPrune > 0);
         const changed = /* @__PURE__ */ new Set();
         let evaluated = 0, skipped = 0, _evalMs = 0;
         const evalNode = (k, parents) => {
@@ -64376,7 +64603,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (u == null && (u = store.currentSheetIndex), e + "_" + u in this.cellTextToIndexList)
               return this.cellTextToIndexList[e + "_" + u];
             let d = sheetPosition(u);
-            t = s[d].name, a = s[d].index, o = n && store.currentSheetIndex != n ? s[d].data : store.flowdata, l = e;
+            t = s[d].name, a = s[d].index, // (custom fix) a sheet id of 0 is a valid id; the old test "n && ..." read it
+            // as "no sheet given" and measured the range against the ACTIVE sheet, so
+            // a formula on the first sheet could turn into #REF! when recalculated
+            // while a narrower or shorter sheet was open
+            o = n != null && store.currentSheetIndex != n ? s[d].data : store.flowdata, l = e;
           }
           if (l.indexOf(":") == -1) {
             let u = parseInt(l.replace(/[^0-9]/g, "")) - 1, d = columnLettersToIndex(l.replace(/[^A-Za-z]/g, ""));
@@ -66394,6 +66625,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             } catch (err) {
             }
             const sh = sheetsInfo.find((x) => String(x.index) === String(index2));
+            if (sh && Array.isArray(sh.data) && sh.data.length) return null;
             const cd = sh && Array.isArray(sh.celldata) ? sh.celldata.find((x) => x && x.r === r2 && x.c === c2) : null;
             return cd && cd.v && cd.v.f || null;
           };
@@ -66554,6 +66786,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               } catch (err) {
               }
               const sh = sheetsInfo.find((x) => String(x.index) === String(index2));
+              if (sh && Array.isArray(sh.data) && sh.data.length) return null;
               const cd = sh && Array.isArray(sh.celldata) ? sh.celldata.find((x) => x && x.r === r2 && x.c === c2) : null;
               return cd && cd.v && cd.v.f || null;
             };
@@ -67081,7 +67314,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           for (let i2 = 0; i2 < allFuncCells.length; i2++) {
             const T = allFuncCells[i2];
             const nodeKey = "r" + T.r + "c" + T.c + "i" + T.index;
-            let R = getCellFormula(T.r, T.c, T.index) || sheetManage.getSheetByIndex(T.index)?.celldata?.find((x) => x?.r === T.r && x?.c === T.c)?.v?.f;
+            let R = getCellFormula(T.r, T.c, T.index);
+            if (!R) {
+              const _sh = sheetManage.getSheetByIndex(T.index);
+              if (!(_sh && Array.isArray(_sh.data) && _sh.data.length)) R = _sh?.celldata?.find((x) => x?.r === T.r && x?.c === T.c)?.v?.f;
+            }
             if (!R) continue;
             R = replaceQuotedCellWithValue(R, T.index);
             const node = nodes[nodeKey] = {
@@ -67696,13 +67933,20 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     fromColIndex = 0,
     toRowIndex = 0,
     toColIndex = 0,
-    partialPolicy = "keep"
+    partialPolicy = "keep",
     // "keep" | "ref"
+    // (custom) undo support for references destroyed by a delete:
+    historyEntry = null,
+    // undo/redo entry that should remember them (delete)
+    restoreFormulas = null
+    // formulas to put back (undo of that delete)
   }) {
     const allSheets = getAllSheets() || [];
     let sheetChanged = false;
     const referenceRegex = /(?:'([^']+)'|([A-Za-z0-9_]+))!\s*([A-Za-z0-9\$\:\.]+)/g;
     const crossRefCells = /* @__PURE__ */ new Set();
+    const lostFormulas = [];
+    const textChanged = [];
     const sheetNameMap = /* @__PURE__ */ new Map();
     const sheetIndexMap = /* @__PURE__ */ new Map();
     for (let i2 = 0; i2 < allSheets.length; i2++) {
@@ -67928,6 +68172,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             return match;
           });
           if (modifiedFormula !== originalFormula) {
+            if (errorDetected && String(sheet.index) !== String(sheetIndex)) lostFormulas.push({ sheetIndex: sheet.index, r: r2, c: c2, f: originalFormula, v: cell.v, m: cell.m, ct: cell.ct });
+            textChanged.push([r2, c2, sheet.index]);
             cell.f = modifiedFormula;
             sheetChanged = true;
             if (errorDetected) {
@@ -68192,6 +68438,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             return match;
           });
           if (modifiedFormula !== originalFormula) {
+            if (errorDetected && String(sheet.index) !== String(sheetIndex)) lostFormulas.push({ sheetIndex: sheet.index, r: r2, c: c2, f: originalFormula, v: cell.v, m: cell.m, ct: cell.ct });
+            textChanged.push([r2, c2, sheet.index]);
             cell.f = modifiedFormula;
             sheetChanged = true;
             if (errorDetected) {
@@ -68202,11 +68450,50 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         }
       }
     }
+    if (lostFormulas.length > 0 && (type === "deleteRow" || type === "deleteCol")) {
+      let entry = historyEntry;
+      if (!entry && store.clearjfundo && store.jfredo.length > 0) {
+        const last = store.jfredo[store.jfredo.length - 1];
+        last && last.type === "delRC" && (entry = last);
+      }
+      entry && typeof entry === "object" && (entry.crossRefBackup = lostFormulas);
+    }
+    if (Array.isArray(restoreFormulas)) {
+      for (let i2 = 0; i2 < restoreFormulas.length; i2++) {
+        const item2 = restoreFormulas[i2];
+        const sh = sheetIndexMap.get(String(item2.sheetIndex));
+        if (!sh) continue;
+        let cell = null;
+        if (sh.data && sh.data[item2.r]) cell = sh.data[item2.r][item2.c];
+        else if (Array.isArray(sh.celldata)) {
+          const ce = sh.celldata.find((x) => x && x.r === item2.r && x.c === item2.c);
+          cell = ce ? ce.v : null;
+        }
+        if (!cell || typeof cell !== "object") continue;
+        cell.f = item2.f;
+        textChanged.push([item2.r, item2.c, sh.index]);
+        cell.v = item2.v;
+        item2.m !== void 0 && (cell.m = item2.m);
+        item2.ct !== void 0 && (cell.ct = item2.ct);
+        crossRefCells.add(item2.r + "_" + item2.c + "_" + sh.index);
+        sheetChanged = true;
+      }
+    }
     if (String(sheetIndex) !== String(store.currentSheetIndex)) {
       publicApi.jfrefreshgrid(null, null, null, true, true, true);
     }
     if (formula) formula.execFunctionExist = null;
-    formula && formula._dependencyInvalidate && formula._dependencyIndexEnabled && formula._dependencyIndexEnabled() && formula._dependencyInvalidate("cross-sheet-reference-shift");
+    if (formula && formula._dependencyIndexEnabled && formula._dependencyIndexEnabled()) {
+      const _idx = formula._formulaDependencyIndex;
+      if (_idx && _idx.valid && !_idx.disabled && formula._dependencyMarkDirty) {
+        for (const t of textChanged) formula._dependencyMarkDirty(t[0], t[1], t[2]);
+        try {
+          _idx.signature = formula._dependencyCalcSignature();
+        } catch (e) {
+          formula._dependencyInvalidate("cross-sheet-reference-shift");
+        }
+      } else formula._dependencyInvalidate && formula._dependencyInvalidate("cross-sheet-reference-shift");
+    }
     lsState.dependentSheets = null;
     if (crossRefCells.size > 0 && formula && typeof formula.execFunctionGroup === "function") {
       const seeds = [];
@@ -68268,7 +68555,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     function formatSheetName(name2) {
       return `'${escapeSheetNameForQuote(name2)}'`;
     }
-    function renameInFormula(formula2) {
+    function renameInFormula2(formula2) {
       if (!formula2 || typeof formula2 !== "string") return formula2;
       return formula2.replace(referenceRegex, function(match, quotedSheet, unquotedSheet, refPart) {
         const matchedName = quotedSheet ? quotedSheet.replace(/''/g, "'") : unquotedSheet;
@@ -68286,11 +68573,24 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           const cell = data[r2][c2];
           if (!cell || !cell.f) continue;
           const originalFormula = cell.f;
-          const modifiedFormula = renameInFormula(originalFormula);
+          const modifiedFormula = renameInFormula2(originalFormula);
           if (modifiedFormula !== originalFormula) {
             cell.f = modifiedFormula;
             sheetChanged = true;
           }
+        }
+      }
+    }
+    for (let s = 0; s < allSheets.length; s++) {
+      const sheet = allSheets[s];
+      if (sheet.data && sheet.data.length || !Array.isArray(sheet.celldata)) continue;
+      for (let i2 = 0; i2 < sheet.celldata.length; i2++) {
+        const cell = sheet.celldata[i2] && sheet.celldata[i2].v;
+        if (!cell || typeof cell.f !== "string") continue;
+        const modifiedFormula = renameInFormula2(cell.f);
+        if (modifiedFormula !== cell.f) {
+          cell.f = modifiedFormula;
+          sheetChanged = true;
         }
       }
     }
@@ -68303,7 +68603,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           const chainItem = m[j3];
           if (!chainItem || !chainItem.f) continue;
           const originalFormula = chainItem.f;
-          const modifiedFormula = renameInFormula(originalFormula);
+          const modifiedFormula = renameInFormula2(originalFormula);
           if (modifiedFormula !== originalFormula) {
             chainItem.f = modifiedFormula;
             sheetChanged = true;
@@ -68318,6 +68618,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         luckysheetrefreshgrid();
       }
     }
+    formula && formula._rangeTextCacheClear && formula._rangeTextCacheClear();
     formula && formula._dependencyInvalidate && formula._dependencyIndexEnabled && formula._dependencyIndexEnabled() && formula._dependencyInvalidate("sheet-rename");
     lsState.dependentSheets = null;
     lsState.sheetRefRegex && lsState.sheetRefRegex.clear && lsState.sheetRefRegex.clear();
@@ -68348,6 +68649,19 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             cell.f = modifiedFormula;
             sheetChanged = true;
           }
+        }
+      }
+    }
+    for (let s = 0; s < allSheets.length; s++) {
+      const sheet = allSheets[s];
+      if (sheet.data && sheet.data.length || !Array.isArray(sheet.celldata)) continue;
+      for (let i2 = 0; i2 < sheet.celldata.length; i2++) {
+        const cell = sheet.celldata[i2] && sheet.celldata[i2].v;
+        if (!cell || typeof cell.f !== "string") continue;
+        const modifiedFormula = renameInFormula(cell.f);
+        if (modifiedFormula !== cell.f) {
+          cell.f = modifiedFormula;
+          sheetChanged = true;
         }
       }
     }
@@ -68643,6 +68957,158 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       };
     }
   );
+  function lsShiftRefsForDeletedCells(text, formulaSheetName, targetName, kind, r0, r1, c0, c12) {
+    if (typeof text != "string" || text.charAt(0) != "=")
+      return text;
+    const k = kind == "moveUp" ? r1 - r0 + 1 : c12 - c0 + 1;
+    const colIdx = (s) => {
+      let n = 0;
+      for (let i3 = 0; i3 < s.length; i3++) n = n * 26 + s.charCodeAt(i3) - 64;
+      return n - 1;
+    };
+    const colTxt = (n) => {
+      let s = "";
+      n++;
+      while (n > 0) {
+        s = String.fromCharCode(65 + (n - 1) % 26) + s;
+        n = Math.floor((n - 1) / 26);
+      }
+      return s;
+    };
+    const unq = (s) => s.charAt(0) == "'" ? s.slice(1, -1).replace(/''/g, "'") : s;
+    const move = (v) => v < (kind == "moveUp" ? r0 : c0) ? v : v <= (kind == "moveUp" ? r1 : c12) ? null : v - k;
+    const inStrip = (a, b) => kind == "moveUp" ? a >= c0 && b <= c12 : a >= r0 && b <= r1;
+    let out = "", changed = false, i2 = 0;
+    const re = /((?:'(?:[^']|'')+'|[A-Za-z0-9_.]+)!)?(\$?)([A-Z]{1,3})(\$?)(\d+)(?::(\$?)([A-Z]{1,3})(\$?)(\d+))?/y;
+    while (i2 < text.length) {
+      const ch = text.charAt(i2);
+      if (ch == '"') {
+        let j3 = i2 + 1;
+        while (j3 < text.length) {
+          if (text.charAt(j3) == '"') {
+            if (text.charAt(j3 + 1) == '"') {
+              j3 += 2;
+              continue;
+            }
+            break;
+          }
+          j3++;
+        }
+        out += text.slice(i2, j3 + 1);
+        i2 = j3 + 1;
+        continue;
+      }
+      const prev = i2 > 0 ? text.charAt(i2 - 1) : "";
+      if (!/[A-Za-z0-9_.$']/.test(prev)) {
+        re.lastIndex = i2;
+        const m = re.exec(text);
+        if (m && !/[A-Za-z0-9_(.!]/.test(text.charAt(re.lastIndex) || "")) {
+          const sheet = m[1] ? unq(m[1].slice(0, -1)) : formulaSheetName;
+          if (sheet === targetName) {
+            let ra2 = +m[5] - 1, ca2 = colIdx(m[3]), rb = m[9] ? +m[9] - 1 : ra2, cb = m[9] ? colIdx(m[7]) : ca2;
+            let rep = null;
+            if (!m[9]) {
+              const along = kind == "moveUp" ? ra2 : ca2, across = kind == "moveUp" ? ca2 : ra2;
+              const lo = kind == "moveUp" ? c0 : r0, hi = kind == "moveUp" ? c12 : r1;
+              if (across >= lo && across <= hi) {
+                const nv = move(along);
+                if (nv === null) rep = "#REF!";
+                else if (nv !== along) rep = (m[1] || "") + m[2] + (kind == "moveUp" ? m[3] : colTxt(nv)) + m[4] + (kind == "moveUp" ? nv + 1 : m[5]);
+              }
+            } else if (inStrip(kind == "moveUp" ? Math.min(ca2, cb) : Math.min(ra2, rb), kind == "moveUp" ? Math.max(ca2, cb) : Math.max(ra2, rb))) {
+              const a0 = kind == "moveUp" ? ra2 : ca2, b0 = kind == "moveUp" ? rb : cb;
+              const lo = kind == "moveUp" ? r0 : c0, hi = kind == "moveUp" ? r1 : c12;
+              let na2 = a0 < lo ? a0 : a0 <= hi ? lo : a0 - k;
+              let nb = b0 < lo ? b0 : b0 <= hi ? lo - 1 : b0 - k;
+              if (nb < na2) rep = "#REF!";
+              else if (na2 !== a0 || nb !== b0) rep = kind == "moveUp" ? (m[1] || "") + m[2] + m[3] + m[4] + (na2 + 1) + ":" + m[6] + m[7] + m[8] + (nb + 1) : (m[1] || "") + m[2] + colTxt(na2) + m[4] + m[5] + ":" + m[6] + colTxt(nb) + m[8] + m[9];
+            }
+            if (rep !== null) {
+              out += rep;
+              i2 = re.lastIndex;
+              changed = true;
+              continue;
+            }
+          }
+          out += m[0];
+          i2 = re.lastIndex;
+          continue;
+        }
+      }
+      out += ch;
+      i2++;
+    }
+    return changed ? out : text;
+  }
+  function lsMoveRefs(text, homeBefore, homeAfter, srcName, dstName, r0, r1, c0, c12, dRow, dCol) {
+    if (typeof text != "string" || text.charAt(0) != "=")
+      return text;
+    const colIdx = (s) => {
+      let n = 0;
+      for (let i3 = 0; i3 < s.length; i3++) n = n * 26 + s.charCodeAt(i3) - 64;
+      return n - 1;
+    };
+    const colTxt = (n) => {
+      let s = "";
+      n++;
+      while (n > 0) {
+        s = String.fromCharCode(65 + (n - 1) % 26) + s;
+        n = Math.floor((n - 1) / 26);
+      }
+      return s;
+    };
+    const unq = (s) => s.charAt(0) == "'" ? s.slice(1, -1).replace(/''/g, "'") : s;
+    const qual = (name2) => /^[A-Za-z_][A-Za-z0-9_.]*$/.test(name2) && !/^[A-Za-z]{1,3}\d+$/.test(name2) ? name2 + "!" : "'" + name2.replace(/'/g, "''") + "'!";
+    const inside = (r2, c2) => r2 >= r0 && r2 <= r1 && c2 >= c0 && c2 <= c12;
+    let out = "", changed = false, i2 = 0;
+    const re = /((?:'(?:[^']|'')+'|[A-Za-z0-9_.]+)!)?(\$?)([A-Z]{1,3})(\$?)(\d+)(?::(\$?)([A-Z]{1,3})(\$?)(\d+))?/y;
+    while (i2 < text.length) {
+      const ch = text.charAt(i2);
+      if (ch == '"') {
+        let j3 = i2 + 1;
+        while (j3 < text.length) {
+          if (text.charAt(j3) == '"') {
+            if (text.charAt(j3 + 1) == '"') {
+              j3 += 2;
+              continue;
+            }
+            break;
+          }
+          j3++;
+        }
+        out += text.slice(i2, j3 + 1);
+        i2 = j3 + 1;
+        continue;
+      }
+      const prev = i2 > 0 ? text.charAt(i2 - 1) : "";
+      if (!/[A-Za-z0-9_.$']/.test(prev)) {
+        re.lastIndex = i2;
+        const m = re.exec(text);
+        if (m && !/[A-Za-z0-9_(.!]/.test(text.charAt(re.lastIndex) || "")) {
+          const sheet = m[1] ? unq(m[1].slice(0, -1)) : homeBefore;
+          let ra2 = +m[5] - 1, ca2 = colIdx(m[3]), rb = m[9] ? +m[9] - 1 : ra2, cb = m[9] ? colIdx(m[7]) : ca2;
+          let moves = sheet === srcName && inside(Math.min(ra2, rb), Math.min(ca2, cb)) && inside(Math.max(ra2, rb), Math.max(ca2, cb));
+          let newSheet = moves ? dstName : sheet;
+          if (moves) {
+            ra2 += dRow;
+            rb += dRow;
+            ca2 += dCol;
+            cb += dCol;
+          }
+          let prefix = m[1] || "";
+          if (newSheet !== sheet || !m[1] && newSheet !== homeAfter) prefix = newSheet === homeAfter && !m[1] ? "" : qual(newSheet);
+          const rep = prefix + m[2] + colTxt(ca2) + m[4] + (ra2 + 1) + (m[9] ? ":" + m[6] + colTxt(cb) + m[8] + (rb + 1) : "");
+          if (rep !== m[0]) changed = true;
+          out += rep;
+          i2 = re.lastIndex;
+          continue;
+        }
+      }
+      out += ch;
+      i2++;
+    }
+    return changed ? out : text;
+  }
 
   // src/modules/011-as.js
   function xu() {
@@ -73403,8 +73869,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         return;
       let m = f.keyCode, g = $(this);
       if (m == at.ENTER) {
-        let y = sheetPosition(store.currentSheetIndex);
-        Cm = store.luckysheetfile[y].name || Cm, store.luckysheetfile[y].name = g.text(), g.attr("contenteditable", "false");
+        f.preventDefault();
+        f.stopPropagation();
+        g.trigger("blur");
       }
     }), $("#luckysheetsheetconfigrename").click(function() {
       var f = fl.find("span.luckysheet-sheets-item-name");
@@ -82713,7 +83180,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               }).date();
               u = (0, j.default)(t).date() === f ? 30 : (0, j.default)(t).date(), (0, j.default)(l).date() === m ? u < 30 ? (s++, d = 1) : d = 30 : d = (0, j.default)(l).date();
             }
-            var g = 360 * (0, j.default)(l).diff((0, j.default)(t), "years") + 30 * (s - o) + (d - u);
+            var g = 360 * ((0, j.default)(l).year() - (0, j.default)(t).year()) + 30 * (s - o) + (d - u);
             return g;
           } catch (v) {
             var y = v;
