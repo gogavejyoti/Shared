@@ -4,8 +4,8 @@ var luckysheet = (() => {
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
   var __export = (target, all) => {
-    for (var name2 in all)
-      __defProp(target, name2, { get: all[name2], enumerable: true });
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
   };
   var __copyProps = (to, from, except, desc) => {
     if (from && typeof from === "object" || typeof from === "function") {
@@ -25751,10 +25751,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     if (typeof window == "undefined")
       return;
     var alias = { "luckysheet_getcelldata_cache": "cellDataCache", "__VLOOKUP_CACHE": "vlookupCache", "__XLOOKUP_CACHE": "xlookupCache", "__compiledFormulaCache": "compiledFormulas", "luckysheet_dependentsheets_cache": "dependentSheets", "__lsSheetRefRegexCache": "sheetRefRegex" };
-    Object.keys(alias).forEach(function(name2) {
-      var key = alias[name2];
+    Object.keys(alias).forEach(function(name) {
+      var key = alias[name];
       try {
-        Object.defineProperty(window, name2, {
+        Object.defineProperty(window, name, {
           configurable: true,
           enumerable: true,
           get: function() {
@@ -31327,6 +31327,373 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     }
   );
 
+  // src/engine/pivot-engine.js
+  var NUMERIC_TEXT = /^\s*[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?\s*$/;
+  function pivotCellText(cell) {
+    if (cell == null) return "";
+    if (typeof cell !== "object") return String(cell);
+    if (cell.m != null && cell.m !== "") return String(cell.m);
+    let v = cell.v;
+    if (v != null && typeof v === "object") v = v.v;
+    if (v == null || v === "") {
+      const s = cell.ct && cell.ct.t === "inlineStr" && Array.isArray(cell.ct.s) ? cell.ct.s : null;
+      if (s) {
+        let out = "";
+        for (let i2 = 0; i2 < s.length; i2++) if (s[i2] && s[i2].v != null) out += s[i2].v;
+        return out;
+      }
+      return "";
+    }
+    return String(v);
+  }
+  function pivotCellRaw(cell) {
+    if (cell == null || typeof cell !== "object") return cell == null ? null : cell;
+    let v = cell.v;
+    if (v != null && typeof v === "object") v = v.v;
+    return v;
+  }
+  function pivotCellNumber(cell) {
+    const v = pivotCellRaw(cell);
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    if (typeof v === "string" && NUMERIC_TEXT.test(v)) {
+      if (cell && typeof cell === "object" && cell.ct && cell.ct.fa === "@") return null;
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+  var STAT_NEEDS = {
+    COUNTUNIQUE: "set",
+    MEDIAN: "list"
+  };
+  var VARIANCE_TYPES = { STDEV: 1, STDEVP: 1, VAR: 1, VARP: 1, let: 1 };
+  function newAcc(sumtype) {
+    const a = { n: 0, sum: 0, min: Infinity, max: -Infinity, counta: 0, prod: 1, mean: 0, m2: 0, set: null, list: null };
+    const need = STAT_NEEDS[sumtype];
+    if (need === "set") a.set = /* @__PURE__ */ new Set();
+    else if (need === "list") a.list = [];
+    return a;
+  }
+  function round15(x) {
+    if (typeof x !== "number" || !Number.isFinite(x) || Number.isInteger(x)) return x;
+    return Number(x.toPrecision(15));
+  }
+  function pivotResult(a, sumtype) {
+    switch (sumtype) {
+      case "COUNT":
+        return a.n;
+      case "COUNTA":
+        return a.counta;
+      case "COUNTUNIQUE":
+        return a.set ? a.set.size : 0;
+      case "AVERAGE":
+        return a.n === 0 ? "#DIV/0!" : round15(a.sum / a.n);
+      case "MAX":
+        return a.n === 0 ? 0 : a.max;
+      case "MIN":
+        return a.n === 0 ? 0 : a.min;
+      case "PRODUCT":
+        return a.n === 0 ? 0 : round15(a.prod);
+      case "MEDIAN": {
+        const l = a.list;
+        if (!l || l.length === 0) return "#NUM!";
+        l.sort((x, y) => x - y);
+        const h = l.length >> 1;
+        return round15(l.length % 2 ? l[h] : (l[h - 1] + l[h]) / 2);
+      }
+      case "STDEV":
+        return a.n < 2 ? "#DIV/0!" : round15(Math.sqrt(a.m2 / (a.n - 1)));
+      case "STDEVP":
+        return a.n === 0 ? "#DIV/0!" : round15(Math.sqrt(a.m2 / a.n));
+      case "VAR":
+      case "let":
+        return a.n < 2 ? "#DIV/0!" : round15(a.m2 / (a.n - 1));
+      case "VARP":
+        return a.n === 0 ? "#DIV/0!" : round15(a.m2 / a.n);
+      case "SUM":
+      default:
+        return round15(a.sum);
+    }
+  }
+  function makeNode(parent, label, raw, depth, seq) {
+    return { parent, label, raw, depth, seq, id: -1, kids: null, list: null, isBlank: label === "", ct: null };
+  }
+  function childOf(node, text, raw, seqRef, cell) {
+    if (node.kids == null) {
+      node.kids = /* @__PURE__ */ new Map();
+      node.list = [];
+    }
+    let c2 = node.kids.get(text);
+    if (c2 === void 0) {
+      c2 = makeNode(node, text, raw, node.depth + 1, seqRef.n++);
+      if (raw != null && cell != null && typeof cell === "object" && cell.ct) c2.ct = cell.ct;
+      node.kids.set(text, c2);
+      node.list.push(c2);
+    }
+    return c2;
+  }
+  var collator = typeof Intl !== "undefined" ? new Intl.Collator(void 0, { numeric: true, sensitivity: "base" }) : null;
+  var cmpText = (a, b) => collator ? collator.compare(a, b) : a < b ? -1 : a > b ? 1 : 0;
+  function cmpSelf(a, b) {
+    const an2 = typeof a.raw === "number", bn2 = typeof b.raw === "number";
+    if (an2 && bn2) return a.raw - b.raw || cmpText(a.label, b.label);
+    if (an2 !== bn2) return an2 ? -1 : 1;
+    return cmpText(a.label, b.label);
+  }
+  function sortTree(root, fields, totalOf) {
+    const stack = [root];
+    while (stack.length) {
+      const node = stack.pop();
+      if (!node.list) continue;
+      const f = fields[node.depth] || {};
+      const order = f.order == null ? "asc" : f.order;
+      const byVal = f.orderby != null && f.orderby !== "self" && f.orderby !== "" ? parseInt(f.orderby, 10) : -1;
+      if (order === "default") {
+        node.list.sort((a, b) => a.seq - b.seq);
+      } else {
+        const sign = order === "desc" ? -1 : 1;
+        let cmp;
+        if (byVal >= 0 && totalOf(byVal) != null) {
+          const tv2 = totalOf(byVal);
+          cmp = (a, b) => {
+            const x = tv2(a), y = tv2(b);
+            const xn2 = typeof x === "number", yn2 = typeof y === "number";
+            if (xn2 && yn2) return (x - y) * sign || a.seq - b.seq;
+            if (xn2 !== yn2) return xn2 ? -1 : 1;
+            return a.seq - b.seq;
+          };
+        } else {
+          cmp = (a, b) => {
+            if (a.isBlank !== b.isBlank) return a.isBlank ? 1 : -1;
+            return cmpSelf(a, b) * sign || a.seq - b.seq;
+          };
+        }
+        node.list.sort(cmp);
+      }
+      for (let i2 = 0; i2 < node.list.length; i2++) stack.push(node.list[i2]);
+    }
+  }
+  function axisLines(root, fields, nFields) {
+    const out = [];
+    if (nFields === 0) {
+      out.push({ node: root, kind: "grand" });
+      return out;
+    }
+    const walk = (node) => {
+      for (let i2 = 0; i2 < node.list.length; i2++) {
+        const c2 = node.list[i2];
+        if (c2.depth >= nFields || !c2.list) {
+          out.push({ node: c2, kind: "item" });
+        } else {
+          walk(c2);
+          const f = fields[c2.depth - 1] || {};
+          if (f.stastic == null || String(f.stastic) !== "0") out.push({ node: c2, kind: "sub" });
+        }
+      }
+    };
+    if (root.list) walk(root);
+    out.push({ node: root, kind: "grand" });
+    return out;
+  }
+  function pathOf(node) {
+    const p = [];
+    for (let n = node; n && n.depth > 0; n = n.parent) p.push(n);
+    return p.reverse();
+  }
+  function pivotCompute(source, cfg, text) {
+    const rowF = cfg && cfg.row || [], colF = cfg && cfg.column || [], vals = cfg && cfg.values || [];
+    const hidden = cfg && cfg.hidden || null;
+    const sumLabel = text && text.sum != null ? text.sum : "Total";
+    const blankLabel = text && text.blank != null ? text.blank : "(blank)";
+    const R = rowF.length, C = colF.length, V = vals.length;
+    const empty = { cells: [], rows: 0, cols: 0, headerRows: 0, labelCols: 0, rowLines: [], colLines: [], valueOnRows: false, matches: () => false, records: 0 };
+    if (!Array.isArray(source) || source.length === 0 || R === 0 && C === 0 && V === 0) return empty;
+    const width2 = source[0] ? source[0].length : 0;
+    const seq = { n: 0 };
+    const rowRoot = makeNode(null, "", null, 0, seq.n++), colRoot = makeNode(null, "", null, 0, seq.n++);
+    const rowIdx = rowF.map((f) => +f.index), colIdx = colF.map((f) => +f.index), valIdx = vals.map((v) => +v.index);
+    const types = vals.map((v) => v.sumtype || "SUM");
+    const needVar = types.map((t) => VARIANCE_TYPES[t] === 1);
+    const needProd = types.map((t) => t === "PRODUCT");
+    const accs = /* @__PURE__ */ new Map();
+    let nextId = 0;
+    const idOf = (n) => n.id < 0 ? n.id = nextId++ : n.id;
+    idOf(rowRoot);
+    idOf(colRoot);
+    const BIG = 4294967296;
+    const getAccs = (rn, cn2) => {
+      const k = rn.id * BIG + cn2.id;
+      let a = accs.get(k);
+      if (a === void 0) {
+        a = new Array(V);
+        for (let i2 = 0; i2 < V; i2++) a[i2] = newAcc(types[i2]);
+        accs.set(k, a);
+      }
+      return a;
+    };
+    const rowPath = new Array(R + 1), colPath = new Array(C + 1);
+    rowPath[0] = rowRoot;
+    colPath[0] = colRoot;
+    const numBuf = new Array(V), textBuf = new Array(V);
+    let records = 0;
+    const usedIdx = rowIdx.concat(colIdx, valIdx);
+    const rowIsEmpty = (row) => {
+      for (let i2 = 0; i2 < usedIdx.length; i2++) if (pivotCellText(row[usedIdx[i2]]) !== "") return false;
+      for (let c2 = 0; c2 < row.length; c2++) if (pivotCellText(row[c2]) !== "") return false;
+      return true;
+    };
+    for (let r2 = 1; r2 < source.length; r2++) {
+      if (hidden != null && hidden[r2] != null) continue;
+      const row = source[r2];
+      if (row == null || rowIsEmpty(row)) continue;
+      records++;
+      let node = rowRoot;
+      for (let i2 = 0; i2 < R; i2++) {
+        const cell = row[rowIdx[i2]];
+        node = childOf(node, pivotCellText(cell), pivotCellNumber(cell), seq, cell);
+        idOf(node);
+        rowPath[i2 + 1] = node;
+      }
+      node = colRoot;
+      for (let i2 = 0; i2 < C; i2++) {
+        const cell = row[colIdx[i2]];
+        node = childOf(node, pivotCellText(cell), pivotCellNumber(cell), seq, cell);
+        idOf(node);
+        colPath[i2 + 1] = node;
+      }
+      if (V === 0) {
+        for (let i2 = 0; i2 <= R; i2++) for (let j3 = 0; j3 <= C; j3++) getAccs(rowPath[i2], colPath[j3]);
+        continue;
+      }
+      for (let k = 0; k < V; k++) {
+        const cell = row[valIdx[k]];
+        numBuf[k] = pivotCellNumber(cell);
+        textBuf[k] = pivotCellText(cell);
+      }
+      for (let i2 = 0; i2 <= R; i2++) {
+        const rn = rowPath[i2];
+        for (let j3 = 0; j3 <= C; j3++) {
+          const as2 = getAccs(rn, colPath[j3]);
+          for (let k = 0; k < V; k++) {
+            const a = as2[k], x = numBuf[k], t = textBuf[k];
+            if (t !== "") {
+              a.counta++;
+              if (a.set) a.set.add(x != null ? "n" + x : "s" + t);
+            }
+            if (x == null) continue;
+            a.n++;
+            a.sum += x;
+            if (x < a.min) a.min = x;
+            if (x > a.max) a.max = x;
+            if (needProd[k]) a.prod *= x;
+            if (needVar[k]) {
+              const d = x - a.mean;
+              a.mean += d / a.n;
+              a.m2 += d * (x - a.mean);
+            }
+            if (a.list) a.list.push(x);
+          }
+        }
+      }
+    }
+    const result = (rn, cn2, k) => {
+      if (rn.id < 0 || cn2.id < 0) return null;
+      const as2 = accs.get(rn.id * BIG + cn2.id);
+      if (as2 === void 0) return null;
+      if (as2.res === void 0) as2.res = new Array(V);
+      if (as2.res[k] === void 0) as2.res[k] = pivotResult(as2[k], types[k]);
+      return as2.res[k];
+    };
+    sortTree(rowRoot, rowF, (k) => k < V ? (n) => result(n, colRoot, k) : null);
+    sortTree(colRoot, colF, (k) => k < V ? (n) => result(rowRoot, n, k) : null);
+    const valueOnRows = V >= 2 && cfg.showType === "row";
+    const rowLines0 = axisLines(rowRoot, rowF, R), colLines0 = axisLines(colRoot, colF, C);
+    const rowLines = [], colLines = [];
+    if (valueOnRows) {
+      for (const l of rowLines0) for (let k = 0; k < V; k++) rowLines.push({ ...l, value: k });
+    } else for (const l of rowLines0) rowLines.push({ ...l, value: V > 0 ? 0 : -1 });
+    if (!valueOnRows && V > 0) {
+      for (const l of colLines0) for (let k = 0; k < V; k++) colLines.push({ ...l, value: k });
+    } else for (const l of colLines0) colLines.push({ ...l, value: -1 });
+    if (C === 0 && V === 0) colLines.length = 0;
+    const valueHeaderRow = !valueOnRows && V > 0 && (V >= 2 || C === 0);
+    let headerRows = C + (valueHeaderRow ? 1 : 0);
+    if (headerRows === 0 && (R > 0 || valueOnRows)) headerRows = 1;
+    let labelCols = R + (valueOnRows ? 1 : 0);
+    if (labelCols === 0 && C > 0) labelCols = 1;
+    const totalText = (name) => /^[\x00-\x7f]/.test(sumLabel) ? name + " " + sumLabel : name + sumLabel;
+    const itemLabel = (n) => n.isBlank ? blankLabel : n.label;
+    const axisLabel = (line, depth) => {
+      if (line.kind === "grand") return depth === 0 ? { v: sumLabel, bold: true } : null;
+      const node = line.node;
+      if (depth + 1 > node.depth) return null;
+      const p = depth + 1 === node.depth ? node : pathOf(node)[depth];
+      if (line.kind === "sub" && p === node) return { v: totalText(itemLabel(node)), bold: true };
+      return { v: itemLabel(p), raw: p.isBlank ? null : p.raw, ct: p.ct };
+    };
+    const nRows = headerRows + rowLines.length, nCols = labelCols + colLines.length;
+    const cells = new Array(nRows);
+    for (let r2 = 0; r2 < nRows; r2++) cells[r2] = new Array(nCols).fill(null);
+    for (let j3 = 0; j3 < colLines.length; j3++) {
+      const line = colLines[j3], c2 = labelCols + j3;
+      for (let d = 0; d < C; d++) {
+        const l = axisLabel(line, d);
+        if (l) cells[d][c2] = { ...l, header: true };
+      }
+      if (valueHeaderRow) cells[C][c2] = { v: vals[line.value].fullname, header: true, bold: true };
+      else if (C === 0 && headerRows > 0) cells[0][c2] = { v: sumLabel, header: true, bold: true };
+    }
+    if (C > 0 && V === 1 && !valueOnRows) cells[0][0] = { v: vals[0].fullname, header: true, bold: true };
+    if (C === 0 && headerRows > 0) {
+      for (let i2 = 0; i2 < R; i2++) cells[headerRows - 1][i2] = { v: rowF[i2].name != null ? String(rowF[i2].name) : "", header: true, bold: true };
+    }
+    for (let i2 = 0; i2 < rowLines.length; i2++) {
+      const line = rowLines[i2], r2 = headerRows + i2;
+      for (let d = 0; d < R; d++) {
+        const l = axisLabel(line, d);
+        if (l) cells[r2][d] = l;
+      }
+      if (valueOnRows) cells[r2][R] = { v: vals[line.value].fullname, bold: line.kind !== "item" };
+      else if (R === 0 && labelCols > 0) cells[r2][0] = { v: sumLabel, bold: true };
+      for (let j3 = 0; j3 < colLines.length; j3++) {
+        const cl = colLines[j3];
+        const k = valueOnRows ? line.value : cl.value;
+        if (k < 0) continue;
+        const res = result(line.node, cl.node, k);
+        if (res == null) continue;
+        cells[r2][labelCols + j3] = { v: res, value: k, total: line.kind !== "item" || cl.kind !== "item" };
+      }
+    }
+    const matches = (rIdx, cIdx) => {
+      const rl = rowLines[rIdx - headerRows], cl = colLines[cIdx - labelCols];
+      if (!rl || !cl) return null;
+      const rp2 = pathOf(rl.node), cp2 = pathOf(cl.node);
+      return (row) => {
+        for (let i2 = 0; i2 < rp2.length; i2++) if (pivotCellText(row[rowIdx[i2]]) !== rp2[i2].label) return false;
+        for (let i2 = 0; i2 < cp2.length; i2++) if (pivotCellText(row[colIdx[i2]]) !== cp2[i2].label) return false;
+        return true;
+      };
+    };
+    return { cells, rows: nRows, cols: nCols, headerRows, labelCols, rowLines, colLines, valueOnRows, matches, records, width: width2 };
+  }
+  function pivotColumnTypes(source, limit = 200) {
+    const out = {};
+    if (!Array.isArray(source) || !source[0]) return out;
+    const width2 = source[0].length;
+    for (let c2 = 0; c2 < width2; c2++) {
+      let num = 0, other = 0, date = 0;
+      for (let r2 = 1; r2 < source.length && num + other < limit; r2++) {
+        const cell = source[r2] && source[r2][c2];
+        if (pivotCellText(cell) === "") continue;
+        if (cell && typeof cell === "object" && cell.ct && cell.ct.t === "d") date++;
+        if (pivotCellNumber(cell) != null) num++;
+        else other++;
+      }
+      out[String(c2)] = date > 0 && date >= num / 2 ? "date" : num > 0 && num >= other ? "num" : "string";
+    }
+    return out;
+  }
+
   // src/modules/072-Ni.js
   var yr, xn, xp, funcMethods, Ni = lazyInit(
     () => {
@@ -33398,7 +33765,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               k: "filter_select"
             });
           else if (n.type == "pivotTable_change")
-            store.luckysheetfile[sheetPosition(n.sheetIndex)].pivotTable = n.pivotTable, Be.getCellData(n.sheetIndex), Be.initialPivotManage(true), Be.refreshPivotTable();
+            store.luckysheetfile[sheetPosition(n.sheetIndex)].pivotTable = lsDeepCopyObject(n.pivotTable), Be.getCellData(n.sheetIndex), Be.initialPivotManage(true), Be.refreshPivotTable();
           else if (n.type == "addSheet")
             sheetManage.deleteSheet(n.index), sheetManage.changeSheetExec(n.currentSheetIndex), $("#luckysheet-input-box").removeAttr("style"), $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
           else if (n.type == "copySheet")
@@ -33586,7 +33953,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               k: "filter_select"
             });
           else if (e.type == "pivotTable_change")
-            store.luckysheetfile[sheetPosition(e.sheetIndex)].pivotTable = e.pivotTablecur, Be.getCellData(e.sheetIndex), Be.initialPivotManage(true), Be.refreshPivotTable();
+            store.luckysheetfile[sheetPosition(e.sheetIndex)].pivotTable = lsDeepCopyObject(e.pivotTablecur), Be.getCellData(e.sheetIndex), Be.initialPivotManage(true), Be.refreshPivotTable();
           else if (e.type == "addSheet")
             sheetManage.createSheetbydata(e.sheetconfig), $("#luckysheet-input-box").removeAttr("style"), $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
           else if (e.type == "copySheet")
@@ -41621,7 +41988,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             colorset: ""
           }));
           let s = {}, u = this.getCustomSheet();
-          if (JSON.stringify(u) != "{}" && u != null && s != null ? (s = u, s.index = a, s.order = l, s.name = o) : s = {
+          if (JSON.stringify(u) != "{}" && u != null && s != null ? (s = u, s.index = a, s.order = l, s.name = o, // (custom) a pivot sheet made from the custom sheet template is still a pivot sheet
+          s.isPivotTable = !!n) : s = {
             name: o,
             color: "",
             status: "0",
@@ -42054,13 +42422,14 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           let a = this;
           if (e == store.currentSheetIndex)
             return;
+          let _prevSheet = store.currentSheetIndex;
           server.allowUpdate && ($("#luckysheet-cell-main #luckysheet-multipleRange-show").empty(), server.multipleIndex = 0);
           let o = store.luckysheetfile[a.getSheetIndex(e)];
           if (t && methods.createHookFunction("sheetCreateAfter", {
             sheet: o
           }), l && methods.createHookFunction("sheetCopyAfter", {
             sheet: o
-          }), methods.createHookFunction("sheetActivate", e, n, t), $("#luckysheet-filter-selected-sheet" + store.currentSheetIndex + ", #luckysheet-filter-options-sheet" + store.currentSheetIndex).hide(), $("#luckysheet-filter-selected-sheet" + e + ", #luckysheet-filter-options-sheet" + e).show(), window.luckysheetCurrentIndex = e, a.storeSheetParamALL(), a.setCurSheet(e), o.isPivotTable ? (store.luckysheetcurrentisPivotTable = true, n || Be.changePivotTable(e)) : (store.luckysheetcurrentisPivotTable = false, $("#luckysheet-modal-dialog-slider-pivot").hide(), $t(false), this.refreshAllPivotTable(store.currentSheetIndex)), o.load != null) {
+          }), methods.createHookFunction("sheetActivate", e, n, t), $("#luckysheet-filter-selected-sheet" + store.currentSheetIndex + ", #luckysheet-filter-options-sheet" + store.currentSheetIndex).hide(), $("#luckysheet-filter-selected-sheet" + e + ", #luckysheet-filter-options-sheet" + e).show(), window.luckysheetCurrentIndex = e, a.storeSheetParamALL(), a.setCurSheet(e), o.isPivotTable ? (store.luckysheetcurrentisPivotTable = true, n || Be.changePivotTable(e)) : (store.luckysheetcurrentisPivotTable = false, $("#luckysheet-modal-dialog-slider-pivot").hide(), $t(false), this.refreshAllPivotTable(_prevSheet)), o.load != null) {
             let u = a.buildGridData(o);
             o.data = u, a.mergeCalculation(e), a.setSheetParam(true), a.showSheet(), setTimeout(function() {
               formula.execFunctionGroupForce(true), redrawGrid(), server.saveParam("shs", null, store.currentSheetIndex);
@@ -42099,34 +42468,21 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           }
           $("#luckysheet-cell-main .luckysheet-datavisual-selection-set").hide(), $("#luckysheet-datavisual-selection-set-" + e).show(), formula.hideButton(), Ic(e), freeze.initialFreezen(e), a.restoreselect(), rc(o);
         },
+        // (custom) after leaving sheet e, recomputes the pivot tables that read it (all when e is
+        // not given). It used to recompute every pivot on every switch, and crashed on a pivot
+        // with a filter (_this) or with no fields (v[0].length), which broke switching sheets.
         refreshAllPivotTable: function(e) {
           store.luckysheetfile.forEach(
             (n) => {
-              n.isPivotTable && this.refreshPivotTableByFile(n);
+              if (!n.isPivotTable || n.index == store.currentSheetIndex)
+                return;
+              let pt2 = Be.parseConfig(n.pivotTable);
+              (e == null || pt2 == null || pt2.pivotDataSheetIndex == null || pt2.pivotDataSheetIndex == e) && this.refreshPivotTableByFile(n);
             }
           );
         },
         refreshPivotTableByFile: function(e) {
-          let n = e.pivotTable, t = n.column, l = n.row, a = n.values, o = n.showType, s = n.filterparm, u = n.pivotDataSheetIndex, d = this.getSheetIndex(u), f = store.luckysheetfile[d];
-          f.data == null && (f.data = this.buildGridData(f));
-          let m = getRangeData(f.data, n.pivot_select_save), g = {};
-          if (s != null)
-            for (let _ in s)
-              for (let T in s[_])
-                T === "rowhidden" && _this.filterparm[_][T] != null && (g = $.extend(true, g, s[_][T]));
-          let y = [];
-          for (let _ = 0; _ < m.length; _++)
-            g != null && g[_] != null || y.push([].concat(m[_]));
-          let v = Be.dataHandler(t, l, a, o, y);
-          n.pivotDatas = v;
-          let k = lsDeepCopyArray(this.nulldata), b = k, w = 0, x = 0, C = v.length, S = v[0].length;
-          w = C - k.length, x = S - k[0].length, b = il(k, w + 20, x + 10, true);
-          for (let _ = 0; _ < C; _++)
-            for (let T = 0; T < S; T++) {
-              let A = "";
-              v[_] != null && v[_][T] != null && (A = Oe(_, T, v), setCellValue(_, T, b, A));
-            }
-          e.data = b;
+          Be.refreshFile(e);
         },
         checkLoadSheetIndexToDataIndex: {},
         checkLoadSheetIndex: function(e) {
@@ -45961,6 +46317,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
   );
 
   // src/modules/059-on.pivot-table.js
+  var lsPivotEsc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   var Ai, gf, Be, on = lazyInit(
     () => {
       Et();
@@ -45996,24 +46353,67 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         getCellData: function(e, n, t) {
           let l = this, a;
           e != null ? a = e : a = store.currentSheetIndex;
-          let o = sheetPosition(a);
-          typeOf(store.luckysheetfile[o].pivotTable) != "object" && (store.luckysheetfile[o].pivotTable = new Function("return " + store.luckysheetfile[o].pivotTable)()), store.luckysheetfile[o].pivotTable != null ? (l.column = store.luckysheetfile[o].pivotTable.column, l.row = store.luckysheetfile[o].pivotTable.row, l.values = store.luckysheetfile[o].pivotTable.values, l.filter = store.luckysheetfile[o].pivotTable.filter, l.showType = store.luckysheetfile[o].pivotTable.showType, l.filterparm = store.luckysheetfile[o].pivotTable.filterparm, store.luckysheetfile[o].pivotTable.drawPivotTable != null ? l.drawPivotTable = store.luckysheetfile[o].pivotTable.drawPivotTable : l.drawPivotTable = true, store.luckysheetfile[o].pivotTable.pivotTableBoundary != null ? l.pivotTableBoundary = store.luckysheetfile[o].pivotTable.pivotTableBoundary : l.pivotTableBoundary = [12, 6], t != null ? l.pivot_select_save = t : l.pivot_select_save = store.luckysheetfile[o].pivotTable.pivot_select_save, n != null ? l.pivotDataSheetIndex = n : l.pivotDataSheetIndex = store.luckysheetfile[o].pivotTable.pivotDataSheetIndex) : (l.column = null, l.row = null, l.values = null, l.filter = null, l.showType = null, l.filterparm = null, l.drawPivotTable = true, l.pivotTableBoundary = [12, 6], t != null ? l.pivot_select_save = t : l.pivot_select_save = store.luckysheet_select_save, n != null ? l.pivotDataSheetIndex = n : l.pivotDataSheetIndex = a);
-          let s = sheetPosition(l.pivotDataSheetIndex), u = store.luckysheetfile[s];
-          u.data == null && (u.data = sheetManage.buildGridData(u)), l.origindata = getRangeData(u.data, l.pivot_select_save);
-          let d = {};
-          if (l.filterparm != null)
-            for (let m in l.filterparm)
-              for (let g in l.filterparm[m])
-                g === "rowhidden" && l.filterparm[m][g] != null && (d = $.extend(true, d, l.filterparm[m][g]));
-          l.rowhidden = d, l.pivotSheetIndex = a;
-          let f = [];
-          for (let m = 0; m < l.origindata.length; m++)
-            l.rowhidden != null && l.rowhidden[m] != null || f.push([].concat(l.origindata[m]));
-          l.celldata = f, l.pivot_data_type = {};
-          for (let m = 0; m < l.celldata[1].length; m++) {
-            let g = er(l.celldata[1][m]);
-            l.pivot_data_type[m.toString()] = g;
+          let o = sheetPosition(a), file = store.luckysheetfile[o], pt2 = l.parseConfig(file.pivotTable);
+          file.pivotTable = pt2;
+          pt2 != null ? (l.column = pt2.column, l.row = pt2.row, l.values = pt2.values, l.filter = pt2.filter, l.showType = pt2.showType, l.filterparm = pt2.filterparm, pt2.drawPivotTable != null ? l.drawPivotTable = pt2.drawPivotTable : l.drawPivotTable = true, pt2.pivotTableBoundary != null ? l.pivotTableBoundary = pt2.pivotTableBoundary : l.pivotTableBoundary = [12, 6], t != null ? l.pivot_select_save = t : l.pivot_select_save = pt2.pivot_select_save, n != null ? l.pivotDataSheetIndex = n : l.pivotDataSheetIndex = pt2.pivotDataSheetIndex, l.pivotDatas = pt2.pivotDatas || null) : (l.column = null, l.row = null, l.values = null, l.filter = null, l.showType = null, l.filterparm = null, l.drawPivotTable = true, l.pivotTableBoundary = [12, 6], t != null ? l.pivot_select_save = t : l.pivot_select_save = store.luckysheet_select_save, n != null ? l.pivotDataSheetIndex = n : l.pivotDataSheetIndex = a, l.pivotDatas = null);
+          l.pivotSheetIndex = a;
+          l._layout = null;
+          let s = l.pivotDataSheetIndex == null ? null : sheetPosition(l.pivotDataSheetIndex), u = s == null ? null : store.luckysheetfile[s];
+          l.origindata = l.readSource(u, l.pivot_select_save, l.pivotDataSheetIndex);
+          l.applyFilters();
+          l.pivot_data_type = pivotColumnTypes(l.origindata);
+        },
+        // (custom) settings saved as text (older files) become an object; unreadable ones are dropped
+        parseConfig: function(pt2) {
+          if (pt2 == null || typeOf(pt2) == "object")
+            return pt2 == null ? null : pt2;
+          if (typeof pt2 != "string" || pt2.trim() == "")
+            return null;
+          try {
+            return JSON.parse(pt2);
+          } catch (err) {
           }
+          try {
+            let r2 = new Function("return " + pt2)();
+            return typeOf(r2) == "object" ? r2 : null;
+          } catch (err) {
+            return null;
+          }
+        },
+        // (custom) the source range's cells (row 0 = header), or [[]] when there is no source
+        readSource: function(file, range2, sheetIndex) {
+          if (file == null || range2 == null || range2.row == null || range2.column == null)
+            return [[]];
+          file.data == null && (file.data = sheetManage.buildGridData(file));
+          let d = getRangeData(file.data, range2, sheetIndex);
+          return d == null || d.length == 0 ? [[]] : d;
+        },
+        // (custom) source rows hidden by any field's filter
+        hiddenRows: function(filterparm) {
+          let h = {};
+          if (filterparm != null)
+            for (let m in filterparm) {
+              let rh = filterparm[m] && filterparm[m].rowhidden;
+              if (rh == null || rh === "")
+                continue;
+              if (typeof rh == "string")
+                try {
+                  rh = JSON.parse(rh);
+                } catch (err) {
+                  continue;
+                }
+              for (let k in rh)
+                h[k] = 0;
+            }
+          return h;
+        },
+        // (custom) one place that turns the field filters into rowhidden + celldata (the visible rows)
+        applyFilters: function() {
+          let l = this, h = l.hiddenRows(l.filterparm), src = l.origindata || [[]], f = [];
+          l.rowhidden = h;
+          for (let m = 0; m < src.length; m++)
+            (m == 0 || h[m] == null) && f.push(src[m]);
+          l.celldata = f;
         },
         pivot_data_type: {},
         pivot_select_save: null,
@@ -46043,12 +46443,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           });
         },
         luckysheetsliderlistclearfilter: function(e) {
-          let n = this, t = e.parent(), l = t.data("index"), a = {}, o = {}, s = n.origindata, u = {};
-          t.data("rowhidden", "").find(".luckysheet-slider-list-item-filtered").hide(), n.setDatatojsfile("selected", {}, l), n.setDatatojsfile("rowhidden", null, l);
-          let d = [];
-          for (let f = 0; f < s.length; f++)
-            a[f] == null && d.push([].concat(s[f]));
-          n.celldata = d, n.refreshPivotTable(), $("#luckysheet-pivotTableFilter-menu, #luckysheet-pivotTableFilter-submenu").hide();
+          let n = this, t = e.parent(), l = t.data("index");
+          t.data("rowhidden", "").find(".luckysheet-slider-list-item-filtered").hide(), t.removeData("byconditionvalue byconditiontype byconditiontext byconditionvalue1 byconditionvalue2").removeAttr("data-byconditionvalue data-byconditiontype data-byconditiontext data-byconditionvalue1 data-byconditionvalue2"), n.setDatatojsfile("selected", {}, l), n.setDatatojsfile("rowhidden", null, l), n.setDatatojsfile("caljs", null, l), n.applyFilters(), n.refreshPivotTable(), $("#luckysheet-pivotTableFilter-menu, #luckysheet-pivotTableFilter-submenu").hide();
         },
         luckysheetsliderlistitemfilter: function(e) {
           let n = this, l = getLocale().filter, a = e.parent(), o = a.offset(), s = $("#luckysheet-pivotTableFilter-menu"), u = $(window).height(), d = $(window).width(), f = a.data("index"), m = a.data("rowhidden");
@@ -46084,7 +46480,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 I in b || (b[I] = {}), F in b[I] || (b[I][F] = {}), N in b[I][F] || (b[I][F][N] = 0), b[I][F][N]++, T in m && (w[I] = 0, w[F] = 0, w[N] = 0);
               } else {
                 let R, I;
-                A == null || isRealNull(A.v) ? (R = null, I = null) : (R = A.v, I = A.m), R in x || (x[R] = {}), I in x[R] || (x[R][I] = 0), x[R][I]++, T in m && (C[R + "#$$$#" + I] = 0);
+                A == null || isRealNull(A.v) ? (R = null, I = null) : (R = A.v, I = pivotCellText(A)), R in x || (x[R] = {}), I in x[R] || (x[R][I] = 0), x[R][I]++, T in m && (C[R + "#$$$#" + I] = 0);
               }
             }
             let S = [];
@@ -46117,7 +46513,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                   let F;
                   R + "#$$$#" + I == "null#$$$#null" ? F = l.valueBlank : F = I;
                   let N;
-                  R + "#$$$#" + I in C ? N = '<div class="textBox luckysheet-mousedown-cancel cf" data-check="false" data-filter="' + (R + "#$$$#" + I) + '" title="' + I + '"><input class="luckysheet-mousedown-cancel" type="checkbox"/><label class="luckysheet-mousedown-cancel">' + F + '</label><span class="luckysheet-mousedown-cancel count">( ' + x[R][I] + " )</span></div>" : N = '<div class="textBox luckysheet-mousedown-cancel cf" data-check="true" data-filter="' + (R + "#$$$#" + I) + '" title="' + I + '"><input class="luckysheet-mousedown-cancel" type="checkbox" checked="checked"/><label class="luckysheet-mousedown-cancel">' + F + '</label><span class="luckysheet-mousedown-cancel count">( ' + x[R][I] + " )</span></div>", S.push(N);
+                  R + "#$$$#" + I in C ? N = '<div class="textBox luckysheet-mousedown-cancel cf" data-check="false" data-filter="' + lsPivotEsc(R + "#$$$#" + I) + '" title="' + lsPivotEsc(I) + '"><input class="luckysheet-mousedown-cancel" type="checkbox"/><label class="luckysheet-mousedown-cancel">' + lsPivotEsc(F) + '</label><span class="luckysheet-mousedown-cancel count">( ' + x[R][I] + " )</span></div>" : N = '<div class="textBox luckysheet-mousedown-cancel cf" data-check="true" data-filter="' + lsPivotEsc(R + "#$$$#" + I) + '" title="' + lsPivotEsc(I) + '"><input class="luckysheet-mousedown-cancel" type="checkbox" checked="checked"/><label class="luckysheet-mousedown-cancel">' + lsPivotEsc(F) + '</label><span class="luckysheet-mousedown-cancel count">( ' + x[R][I] + " )</span></div>", S.push(N);
                 }
               }
             }
@@ -46127,7 +46523,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         },
         getSumTypeName: function(e) {
           let n = "", l = getLocale().pivotTable;
-          return e == "SUM" ? n = l.valueStatisticsSUM : e == "COUNT" ? n = l.valueStatisticsCOUNT : e == "COUNTA" ? n = l.valueStatisticsCOUNTA : e == "COUNTUNIQUE" ? n = l.valueStatisticsCOUNTUNIQUE : e == "AVERAGE" ? n = l.valueStatisticsAVERAGE : e == "MAX" ? n = l.valueStatisticsMAX : e == "MIN" ? n = l.valueStatisticsMIN : e == "MEDIAN" ? n = l.valueStatisticsMEDIAN : e == "PRODUCT" ? n = l.valueStatisticsPRODUCT : e == "STDEV" ? n = l.valueStatisticsSTDEV : e == "STDEVP" ? n = l.valueStatisticsSTDEVP : e == "let" ? n = l.valueStatisticslet : e == "VARP" && (n = l.valueStatisticsVARP), n;
+          return e == "SUM" ? n = l.valueStatisticsSUM : e == "COUNT" ? n = l.valueStatisticsCOUNT : e == "COUNTA" ? n = l.valueStatisticsCOUNTA : e == "COUNTUNIQUE" ? n = l.valueStatisticsCOUNTUNIQUE : e == "AVERAGE" ? n = l.valueStatisticsAVERAGE : e == "MAX" ? n = l.valueStatisticsMAX : e == "MIN" ? n = l.valueStatisticsMIN : e == "MEDIAN" ? n = l.valueStatisticsMEDIAN : e == "PRODUCT" ? n = l.valueStatisticsPRODUCT : e == "STDEV" ? n = l.valueStatisticsSTDEV : e == "STDEVP" ? n = l.valueStatisticsSTDEVP : e == "VAR" || e == "let" ? n = l.valueStatisticslet : e == "VARP" && (n = l.valueStatisticsVARP), n;
         },
         setDatatojsfile: function(e, n, t) {
           let l = this, a = sheetPosition(l.pivotSheetIndex);
@@ -46153,35 +46549,218 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           sheetManage.addNewSheet(e, true), n.getCellData(store.currentSheetIndex, t, o), n.setDatatojsfile("pivot_select_save", o), n.setDatatojsfile("pivotDataSheetIndex", t), n.initialPivotManage();
         },
         changePivotTable: function(e) {
-          let n = this, l = getLocale().pivotTable, a = store.luckysheetfile[sheetPosition(e)].pivotTable.pivotDataSheetIndex;
-          if (sheetPosition(a) == null) {
+          let n = this, l = getLocale().pivotTable, pt2 = n.parseConfig(store.luckysheetfile[sheetPosition(e)].pivotTable), a = pt2 == null ? null : pt2.pivotDataSheetIndex;
+          if (a == null || sheetPosition(a) == null) {
             tooltip.info(l.errorIsDamage, "");
             return;
           }
           n.getCellData(e), n.initialPivotManage(true), n.refreshPivotTable();
         },
         refreshPivotTable: function(e = true) {
-          let n = this, t = {};
-          t.pivotTable = gf, t.data = editor.deepCopyFlowData(store.flowdata), n.storePivotTableParam();
-          let l = n.dataHandler(n.column, n.row, n.values, n.showType, n.celldata);
-          n.setDatatojsfile("pivotDatas", l);
-          let a = lsDeepCopyArray(sheetManage.nulldata), o = a, s = 0, u = 0;
-          if (l.length == 0)
-            n.setDatatojsfile("drawPivotTable", true), n.setDatatojsfile("pivotTableBoundary", [12, 6]);
-          else {
-            n.setDatatojsfile("drawPivotTable", false), n.setDatatojsfile("pivotTableBoundary", [l.length, l[0].length]);
-            let d = l.length, f = l[0].length;
-            s = d - a.length, u = f - a[0].length, o = il(a, s + 20, u + 10, true);
-            for (let m = 0; m < d; m++) {
-              let g = [].concat(o[m]);
-              for (let y = 0; y < f; y++) {
-                let v = "";
-                l[m] != null && l[m][y] != null && (v = Oe(m, y, l)), g[y] = v;
-              }
-              o[m] = g;
+          let n = this, sheet = n.pivotSheetIndex, pos = sheetPosition(sheet);
+          if (pos == null)
+            return;
+          let before = n._snap != null && n._snap.sheet == sheet ? n._snap.json : n.configJson(sheet);
+          n.storePivotTableParam();
+          let after = n.configJson(sheet);
+          n._snap = {
+            sheet,
+            json: after
+          };
+          let o = n.buildPivotGrid();
+          store.clearjfundo && before !== after && (store.jfundo.length = 0, store.jfredo.push({
+            type: "pivotTable_change",
+            sheetIndex: sheet,
+            pivotTable: JSON.parse(before),
+            pivotTablecur: JSON.parse(after)
+          }));
+          if (store.currentSheetIndex != sheet) {
+            store.luckysheetfile[pos].data = o;
+            return;
+          }
+          tl();
+          let prev = store.clearjfundo;
+          store.clearjfundo = false;
+          try {
+            refreshGridAll(o[0].length, o.length, o, null, store.luckysheet_select_save, "datachangeAll", void 0, void 0, e), n.sheetIsReferenced(sheet) && recalcChangedRanges([{
+              row: [0, o.length - 1],
+              column: [0, o[0].length - 1]
+            }], sheet, o);
+          } finally {
+            store.clearjfundo = prev;
+          }
+          showSelectionHighlight();
+        },
+        // (custom) the saved settings without the computed result, as text (undo and change detection)
+        configJson: function(sheet) {
+          let pos = sheetPosition(sheet), pt2 = pos == null ? null : this.parseConfig(store.luckysheetfile[pos].pivotTable);
+          if (pt2 == null)
+            return "null";
+          let o = {};
+          for (let k in pt2)
+            k !== "pivotDatas" && k !== "drawPivotTable" && k !== "pivotTableBoundary" && (o[k] = pt2[k]);
+          return JSON.stringify(o);
+        },
+        // (custom) whether a formula on another sheet names this sheet (its new values must recalculate them)
+        sheetIsReferenced: function(sheet) {
+          let pos = sheetPosition(sheet);
+          if (pos == null)
+            return false;
+          let name = String(store.luckysheetfile[pos].name);
+          for (let i2 = 0; i2 < store.luckysheetfile.length; i2++) {
+            let f = store.luckysheetfile[i2];
+            if (i2 == pos || !f.calcChain || !f.data)
+              continue;
+            for (let j3 = 0; j3 < f.calcChain.length; j3++) {
+              let c2 = f.calcChain[j3], row = c2 && f.data[c2.r], cell = row && row[c2.c];
+              if (cell && typeof cell.f == "string" && cell.f.indexOf(name) > -1)
+                return true;
             }
           }
-          t.type = "pivotTable_change", t.curdata = lsDeepCopyArray(o), t.sheetIndex = store.currentSheetIndex, t.pivotTablecur = n.getPivotTableData(), store.clearjfundo && (store.jfundo.length = 0, store.jfredo.push(t)), tl(), store.clearjfundo = false, s > 0 || u > 0 ? refreshGridAll(o[0].length, o.length, o, null, store.luckysheet_select_save, "datachangeAll", void 0, void 0, e) : (refreshGrid(o, store.luckysheet_select_save, {}, null, e), showSelectionHighlight()), store.clearjfundo = true;
+          return false;
+        },
+        // (custom) runs the engine for settings pt (row/column/values/showType)
+        compute: function(origin, pt2, hidden) {
+          let loc = getLocale();
+          return pivotCompute(origin, {
+            row: pt2.row || [],
+            column: pt2.column || [],
+            values: pt2.values || [],
+            showType: pt2.showType,
+            hidden
+          }, {
+            sum: loc.pivotTable.valueSum,
+            blank: loc.filter.valueBlank
+          });
+        },
+        // (custom) the pivot sheet's new grid for the current settings; keeps the layout for drill-down
+        buildPivotGrid: function() {
+          let n = this, layout;
+          try {
+            layout = n.compute(n.origindata, n, n.rowhidden);
+          } catch (err) {
+            console.error("pivot table: calculation failed", err), layout = n.compute([[]], {}, null);
+          }
+          n._layout = layout;
+          let g = n.layoutToGrid(layout, n.origindata, n.values || []);
+          return n.pivotDatas = g.datas, n.setDatatojsfile("pivotDatas", g.datas), layout.rows == 0 ? (n.setDatatojsfile("drawPivotTable", true), n.setDatatojsfile("pivotTableBoundary", [12, 6])) : (n.setDatatojsfile("drawPivotTable", false), n.setDatatojsfile("pivotTableBoundary", [layout.rows, layout.cols])), g.grid;
+        },
+        // (custom) engine layout -> sheet grid of cell objects (+ the plain values, pivotDatas)
+        layoutToGrid: function(layout, origin, values) {
+          let rows = layout.rows, cols = layout.cols, gr2 = Math.max(store.defaultrowNum || 84, rows + 20), gc = Math.max(store.defaultcolumnNum || 60, cols + 10), grid = new Array(gr2), datas = new Array(rows), fmt = this.valueFormats(origin, values);
+          for (let r2 = 0; r2 < gr2; r2++)
+            grid[r2] = new Array(gc).fill(null);
+          for (let r2 = 0; r2 < rows; r2++) {
+            let src = layout.cells[r2], d = new Array(cols);
+            for (let c2 = 0; c2 < cols; c2++) {
+              let x = src[c2];
+              grid[r2][c2] = this.toCell(x, fmt), d[c2] = x == null ? "" : x.raw != null ? x.raw : x.v;
+            }
+            datas[r2] = d;
+          }
+          return {
+            grid,
+            datas
+          };
+        },
+        toCell: function(x, fmt) {
+          if (x == null)
+            return null;
+          let c2;
+          if (x.value != null)
+            if (typeof x.v == "number") {
+              let fa2 = fmt[x.value] || "General";
+              c2 = {
+                v: x.v,
+                m: this.formatNumber(x.v, fa2),
+                ct: {
+                  fa: fa2,
+                  t: "n"
+                }
+              };
+            } else
+              c2 = {
+                v: x.v,
+                m: String(x.v),
+                ct: {
+                  fa: "General",
+                  t: "e"
+                }
+              };
+          else
+            x.raw != null ? c2 = {
+              v: x.raw,
+              m: String(x.v),
+              ct: x.ct && x.ct.fa ? {
+                fa: x.ct.fa,
+                t: x.ct.t || "n"
+              } : {
+                fa: "General",
+                t: "n"
+              }
+            } : c2 = {
+              v: String(x.v),
+              m: String(x.v),
+              ct: {
+                fa: "General",
+                t: "g"
+              }
+            };
+          return x.bold && (c2.bl = 1), c2;
+        },
+        formatNumber: function(v, fa2) {
+          try {
+            if (fa2 != null && fa2 != "General")
+              return String(mt(fa2, v));
+            let g = generateCellValue(v);
+            return g && g[0] != null ? g[0].toString() : String(v);
+          } catch (err) {
+            return String(v);
+          }
+        },
+        // (custom) number format of each value field: the source column's, for summaries in the same unit
+        valueFormats: function(origin, values) {
+          let out = [], same = {
+            SUM: 1,
+            AVERAGE: 1,
+            MIN: 1,
+            MAX: 1,
+            MEDIAN: 1,
+            STDEV: 1,
+            STDEVP: 1
+          };
+          for (let k = 0; k < values.length; k++) {
+            let fa2 = "General", st = values[k].sumtype || "SUM", ci = +values[k].index;
+            if (same[st] && origin)
+              for (let r2 = 1, seen = 0; r2 < origin.length && seen < 200; r2++) {
+                let cell = origin[r2] && origin[r2][ci];
+                if (cell == null || typeof cell != "object" || pivotCellNumber(cell) == null)
+                  continue;
+                if (seen++, cell.ct && cell.ct.t == "n" && cell.ct.fa && cell.ct.fa != "General") {
+                  fa2 = cell.ct.fa;
+                  break;
+                }
+              }
+            out.push(fa2);
+          }
+          return out;
+        },
+        // (custom) recomputes a pivot sheet that is not on screen; never throws (a broken
+        // pivot used to break every switch to another sheet)
+        refreshFile: function(file) {
+          try {
+            let pt2 = this.parseConfig(file.pivotTable);
+            if (pt2 == null || pt2.pivotDataSheetIndex == null)
+              return;
+            file.pivotTable = pt2;
+            let s = sheetPosition(pt2.pivotDataSheetIndex);
+            if (s == null)
+              return;
+            let origin = this.readSource(store.luckysheetfile[s], pt2.pivot_select_save, pt2.pivotDataSheetIndex), layout = this.compute(origin, pt2, this.hiddenRows(pt2.filterparm)), g = this.layoutToGrid(layout, origin, pt2.values || []);
+            pt2.pivotDatas = g.datas, pt2.drawPivotTable = layout.rows == 0, pt2.pivotTableBoundary = layout.rows == 0 ? [12, 6] : [layout.rows, layout.cols], file.data = g.grid;
+          } catch (err) {
+            console.error("pivot table: refresh of sheet " + file.name + " failed", err);
+          }
         },
         drawPivotTable: true,
         pivotTableBoundary: [12, 6],
@@ -46202,9 +46781,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             !u && s.is(":visible") && (s.hide(), $t(), $("#luckysheet-sta-content").css("padding-right", 10));
         },
         isPivotRange: function(e, n) {
-          let t = this;
-          if (store.luckysheetcurrentisPivotTable)
-            return e < t.pivotTableBoundary[0] && n < t.pivotTableBoundary[1];
+          let t = this, b = t.pivotTableBoundary;
+          return !!store.luckysheetcurrentisPivotTable && t.pivotSheetIndex == store.currentSheetIndex && b != null && e < b[0] && n < b[1];
         },
         storePivotTableParam: function() {
           let e = this, n = [], t = [], l = [], a = [];
@@ -46358,7 +46936,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 top: (b + x - y) / 4
               }).show(), n.jgridCurrentPivotInput = $("#luckysheet-dialog-pivotTable-range").html(), $("#luckysheet-pivotTable-range-selection-input").val(n.jgridCurrentPivotInput), n.luckysheet_pivotTable_select_state = true;
             }), $("#luckysheet-pivotTableFilter-initial").click(function() {
-              $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-slider-list-item-filtered").hide(), $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-modal-dialog-slider-list-item").data("rowhidden", ""), $("#luckysheet-pivotTableFilter-menu, #luckysheet-pivotTableFilter-submenu").hide(), $("#luckysheet-pivotTableFilter-menu .luckysheet-pivotTableFilter-selected-input").hide().find("input").val(), $("#luckysheet-pivotTableFilter-selected span").data("type", "0").data("type", null).text(o.filiterInputNone), n.setDatatojsfile("filterparm", null), n.celldata = n.origindata, n.refreshPivotTable();
+              $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-slider-list-item-filtered").hide(), $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-modal-dialog-slider-list-item").data("rowhidden", ""), $("#luckysheet-pivotTableFilter-menu, #luckysheet-pivotTableFilter-submenu").hide(), $("#luckysheet-pivotTableFilter-menu .luckysheet-pivotTableFilter-selected-input").hide().find("input").val(), $("#luckysheet-pivotTableFilter-selected span").data("type", "0").data("type", null).text(o.filiterInputNone), n.setDatatojsfile("filterparm", null), n.applyFilters(), n.refreshPivotTable();
             }), $("#luckysheet-modal-dialog-config-row, #luckysheet-modal-dialog-config-column").on("click", ".luckysheet-modal-dialog-slider-config-item-icon", function(g) {
               let y = $(g.target), v = y.closest(".luckysheet-modal-dialog-slider-config-item"), k = v.data("index"), b = v.offset(), w = v.data("order"), x = v.data("orderby"), C = v.data("stastic");
               w == null && (w = "default");
@@ -46409,26 +46987,26 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 for (let R = 1; R < k.length; R++) {
                   if (R in v || k[R] == null)
                     continue;
-                  let I = k[R][y];
+                  let I = k[R][y], txt_ = pivotCellText(I), num_ = pivotCellNumber(I);
                   if (A == "cellnull")
                     I != null && !isRealNull(I.v) && (w[R] = 0);
                   else if (A == "cellnonull")
                     (I == null || isRealNull(I.v)) && (w[R] = 0);
                   else if (A == "textinclude") {
                     let F = x.value1;
-                    (I == null || isRealNull(I.v) || I.m.indexOf(F) == -1) && (w[R] = 0);
+                    (I == null || isRealNull(I.v) || txt_.indexOf(F) == -1) && (w[R] = 0);
                   } else if (A == "textnotinclude") {
                     let F = x.value1;
-                    I == null || isRealNull(I.v) || I.m.indexOf(F) > -1 && (w[R] = 0);
+                    I == null || isRealNull(I.v) || txt_.indexOf(F) > -1 && (w[R] = 0);
                   } else if (A == "textstart") {
                     let F = x.value1, N = F.length;
-                    (I == null || isRealNull(I.v) || I.m.substr(0, N) != F) && (w[R] = 0);
+                    (I == null || isRealNull(I.v) || txt_.substr(0, N) != F) && (w[R] = 0);
                   } else if (A == "textend") {
                     let F = x.value1, N = F.length;
-                    (I == null || isRealNull(I.v) || N > I.m.length || I.m.substr(I.m.length - N, N) != F) && (w[R] = 0);
+                    (I == null || isRealNull(I.v) || N > txt_.length || txt_.substr(txt_.length - N, N) != F) && (w[R] = 0);
                   } else if (A == "textequal") {
                     let F = x.value1;
-                    (I == null || isRealNull(I.v) || I.m != F) && (w[R] = 0);
+                    (I == null || isRealNull(I.v) || txt_ != F) && (w[R] = 0);
                   } else if (A == "dateequal") {
                     let F = generateCellValue(x.value1)[2];
                     I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "d" ? parseInt(I.v) != F && (w[R] = 0) : w[R] = 0;
@@ -46440,28 +47018,28 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                     I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "d" ? parseInt(I.v) <= F && (w[R] = 0) : w[R] = 0;
                   } else if (A == "morethan") {
                     let F = parseFloat(x.value1);
-                    I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? I.v <= F && (w[R] = 0) : w[R] = 0;
+                    I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? num_ <= F && (w[R] = 0) : w[R] = 0;
                   } else if (A == "moreequalthan") {
                     let F = parseFloat(x.value1);
-                    I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? I.v < F && (w[R] = 0) : w[R] = 0;
+                    I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? num_ < F && (w[R] = 0) : w[R] = 0;
                   } else if (A == "lessthan") {
                     let F = parseFloat(x.value1);
-                    I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? I.v >= F && (w[R] = 0) : w[R] = 0;
+                    I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? num_ >= F && (w[R] = 0) : w[R] = 0;
                   } else if (A == "lessequalthan") {
                     let F = parseFloat(x.value1);
-                    I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? I.v > F && (w[R] = 0) : w[R] = 0;
+                    I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? num_ > F && (w[R] = 0) : w[R] = 0;
                   } else if (A == "equal") {
                     let F = parseFloat(x.value1);
-                    I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? I.v != F && (w[R] = 0) : w[R] = 0;
+                    I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? num_ != F && (w[R] = 0) : w[R] = 0;
                   } else if (A == "noequal") {
                     let F = parseFloat(x.value1);
-                    I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? I.v == F && (w[R] = 0) : w[R] = 0;
+                    I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? num_ == F && (w[R] = 0) : w[R] = 0;
                   } else if (A == "include") {
                     let F = parseFloat(x.value1), N = parseFloat(x.value2), D, E;
-                    F < N ? (D = F, E = N) : (E = F, D = N), I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? (I.v < D || I.v > E) && (w[R] = 0) : w[R] = 0;
+                    F < N ? (D = F, E = N) : (E = F, D = N), I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? (num_ < D || num_ > E) && (w[R] = 0) : w[R] = 0;
                   } else if (A == "noinclude") {
                     let F = parseFloat(x.value1), N = parseFloat(x.value2), D, E;
-                    F < N ? (D = F, E = N) : (E = F, D = N), I == null || isRealNull(I.v) ? w[R] = 0 : I.ct != null && I.ct.t == "n" ? I.v >= D && I.v <= E && (w[R] = 0) : w[R] = 0;
+                    F < N ? (D = F, E = N) : (E = F, D = N), I == null || isRealNull(I.v) ? w[R] = 0 : num_ != null ? num_ >= D && num_ <= E && (w[R] = 0) : w[R] = 0;
                   }
                 }
               } else {
@@ -46491,16 +47069,13 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                     let R = mt("YYYY-MM-DD", T.v);
                     A = o.filterDateFormatTip + "#$$$#" + R;
                   } else
-                    A = T.v + "#$$$#" + T.m;
+                    A = T.v + "#$$$#" + pivotCellText(T);
                   A in b && (w[_] = 0);
                 }
               }
               let C = $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-modal-dialog-slider-list-item").eq(y);
               $("#luckysheet-pivotTableFilter-byvalue-select .ListBox input[type='checkbox']:visible:checked").length < $("#luckysheet-pivotTableFilter-byvalue-select .ListBox input[type='checkbox']:visible").length || $("#luckysheet-pivotTableFilter-byvalue-input").val().length > 0 || $("#luckysheet-pivotTableFilter-bycondition").next().is(":visible") && $("#luckysheet-pivotTableFilter-byvalue").next().is(":hidden") && $("#luckysheet-pivotTableFilter-selected span").data("value") != "null" ? (C.data("rowhidden", JSON.stringify(w)).find(".luckysheet-slider-list-item-filtered").show(), n.setDatatojsfile("rowhidden", w, y), x != null && (C.data("byconditionvalue", x.value).data("byconditiontype", x.type).data("byconditiontext", x.text), x.value1 != null && C.data("byconditionvalue1", x.value1), x.value2 != null && C.data("byconditionvalue2", x.value2), n.setDatatojsfile("caljs", x, y))) : (C.data("rowhidden", "").find(".luckysheet-slider-list-item-filtered").hide(), n.setDatatojsfile("rowhidden", null, y));
-              let S = [];
-              for (let _ = 0; _ < k.length; _++)
-                _ in w || _ in v || S.push([].concat(k[_]));
-              n.celldata = S, n.refreshPivotTable(), $("#luckysheet-pivotTableFilter-menu, #luckysheet-pivotTableFilter-submenu").hide(), tl();
+              n.applyFilters(), n.refreshPivotTable(), $("#luckysheet-pivotTableFilter-menu, #luckysheet-pivotTableFilter-submenu").hide(), tl();
             }), $("#luckysheet-data-pivotTable-selection .luckysheet-model-close-btn, #luckysheet-data-pivotTable-selection .luckysheet-modal-dialog-title-close").click(function() {
               $("#luckysheet-modal-dialog-slider-pivot").show(), $t(), $("#luckysheet-cell-main .luckysheet-pivotTable-selection-set div").show(), $("#luckysheet-data-pivotTable-selection").hide(), sheetManage.changeSheetExec(n.pivotSheetIndex), n.luckysheet_pivotTable_select_state = false, tl();
             }), $("#luckysheet-pivotTable-selection-confirm").click(function() {
@@ -46588,7 +47163,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                       let I = parseFloat($(this).data("nameindex")) + 1;
                       return _ = _ + I.toString(), $(this).data("nameindex", I), false;
                     }
-                  })), v = '<div title="' + _ + '" class="luckysheet-modal-dialog-slider-config-item" ' + A + " " + T + ' data-index="' + n.movesave.index + '" data-name="' + n.movesave.name + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + A + " " + T + ' data-index="' + n.movesave.index + '" data-name="' + n.movesave.name + '">' + _ + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
+                  })), v = '<div title="' + lsPivotEsc(_) + '" class="luckysheet-modal-dialog-slider-config-item" ' + A + " " + T + ' data-index="' + n.movesave.index + '" data-name="' + lsPivotEsc(n.movesave.name) + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + A + " " + T + ' data-index="' + n.movesave.index + '" data-name="' + lsPivotEsc(n.movesave.name) + '">' + lsPivotEsc(_) + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
                 }
                 let k = event.pageX, b = event.pageY, w = $(this), x = b - w.offset().top + w.scrollTop(), C = n.moveitemposition, S = ot(C, x);
                 (n.movesave.containerid == "luckysheet-modal-dialog-pivotTable-list" || n.movesave.containerid == "luckysheet-modal-dialog-config-value" && n.movesave.containerid != y.attr("id")) && $("#luckysheet-modal-dialog-config-filter, #luckysheet-modal-dialog-config-row, #luckysheet-modal-dialog-config-column").find(".luckysheet-modal-dialog-slider-config-item").each(function() {
@@ -46604,11 +47179,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 g.append('<i class="fa fa-check luckysheet-mousedown-cancel"></i>');
                 let b = n.pivot_data_type[v.toString()], w;
                 if (b == "num")
-                  w = '<div title="' + k + '" class="luckysheet-modal-dialog-slider-config-item" data-nameindex="0" data-sumtype="SUM" data-index="' + v + '" data-name="' + k + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" data-nameindex="0" data-sumtype="SUM" data-index="' + v + '" data-name="' + k + '">求和:' + k + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>', $("#luckysheet-modal-dialog-config-value").append(w);
+                  w = '<div title="' + lsPivotEsc(k) + '" class="luckysheet-modal-dialog-slider-config-item" data-nameindex="0" data-sumtype="SUM" data-index="' + v + '" data-name="' + lsPivotEsc(k) + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" data-nameindex="0" data-sumtype="SUM" data-index="' + v + '" data-name="' + lsPivotEsc(k) + '">' + lsPivotEsc(l.valueStatisticsSUM + ":" + k) + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>', $("#luckysheet-modal-dialog-config-value").append(w);
                 else {
-                  w = '<div title="' + k + '" class="luckysheet-modal-dialog-slider-config-item" data-index="' + v + '" data-name="' + k + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" data-index="' + v + '" data-name="' + k + '">' + k + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
+                  w = '<div title="' + lsPivotEsc(k) + '" class="luckysheet-modal-dialog-slider-config-item" data-index="' + v + '" data-name="' + lsPivotEsc(k) + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" data-index="' + v + '" data-name="' + lsPivotEsc(k) + '">' + lsPivotEsc(k) + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
                   let x = $("#luckysheet-modal-dialog-config-column"), C = $("#luckysheet-modal-dialog-config-row"), S = x.find(".luckysheet-modal-dialog-slider-config-item"), _ = C.find(".luckysheet-modal-dialog-slider-config-item");
-                  S.length < 2 ? x.append(w) : _.length < 2 ? C.append(w) : x.append(w);
+                  _.length < 2 ? C.append(w) : S.length < 2 ? x.append(w) : C.append(w);
                 }
               } else
                 g.find("i").remove(), $("#luckysheet-modal-dialog-config-filter, #luckysheet-modal-dialog-config-row, #luckysheet-modal-dialog-config-column, #luckysheet-modal-dialog-config-value").find(".luckysheet-modal-dialog-slider-config-item").each(function() {
@@ -46633,15 +47208,15 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               let k = n.filterparm[m.toString()];
               if (k.rowhidden != null && (y += "data-rowhidden='" + JSON.stringify(k.rowhidden) + "'"), k.selected != null && (y += "data-selected='" + JSON.stringify(k.selected) + "'"), k.caljs != null) {
                 let b = k.caljs;
-                b.value != null && (y += "data-byconditionvalue='" + b.value + "'"), b.type != null && (y += "data-byconditiontype='" + b.type + "'"), b.text != null && (y += "data-byconditiontext='" + b.text + "'"), b.value1 != null && (y += "data-byconditionvalue1='" + b.value1 + "'"), b.value2 != null && (y += "data-byconditionvalue2='" + b.value2 + "'");
+                b.value != null && (y += "data-byconditionvalue='" + lsPivotEsc(b.value) + "'"), b.type != null && (y += "data-byconditiontype='" + lsPivotEsc(b.type) + "'"), b.text != null && (y += "data-byconditiontext='" + lsPivotEsc(b.text) + "'"), b.value1 != null && (y += "data-byconditionvalue1='" + lsPivotEsc(b.value1) + "'"), b.value2 != null && (y += "data-byconditionvalue2='" + lsPivotEsc(b.value2) + "'");
               }
             }
-            y.length > 0 && (v = "display:block;"), s += '<div class="luckysheet-modal-dialog-slider-list-item" ' + y + ' data-index="' + m + '" data-name="' + g + '"><div title="' + l.titleAddColumn + '" class="luckysheet-slider-list-item-selected"><div></div></div><div title="' + l.titleMoveColumn + '" class="luckysheet-slider-list-item-name" ' + y + ' data-index="' + m + '" data-name="' + g + '">' + g + '</div><div title="' + l.titleClearColumnFilter + '" class="luckysheet-slider-list-item-filtered" style="' + v + '"><i class="fa fa-filter luckysheet-mousedown-cancel" aria-hidden="true"></i><i class="fa fa-times" aria-hidden="true"></i></div><div title="' + l.titleFilterColumn + '" class="luckysheet-slider-list-item-filter"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
+            y.length > 0 && (v = "display:block;"), s += '<div class="luckysheet-modal-dialog-slider-list-item" ' + y + ' data-index="' + m + '" data-name="' + lsPivotEsc(g) + '"><div title="' + l.titleAddColumn + '" class="luckysheet-slider-list-item-selected"><div></div></div><div title="' + l.titleMoveColumn + '" class="luckysheet-slider-list-item-name" ' + y + ' data-index="' + m + '" data-name="' + lsPivotEsc(g) + '">' + lsPivotEsc(g) + '</div><div title="' + l.titleClearColumnFilter + '" class="luckysheet-slider-list-item-filtered" style="' + v + '"><i class="fa fa-filter luckysheet-mousedown-cancel" aria-hidden="true"></i><i class="fa fa-times" aria-hidden="true"></i></div><div title="' + l.titleFilterColumn + '" class="luckysheet-slider-list-item-filter"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
           }
           if ($("#luckysheet-modal-dialog-pivotTable-list").html(s), $("#luckysheetpivottablevaluecolrowshow").hide(), $("#luckysheetpivottablevaluecolrow").prop("checked", true), $("#luckysheetpivottablevaluecolrow1").prop("checked", false), $("#luckysheet-modal-dialog-config-filter, #luckysheet-modal-dialog-config-row, #luckysheet-modal-dialog-config-column, #luckysheet-modal-dialog-config-value").empty(), e) {
             if (n.filter != null && n.filter.length > 0)
               for (let m = 0; m < n.filter.length; m++) {
-                let g = n.filter[m], y = '<div title="' + name + '" class="luckysheet-modal-dialog-slider-config-item" data-index="' + g.index + '" data-name="' + g.name + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" data-index="' + g.index + '" data-name="' + g.name + '">' + g.name + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
+                let g = n.filter[m], y = '<div title="' + lsPivotEsc(g.name) + '" class="luckysheet-modal-dialog-slider-config-item" data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '">' + lsPivotEsc(g.name) + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
                 $("#luckysheet-modal-dialog-config-filter").append(y);
                 let v = $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-modal-dialog-slider-list-item").eq(g.index).find(".luckysheet-slider-list-item-selected");
                 v.find("i").length == 0 && v.append('<i class="fa fa-check luckysheet-mousedown-cancel"></i>');
@@ -46649,8 +47224,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (n.row != null && n.row.length > 0)
               for (let m = 0; m < n.row.length; m++) {
                 let g = n.row[m], y = "";
-                g.order != null && (y += "data-order = '" + g.order + "'"), g.orderby != null && (y += "data-orderby = '" + g.orderby + "'"), g.order != null && (y += "data-stastic = '" + g.stastic + "'");
-                let v = '<div title="' + name + '" class="luckysheet-modal-dialog-slider-config-item" ' + y + ' data-index="' + g.index + '" data-name="' + g.name + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + y + ' data-index="' + g.index + '" data-name="' + g.name + '">' + g.name + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
+                g.order != null && (y += "data-order = '" + g.order + "'"), g.orderby != null && (y += "data-orderby = '" + g.orderby + "'"), g.stastic != null && (y += "data-stastic = '" + g.stastic + "'");
+                let v = '<div title="' + lsPivotEsc(g.name) + '" class="luckysheet-modal-dialog-slider-config-item" ' + y + ' data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + y + ' data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '">' + lsPivotEsc(g.name) + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
                 $("#luckysheet-modal-dialog-config-row").append(v);
                 let k = $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-modal-dialog-slider-list-item").eq(g.index).find(".luckysheet-slider-list-item-selected");
                 k.find("i").length == 0 && k.append('<i class="fa fa-check luckysheet-mousedown-cancel"></i>');
@@ -46658,8 +47233,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
             if (n.column != null && n.column.length > 0)
               for (let m = 0; m < n.column.length; m++) {
                 let g = n.column[m], y = "";
-                g.order != null && (y += "data-order = '" + g.order + "'"), g.orderby != null && (y += "data-orderby = '" + g.orderby + "'"), g.order != null && (y += "data-stastic = '" + g.stastic + "'");
-                let v = '<div title="' + name + '" class="luckysheet-modal-dialog-slider-config-item" ' + y + ' data-index="' + g.index + '" data-name="' + g.name + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + y + ' data-index="' + g.index + '" data-name="' + g.name + '">' + g.name + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
+                g.order != null && (y += "data-order = '" + g.order + "'"), g.orderby != null && (y += "data-orderby = '" + g.orderby + "'"), g.stastic != null && (y += "data-stastic = '" + g.stastic + "'");
+                let v = '<div title="' + lsPivotEsc(g.name) + '" class="luckysheet-modal-dialog-slider-config-item" ' + y + ' data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + y + ' data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '">' + lsPivotEsc(g.name) + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
                 $("#luckysheet-modal-dialog-config-column").append(v);
                 let k = $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-modal-dialog-slider-list-item").eq(g.index).find(".luckysheet-slider-list-item-selected");
                 k.find("i").length == 0 && k.append('<i class="fa fa-check luckysheet-mousedown-cancel"></i>');
@@ -46668,7 +47243,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               for (let m = 0; m < n.values.length; m++) {
                 let g = n.values[m], y = "";
                 g.sumtype != null && (y += "data-sumtype = '" + g.sumtype + "'"), g.nameindex != null && (y += "data-nameindex = '" + g.nameindex + "'");
-                let v = '<div title="' + name + '" class="luckysheet-modal-dialog-slider-config-item" ' + y + ' data-index="' + g.index + '" data-name="' + g.name + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + y + ' data-index="' + g.index + '" data-name="' + g.name + '">' + n.getSumTypeName(g.sumtype) + ":" + g.name + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
+                let v = '<div title="' + lsPivotEsc(g.name) + '" class="luckysheet-modal-dialog-slider-config-item" ' + y + ' data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '"><div class="luckysheet-modal-dialog-slider-config-item-txt" ' + y + ' data-index="' + g.index + '" data-name="' + lsPivotEsc(g.name) + '">' + n.getSumTypeName(g.sumtype) + ":" + lsPivotEsc(g.name) + '</div><div class="luckysheet-modal-dialog-slider-config-item-icon"><i class="fa fa-sort-desc" aria-hidden="true"></i></div></div>';
                 $("#luckysheet-modal-dialog-config-value").append(v);
                 let k = $("#luckysheet-modal-dialog-pivotTable-list .luckysheet-modal-dialog-slider-list-item").eq(g.index).find(".luckysheet-slider-list-item-selected");
                 k.find("i").length == 0 && k.append('<i class="fa fa-check luckysheet-mousedown-cancel"></i>');
@@ -46678,326 +47253,68 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           }
           $("#luckysheet-dialog-pivotTable-range").html(rangeToAddress(n.pivotDataSheetIndex, n.pivot_select_save)), $("#luckysheet-modal-dialog-slider-pivot").show(), $t(false);
         },
-        getComposeArray: function(e) {
-          if (e.length == 0)
-            return [];
-          let n = [];
-          for (let t = 0; t < e.length; t++) {
-            let l = "";
-            for (let a = 0; a <= t; a++)
-              !!e[a] && !!e[a].m ? l += e[a].m : l += Oe(a, null, e);
-            n.push(l);
-          }
-          return n;
-        },
-        getnameArray: function(e, n) {
-          if (e.length == 0)
-            return [];
-          if (n.length == 0)
-            return [];
-          let t = [];
-          for (let l = 0; l < n.length; l++) {
-            let a;
-            !!e[n[l].index] && !!e[n[l].index].m ? a = e[n[l].index].m : a = Oe(n[l].index, null, e), t.push(a);
-          }
-          return t;
-        },
-        getTitleFromGroup: function(e, n, t) {
-          let l = this, a = l.orderbygroup(e, n, t);
-          return l.generategrouparraymain(a, n);
-        },
-        orderbygroup: function(e, n, t) {
-          let l = this, a = [];
-          if (e.length == 0)
-            return [];
-          a = e;
-          let o = null, s = a.length, u = a.length, d = 0;
-          for (; s != 0; )
-            if (o = a[d++], s--, o.children != null && o.children.length > 0) {
-              o.children = l.orderbygroupchildren(o.children, n[o.index].orderby, n[o.index].order, t);
-              for (let f = 0; f < o.children.length; f++)
-                a.push(o.children[f]), s++;
-            }
-          return e.splice(0, u);
-        },
-        orderbygroupchildren: function(e, n, t, l) {
-          if (e.length == 0)
-            return [];
-          let a = false;
-          (t == null || t == "asc") && (a = true);
-          let s = getLocale().filter, u = function(f, m) {
-            let g = null, y = null;
-            if (n == "self" || n == null) {
-              if (f.name == null ? g = s.valueBlank : g = f.name.toString(), m.name == null ? y = s.valueBlank : y = m.name.toString(), Pt(g) && Pt(y))
-                return sl(g, y);
-            } else
-              g = parseFloat(l[f.orderby].result), y = parseFloat(l[m.orderby].result);
-            if (!isNaN(g) && !isNaN(y))
-              return (0, Ai.default)(g).value() - (0, Ai.default)(y).value();
-            if (isNaN(g) && isNaN(y))
-              return g.localeCompare(y);
-            if (isNaN(g))
-              return 1;
-            if (isNaN(y))
-              return -1;
-          }, d = function(f, m) {
-            let g = null, y = null;
-            if (n == "self" || n == null) {
-              if (f.name == null ? g = s.valueBlank : g = f.name.toString(), m.name == null ? y = s.valueBlank : y = m.name.toString(), Pt(g) && Pt(y))
-                return sl(g, y);
-            } else
-              g = parseFloat(l[f.orderby].result), y = parseFloat(l[m.orderby].result);
-            if (!isNaN(g) && !isNaN(y))
-              return (0, Ai.default)(y).value() - (0, Ai.default)(g).value();
-            if (isNaN(g) && isNaN(y))
-              return y.localeCompare(g);
-            if (isNaN(g))
-              return -1;
-            if (isNaN(y))
-              return 1;
-          };
-          return a ? e.sort(u) : e.sort(d);
-        },
-        generategroupaddstatic: function(e, n) {
-          let t = [], a = getLocale().pivotTable;
-          for (let o = 0; o < e[0].length; o++)
-            o == 0 ? n == a.valueSum ? t.push(n) : t.push({
-              name: n,
-              issum: true
-            }) : t.push("");
-          return t;
-        },
-        generategrouparraymain: function(e, n) {
-          let t = this, l = [];
-          for (let a = 0; a < e.length; a++) {
-            let o = e[a].name, s = t.generategrouparray(e[a].children, n, 1);
-            (n[0].stastic == "1" || n[0].stastic == null) && s.push(t.generategroupaddstatic(s, o)), l = l.concat(s);
-          }
-          return l;
-        },
-        generategrouparray: function(e, n, t) {
-          let l = this, a = [];
-          for (let o = 0; o < e.length; o++) {
-            let s = e[o].name, u;
-            if (e[o].children == 0 || e[o].children.length == 0)
-              u = [s], a.push(u);
-            else {
-              u = l.generategrouparray(e[o].children, n, t + 1);
-              for (let d = 0; d < u.length; d++)
-                u[d].unshift(s);
-              (n[t].stastic == "1" || n[t].stastic == null) && u.push(l.generategroupaddstatic(u, s)), a = a.concat(u);
-            }
-          }
-          return a;
-        },
-        addStatisticsData: function(e, n, t, l) {
-          if (e[t] == null && (e[t] = {
-            data: [],
-            count: 0,
-            max: -Infinity,
-            min: Infinity,
-            counta: 0,
-            countunique: 0,
-            countuniquedata: {},
-            sum: 0,
-            digitaldata: [],
-            sumtype: n.sumtype,
-            index: n.index,
-            name: n.fullname,
-            acc: 0
-          }), Nn(l).num === true) {
-            let a = Il(l, 6);
-            e[t].digitaldata.push(a), e[t].count += 1, e[t].sum += a, a > e[t].max && (e[t].max = a), a < e[t].min && (e[t].min = a);
-            let o = cc(a);
-            o > e[t].acc && (e[t].acc = o);
-          }
-          l != "" && (e[t].data.push(l), e[t].counta += 1, l in e[t].countuniquedata || (e[t].countuniquedata[l] = 1, e[t].countunique += 1));
-        },
+        // (custom) kept for callers of the old API: the plain values of the pivot for these settings
         dataHandler: function(e, n, t, l, a) {
-          let o = this, s = getLocale(), u = s.filter, d = s.pivotTable;
-          if (l == null && (l = "column"), e.length == 0 && n.length == 0 && t.length == 0 || a.length == 0)
-            return o.pivotDatas = [], [];
-          let f = {}, m = a, g = [], y = [], v = {}, k = 0, b = [], w = [], x = {}, C = 0;
-          for (let N = 1; N < m.length; N++) {
-            let D = m[N], E = "", P = "", z = "", O2 = [], V = [], q = "", Y = [], X = [];
-            V = o.getnameArray(D, n), X = o.getnameArray(D, e), O2 = o.getComposeArray(V), Y = o.getComposeArray(X), O2.length > 0 && O2.unshift(d.valueSum), Y.length > 0 && Y.unshift(d.valueSum);
-            let ee = v, te = y;
-            for (let ue = 0; ue < O2.length; ue++) {
-              let he = O2[ue], J = ue == 0 ? d.valueSum : V[ue - 1];
-              if (ee[ue.toString()] != null && ee[ue.toString()][he] != null)
-                te = te[ee[ue.toString()][he]].children;
-              else {
-                let G = ue == 0 ? "self" : n[ue - 1].orderby == "self" || n[ue - 1].orderby == null ? he : l == "column" ? he + t[parseInt(n[ue - 1].orderby)].fullname : he + d.valueSum;
-                J == null && (J = u.valueBlank), te.push({
-                  name: J,
-                  fullname: he,
-                  index: ue,
-                  orderby: G,
-                  children: []
-                }), ee[ue.toString()] == null && (ee[ue.toString()] = {}), ee[ue.toString()][he] == null && (ee[ue.toString()][he] = te.length - 1), te = te[te.length - 1].children;
-              }
-            }
-            let ce = x, se = w;
-            for (let ue = 0; ue < Y.length; ue++) {
-              let he = Y[ue], J = ue == 0 ? d.valueSum : X[ue - 1];
-              if (ce[ue.toString()] != null && ce[ue.toString()][he] != null)
-                se = se[ce[ue.toString()][he]].children;
-              else {
-                let G = ue == 0 ? "self" : e[ue - 1].orderby == "self" || e[ue - 1].orderby == null ? he : l == "column" ? d.valueSum + he : t[parseInt(e[ue - 1].orderby)].fullname + he;
-                J == null && (J = u.valueBlank), se.push({
-                  name: J,
-                  fullname: he,
-                  index: ue,
-                  orderby: G,
-                  children: []
-                }), ce[ue.toString()] == null && (ce[ue.toString()] = {}), ce[ue.toString()][he] == null && (ce[ue.toString()][he] = se.length - 1), se = se[se.length - 1].children;
-              }
-            }
-            let ie = "";
-            for (let ue = 0; ue < t.length; ue++) {
-              let he = Oe(t[ue].index, null, D), J = [].concat(Y), G = [].concat(O2);
-              l == "column" ? J.length > 0 ? (J.push(""), J = J.join(t[ue].fullname + "|||").split("|||").slice(0, J.length - 1)) : J.push(t[ue].fullname) : G.length > 0 ? (G.push(""), G = G.join(t[ue].fullname + "|||").split("|||").slice(0, G.length - 1)) : G.push(t[ue].fullname), J.length == 0 && J.push(""), G.length == 0 && G.push("");
-              for (let le = 0; le < G.length; le++)
-                for (let pe = 0; pe < J.length; pe++) {
-                  let oe = G[le] + J[pe];
-                  o.addStatisticsData(f, t[ue], oe, he);
-                }
-            }
-          }
-          for (let N in f) {
-            let D = f[N];
-            if (D.sumtype == "SUM")
-              D.result = D.sum;
-            else if (D.sumtype == "COUNT")
-              D.result = D.count;
-            else if (D.sumtype == "COUNTA")
-              D.result = D.counta;
-            else if (D.sumtype == "COUNTUNIQUE")
-              D.result = D.countunique;
-            else if (D.sumtype == "AVERAGE")
-              D.result = Il(D.sum / D.count);
-            else if (D.sumtype == "MAX")
-              D.result = D.max;
-            else if (D.sumtype == "MIN")
-              D.result = D.min;
-            else if (D.sumtype == "MEDIAN") {
-              let P = D.digitaldata.sort(function(V, q) {
-                return V - q;
-              }), z = P.length, O2 = parseInt(z / 2);
-              z % 2 == 0 ? D.result = (P[O2 - 1] + P[O2]) / 2 : D.result = P[O2];
-            } else if (D.sumtype == "PRODUCT")
-              D.result = new Function("return " + D.digitaldata.join("*"))();
-            else if (D.sumtype == "STDEV") {
-              let P = D.sum / D.count;
-              D.result = Ri.STDEV(P, D.digitaldata);
-            } else if (D.sumtype == "STDEVP") {
-              let P = D.sum / D.count;
-              D.result = Ri.STDEVP(P, D.digitaldata);
-            } else if (D.sumtype == "let") {
-              let P = D.sum / D.count;
-              D.result = Ri.let(P, D.digitaldata);
-            } else if (D.sumtype == "VARP") {
-              let P = D.sum / D.count;
-              D.result = Ri.VARP(P, D.digitaldata);
-            }
-            let E = cc(D.result);
-            E > D.acc && (D.acc = E), D.result = Il(D.result, D.acc);
-          }
-          if (g = o.getTitleFromGroup(y, n, f), b = o.getTitleFromGroup(w, e, f), l == "column")
-            if (b.length > 0 && b[0].length > 0)
-              b = o.addValuesToTitle(b, t);
-            else
-              for (let N = 0; N < t.length; N++)
-                b.push([t[N].fullname]);
-          else if (g.length > 0 && g[0].length > 0)
-            g = o.addValuesToTitle(g, t);
-          else
-            for (let N = 0; N < t.length; N++)
-              g.push([t[N].fullname]);
-          let S = b;
-          b = ff.transpose(b, false);
-          let _ = t.length == 0 ? 0 : 1, T = (b.length == 0 ? _ : b.length) + (g.length == 0 ? _ : g.length), A = (b.length == 0 ? _ : b[0].length) + (g.length == 0 ? _ : g[0].length), R = b.length, I = g.length == 0 ? 0 : g[0].length, F = [];
-          for (let N = 0; N < T; N++) {
-            F[N] = new Array(A);
-            for (let D = 0; D < A; D++) {
-              let E = g[N - R];
-              if (N < R && D < I)
-                F[N][D] = "";
-              else if (N < R && D >= I)
-                b[N] != null ? typeOf(b[N][D - I]) == "object" ? F[N][D] = b[N][D - I].name + d.valueSum : F[N][D] = b[N][D - I] : F[N][D] = "";
-              else if (N >= R && D < I)
-                E != null ? typeOf(E[D]) == "object" ? F[N][D] = E[D].name + d.valueSum : F[N][D] = E[D] : F[N][D] = "";
-              else {
-                let P = "";
-                if (E != null)
-                  if (!(E instanceof Array) || E.length == 1)
-                    E instanceof Array ? P = E[0] : P = E;
-                  else
-                    for (let q = 0; q < E.length; q++)
-                      typeOf(E[q]) == "object" ? P += E[q].name : P += E[q];
-                let z = "", O2 = S[D - I];
-                if (O2 != null)
-                  if (!(O2 instanceof Array) || O2.length == 1)
-                    O2 instanceof Array ? z = O2[0] : z = O2;
-                  else
-                    for (let q = 0; q < O2.length; q++)
-                      typeOf(O2[q]) == "object" ? z += O2[q].name : z += O2[q];
-                let V = P;
-                P != "" && z != "" ? V = P + z : P == "" && (V = z), f[V] == null ? F[N][D] = "" : F[N][D] = f[V].result;
-              }
-            }
-          }
-          if (t.length == 1 && e.length > 0 && n.length > 0)
-            F[0][0] = t[0].fullname, F.splice(e.length, 1);
-          else if (t.length == 1 && e.length > 0) {
-            let N = F.splice(e.length, 1), D = [];
-            for (let E = 0; E < F.length; E++) {
-              let P = [];
-              E == F.length - 1 ? P.push(N[0][0]) : P.push("");
-              for (let z = 0; z < F[E].length - 1; z++)
-                P.push(F[E][z]);
-              D.push(P);
-            }
-            F = D;
-          }
-          return o.pivotDatas = F, F;
+          let o = this, layout = o.compute(a || [[]], {
+            row: n || [],
+            column: e || [],
+            values: t || [],
+            showType: l
+          }, null), d = [];
+          for (let r2 = 0; r2 < layout.rows; r2++)
+            d.push(layout.cells[r2].map((x) => x == null ? "" : x.raw != null ? x.raw : x.v));
+          return o.pivotDatas = d, d;
         },
-        drillDown: function(e, n) {
-          if (!It(store.currentSheetIndex, "usePivotTablereports"))
+        // (custom) whether (r, c) is a value cell of the pivot on screen (double-click lists its records)
+        canDrillDown: function(r2, c2) {
+          let L = this._layout;
+          if (!L || !L.rows || this.pivotSheetIndex != store.currentSheetIndex || r2 >= L.rows || c2 >= L.cols)
+            return false;
+          let x = L.cells[r2] && L.cells[r2][c2];
+          return x != null && x.value != null;
+        },
+        // (custom) rewritten: writes the source records behind pivot cell (r, c) onto the current
+        // (new) sheet, keeping their values and formats. The old version wrote display text only,
+        // matched records by label text and crashed past the default sheet size.
+        drillDown: function(r2, c2) {
+          let t = this, L = t._layout, match = L && L.matches(r2, c2);
+          if (!match)
             return;
-          let t = this, l = t.pivotDatas[e][n], a = lsDeepCopyArray(sheetManage.nulldata), o = getLocale(), s = o.filter, u = o.pivotTable, d = 1;
-          for (let g = 0; g < t.celldata[0].length; g++) {
-            let y;
-            !!t.celldata[0][g] && !!t.celldata[0][g].m ? y = t.celldata[0][g].m : y = Oe(0, g, t.celldata), y != null && (y = y.toString()), (y == null || $.trim(y.toString()).length == 0) && (y = u.titleColumn + " " + d), d++, a[0][g] = y;
+          let src = t.origindata || [[]], hidden = t.rowhidden || {}, width2 = src[0] ? src[0].length : 0, out = [];
+          const copy = (cell) => {
+            if (cell == null || typeof cell != "object")
+              return cell == null ? null : cell;
+            let o = Object.assign({}, cell);
+            return delete o.f, delete o.spl, delete o.mc, o.ct && (o.ct = Object.assign({}, o.ct)), o;
+          };
+          out.push((src[0] || []).map(copy));
+          for (let i2 = 1; i2 < src.length; i2++) {
+            let row = src[i2];
+            if (row == null || hidden[i2] != null || !match(row))
+              continue;
+            let empty = true;
+            for (let k = 0; k < row.length && empty; k++)
+              pivotCellText(row[k]) !== "" && (empty = false);
+            empty || out.push(row.map(copy));
           }
-          let f = {};
-          if (t.row != null && t.row.length > 0)
-            for (let g = 0; g < t.row.length; g++)
-              f[t.row[g].index] = t.pivotDatas[e][g];
-          if (t.column != null && t.column.length > 0)
-            for (let g = 0; g < t.column.length; g++)
-              f[t.column[g].index] = t.pivotDatas[g][n];
-          let m = [];
-          for (let g = 1; g < t.celldata.length; g++) {
-            let y = true;
-            for (let v in f) {
-              let k;
-              if (!!t.celldata[g][v] && !!t.celldata[g][v].m ? k = t.celldata[g][v].m : k = Oe(g, v, t.celldata), k != null ? k = k.toString() : k = s.valueBlank, k != f[v]) {
-                y = false;
-                break;
-              }
-            }
-            y && m.push(g);
+          let gr2 = Math.max(store.defaultrowNum || 84, out.length + 20), gc = Math.max(store.defaultcolumnNum || 60, width2 + 10), grid = new Array(gr2);
+          for (let i2 = 0; i2 < gr2; i2++) {
+            grid[i2] = new Array(gc).fill(null);
+            if (i2 < out.length)
+              for (let k = 0; k < width2; k++)
+                grid[i2][k] = out[i2][k] === void 0 ? null : out[i2][k];
           }
-          for (let g = 0; g < m.length; g++)
-            for (let y = 0; y < t.celldata[0].length; y++) {
-              let v;
-              !!t.celldata[m[g]][y] && !!t.celldata[m[g]][y].m ? v = t.celldata[m[g]][y].m : v = Oe(m[g], y, t.celldata), v != null ? v = v.toString() : v = "", a[g + 1][y] = v;
-            }
-          store.luckysheet_select_save = [{
-            row: [0, m.length],
-            column: [0, t.celldata[0].length - 1]
-          }], store.clearjfundo = false, refreshGrid(a, store.luckysheet_select_save), showSelectionHighlight(), store.clearjfundo = true;
+          let range2 = [{
+            row: [0, Math.max(0, out.length - 1)],
+            column: [0, Math.max(0, width2 - 1)]
+          }], prev = store.clearjfundo;
+          store.clearjfundo = false;
+          try {
+            refreshGridAll(gc, gr2, grid, null, range2, "datachangeAll");
+          } finally {
+            store.clearjfundo = prev;
+          }
+          showSelectionHighlight();
         }
       }, Be = gf;
     }
@@ -56986,10 +57303,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 return Math.max(3, Math.round(px / 7));
               }, normalizeFormula = function(formula2, sheetNames2) {
                 if (!formula2) return formula2;
-                sheetNames2.forEach((name2) => {
-                  if (/\s/.test(name2) && formula2.includes(name2 + "!")) {
-                    const re = new RegExp(name2.replace(/[-\/\\^$*+?.()|[\]{ }]/g, "\\$&") + "!", "g");
-                    formula2 = formula2.replace(re, `'${name2}'!`);
+                sheetNames2.forEach((name) => {
+                  if (/\s/.test(name) && formula2.includes(name + "!")) {
+                    const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, "\\$&") + "!", "g");
+                    formula2 = formula2.replace(re, `'${name}'!`);
                   }
                 });
                 return formula2;
@@ -57160,10 +57477,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 return Math.max(3, Math.round(px / 7));
               }, normalizeFormula = function(formula2, sheetNames2) {
                 if (!formula2) return formula2;
-                sheetNames2.forEach((name2) => {
-                  if (/\s/.test(name2) && formula2.includes(name2 + "!")) {
-                    const re = new RegExp(name2.replace(/[-\/\\^$*+?.()|[\]{ }]/g, "\\$&") + "!", "g");
-                    formula2 = formula2.replace(re, `'${name2}'!`);
+                sheetNames2.forEach((name) => {
+                  if (/\s/.test(name) && formula2.includes(name + "!")) {
+                    const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, "\\$&") + "!", "g");
+                    formula2 = formula2.replace(re, `'${name}'!`);
                   }
                 });
                 return formula2;
@@ -57371,10 +57688,10 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 return Math.max(3, Math.round(px / 7));
               }, normalizeFormula = function(formula2, sheetNames2) {
                 if (!formula2) return formula2;
-                sheetNames2.forEach((name2) => {
-                  if (/\s/.test(name2) && formula2.includes(name2 + "!")) {
-                    const re = new RegExp(name2.replace(/[-\/\\^$*+?.()|[\]{ }]/g, "\\$&") + "!", "g");
-                    formula2 = formula2.replace(re, `'${name2}'!`);
+                sheetNames2.forEach((name) => {
+                  if (/\s/.test(name) && formula2.includes(name + "!")) {
+                    const re = new RegExp(name.replace(/[-\/\\^$*+?.()|[\]{ }]/g, "\\$&") + "!", "g");
+                    formula2 = formula2.replace(re, `'${name}'!`);
                   }
                 });
                 return formula2;
@@ -62649,13 +62966,13 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     }, // Derived per-range structures (e.g. value -> row hash for exact lookups).
     // Returns null when rangeObj is not a pass-cached range, so callers fall back
     // to their normal scan. Dropped automatically when the range is patched.
-    p._passDerived = function(rangeObj, name2, build) {
+    p._passDerived = function(rangeObj, name, build) {
       const pc2 = this._passRangeCache;
       if (!pc2 || !pc2.byData || rangeObj == null) return null;
       const en = pc2.byData.get(rangeObj.data);
       if (!en) return null;
       const d = en.derived || (en.derived = {});
-      return d[name2] || (d[name2] = build(en));
+      return d[name] || (d[name] = build(en));
     }, // Flat value list of a pass-cached range (same output as getRangeArray(data)[0]),
     // computed once per pass. Returns null if `data` is not a pass-cached range.
     // The returned array is shared: callers must not modify it.
@@ -62767,7 +63084,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     // acompareb(values[i], lookup) is true, using a hash for plain equality lookups.
     // Returns the index, -1 for "no match", or undefined when the hash does not
     // apply (caller then scans). Same classification rules as _ifsCandidates.
-    p._firstEqualIndex = function(rangeObj, name2, values, lookup) {
+    p._firstEqualIndex = function(rangeObj, name, values, lookup) {
       let kind = null, key = null;
       if ((typeof lookup === "number" || typeof lookup === "string") && isRealNumber(lookup)) {
         key = parseFloat(lookup);
@@ -62777,7 +63094,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         key = lookup;
       }
       if (!kind) return;
-      const idx = this._passDerived(rangeObj, name2, function() {
+      const idx = this._passDerived(rangeObj, name, function() {
         const num = /* @__PURE__ */ new Map(), str = /* @__PURE__ */ new Map(), odd = [];
         for (let i2 = 0; i2 < values.length; i2++) {
           const f = values[i2];
@@ -62874,8 +63191,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         const value = _cells ? _cells.find((x) => x.r == row && x.c == col)?.v?.v : void 0;
         return `"'${value != null ? value : ""}'`;
       });
-    }, p._parseCall = function(name2, text) {
-      const re = new RegExp(`${name2}\\s*\\(`, "i");
+    }, p._parseCall = function(name, text) {
+      const re = new RegExp(`${name}\\s*\\(`, "i");
       const m = text.match(re);
       if (!m) return null;
       let i2 = m.index + m[0].length, depth = 1, cur = "", args = [];
@@ -62898,13 +63215,13 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           cur += ch;
         }
       }
-      return { name: name2, args, start: m.index, end: i2 };
-    }, p._parseAllCalls = function(name2, text) {
+      return { name, args, start: m.index, end: i2 };
+    }, p._parseAllCalls = function(name, text) {
       const res = [];
       let offset = 0;
       while (offset < text.length) {
         const slice = text.slice(offset);
-        const call = p._parseCall(name2, slice);
+        const call = p._parseCall(name, slice);
         if (!call) break;
         call.start += offset;
         call.end += offset;
@@ -62953,7 +63270,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           for (let _i2 = 0; _i2 < p._DEP_CALL_NAMES.length; _i2++) calls[p._DEP_CALL_NAMES[_i2]] = [];
           coveredUntil = {};
         }
-        const name2 = m[1].toUpperCase();
+        const name = m[1].toUpperCase();
         const start = m.index;
         const argStart = re.lastIndex;
         let i2 = argStart, depth = 1, cur = "", args = [];
@@ -62981,13 +63298,13 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           }
         }
         const end = i2;
-        if (start < (coveredUntil[name2] || 0)) {
+        if (start < (coveredUntil[name] || 0)) {
           re.lastIndex = argStart;
           continue;
         }
-        coveredUntil[name2] = end;
-        if (!calls[name2]) calls[name2] = [];
-        calls[name2].push({ name: name2, args, start, end });
+        coveredUntil[name] = end;
+        if (!calls[name]) calls[name] = [];
+        calls[name].push({ name, args, start, end });
         re.lastIndex = argStart;
       }
       if (calls && calls.INDIRECT) {
@@ -63444,9 +63761,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
         let targetIndex = sheetIndex;
         const txt = (ref || "").trim();
         if (txt.indexOf("!") > -1) {
-          let name2 = txt.split("!")[0].replace(/\\'/g, "'").replace(/''/g, "'");
-          if (name2.substr(0, 1) === "'" && name2.substr(name2.length - 1, 1) === "'") name2 = name2.substring(1, name2.length - 1);
-          const sh = (getAllSheets() || []).find((s) => s.name === name2);
+          let name = txt.split("!")[0].replace(/\\'/g, "'").replace(/''/g, "'");
+          if (name.substr(0, 1) === "'" && name.substr(name.length - 1, 1) === "'") name = name.substring(1, name.length - 1);
+          const sh = (getAllSheets() || []).find((s) => s.name === name);
           if (!sh) return;
           targetIndex = sh.index;
         }
@@ -64640,9 +64957,9 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           let _target = sheetIndex;
           let txt = _raw;
           if (_raw.indexOf("!") > -1) {
-            let name2 = _raw.split("!")[0].replace(/\\'/g, "'").replace(/''/g, "'");
-            if (name2.substr(0, 1) === "'" && name2.substr(name2.length - 1, 1) === "'") name2 = name2.substring(1, name2.length - 1);
-            const sh = (getAllSheets() || []).find((s) => s.name === name2);
+            let name = _raw.split("!")[0].replace(/\\'/g, "'").replace(/''/g, "'");
+            if (name.substr(0, 1) === "'" && name.substr(name.length - 1, 1) === "'") name = name.substring(1, name.length - 1);
+            const sh = (getAllSheets() || []).find((s) => s.name === name);
             if (sh) {
               _target = sh.index;
               txt = _raw.substring(_raw.indexOf("!") + 1).trim();
@@ -67085,8 +67402,8 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
               return `"'${value}'`;
             });
           }
-          function parseCall(name2, text) {
-            const re = new RegExp(`${name2}\\s*\\(`, "i");
+          function parseCall(name, text) {
+            const re = new RegExp(`${name}\\s*\\(`, "i");
             const m = text.match(re);
             if (!m) return null;
             let i2 = m.index + m[0].length, depth = 1, cur = "", args = [];
@@ -67109,14 +67426,14 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
                 cur += ch;
               }
             }
-            return { name: name2, args, start: m.index, end: i2 };
+            return { name, args, start: m.index, end: i2 };
           }
-          function parseAllCalls(name2, text) {
+          function parseAllCalls(name, text) {
             const res = [];
             let offset = 0;
             while (offset < text.length) {
               const slice = text.slice(offset);
-              const call = parseCall(name2, slice);
+              const call = parseCall(name, slice);
               if (!call) break;
               call.start += offset;
               call.end += offset;
@@ -67598,15 +67915,15 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
           const sheetIndex = currentSheet.index;
           const sheetRefRegexCache = lsState.sheetRefRegex || (lsState.sheetRefRegex = /* @__PURE__ */ new Map());
           const compiledFormulaCache = lsState.compiledFormulas || (lsState.compiledFormulas = /* @__PURE__ */ new Map());
-          function getSheetRefPattern(name2) {
-            let cached = sheetRefRegexCache.get(name2);
+          function getSheetRefPattern(name) {
+            let cached = sheetRefRegexCache.get(name);
             if (cached) return cached;
-            const quotedName = name2.replace(/'/g, "''");
+            const quotedName = name.replace(/'/g, "''");
             const esc = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const unquoted = esc(name2);
+            const unquoted = esc(name);
             const quoted = `'${esc(quotedName)}'`;
             const pattern = new RegExp(String.raw`(^|[^\p{L}\p{N}_.'])(?:(?:\[[^\]]+\])\s*)?(?:${quoted}|${unquoted})!`, "gu");
-            sheetRefRegexCache.set(name2, pattern);
+            sheetRefRegexCache.set(name, pattern);
             return pattern;
           }
           if (e.indexOf(s.error.r) > -1) return [false, s.error.r, e];
@@ -68549,11 +68866,11 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
     const allSheets = getAllSheets() || [];
     let sheetChanged = false;
     const referenceRegex = /(?:'((?:[^']|'')+)'|([A-Za-z0-9_]+))!\s*(((?:\$?[A-Z]{1,3}\$?\d+)(?::\$?[A-Z]{1,3}\$?\d+)?|(?:\$?[A-Z]{1,3})(?::\$?[A-Z]{1,3})|(?:\$?\d+)(?::\$?\d+)))/g;
-    function escapeSheetNameForQuote(name2) {
-      return name2.replace(/'/g, "''");
+    function escapeSheetNameForQuote(name) {
+      return name.replace(/'/g, "''");
     }
-    function formatSheetName(name2) {
-      return `'${escapeSheetNameForQuote(name2)}'`;
+    function formatSheetName(name) {
+      return `'${escapeSheetNameForQuote(name)}'`;
     }
     function renameInFormula2(formula2) {
       if (!formula2 || typeof formula2 !== "string") return formula2;
@@ -69058,7 +69375,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       return s;
     };
     const unq = (s) => s.charAt(0) == "'" ? s.slice(1, -1).replace(/''/g, "'") : s;
-    const qual = (name2) => /^[A-Za-z_][A-Za-z0-9_.]*$/.test(name2) && !/^[A-Za-z]{1,3}\d+$/.test(name2) ? name2 + "!" : "'" + name2.replace(/'/g, "''") + "'!";
+    const qual = (name) => /^[A-Za-z_][A-Za-z0-9_.]*$/.test(name) && !/^[A-Za-z]{1,3}\d+$/.test(name) ? name + "!" : "'" + name.replace(/'/g, "''") + "'!";
     const inside = (r2, c2) => r2 >= r0 && r2 <= r1 && c2 >= c0 && c2 <= c12;
     let out = "", changed = false, i2 = 0;
     const re = /((?:'(?:[^']|'')+'|[A-Za-z0-9_.]+)!)?(\$?)([A-Z]{1,3})(\$?)(\d+)(?::(\$?)([A-Z]{1,3})(\$?)(\d+))?/y;
@@ -71818,23 +72135,7 @@ field可以是與database第一行中某個列標題對應的文字標籤,也可
       freeze.freezenverticaldata != null && y[0] < freeze.freezenverticaldata[0] - freeze.freezenverticaldata[2] && (b = y[0] + freeze.freezenverticaldata[2]), freeze.freezenhorizontaldata != null && y[1] < freeze.freezenhorizontaldata[0] - freeze.freezenhorizontaldata[2] && (w = y[1] + freeze.freezenhorizontaldata[2]);
       let x = wt(w), C = x[2], S = kt(b), _ = S[2], T = be.mergeborer(store.flowdata, C, _);
       if (T && (C = T.row[2], _ = T.column[2]), Be.isPivotRange(C, _)) {
-        if ((Be.filter == null || Be.filter.length == 0) && (Be.row == null || Be.row.length == 0) && (Be.column == null || Be.column.length == 0) && (Be.values == null || Be.values.length == 0) || Be.values == null || Be.values.length == 0 || C == 0 || _ == 0)
-          return;
-        if (Be.column != null && Be.column.length > 0) {
-          if (Be.values.length >= 2 && Be.showType == "column") {
-            if (C <= Be.column.length || _ >= Be.pivotDatas[0].length - Be.values.length)
-              return;
-          } else if (C <= Be.column.length - 1 || _ >= Be.pivotDatas[0].length - 1)
-            return;
-        }
-        if (Be.row != null && Be.row.length > 0) {
-          if (Be.values.length >= 2 && Be.showType == "row") {
-            if (_ <= Be.row.length || C >= Be.pivotDatas.length - Be.values.length)
-              return;
-          } else if (_ <= Be.row.length - 1 || C >= Be.pivotDatas.length - 1)
-            return;
-        }
-        sheetManage.addNewSheet(g), Be.drillDown(C, _);
+        Be.canDrillDown(C, _) && It(store.currentSheetIndex, "usePivotTablereports") && (sheetManage.addNewSheet(g), Be.drillDown(C, _));
         return;
       }
       if ($("#luckysheet-search-formula-parm").is(":visible") || $("#luckysheet-search-formula-parm-select").is(":visible"))
