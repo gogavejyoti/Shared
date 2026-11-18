@@ -1,0 +1,160 @@
+Fix — Row/column insert/delete stale formula values
+Location: refreshAfterRowColChange — block at line 48706.
+Problem
+After inserting a row, formulas are correctly shifted, but recalculation used the saved calcChain order.
+For the v4 workbook:
+- E11 formula: =(E7*E94)/((1-E123)*(1-E128)*E106*E109*E110*60)
+- After inserting row 50: =(E7*E95)/((1-E124)*(1-E129)*E107*E110*E111*60)
+- E11 calcChain position: 505
+- E95 calcChain position: 5751
+So E11 was evaluated before its shifted dependency E95, leaving stale value 96.34471072379567 instead of 0.
+Original logic was effectively:
+formula.execFunctionExist = a;
+formula._passRangeCacheBegin();
+try {
+  for (let x = 0; x < a.length; x++) {
+    const C = a[x];
+    // read shifted formula and call formula.execfunction(...)
+  }
+} finally {
+  formula._passRangeCacheEnd();
+}
+formula.execFunctionGroup(null, null, null, null);
+formula.execFunctionExist = null;
+formula.groupValuesRefresh();
+Changed code
+if (a.length > 0) {
+  let evalList = a;
+
+  try {
+    if (
+      formula._dependencyIndexEnabled &&
+      formula._dependencyIndexEnabled() &&
+      formula._dependencyGet &&
+      formula._dependencyTryBuildGraph
+    ) {
+      const execSet = {};
+
+      for (const C of a) {
+        const A0 = getCellFormula(C.r, C.c, C.index, e);
+        if (
+          typeof A0 == "string" &&
+          e[C.r] != null &&
+          e[C.r][C.c] != null
+        ) {
+          execSet["r" + C.r + "c" + C.c + "i" + C.index] = 1;
+        }
+      }
+
+      if (Object.keys(execSet).length > 0 && formula._dependencyGet()) {
+        const graph = formula._dependencyTryBuildGraph(execSet, {
+          recomputeAllOnEmpty: false,
+          lean: true
+        });
+
+        if (
+          graph &&
+          graph.nodes &&
+          graph.impacted &&
+          graph.impacted.size > 0 &&
+          graph.parentKeysOf
+        ) {
+          const keyToCell = {};
+          for (const C of a) {
+            keyToCell["r" + C.r + "c" + C.c + "i" + C.index] = C;
+          }
+
+          const ordered = [];
+          const seen = {};
+          const onStack = {};
+
+          const visit = (root) => {
+            if (seen[root] || onStack[root] || !graph.nodes[root]) return;
+
+            const stack = [{
+              k: root,
+              parents: graph.parentKeysOf(root),
+              i: 0
+            }];
+            onStack[root] = 1;
+
+            while (stack.length > 0) {
+              const fr = stack[stack.length - 1];
+
+              if (fr.i < fr.parents.length) {
+                const pk = fr.parents[fr.i++];
+
+                if (seen[pk] || onStack[pk] || !graph.nodes[pk]) continue;
+
+                onStack[pk] = 1;
+                stack.push({
+                  k: pk,
+                  parents: graph.parentKeysOf(pk),
+                  i: 0
+                });
+              } else {
+                seen[fr.k] = 1;
+                if (keyToCell[fr.k]) ordered.push(keyToCell[fr.k]);
+                delete onStack[fr.k];
+                stack.pop();
+              }
+            }
+          };
+
+          for (const k of graph.impacted) visit(k);
+
+          for (const C of a) {
+            const k = "r" + C.r + "c" + C.c + "i" + C.index;
+            if (!seen[k]) ordered.push(C);
+          }
+
+          evalList = ordered;
+        }
+      }
+    }
+  } catch (err) {
+    evalList = a;
+  }
+
+  formula._passRangeCacheBegin();
+  try {
+    for (let x = 0; x < evalList.length; x++) {
+      const C = evalList[x];
+      // existing per-cell evaluation unchanged
+    }
+  } finally {
+    formula._passRangeCacheEnd();
+  }
+}
+Step-by-step explanation
+ 1. Start with the original list  
+evalList = a means behavior is unchanged if ordering cannot be computed.
+ 2. Check dependency index support  
+The new ordering only runs when _dependencyTryBuildGraph and _dependencyIndexEnabled() are available.
+ 3. Build execSet from calcChain cells  
+Only cells that actually contain formulas are passed into the dependency graph; blank cells are skipped.
+ 4. Build a lean dependency graph  
+recomputeAllOnEmpty: false prevents a full-sheet fallback; lean: true avoids heavy group payload generation.
+ 5. Map graph keys back to cell objects  
+keyToCell converts "r{r}c{c}i{sheetIndex}" keys back into the {r, c, index} objects used by the existing recalc loop.
+ 6. Topologically order impacted cells  
+visit(root) walks graph.parentKeysOf(root) first, so dependencies are pushed into ordered before their dependents. That is what fixes E95 being evaluated before E11.
+ 7. Use an iterative stack, not recursion  
+Large workbooks can have long dependency chains; the stack avoids call-stack overflow. onStack prevents cycles from looping forever.
+ 8. Append non-indexed cells  
+Any calcChain cell not present in the graph is appended in original order, so no formula is dropped.
+ 9. Fallback on error  
+catch restores evalList = a, so the change cannot break the path if graph APIs behave unexpectedly.
+10. Existing evaluation body untouched  
+   Only iteration order changed; formula parsing and formula.execfunction(...) logic are unchanged.
+Result
+- Before fix: E11.v = 96.34471072379567 after row insert.
+- After fix: E11.v = 0, matching a later edit-triggered recalculation.
+- Row insert time: ~1.76 s → ~2.43 s on the 14k-formula workbook; acceptable for correctness.
+Verification done
+- node --check lib\luckysheet\js\luckysheet.umd.js — passed.
+- regression.html?mode=opt — unchanged: 68 checks, same 9 pre-existing failures.
+- regression.html?mode=base — unchanged: 68 checks, 0 failures.
+- rowops.html — 50/50 assertions pass; previous redo crash gone.
+- xsheet_struct_probe.html — insert/delete/undo/redo no longer leave stale #REF! values after undo.
+- Only tracked file modified: lib/luckysheet/js/luckysheet.umd.js; index.html is gitignored but cache-buster was bumped.
