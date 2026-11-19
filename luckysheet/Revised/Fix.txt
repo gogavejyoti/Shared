@@ -1,160 +1,531 @@
-Fix — Row/column insert/delete stale formula values
-Location: refreshAfterRowColChange — block at line 48706.
-Problem
-After inserting a row, formulas are correctly shifted, but recalculation used the saved calcChain order.
-For the v4 workbook:
-- E11 formula: =(E7*E94)/((1-E123)*(1-E128)*E106*E109*E110*60)
-- After inserting row 50: =(E7*E95)/((1-E124)*(1-E129)*E107*E110*E111*60)
-- E11 calcChain position: 505
-- E95 calcChain position: 5751
-So E11 was evaluated before its shifted dependency E95, leaving stale value 96.34471072379567 instead of 0.
-Original logic was effectively:
-formula.execFunctionExist = a;
-formula._passRangeCacheBegin();
-try {
-  for (let x = 0; x < a.length; x++) {
-    const C = a[x];
-    // read shifted formula and call formula.execfunction(...)
-  }
-} finally {
-  formula._passRangeCacheEnd();
-}
-formula.execFunctionGroup(null, null, null, null);
-formula.execFunctionExist = null;
-formula.groupValuesRefresh();
-Changed code
-if (a.length > 0) {
-  let evalList = a;
+# Feature Development: Excel-Like Multi-Level Row and Column Grouping in Luckysheet
 
-  try {
-    if (
-      formula._dependencyIndexEnabled &&
-      formula._dependencyIndexEnabled() &&
-      formula._dependencyGet &&
-      formula._dependencyTryBuildGraph
-    ) {
-      const execSet = {};
+## 1. Objective
 
-      for (const C of a) {
-        const A0 = getCellFormula(C.r, C.c, C.index, e);
-        if (
-          typeof A0 == "string" &&
-          e[C.r] != null &&
-          e[C.r][C.c] != null
-        ) {
-          execSet["r" + C.r + "c" + C.c + "i" + C.index] = 1;
-        }
-      }
+Implement an advanced Row and Column Grouping functionality in the existing Luckysheet-based spreadsheet application, similar to Microsoft Excel's Outline and Grouping functionality.
 
-      if (Object.keys(execSet).length > 0 && formula._dependencyGet()) {
-        const graph = formula._dependencyTryBuildGraph(execSet, {
-          recomputeAllOnEmpty: false,
-          lean: true
-        });
+The implementation must support:
+- Multi-level row grouping.
+- Multi-level column grouping.
+- Nested row and column groups.
+- Expand and collapse functionality.
+- Excel-style outline levels.
+- Dynamic grouping and ungrouping.
+- Preservation of existing spreadsheet data, formulas, formatting, and other Luckysheet features.
 
-        if (
-          graph &&
-          graph.nodes &&
-          graph.impacted &&
-          graph.impacted.size > 0 &&
-          graph.parentKeysOf
-        ) {
-          const keyToCell = {};
-          for (const C of a) {
-            keyToCell["r" + C.r + "c" + C.c + "i" + C.index] = C;
-          }
+The objective is to provide an Excel-like user experience without breaking the existing Luckysheet functionality.
 
-          const ordered = [];
-          const seen = {};
-          const onStack = {};
+## 2. First Step: Understand the Existing Architecture
 
-          const visit = (root) => {
-            if (seen[root] || onStack[root] || !graph.nodes[root]) return;
+Before writing any code, thoroughly analyze the existing application.
 
-            const stack = [{
-              k: root,
-              parents: graph.parentKeysOf(root),
-              i: 0
-            }];
-            onStack[root] = 1;
+Understand the following:
 
-            while (stack.length > 0) {
-              const fr = stack[stack.length - 1];
+1. Existing Luckysheet version and source structure.
+2. How Luckysheet is initialized and configured.
+3. How rows and columns are internally represented.
+4. How row heights and column widths are maintained.
+5. How hidden rows and columns are handled.
+6. How sheet data, formulas, and formatting are stored.
+7. How scrolling and frozen panes work.
+8. How toolbar actions and context menus are implemented.
+9. How spreadsheet state is saved and restored.
+10. How existing custom plugins and extensions interact with Luckysheet.
 
-              if (fr.i < fr.parents.length) {
-                const pk = fr.parents[fr.i++];
+Identify the appropriate integration points before implementation.
 
-                if (seen[pk] || onStack[pk] || !graph.nodes[pk]) continue;
+**Important:** Do not immediately start modifying the Luckysheet core. First evaluate whether the functionality can be implemented through existing APIs or a separate extension/plugin architecture.
 
-                onStack[pk] = 1;
-                stack.push({
-                  k: pk,
-                  parents: graph.parentKeysOf(pk),
-                  i: 0
-                });
-              } else {
-                seen[fr.k] = 1;
-                if (keyToCell[fr.k]) ordered.push(keyToCell[fr.k]);
-                delete onStack[fr.k];
-                stack.pop();
-              }
-            }
-          };
+## 3. Row Grouping Functionality
 
-          for (const k of graph.impacted) visit(k);
+Implement row grouping similar to Microsoft Excel.
 
-          for (const C of a) {
-            const k = "r" + C.r + "c" + C.c + "i" + C.index;
-            if (!seen[k]) ordered.push(C);
-          }
+### 3.1 Basic Row Grouping
 
-          evalList = ordered;
-        }
-      }
+Users should be able to:
+
+- Select one or multiple consecutive rows.
+- Right-click and select Group Rows.
+- Use a toolbar grouping option.
+- Collapse the selected rows.
+- Expand the selected rows.
+
+Example:
+
+Before grouping:
+
+| Row | Employee | Department |
+|---|---|---|
+| 1 | John | IT |
+| 2 | David | IT |
+| 3 | Michael | IT |
+| 4 | Sarah | HR |
+| 5 | Peter | HR |
+
+After grouping rows 1–3:
+
+- Display an outline indicator.
+- Show a minus (-) button to collapse the group.
+- Clicking minus hides the grouped rows.
+- Show a plus (+) button to expand the group.
+
+### 3.2 Multi-Level Nested Row Grouping
+
+Support multiple levels of grouping, similar to Excel's outline levels.
+
+Example:
+
+Level 1: Department
+
+- IT
+  - Level 2: Team A
+    - Employee 1
+    - Employee 2
+  - Level 2: Team B
+    - Employee 3
+    - Employee 4
+- HR
+  - Level 2: Recruitment
+    - Employee 5
+    - Employee 6
+
+Expected behavior:
+
+- Users can independently expand and collapse each nested group.
+- Collapsing a parent group must hide all its child groups.
+- Expanding a parent group must respect the previous collapsed state of child groups.
+- Expanding or collapsing a child must not affect unrelated groups.
+- Support at least 8 outline levels, subject to the existing architecture.
+
+### 3.3 Row Grouping Controls
+
+Implement Excel-like controls:
+
+- Plus (+): Expand group.
+- Minus (-): Collapse group.
+- Outline level buttons: 1, 2, 3, etc.
+- Level 1 displays only the highest-level summary.
+- Higher levels progressively reveal nested details.
+- A button to expand all groups.
+- A button to collapse all groups.
+
+Position the outline controls along the left row-header area, similar to Excel.
+
+## 4. Column Grouping Functionality
+
+Implement equivalent functionality for columns.
+
+### 4.1 Basic Column Grouping
+
+Users should be able to:
+
+- Select consecutive columns.
+- Group selected columns.
+- Ungroup selected columns.
+- Expand and collapse grouped columns.
+
+Display Excel-like outline indicators above the column headers.
+
+### 4.2 Multi-Level Nested Column Grouping
+
+Example:
+
+| Employee Details | | | Performance | | |
+|---|---|---|---|---|---|
+| Name | Department | Designation | Q1 | Q2 | Q3 |
+
+Possible grouping:
+
+- Level 1: Employee Details
+  - Level 2: Personal Information
+  - Level 2: Employment Information
+- Level 1: Performance
+  - Level 2: Quarterly Results
+
+Expected behavior:
+
+- Nested column groups.
+- Independent expand/collapse.
+- Multiple outline levels.
+- Correct column positioning after collapsing.
+- Maintain column widths and formatting.
+
+## 5. Grouping and Ungrouping Operations
+
+Implement the following operations:
+
+### Group
+- Create a group from selected rows or columns.
+- Support nested grouping.
+- Validate overlapping or conflicting group definitions.
+- Automatically determine the correct outline level.
+
+### Ungroup
+- Remove the selected group's definition.
+- Preserve the underlying row and column data.
+- Avoid accidentally removing parent or child groups.
+- Support ungrouping individual nested levels.
+
+### Clear Outline
+- Remove all grouping definitions.
+- Restore all hidden rows and columns associated with grouping.
+- Preserve manually hidden rows and columns.
+
+## 6. Expand and Collapse Behavior
+
+This is one of the most important parts of the implementation.
+
+Implement a reliable state-management mechanism.
+
+Each group should maintain:
+
+- Unique group ID.
+- Group type (row or column).
+- Start index.
+- End index.
+- Outline level.
+- Parent group ID.
+- Child group IDs.
+- Expanded/collapsed state.
+- Summary position.
+- Creation metadata.
+
+Example conceptual structure:
+
+```javascript
+{
+  groups: [
+    {
+      id: "row-group-1",
+      type: "row",
+      start: 2,
+      end: 10,
+      level: 1,
+      parentId: null,
+      collapsed: false,
+      children: ["row-group-2"]
+    },
+    {
+      id: "row-group-2",
+      type: "row",
+      start: 4,
+      end: 7,
+      level: 2,
+      parentId: "row-group-1",
+      collapsed: false,
+      children: []
     }
-  } catch (err) {
-    evalList = a;
-  }
-
-  formula._passRangeCacheBegin();
-  try {
-    for (let x = 0; x < evalList.length; x++) {
-      const C = evalList[x];
-      // existing per-cell evaluation unchanged
-    }
-  } finally {
-    formula._passRangeCacheEnd();
-  }
+  ]
 }
-Step-by-step explanation
- 1. Start with the original list  
-evalList = a means behavior is unchanged if ordering cannot be computed.
- 2. Check dependency index support  
-The new ordering only runs when _dependencyTryBuildGraph and _dependencyIndexEnabled() are available.
- 3. Build execSet from calcChain cells  
-Only cells that actually contain formulas are passed into the dependency graph; blank cells are skipped.
- 4. Build a lean dependency graph  
-recomputeAllOnEmpty: false prevents a full-sheet fallback; lean: true avoids heavy group payload generation.
- 5. Map graph keys back to cell objects  
-keyToCell converts "r{r}c{c}i{sheetIndex}" keys back into the {r, c, index} objects used by the existing recalc loop.
- 6. Topologically order impacted cells  
-visit(root) walks graph.parentKeysOf(root) first, so dependencies are pushed into ordered before their dependents. That is what fixes E95 being evaluated before E11.
- 7. Use an iterative stack, not recursion  
-Large workbooks can have long dependency chains; the stack avoids call-stack overflow. onStack prevents cycles from looping forever.
- 8. Append non-indexed cells  
-Any calcChain cell not present in the graph is appended in original order, so no formula is dropped.
- 9. Fallback on error  
-catch restores evalList = a, so the change cannot break the path if graph APIs behave unexpectedly.
-10. Existing evaluation body untouched  
-   Only iteration order changed; formula parsing and formula.execfunction(...) logic are unchanged.
-Result
-- Before fix: E11.v = 96.34471072379567 after row insert.
-- After fix: E11.v = 0, matching a later edit-triggered recalculation.
-- Row insert time: ~1.76 s → ~2.43 s on the 14k-formula workbook; acceptable for correctness.
-Verification done
-- node --check lib\luckysheet\js\luckysheet.umd.js — passed.
-- regression.html?mode=opt — unchanged: 68 checks, same 9 pre-existing failures.
-- regression.html?mode=base — unchanged: 68 checks, 0 failures.
-- rowops.html — 50/50 assertions pass; previous redo crash gone.
-- xsheet_struct_probe.html — insert/delete/undo/redo no longer leave stale #REF! values after undo.
-- Only tracked file modified: lib/luckysheet/js/luckysheet.umd.js; index.html is gitignored but cache-buster was bumped.
+```
+
+This is a conceptual example. Design the final data model based on the existing Luckysheet architecture.
+
+## 7. UI/UX Requirements
+
+The UI must closely resemble Microsoft Excel's grouping experience.
+
+### Row Grouping UI
+- Outline controls on the left side of row headers.
+- Plus/minus indicators.
+- Level selection buttons.
+- Clear visual distinction between grouped and ungrouped rows.
+
+### Column Grouping UI
+- Outline controls above column headers.
+- Plus/minus indicators.
+- Nested outline levels.
+- Correct alignment when horizontal scrolling.
+
+### Context Menu
+
+Add the following options:
+
+- Group Rows
+- Ungroup Rows
+- Group Columns
+- Ungroup Columns
+- Expand Group
+- Collapse Group
+- Expand All
+- Collapse All
+- Clear Outline
+
+Enable or disable options based on the current selection.
+
+### Toolbar
+
+Add a dedicated Outline/Grouping section with:
+
+- Group
+- Ungroup
+- Expand All
+- Collapse All
+- Clear Outline
+
+Follow the existing application's design system and toolbar conventions.
+
+## 8. Technical Implementation Requirements
+
+### 8.1 Architecture
+
+Prefer a modular implementation.
+
+Suggested modules:
+
+```text
+luckysheet/
+  plugins/
+    grouping/
+      groupingManager.js
+      rowGrouping.js
+      columnGrouping.js
+      groupingRenderer.js
+      groupingEvents.js
+      groupingState.js
+      groupingUtils.js
+      groupingPersistence.js
+```
+
+Adjust the structure based on the existing application.
+
+Responsibilities:
+
+- `groupingManager.js`: Central grouping controller.
+- `rowGrouping.js`: Row-specific grouping operations.
+- `columnGrouping.js`: Column-specific grouping operations.
+- `groupingRenderer.js`: Render outline indicators and controls.
+- `groupingEvents.js`: Handle expand/collapse and user interactions.
+- `groupingState.js`: Maintain grouping state.
+- `groupingUtils.js`: Group validation and hierarchy calculations.
+- `groupingPersistence.js`: Save and restore grouping definitions.
+
+### 8.2 Rendering
+
+Ensure:
+
+- Outline indicators render correctly.
+- No unnecessary full-sheet re-rendering.
+- Expand/collapse operations are efficient.
+- Row heights and column widths remain unchanged.
+- Scroll position is maintained.
+- Frozen rows and columns work correctly.
+- Indicators remain aligned during scrolling.
+- No flickering during expand/collapse.
+
+### 8.3 Data Integrity
+
+Grouping must never:
+
+- Delete spreadsheet data.
+- Modify cell values.
+- Change formulas.
+- Modify cell formatting.
+- Change merged-cell definitions.
+- Corrupt row heights or column widths.
+- Break filters, sorting, or other spreadsheet functionality.
+
+Use the existing hidden-row/hidden-column mechanisms where appropriate, but distinguish grouping-based visibility from manually hidden rows and columns.
+
+## 9. Dynamic Operations
+
+Grouping must remain correct when users:
+
+- Insert rows inside a group.
+- Delete rows inside a group.
+- Insert columns inside a group.
+- Delete columns inside a group.
+- Move or copy cells.
+- Sort data.
+- Apply filters.
+- Undo and redo operations.
+
+Update group indexes and hierarchy when structural changes occur.
+
+Avoid relying on static row or column indexes that become invalid after spreadsheet modifications.
+
+## 10. Persistence
+
+Grouping definitions must survive:
+
+- Spreadsheet save.
+- Spreadsheet reload.
+- Browser refresh.
+- Sheet switching.
+- Workbook reopening.
+
+Store grouping metadata separately from cell values where possible.
+
+Ensure backward compatibility with existing saved spreadsheets that do not contain grouping metadata.
+
+Do not modify the existing spreadsheet storage format unnecessarily.
+
+## 11. Performance Requirements
+
+The application may contain large spreadsheets with thousands of rows and hundreds of columns.
+
+Optimize the implementation for:
+
+- Large datasets.
+- Multiple nested groups.
+- Frequent expand/collapse operations.
+- Multiple worksheets.
+- Large numbers of grouping definitions.
+
+Avoid unnecessary recalculation and full-sheet rendering.
+
+Use efficient group lookup and visibility calculations.
+
+## 12. Undo and Redo
+
+Integrate grouping operations with the existing undo/redo mechanism.
+
+The following operations should be reversible:
+
+- Create group.
+- Remove group.
+- Expand group.
+- Collapse group.
+- Expand all.
+- Collapse all.
+- Clear outline.
+
+Undoing a grouping operation must restore the previous grouping state accurately.
+
+## 13. Testing and Validation
+
+Create a comprehensive test plan.
+
+### Functional Tests
+- Create a single row group.
+- Create multiple independent row groups.
+- Create nested row groups.
+- Collapse parent groups.
+- Expand parent groups.
+- Collapse child groups.
+- Create column groups.
+- Create nested column groups.
+- Ungroup individual levels.
+- Clear all groups.
+- Save and reload grouping state.
+
+### Integration Tests
+- Grouping with frozen rows.
+- Grouping with frozen columns.
+- Grouping with filters.
+- Grouping with sorting.
+- Grouping with merged cells.
+- Grouping with formulas.
+- Grouping with hidden rows.
+- Grouping with inserted/deleted rows.
+- Grouping with undo/redo.
+
+### Performance Tests
+- 10,000+ rows.
+- 500+ columns.
+- Multiple nested groups.
+- Large numbers of independent groups.
+- Repeated expand/collapse operations.
+
+Verify that there are no browser freezes, memory leaks, or significant rendering delays.
+
+## 14. Implementation Strategy
+
+Follow these phases sequentially.
+
+**Phase 1: Architecture Analysis**
+- Inspect the existing Luckysheet implementation.
+- Identify row/column visibility mechanisms.
+- Identify rendering and event integration points.
+- Document technical limitations.
+- Propose the implementation approach.
+
+**Phase 2: Data Model**
+- Design grouping metadata.
+- Define parent-child relationships.
+- Define outline levels.
+- Define visibility rules.
+- Validate nested and overlapping groups.
+
+**Phase 3: Row Grouping**
+- Implement basic row grouping.
+- Implement nested row grouping.
+- Implement expand/collapse.
+- Implement outline level controls.
+
+**Phase 4: Column Grouping**
+- Implement basic column grouping.
+- Implement nested column grouping.
+- Implement expand/collapse.
+- Implement outline level controls.
+
+**Phase 5: UI Integration**
+- Integrate toolbar actions.
+- Integrate context menu actions.
+- Render Excel-like outline indicators.
+- Ensure correct positioning during scrolling.
+
+**Phase 6: Persistence and History**
+- Implement save/load support.
+- Integrate undo/redo.
+- Handle workbook and worksheet switching.
+
+**Phase 7: Structural Changes**
+- Handle inserted/deleted rows and columns.
+- Handle sorting and filtering.
+- Validate interactions with existing spreadsheet features.
+
+**Phase 8: Testing and Optimization**
+- Run functional and regression tests.
+- Validate large datasets.
+- Fix rendering and state-management issues.
+- Verify backward compatibility.
+
+## 15. Important Development Rules
+
+1. Do not rewrite the existing Luckysheet engine.
+2. Do not replace Luckysheet with another spreadsheet library.
+3. Do not break existing functionality.
+4. Do not implement a visual-only grouping mechanism.
+5. Grouping must work with actual spreadsheet data and visibility.
+6. Do not use CSS display:none as the sole mechanism for hiding spreadsheet rows or columns.
+7. Maintain compatibility with existing Luckysheet APIs wherever possible.
+8. Keep the implementation modular and maintainable.
+9. Avoid unnecessary modifications to core source files.
+10. Do not remove existing custom plugins or application-specific functionality.
+
+If modifications to the Luckysheet core are unavoidable, explain why, identify the exact files and functions affected, and isolate the changes.
+
+## 16. Expected Deliverables
+
+Before completing the task, provide:
+
+1. Architecture analysis document.
+2. Proposed grouping data model.
+3. Implementation plan.
+4. Complete source code for all new modules.
+5. Modified existing files with clear explanations.
+6. UI integration.
+7. Persistence implementation.
+8. Undo/redo integration.
+9. Test cases and results.
+10. Integration instructions.
+11. Known limitations and future improvements.
+
+## 17. Final Acceptance Criteria
+
+The feature will be considered complete only when:
+
+- Users can group rows and columns independently.
+- Users can create multiple levels of nested groups.
+- Users can expand and collapse individual groups.
+- Users can expand and collapse all groups.
+- Excel-like outline level controls work.
+- Parent-child group relationships are maintained.
+- Grouping survives save and reload.
+- Undo/redo works correctly.
+- Existing spreadsheet features continue working.
+- Large datasets perform efficiently.
+- No existing application functionality is broken.
+
+**Final Instruction:** Work incrementally. First analyze the existing codebase and present the architecture findings and implementation plan. Do not start modifying files until the analysis is complete. After that, implement one phase at a time, test each phase, and provide a summary of changed files and test results before proceeding to the next phase.
